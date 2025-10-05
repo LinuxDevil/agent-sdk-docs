@@ -164,4 +164,4 @@ See **Flow**.
 
 **Last Updated**: January 2025 | **SDK Version**: 1.0.0-alpha.8
 
-*Missing a term? [Request an addition](https://github.com/tajwal/build-ai-agent/issues/new)*
+*Missing a term? [Request an addition](https://github.com/LinuxDevil/agent-sdk/issues/new)*

@@ -44,7 +44,7 @@ const config: Config = {
           // Please change this to your repo.
           // Remove this to remove the "edit this page" links.
           editUrl:
-            'https://github.com/tajwal/build-ai-agent/tree/main/docs/',
+            'https://github.com/LinuxDevil/agent-sdk/tree/main/docs/',
         },
         blog: false,  // Disable blog
         theme: {
@@ -80,7 +80,7 @@ const config: Config = {
           label: 'API',
         },
         {
-          href: 'https://github.com/tajwal/build-ai-agent',
+          href: 'https://github.com/LinuxDevil/agent-sdk',
           label: 'GitHub',
           position: 'right',
         },
@@ -112,37 +112,16 @@ const config: Config = {
           ],
         },
         {
-          title: 'Community',
-          items: [
-            {
-              label: 'Stack Overflow',
-              href: 'https://stackoverflow.com/questions/tagged/build-ai-agent',
-            },
-            {
-              label: 'Discord',
-              href: 'https://discord.gg/tajwal',
-            },
-            {
-              label: 'Twitter',
-              href: 'https://twitter.com/tajwal',
-            },
-          ],
-        },
-        {
           title: 'More',
           items: [
             {
               label: 'GitHub',
-              href: 'https://github.com/tajwal/build-ai-agent',
-            },
-            {
-              label: 'npm Package',
-              href: 'https://www.npmjs.com/package/@tajwal/build-ai-agent',
-            },
+              href: 'https://github.com/LinuxDevil/agent-sdk',
+            }
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} Tajwal. Built with Docusaurus.`,
+      copyright: `Copyright © ${new Date().getFullYear()} Almosafer.`,
     },
     prism: {
       theme: prismThemes.github,

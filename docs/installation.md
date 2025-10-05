@@ -150,6 +150,4 @@ WebStorm and IntelliJ IDEA have built-in TypeScript support. No additional plugi
 
 If you're having trouble with installation:
 
-- Check our [GitHub Issues](https://github.com/tajwal/build-ai-agent/issues)
-- Join our [Discord Community](https://discord.gg/tajwal)
-- Email us at [support@tajwal.com](mailto:support@tajwal.com)
+- Check our [GitHub Issues](https://github.com/LinuxDevil/agent-sdk/issues)

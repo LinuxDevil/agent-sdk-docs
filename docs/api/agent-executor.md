@@ -735,13 +735,8 @@ expect(events).toContainEqual(
 ## See Also
 
 - [AgentBuilder](./agent-builder) - Building agent configurations
-- LLMProvider - LLM provider interface
-- ToolRegistry - Tool management
-- Tutorial: Streaming Responses
-- Guide: Error Handling
 
 ---
 
-**Last Updated**: January 2025 | **SDK Version**: 1.0.0-alpha.8
-
-*Found an issue? [Report it](https://github.com/tajwal/build-ai-agent/issues/new)*
+**Last Updated**: January 2025 | **S
+*Found an issue? [Report it](https://github.com/LinuxDevil/agent-sdk/issues/new)*

@@ -34,13 +34,6 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
-      label: 'Tutorials',
-      items: [
-        'tutorials/building-chatbot',
-      ],
-    },
-    {
-      type: 'category',
       label: 'Examples',
       items: [
         'examples/chatbot',

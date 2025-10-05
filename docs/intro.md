@@ -62,14 +62,8 @@ console.log(result.response);
 
 Ready to build your first AI agent? Follow our [Installation Guide](./installation) to get started, or jump straight to the [Quick Start](./quick-start) tutorial.
 
-## Community & Support
-
-- 📖 [Documentation](https://docs.tajwal.com)
-- 💬 [Discord Community](https://discord.gg/tajwal)
-- 🐛 [GitHub Issues](https://github.com/tajwal/build-ai-agent/issues)
-- 📧 [Email Support](mailto:support@tajwal.com)
 
 ## License
 
-MIT © [Tajwal](https://tajwal.com)
+MIT © [Almosafer](https://almosafer.com)
 

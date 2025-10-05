@@ -771,10 +771,9 @@ builder.addTool('search', { tool: '' });           // ✗ Invalid
 - [AgentExecutor](./agent-executor) - Execute configured agents
 - Agent Types - Understanding agent types
 - [Tool Configuration](../concepts/tools) - Working with tools
-- [Tutorial: Building Your First Agent](../tutorials/building-chatbot)
 
 ---
 
 **Last Updated**: January 2025 | **SDK Version**: 1.0.0-alpha.8
 
-*Found an issue? [Report it](https://github.com/tajwal/build-ai-agent/issues/new)*
+*Found an issue? [Report it](https://github.com/LinuxDevil/agent-sdk/issues/new)*

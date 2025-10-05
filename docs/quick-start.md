@@ -323,6 +323,4 @@ Now that you've built your first agent, explore:
 
 ## Need Help?
 
-- 💬 Join our [Discord Community](https://discord.gg/tajwal)
-- 🐛 Report issues on [GitHub](https://github.com/tajwal/build-ai-agent/issues)
-- 📧 Email us at [support@tajwal.com](mailto:support@tajwal.com)
+- 🐛 Report issues on [GitHub](https://github.com/LinuxDevil/agent-sdk/issues)
