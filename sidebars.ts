@@ -30,6 +30,19 @@ const sidebars: SidebarsConfig = {
       items: [
         'concepts/agents',
         'concepts/tools',
+        'concepts/human-in-the-loop',
+        'concepts/delegation',
+        'concepts/guardrails-and-safety',
+        'concepts/observability',
+        'concepts/declarative-specs',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Guides',
+      items: [
+        'guides/cli',
+        'guides/deployment',
       ],
     },
     {
@@ -37,6 +50,7 @@ const sidebars: SidebarsConfig = {
       label: 'Examples',
       items: [
         'examples/chatbot',
+        'examples/gallery',
       ],
     },
     {
@@ -52,6 +66,7 @@ const sidebars: SidebarsConfig = {
     {
       type: 'category',
       label: 'Core API',
+      collapsed: false,
       items: [
         'api/agent-builder',
         'api/agent-executor',

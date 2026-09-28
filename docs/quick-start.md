@@ -4,322 +4,173 @@ sidebar_position: 3
 
 # Quick Start
 
-This guide will help you build your first AI agent in just a few minutes.
+This guide builds up from the simplest possible agent to the full `AgentBuilder` + `AgentExecutor` API and declarative spec files. Every snippet below mirrors the SDK's own [verified quick-start](https://github.com/LinuxDevil/agent-sdk/blob/main/docs/quick-start.md), whose code is executed for real against a packed build by the SDK's `scripts/verify-docs-snippets.ts` - so it's kept honest against the real API. All snippets run as-is with the built-in mock provider, no API key needed.
 
-## Your First Agent
+## 1. One-liner agent with `createAgent()`
 
-Let's create a simple chatbot that can answer questions.
+`createAgent()` is the zero-config entry point: a prompt and a provider in, a `{ send }` agent out.
 
-### Step 1: Import the SDK
+```typescript title="agent.ts"
+import { createAgent, createMockProvider } from '@loushy/build-ai-agent';
 
-```typescript
-import { 
-  AgentBuilder, 
-  AgentExecutor, 
-  OpenAIProvider,
-  createMockRepositories 
-} from '@tajwal/build-ai-agent';
-```
-
-### Step 2: Build the Agent
-
-```typescript
-const agent = new AgentBuilder()
-  .setType('chatbot')
-  .setName('My First Agent')
-  .setPrompt('You are a helpful and friendly assistant.')
-  .build();
-```
-
-### Step 3: Configure the Executor
-
-```typescript
-// Create mock repositories for testing
-const repositories = createMockRepositories();
-
-// Configure LLM provider
-const llmProvider = new OpenAIProvider({
-  apiKey: process.env.OPENAI_API_KEY,
-  model: 'gpt-4'
+const agent = createAgent({
+  prompt: 'You are a helpful assistant.',
+  provider: createMockProvider({ responses: ['Hello! How can I help you today?'] }),
 });
 
-// Create executor
-const executor = new AgentExecutor({
-  agent,
-  sessionId: 'my-session-123',
-  repositories,
-  llmProvider
-});
+const result = await agent.send('Hi there');
+console.log(result.text); // "Hello! How can I help you today?"
 ```
-
-### Step 4: Execute
-
-```typescript
-const result = await executor.execute({
-  messages: [
-    { role: 'user', content: 'Hello! What can you help me with?' }
-  ]
-});
-
-console.log(result.response);
-```
-
-## Complete Example
-
-Here's the full code:
-
-```typescript title="my-first-agent.ts"
-import { 
-  AgentBuilder, 
-  AgentExecutor, 
-  OpenAIProvider,
-  createMockRepositories 
-} from '@tajwal/build-ai-agent';
-
-async function main() {
-  // Build the agent
-  const agent = new AgentBuilder()
-    .setType('chatbot')
-    .setName('My First Agent')
-    .setPrompt('You are a helpful and friendly assistant.')
-    .build();
-
-  // Configure repositories and provider
-  const repositories = createMockRepositories();
-  const llmProvider = new OpenAIProvider({
-    apiKey: process.env.OPENAI_API_KEY,
-    model: 'gpt-4'
-  });
-
-  // Create executor
-  const executor = new AgentExecutor({
-    agent,
-    sessionId: 'my-session-123',
-    repositories,
-    llmProvider
-  });
-
-  // Execute
-  const result = await executor.execute({
-    messages: [
-      { role: 'user', content: 'Hello! What can you help me with?' }
-    ]
-  });
-
-  console.log('Agent Response:', result.response);
-}
-
-main().catch(console.error);
-```
-
-Run it:
 
 ```bash
-export OPENAI_API_KEY="your-api-key"
-npx tsx my-first-agent.ts
+npx tsx agent.ts
 ```
 
-## Adding Tools
+## 2. Switching to a real provider
 
-Let's enhance our agent with tools. Here's an agent that can perform calculations:
+`resolveProvider('<provider>/<model>')` builds a real provider, reading its credential from the environment (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, or `OLLAMA_BASE_URL` for Ollama).
+
+```typescript title="real-provider.ts"
+import { createAgent, createMockProvider, resolveProvider } from '@loushy/build-ai-agent';
+
+const provider = process.env.OPENAI_API_KEY
+  ? resolveProvider('openai/gpt-4o-mini')
+  : createMockProvider({ responses: ['Paris.'] });
+
+const agent = createAgent({
+  name: 'geography-bot',
+  prompt: 'Answer geography questions in one word.',
+  provider,
+});
+
+const result = await agent.send('What is the capital of France?');
+console.log(result.text);
+```
+
+```bash
+export OPENAI_API_KEY="your-api-key"   # optional - falls back to the mock provider
+npx tsx real-provider.ts
+```
+
+## 3. Adding tools
+
+Tools are passed to `createAgent()` keyed by the name the agent calls them by. The SDK ships several built-in tools (`currentDateTool`, `dayNameTool`, `httpTool`, ...).
 
 ```typescript title="agent-with-tools.ts"
-import { 
-  AgentBuilder, 
-  AgentExecutor, 
-  OpenAIProvider,
-  createMockRepositories,
-  ToolRegistry 
-} from '@tajwal/build-ai-agent';
+import { createAgent, createMockProvider, currentDateTool } from '@loushy/build-ai-agent';
+
+const agent = createAgent({
+  prompt: 'You are a scheduling assistant. Use tools when helpful.',
+  provider: createMockProvider({ responses: ['Let me check.', 'Here is the date you asked for.'] }),
+  tools: { current_date: currentDateTool },
+});
+
+const result = await agent.send('Please call current_date for me');
+console.log(result.toolCalls.map((call) => call.function.name)); // [ 'current_date' ]
+console.log(result.text);
+```
+
+Register a custom tool the same way, wrapped from the Vercel AI SDK's `tool()`:
+
+```typescript title="custom-tool.ts"
+import { createAgent, createMockProvider } from '@loushy/build-ai-agent';
+import { tool } from 'ai';
 import { z } from 'zod';
 
-// Register a custom tool
-const toolRegistry = new ToolRegistry();
-toolRegistry.register({
-  name: 'calculator',
-  description: 'Performs mathematical calculations',
-  parameters: z.object({
-    expression: z.string().describe('Mathematical expression to evaluate')
-  }),
-  execute: async ({ expression }) => {
-    try {
-      // Note: In production, use a proper math parser
-      const result = eval(expression);
-      return { result };
-    } catch (error) {
-      return { error: 'Invalid expression' };
-    }
-  }
+const weatherTool = tool({
+  description: 'Get current weather for a location',
+  parameters: z.object({ location: z.string() }),
+  execute: async ({ location }) => ({ temperature: 72, conditions: 'sunny', location }),
 });
 
-// Build agent with tools
-const agent = new AgentBuilder()
-  .setType('smart-assistant')
-  .setName('Math Helper')
-  .setPrompt('You are a math assistant. Use the calculator tool for calculations.')
-  .addTool('calculator', { tool: 'calculator' })
+const agent = createAgent({
+  prompt: 'You are a weather assistant. Use the weather tool when asked.',
+  provider: createMockProvider({ responses: ['Checking...', 'It is sunny and 72°F.'] }),
+  tools: { weather: weatherTool },
+});
+```
+
+## 4. Full control: `AgentBuilder` + `AgentExecutor`
+
+`createAgent()` is a thin wrapper over `AgentBuilder` and the static `AgentExecutor.execute()`. Use them directly when you need the full set of execution options (`maxSteps`, `temperature`, `onEvent`, approvals, checkpoints, tracing, ...). `AgentExecutor` is a **static** API - there is no `new AgentExecutor()`.
+
+```typescript title="full-control.ts"
+import {
+  AgentBuilder,
+  AgentExecutor,
+  AgentType,
+  createMockProvider,
+} from '@loushy/build-ai-agent';
+
+const agent = AgentBuilder.create()
+  .setType(AgentType.SmartAssistant)
+  .setName('Customer Support Agent')
+  .setPrompt('You are a helpful customer support assistant.')
   .build();
 
-// Create executor with tool registry
-const executor = new AgentExecutor({
+const events: string[] = [];
+const result = await AgentExecutor.execute({
   agent,
-  sessionId: 'math-session',
-  repositories: createMockRepositories(),
-  llmProvider: new OpenAIProvider({ 
-    apiKey: process.env.OPENAI_API_KEY 
-  }),
-  toolRegistry
+  input: 'My order arrived damaged.',
+  provider: createMockProvider({ responses: ["I'm sorry to hear that - what's your order number?"] }),
+  maxSteps: 5,
+  onEvent: (event) => events.push(event.type),
 });
 
-// Execute
-const result = await executor.execute({
-  messages: [
-    { role: 'user', content: 'What is 25 multiplied by 37?' }
-  ]
-});
-
-console.log(result.response);
+console.log(result.text);
+console.log(result.usage.totalTokens, result.finishReason, result.steps);
+console.log(events); // includes 'start' and 'finish'
 ```
 
-## Streaming Responses
+`AgentBuilder`/`createAgent()` only build the `AgentConfig` and the tool registry - reach for this form whenever you need approvals, delegation, checkpoints, guardrails, or tracing, all of which are options on `AgentExecutor.execute()`. See [Human-in-the-Loop](./concepts/human-in-the-loop), [Delegation](./concepts/delegation), and [Observability](./concepts/observability) for those.
 
-For real-time streaming responses:
+## 5. Declarative agents: spec files
 
-```typescript title="streaming-agent.ts"
-import { 
-  AgentBuilder, 
-  AgentExecutor, 
-  OpenAIProvider,
-  createMockRepositories 
-} from '@tajwal/build-ai-agent';
+An agent can also be described as plain data - an `AgentSpec` - and turned into a live agent with `specToAgent()`. The same shape can be written as a YAML or JSON file and loaded with `loadSpec()`.
 
-async function streamingExample() {
-  const agent = new AgentBuilder()
-    .setType('chatbot')
-    .setName('Streaming Bot')
-    .setPrompt('You are a helpful assistant.')
-    .build();
+```typescript title="spec.ts"
+import { specToAgent, agentSpecSchema } from '@loushy/build-ai-agent';
 
-  const executor = new AgentExecutor({
-    agent,
-    sessionId: 'stream-session',
-    repositories: createMockRepositories(),
-    llmProvider: new OpenAIProvider({ 
-      apiKey: process.env.OPENAI_API_KEY 
-    })
-  });
+const spec = agentSpecSchema.parse({
+  name: 'support-bot',
+  prompt: 'You are a friendly support agent.',
+  provider: { type: 'mock', model: 'mock-1' },
+  tools: ['current-date'],
+});
 
-  // Stream the response
-  const stream = await executor.executeStream({
-    messages: [
-      { role: 'user', content: 'Tell me a short story about AI.' }
-    ]
-  });
-
-  // Process chunks as they arrive
-  for await (const chunk of stream) {
-    process.stdout.write(chunk.content);
-  }
-}
-
-streamingExample().catch(console.error);
+const agent = specToAgent(spec);
+const result = await agent.send('Hello!');
+console.log(result.text);
 ```
 
-## Using Local LLMs with Ollama
+Saved as `agent.yaml`:
 
-You can also use local models with Ollama:
-
-```typescript title="ollama-agent.ts"
-import { 
-  AgentBuilder, 
-  AgentExecutor, 
-  OllamaProvider,
-  createMockRepositories 
-} from '@tajwal/build-ai-agent';
-
-const agent = new AgentBuilder()
-  .setType('chatbot')
-  .setName('Local Agent')
-  .setPrompt('You are a helpful assistant.')
-  .build();
-
-// Use Ollama provider
-const executor = new AgentExecutor({
-  agent,
-  sessionId: 'ollama-session',
-  repositories: createMockRepositories(),
-  llmProvider: new OllamaProvider({
-    model: 'llama2',
-    baseUrl: 'http://localhost:11434'
-  })
-});
-
-const result = await executor.execute({
-  messages: [
-    { role: 'user', content: 'Hello!' }
-  ]
-});
-
-console.log(result.response);
+```yaml title="agent.yaml"
+name: support-bot
+prompt: You are a friendly support agent.
+provider:
+  type: mock
+  model: mock-1
+tools:
+  - current-date
 ```
 
-## Production Setup with Database
+the same spec runs in the local dev server (chat UI at `/`, `POST /chat`, hot reload on save) and builds into a deployable server:
 
-For production, use a proper database instead of mock repositories:
-
-```typescript title="production-agent.ts"
-import { 
-  AgentBuilder, 
-  AgentExecutor, 
-  OpenAIProvider 
-} from '@tajwal/build-ai-agent';
-import { createDrizzleRepositories } from '@tajwal/build-ai-agent-drizzle';
-import { drizzle } from 'drizzle-orm/better-sqlite3';
-import Database from 'better-sqlite3';
-
-// Setup database
-const sqlite = new Database('agent.db');
-const db = drizzle(sqlite);
-
-// Create repositories with database
-const repositories = createDrizzleRepositories(db);
-
-// Build agent
-const agent = new AgentBuilder()
-  .setType('chatbot')
-  .setName('Production Agent')
-  .setPrompt('You are a helpful assistant.')
-  .build();
-
-// Create executor
-const executor = new AgentExecutor({
-  agent,
-  sessionId: 'prod-session',
-  repositories,
-  llmProvider: new OpenAIProvider({ 
-    apiKey: process.env.OPENAI_API_KEY 
-  })
-});
-
-// Execute
-const result = await executor.execute({
-  messages: [
-    { role: 'user', content: 'Hello!' }
-  ]
-});
-
-console.log(result.response);
+```bash
+npx loushy dev agent.yaml
+npx loushy build --target=node-server --agent=agent.yaml
 ```
 
-## Next Steps
+See [Declarative Specs](./concepts/declarative-specs) for the full field reference and the [CLI guide](./guides/cli) for `loushy dev`/`loushy build`.
 
-Now that you've built your first agent, explore:
+## Next steps
 
-1. **[Core Concepts](./concepts/agents)** - Understand agents, tools, and flows
-2. **Building Agents** - Advanced agent configuration
-3. **Creating Tools** - Build custom capabilities
-4. **[Examples](./examples/chatbot)** - Real-world examples
-5. **[API Reference](./api/overview)** - Complete API documentation
+1. **[Core Concepts](./concepts/agents)** - agents, tools, human-in-the-loop, delegation, guardrails, observability
+2. **[Declarative Specs](./concepts/declarative-specs)** - every spec field, provider env var
+3. **[Deployment](./guides/deployment)** - `loushy build` targets (Node server, Docker, Cloudflare Workers)
+4. **[Examples](./examples/chatbot)** - real-world examples, including the flagship ops-pipeline demo
+5. **[API Reference](./api/overview)** - complete API documentation
 
 ## Need Help?
 

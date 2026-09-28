@@ -4,220 +4,158 @@ sidebar_position: 1
 
 # Agents
 
-Agents are the core abstraction in the Build AI Agent SDK. They combine AI capabilities with tools, workflows, and memory to accomplish tasks.
+Agents are the core abstraction in the Build AI Agent SDK. They combine an LLM with a prompt, tools, and execution options to accomplish tasks.
 
 ## What is an Agent?
 
-An agent is an autonomous entity that:
+An agent is a configuration (an `AgentConfig`) plus an execution runtime that:
+
 - Receives user input
 - Processes it using an LLM
-- Can use tools to accomplish tasks
+- Can call tools to accomplish tasks, some gated behind human approval or a sandbox
 - Maintains conversation context
-- Returns responses
+- Returns a response
+
+There are two ways to build one: the zero-config `createAgent()` function, or `AgentBuilder` + the static `AgentExecutor.execute()` when you need full control. A third way - declarative `AgentSpec` files - is covered in [Declarative Specs](./declarative-specs).
+
+## The zero-config path: `createAgent()`
+
+```typescript
+import { createAgent, resolveProvider } from '@loushy/build-ai-agent';
+
+const agent = createAgent({
+  prompt: 'You are a helpful customer support assistant.',
+  provider: resolveProvider('openai/gpt-4o-mini'), // reads OPENAI_API_KEY
+});
+
+const result = await agent.send('Hello!');
+console.log(result.text);
+```
+
+`createAgent()` takes a `prompt` and `provider` (both required), plus optional `name`, `tools` (a `Record<string, ToolDescriptor>`), and `maxSteps`. It builds the `AgentConfig` and tool registry for you and hands back a `{ send(message) }` agent - internally, `send()` calls `AgentBuilder` + `AgentExecutor.execute()`.
+
+Use `createMockProvider(...)` instead of `resolveProvider(...)` to run without any API key - this is what every snippet on this page and the [Quick Start](../quick-start) use by default.
+
+## Full control: `AgentBuilder` + `AgentExecutor`
+
+When you need `maxSteps`, approval gates, checkpoints, tracing hooks, delegation, or a `ToolRegistry` with several tools wired in, build the agent with `AgentBuilder` and run it with the **static** `AgentExecutor.execute()` - there is no `new AgentExecutor()`.
+
+```typescript
+import { AgentBuilder, AgentExecutor, AgentType, createMockProvider } from '@loushy/build-ai-agent';
+
+const agent = AgentBuilder.create()
+  .setType(AgentType.SmartAssistant)
+  .setName('Customer Support Agent')
+  .setPrompt('You are a helpful customer support assistant.')
+  .build();
+
+const result = await AgentExecutor.execute({
+  agent,
+  input: 'My order arrived damaged.',
+  provider: createMockProvider({ responses: ["I'm sorry to hear that - what's your order number?"] }),
+  maxSteps: 5,
+});
+
+console.log(result.text);
+console.log(result.usage.totalTokens, result.finishReason, result.steps);
+```
+
+`AgentExecutor.execute()`'s full option set - `toolRegistry`, `temperature`/`maxTokens`, `onEvent`, `approvalStore`/`sessionId`, `checkpointStore`, `exporter`, `sandbox`, `onLLMRequest`/`onLLMResponse`/`onToolCall`/`onToolResult` - is documented in [`api/agent-executor`](../api/agent-executor).
 
 ## Agent Types
 
-The SDK provides several pre-configured agent types:
-
-### Chatbot
-Basic conversational agent for Q&A and general assistance.
+`AgentType` is a small enum describing the agent's fundamental shape:
 
 ```typescript
-const agent = new AgentBuilder()
-  .setType(AgentType.Chatbot)
-  .setName('Support Bot')
-  .setPrompt('You are a helpful customer support assistant.')
-  .build();
+enum AgentType {
+  SmartAssistant = 'smart-assistant', // general-purpose, tool-calling agent
+  SurveyAgent = 'survey-agent',       // conducting surveys
+  CommerceAgent = 'commerce-agent',   // e-commerce interactions
+  Flow = 'flow',                      // workflow-based agent following a Flow
+}
 ```
 
-### Smart Assistant
-Advanced agent that can use tools and make decisions.
-
 ```typescript
-const agent = new AgentBuilder()
+const agent = AgentBuilder.create()
   .setType(AgentType.SmartAssistant)
   .setName('AI Assistant')
   .setPrompt('You are an intelligent assistant with access to various tools.')
-  .addTool('web-search', { tool: 'webSearch' })
-  .addTool('calculator', { tool: 'calculator' })
-  .build();
-```
-
-### Workflow
-Agent that follows predefined workflows and processes.
-
-```typescript
-const agent = new AgentBuilder()
-  .setType(AgentType.Workflow)
-  .setName('Order Processor')
-  .setPrompt('You process customer orders following the workflow.')
-  .setFlowId('order-processing-flow')
-  .build();
-```
-
-### Data Analyst
-Specialized agent for data analysis tasks.
-
-```typescript
-const agent = new AgentBuilder()
-  .setType(AgentType.DataAnalyst)
-  .setName('Data Analyst')
-  .setPrompt('You analyze data and provide insights.')
-  .addTool('sql-query', { tool: 'sqlQuery' })
-  .addTool('chart-generator', { tool: 'chartGenerator' })
-  .build();
-```
-
-### Code Assistant
-Agent specialized for coding tasks.
-
-```typescript
-const agent = new AgentBuilder()
-  .setType(AgentType.CodeAssistant)
-  .setName('Code Helper')
-  .setPrompt('You help developers write and debug code.')
-  .addTool('code-search', { tool: 'codeSearch' })
-  .addTool('code-executor', { tool: 'codeExecutor' })
+  .addTool('current_date', { tool: 'current-date' })
   .build();
 ```
 
 ## Agent Configuration
 
-### Basic Configuration
+`AgentBuilder`'s fluent setters cover the full `AgentConfig` shape:
 
 ```typescript
-const agent = new AgentBuilder()
+const agent = AgentBuilder.create()
   .setType(AgentType.SmartAssistant)
-  .setName('My Agent')
-  .setPrompt('You are a helpful assistant.')
-  .setDescription('An agent that helps users with various tasks')
+  .setName('Product Recommendation Agent')
+  .setPrompt('You are a product recommendation specialist.')
+  .addTool('search', { tool: 'productSearch' })
+  .setLocale('en')
+  .setSettings({ temperature: 0.7, maxTokens: 1500 })
+  .setMetadata({ version: '1.0.0', department: 'sales' })
   .build();
 ```
 
-### Advanced Configuration
-
-```typescript
-const agent = new AgentBuilder()
-  .setType(AgentType.SmartAssistant)
-  .setName('Advanced Agent')
-  .setPrompt('You are an intelligent assistant.')
-  
-  // Add tools
-  .addTool('weather', {
-    tool: 'weatherTool',
-    options: { units: 'celsius' }
-  })
-  .addTool('calculator', { tool: 'calculator' })
-  
-  // Set memory options
-  .setMemoryConfig({
-    maxMessages: 20,
-    summarizeAfter: 50
-  })
-  
-  // Set model preferences
-  .setModelConfig({
-    temperature: 0.7,
-    maxTokens: 2000
-  })
-  
-  // Enable features
-  .enableStreaming(true)
-  .enableToolCalling(true)
-  
-  .build();
-```
+See the full method-by-method reference in [`api/agent-builder`](../api/agent-builder).
 
 ## Agent Properties
 
 ### Core Properties
 
-- **id**: Unique identifier for the agent
+- **id**: Unique identifier for the agent (auto-generated with `nanoid` if not set)
 - **name**: Human-readable name
-- **type**: Agent type (Chatbot, SmartAssistant, etc.)
+- **agentType**: `AgentType` (`SmartAssistant`, `SurveyAgent`, `CommerceAgent`, `Flow`)
 - **prompt**: System prompt that defines agent behavior
-- **description**: Optional description of agent capabilities
+- **locale**: BCP 47 language tag, defaults to `'en'`
 
 ### Tool Configuration
 
-- **tools**: Array of tools available to the agent
-- **toolOptions**: Configuration options for each tool
+- **tools**: `Record<string, ToolConfiguration>` referencing tools registered in a `ToolRegistry`
 
 ### Flow Configuration
 
-- **flowId**: ID of the workflow the agent follows
-- **flowData**: Additional data for flow execution
+- **flows**: `AgentFlow[]` for structured, multi-step workflows (see Flows in the SDK README)
 
-### Memory Configuration
+### Settings & Metadata
 
-- **maxMessages**: Maximum messages to keep in context
-- **summarizeAfter**: Summarize context after N messages
-- **vectorStoreEnabled**: Enable semantic search over history
-
-### Model Configuration
-
-- **temperature**: Control randomness (0-1)
-- **maxTokens**: Maximum response length
-- **topP**: Nucleus sampling parameter
-- **frequencyPenalty**: Reduce repetition
-- **presencePenalty**: Encourage topic diversity
+- **settings**: Arbitrary settings object (e.g. `temperature`, `maxTokens` defaults for your own use)
+- **metadata**: Arbitrary metadata for categorization, versioning, etc.
 
 ## Agent Lifecycle
 
 ```typescript
-// 1. Create agent
-const agent = new AgentBuilder()
-  .setType('chatbot')
+// 1. Build the agent config
+const agent = AgentBuilder.create()
+  .setType(AgentType.SmartAssistant)
   .setName('My Agent')
   .setPrompt('You are helpful.')
   .build();
 
-// 2. Create executor
-const executor = new AgentExecutor({
+// 2. Execute a turn
+const result = await AgentExecutor.execute({
   agent,
-  sessionId: 'session-123',
-  repositories,
-  llmProvider
+  input: 'Hello!',
+  provider,
 });
 
-// 3. Execute conversations
-const result = await executor.execute({
-  messages: [
-    { role: 'user', content: 'Hello!' }
-  ]
+// 3. Continue the conversation - feed the prior messages back in
+const result2 = await AgentExecutor.execute({
+  agent,
+  input: [...result.messages, { role: 'user', content: 'What did I just say?' }],
+  provider,
 });
 
-// 4. Access conversation history
-const history = await repositories.messages.findBySession('session-123');
-
-// 5. Update agent (optional)
-const updatedAgent = new AgentBuilder(agent)
+// 4. Update an agent's config by re-building from it
+const updatedAgent = AgentBuilder.from(agent)
   .setPrompt('Updated prompt')
   .build();
 ```
 
-## Agent Persistence
-
-Agents can be saved and loaded from a database:
-
-```typescript
-// Save agent
-await repositories.agents.create({
-  id: agent.id,
-  name: agent.name,
-  type: agent.type,
-  prompt: agent.prompt,
-  configuration: agent
-});
-
-// Load agent
-const savedAgent = await repositories.agents.findById(agent.id);
-
-// Restore agent
-const restoredAgent = new AgentBuilder()
-  .fromConfiguration(savedAgent.configuration)
-  .build();
-```
+For conversations that must survive a crash or process restart, pass a `sessionId` and `checkpointStore` instead of threading `messages` by hand - see [Human-in-the-Loop](./human-in-the-loop).
 
 ## Best Practices
 
@@ -237,47 +175,27 @@ const restoredAgent = new AgentBuilder()
 
 ### 2. Appropriate Tools
 
-```typescript
-// ✅ Only include relevant tools
-const agent = new AgentBuilder()
-  .setType('smart-assistant')
-  .setPrompt('You help with travel planning.')
-  .addTool('weather', { tool: 'weather' })
-  .addTool('flight-search', { tool: 'flightSearch' })
-  // Don't add calculator, code executor, etc.
-  .build();
-```
+Only register tools the agent's prompt actually tells it to use - an unused tool is wasted context (and attack surface).
 
-### 3. Memory Management
+### 3. Gate sensitive tools
 
-```typescript
-// ✅ Configure appropriate memory limits
-.setMemoryConfig({
-  maxMessages: 50,        // Keep recent context
-  summarizeAfter: 100,    // Summarize when growing
-  vectorStoreEnabled: true // Enable semantic search
-})
-```
+Flag any tool with a real-world side effect (sending an email, opening a PR, spending money) `needsApproval`, and flag anything that shells out or touches the filesystem `requiresSandbox`. See [Tools](./tools) and [Guardrails & Safety](./guardrails-and-safety).
 
 ### 4. Error Handling
 
 ```typescript
 try {
-  const result = await executor.execute({
-    messages: [{ role: 'user', content: input }]
-  });
-  return result.response;
+  const result = await AgentExecutor.execute({ agent, input, provider });
+  return result.text;
 } catch (error) {
-  if (error.code === 'RATE_LIMIT') {
-    return 'I\'m experiencing high demand. Please try again in a moment.';
-  }
-  throw error;
+  console.error('Execution failed:', error);
+  return "I'm experiencing an issue. Please try again in a moment.";
 }
 ```
 
 ## Next Steps
 
 - Learn about [Tools](./tools) to extend agent capabilities
-- Explore Flows for structured workflows
-- Configure Providers for different LLMs
-- Understand Memory management
+- [Human-in-the-Loop](./human-in-the-loop) - approval gates and durable checkpoints
+- [Delegation](./delegation) - multi-agent systems
+- [Declarative Specs](./declarative-specs) - describing an agent as a YAML/JSON file

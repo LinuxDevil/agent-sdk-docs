@@ -14,9 +14,9 @@ The `AgentBuilder` class is the primary way to create agent configurations. It h
 
 **Import**:
 ```typescript
-import { AgentBuilder } from '@tajwal/build-ai-agent';
+import { AgentBuilder } from '@loushy/build-ai-agent';
 // or
-import { AgentBuilder } from '@tajwal/build-ai-agent/core';
+import { AgentBuilder } from '@loushy/build-ai-agent/core';
 ```
 
 **Basic Usage**:
@@ -46,7 +46,7 @@ constructor()
 const builder = new AgentBuilder();
 ```
 
-**Note**: You can also use static factory methods `AgentBuilder.create()` or `AgentBuilder.from(config)`.
+**Note**: `new AgentBuilder()` and `AgentBuilder.create()` are equivalent - both give you an empty builder. Unlike `AgentExecutor` (which is fully static, see [`api/agent-executor`](./agent-executor)), `AgentBuilder` is still constructed as an instance.
 
 ## Instance Methods
 
@@ -336,6 +336,19 @@ setFlows(flows: AgentFlow[]): this
 
 ---
 
+### `setEvents()`
+
+Sets the agent's events array (used for event-driven agent behavior).
+
+**Signature**:
+```typescript
+setEvents(events: any[]): this
+```
+
+**Returns**: `this` (for method chaining)
+
+---
+
 ### `setExpectedResult()`
 
 Sets the expected result schema for agent responses (used for structured output).
@@ -543,7 +556,7 @@ const builder = AgentBuilder.create();
 ## Complete Example
 
 ```typescript
-import { AgentBuilder, AgentType } from '@tajwal/build-ai-agent';
+import { AgentBuilder, AgentType } from '@loushy/build-ai-agent';
 import { z } from 'zod';
 
 // Create a comprehensive agent
@@ -774,6 +787,6 @@ builder.addTool('search', { tool: '' });           // ✗ Invalid
 
 ---
 
-**Last Updated**: January 2025 | **SDK Version**: 1.0.0-alpha.8
+**SDK Version**: 1.0.0-alpha.8
 
 *Found an issue? [Report it](https://github.com/LinuxDevil/agent-sdk/issues/new)*

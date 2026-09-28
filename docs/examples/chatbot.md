@@ -4,94 +4,59 @@ sidebar_position: 1
 
 # Simple Chatbot
 
-Build a conversational chatbot with memory and context awareness.
+Build a conversational chatbot that maintains context across turns.
 
 ## Overview
 
 This example demonstrates how to create a basic chatbot that:
+
 - Responds to user messages
-- Maintains conversation history
-- Uses OpenAI GPT models
+- Maintains conversation history across turns
+- Uses a real provider (or the free built-in mock provider)
 - Handles errors gracefully
 
 ## Complete Code
 
 ```typescript title="chatbot.ts"
-import { 
-  AgentBuilder, 
-  AgentExecutor, 
-  OpenAIProvider,
-  createMockRepositories,
-  AgentType 
-} from '@tajwal/build-ai-agent';
+import { createAgent, resolveProvider, createMockProvider } from '@loushy/build-ai-agent';
+import type { Message } from '@loushy/build-ai-agent';
 
 async function main() {
-  // Create chatbot agent
-  const agent = new AgentBuilder()
-    .setType(AgentType.Chatbot)
-    .setName('Friendly Chatbot')
-    .setPrompt(`You are a friendly and helpful chatbot assistant.
+  const provider = process.env.OPENAI_API_KEY
+    ? resolveProvider('openai/gpt-4o-mini')
+    : createMockProvider({
+        responses: [
+          'TypeScript is a strongly typed superset of JavaScript that compiles to plain JS...',
+          'Its main benefits are type safety, better tooling, and easier refactoring.',
+          "Here's a simple example: `const greet = (name: string): string => `Hello, ${name}`;`",
+        ],
+      });
+
+  const agent = createAgent({
+    name: 'Friendly Chatbot',
+    prompt: `You are a friendly and helpful chatbot assistant.
     - Be conversational and warm
     - Remember context from previous messages
     - Ask clarifying questions when needed
-    - Provide helpful and accurate information`)
-    .setDescription('A friendly chatbot for general conversations')
-    .build();
-
-  // Setup repositories (use database in production)
-  const repositories = createMockRepositories();
-
-  // Configure OpenAI provider
-  const llmProvider = new OpenAIProvider({
-    apiKey: process.env.OPENAI_API_KEY!,
-    model: 'gpt-4',
-    temperature: 0.7
+    - Provide helpful and accurate information`,
+    provider,
   });
 
-  // Create executor
-  const executor = new AgentExecutor({
-    agent,
-    sessionId: 'user-session-123',
-    repositories,
-    llmProvider
-  });
+  console.log("🤖 Chatbot: Hello! I'm your friendly assistant. How can I help you today?\n");
 
-  // Simulate conversation
-  console.log('🤖 Chatbot: Hello! I\'m your friendly assistant. How can I help you today?\n');
-
-  // User message 1
-  const response1 = await executor.execute({
-    messages: [
-      { role: 'user', content: 'Hi! Can you tell me about TypeScript?' }
-    ]
-  });
+  // createAgent()'s agent.send() only remembers one turn at a time - thread
+  // the conversation yourself by feeding prior messages back in via
+  // AgentExecutor.execute()'s `input: Message[]` form for real multi-turn
+  // memory (see "Multi-turn conversations" below).
+  const response1 = await agent.send('Hi! Can you tell me about TypeScript?');
   console.log('👤 User: Hi! Can you tell me about TypeScript?');
-  console.log('🤖 Chatbot:', response1.response, '\n');
-
-  // User message 2 (with context)
-  const response2 = await executor.execute({
-    messages: [
-      { role: 'user', content: 'What are its main benefits?' }
-    ]
-  });
-  console.log('👤 User: What are its main benefits?');
-  console.log('🤖 Chatbot:', response2.response, '\n');
-
-  // User message 3
-  const response3 = await executor.execute({
-    messages: [
-      { role: 'user', content: 'Can you show me a simple example?' }
-    ]
-  });
-  console.log('👤 User: Can you show me a simple example?');
-  console.log('🤖 Chatbot:', response3.response, '\n');
+  console.log('🤖 Chatbot:', response1.text, '\n');
 
   console.log('✅ Conversation completed successfully!');
 }
 
-// Run with error handling
 main().catch((error) => {
-  console.error('❌ Error:', error.message);
+  console.error('❌ Error:', error instanceof Error ? error.message : error);
   process.exit(1);
 });
 ```
@@ -100,19 +65,17 @@ main().catch((error) => {
 
 ### Step 1: Setup
 
-Install dependencies:
-
 ```bash npm2yarn
-npm install @tajwal/build-ai-agent ai zod @ai-sdk/openai
+npm install @loushy/build-ai-agent ai zod @ai-sdk/openai
 ```
 
 ### Step 2: Configure Environment
 
-Create a `.env` file:
-
 ```bash title=".env"
 OPENAI_API_KEY=your-api-key-here
 ```
+
+Unset (or omit) `OPENAI_API_KEY` and the example above falls back to the mock provider - no key needed to try it.
 
 ### Step 3: Run
 
@@ -120,62 +83,55 @@ OPENAI_API_KEY=your-api-key-here
 npx tsx chatbot.ts
 ```
 
-## Expected Output
+## Multi-turn conversations
 
+`createAgent()`'s `{ send }` agent is a thin wrapper for the single-turn case. For a conversation that remembers earlier turns, use `AgentBuilder` + `AgentExecutor.execute()` directly and feed the previous result's `messages` back in as the next call's `input`:
+
+```typescript title="multi-turn-chatbot.ts"
+import { AgentBuilder, AgentExecutor, AgentType, resolveProvider } from '@loushy/build-ai-agent';
+
+const agent = AgentBuilder.create()
+  .setType(AgentType.SmartAssistant)
+  .setName('Chatbot')
+  .setPrompt('You are a helpful assistant. Remember what the user told you.')
+  .build();
+
+const provider = resolveProvider('openai/gpt-4o-mini');
+
+const turn1 = await AgentExecutor.execute({
+  agent,
+  input: "Hi, I'm Alice.",
+  provider,
+});
+
+const turn2 = await AgentExecutor.execute({
+  agent,
+  input: [...turn1.messages, { role: 'user', content: "What's my name?" }],
+  provider,
+});
+
+console.log(turn2.text); // should reference "Alice"
 ```
-🤖 Chatbot: Hello! I'm your friendly assistant. How can I help you today?
 
-👤 User: Hi! Can you tell me about TypeScript?
-🤖 Chatbot: TypeScript is a strongly typed programming language that builds on JavaScript...
+## Durable, restart-safe conversations
 
-👤 User: What are its main benefits?
-🤖 Chatbot: The main benefits of TypeScript include: type safety, better tooling...
+For a chatbot that needs to survive a server restart mid-conversation, pass a `sessionId` and a `checkpointStore` instead of manually threading `messages` - see [Human-in-the-Loop](../concepts/human-in-the-loop#durable-execution-checkpoints).
 
-👤 User: Can you show me a simple example?
-🤖 Chatbot: Here's a simple TypeScript example...
-
-✅ Conversation completed successfully!
-```
-
-## Interactive Version
-
-Create an interactive CLI chatbot:
+## Interactive CLI version
 
 ```typescript title="interactive-chatbot.ts"
-import { 
-  AgentBuilder, 
-  AgentExecutor, 
-  OpenAIProvider,
-  createMockRepositories 
-} from '@tajwal/build-ai-agent';
+import { createAgent, resolveProvider } from '@loushy/build-ai-agent';
 import * as readline from 'readline';
 
 async function interactiveChatbot() {
-  // Setup agent
-  const agent = new AgentBuilder()
-    .setType('chatbot')
-    .setName('Interactive Bot')
-    .setPrompt('You are a helpful assistant.')
-    .build();
-
-  const executor = new AgentExecutor({
-    agent,
-    sessionId: `session-${Date.now()}`,
-    repositories: createMockRepositories(),
-    llmProvider: new OpenAIProvider({
-      apiKey: process.env.OPENAI_API_KEY!
-    })
+  const agent = createAgent({
+    prompt: 'You are a helpful assistant.',
+    provider: resolveProvider('openai/gpt-4o-mini'),
   });
 
-  // Setup readline interface
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout
-  });
-
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   console.log('🤖 Chatbot ready! Type your message (or "exit" to quit)\n');
 
-  // Chat loop
   const askQuestion = () => {
     rl.question('You: ', async (input) => {
       if (input.toLowerCase() === 'exit') {
@@ -185,12 +141,10 @@ async function interactiveChatbot() {
       }
 
       try {
-        const result = await executor.execute({
-          messages: [{ role: 'user', content: input }]
-        });
-        console.log('🤖 Bot:', result.response, '\n');
+        const result = await agent.send(input);
+        console.log('🤖 Bot:', result.text, '\n');
       } catch (error) {
-        console.error('Error:', error.message);
+        console.error('Error:', error instanceof Error ? error.message : error);
       }
 
       askQuestion();
@@ -203,156 +157,36 @@ async function interactiveChatbot() {
 interactiveChatbot();
 ```
 
-## Streaming Version
-
-For real-time responses:
-
-```typescript title="streaming-chatbot.ts"
-import { 
-  AgentBuilder, 
-  AgentExecutor, 
-  OpenAIProvider,
-  createMockRepositories 
-} from '@tajwal/build-ai-agent';
-
-async function streamingChatbot() {
-  const agent = new AgentBuilder()
-    .setType('chatbot')
-    .setName('Streaming Bot')
-    .setPrompt('You are a helpful assistant.')
-    .enableStreaming(true)
-    .build();
-
-  const executor = new AgentExecutor({
-    agent,
-    sessionId: 'stream-session',
-    repositories: createMockRepositories(),
-    llmProvider: new OpenAIProvider({
-      apiKey: process.env.OPENAI_API_KEY!
-    })
-  });
-
-  console.log('👤 User: Tell me a story about AI\n');
-  console.log('🤖 Bot: ');
-
-  // Stream response
-  const stream = await executor.executeStream({
-    messages: [
-      { role: 'user', content: 'Tell me a story about AI' }
-    ]
-  });
-
-  for await (const chunk of stream) {
-    process.stdout.write(chunk.content);
-  }
-
-  console.log('\n\n✅ Story complete!');
-}
-
-streamingChatbot();
-```
-
-## Adding Memory
-
-Configure conversation memory:
-
-```typescript
-const agent = new AgentBuilder()
-  .setType('chatbot')
-  .setName('Memory Bot')
-  .setPrompt('You are a helpful assistant.')
-  .setMemoryConfig({
-    maxMessages: 20,        // Keep last 20 messages
-    summarizeAfter: 50,     // Summarize after 50 messages
-    vectorStoreEnabled: true // Enable semantic search
-  })
-  .build();
-```
-
 ## Error Handling
 
-Robust error handling:
-
 ```typescript
-async function chatWithErrorHandling(userMessage: string) {
+async function chatWithErrorHandling(agent: ReturnType<typeof createAgent>, userMessage: string) {
   try {
-    const result = await executor.execute({
-      messages: [{ role: 'user', content: userMessage }]
-    });
-    return result.response;
+    const result = await agent.send(userMessage);
+    return result.text;
   } catch (error) {
-    // Handle different error types
-    if (error.code === 'RATE_LIMIT') {
-      return 'I\'m receiving too many requests. Please try again in a moment.';
-    } else if (error.code === 'INVALID_API_KEY') {
-      console.error('Invalid API key. Please check your configuration.');
-      process.exit(1);
-    } else if (error.code === 'TIMEOUT') {
-      return 'Sorry, the request took too long. Please try again.';
-    } else {
-      console.error('Unexpected error:', error);
-      return 'Sorry, something went wrong. Please try again.';
-    }
+    console.error('Unexpected error:', error);
+    return 'Sorry, something went wrong. Please try again.';
   }
 }
 ```
 
-## Production Setup
-
-For production, use a real database:
+## Personality customization
 
 ```typescript
-import { createDrizzleRepositories } from '@tajwal/build-ai-agent-drizzle';
-import { drizzle } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
-
-// Setup database connection
-const client = postgres(process.env.DATABASE_URL!);
-const db = drizzle(client);
-
-// Use Drizzle repositories
-const repositories = createDrizzleRepositories(db);
-
-const executor = new AgentExecutor({
-  agent,
-  sessionId: userId, // Use actual user ID
-  repositories,      // Production repositories
-  llmProvider
-});
-```
-
-## Customization
-
-### Personality Customization
-
-```typescript
-const agent = new AgentBuilder()
-  .setType('chatbot')
-  .setName('Friendly Bot')
-  .setPrompt(`You are a cheerful and enthusiastic assistant!
+const agent = createAgent({
+  name: 'Friendly Bot',
+  prompt: `You are a cheerful and enthusiastic assistant!
   - Use emojis occasionally 😊
   - Be encouraging and positive
   - Show genuine interest in helping
-  - Keep responses concise but warm`)
-  .build();
-```
-
-### Language Support
-
-```typescript
-const agent = new AgentBuilder()
-  .setType('chatbot')
-  .setName('Multilingual Bot')
-  .setPrompt(`You are a multilingual assistant.
-  - Detect the user's language automatically
-  - Respond in the same language
-  - Support English, Spanish, French, German, and more`)
-  .build();
+  - Keep responses concise but warm`,
+  provider,
+});
 ```
 
 ## Next Steps
 
-- Add Tools for extended capabilities
-- Implement Workflows for complex tasks
-- Learn about Data Analysis agents
-- Explore Customer Support bots
+- [Tools](../concepts/tools) - give the chatbot capabilities beyond chatting
+- [Human-in-the-Loop](../concepts/human-in-the-loop) - pause for approval, durable checkpoints
+- [Examples gallery](./gallery) - real runnable examples, including the flagship ops-pipeline demo
