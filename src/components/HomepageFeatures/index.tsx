@@ -5,50 +5,100 @@ import styles from './styles.module.css';
 
 type FeatureItem = {
   title: string;
-  Svg: React.ComponentType<React.ComponentProps<'svg'>>;
   description: ReactNode;
 };
 
 const FeatureList: FeatureItem[] = [
   {
-    title: 'Easy to Use',
-    Svg: require('@site/static/img/undraw_docusaurus_mountain.svg').default,
+    title: 'Zero-config to full control',
     description: (
       <>
-        Docusaurus was designed from the ground up to be easily installed and
-        used to get your website up and running quickly.
+        <code>createAgent({'{'} prompt, provider {'}'})</code> in one line, or
+        the full <code>AgentBuilder</code> + <code>AgentExecutor</code> API
+        when you need checkpoints or tracing hooks.
       </>
     ),
   },
   {
-    title: 'Focus on What Matters',
-    Svg: require('@site/static/img/undraw_docusaurus_tree.svg').default,
+    title: 'Human-in-the-loop',
     description: (
       <>
-        Docusaurus lets you focus on your docs, and we&apos;ll do the chores. Go
-        ahead and move your docs into the <code>docs</code> directory.
+        Flag a tool <code>needsApproval</code> and pause execution until a
+        human approves or rejects it, then <code>resumeAfterApproval()</code>{' '}
+        from any process.
       </>
     ),
   },
   {
-    title: 'Powered by React',
-    Svg: require('@site/static/img/undraw_docusaurus_react.svg').default,
+    title: 'Durable execution',
     description: (
       <>
-        Extend or customize your website layout by reusing React. Docusaurus can
-        be extended while reusing the same header and footer.
+        Pass a <code>sessionId</code> and <code>checkpointStore</code> — a
+        crash mid-conversation resumes from the last checkpoint instead of
+        restarting.
+      </>
+    ),
+  },
+  {
+    title: 'Multi-agent delegation',
+    description: (
+      <>
+        Wrap a child agent as a tool with <code>createDelegateTool()</code>,
+        with a <code>maxDepth</code> guard against delegation loops.
+      </>
+    ),
+  },
+  {
+    title: 'Pre/post hooks',
+    description: (
+      <>
+        A <code>HookRegistry</code> of <code>AgentHook</code>s that inspect or
+        mutate a tool call or LLM generate step, or throw to abort it.
+      </>
+    ),
+  },
+  {
+    title: 'Guardrails',
+    description: (
+      <>
+        Fail-closed, concurrently-run checks — secret scan, diff size,
+        test/lint commands — that gate a fixer agent's patch before it's used.
+      </>
+    ),
+  },
+  {
+    title: 'MCP client',
+    description: (
+      <>
+        <code>loadMcpTools()</code> turns any Model Context Protocol server's
+        tools into <code>ToolDescriptor</code>s your agent can call.
+      </>
+    ),
+  },
+  {
+    title: 'Sandboxed tools',
+    description: (
+      <>
+        Opt a tool into <code>requiresSandbox</code> to route it through a
+        Docker-backed <code>SandboxAdapter</code> instead of running in-process.
+      </>
+    ),
+  },
+  {
+    title: 'Any provider, any target',
+    description: (
+      <>
+        OpenAI, Anthropic, Ollama, OpenRouter, or a mock provider for tests.
+        <code>loushy build</code> ships to Node, Docker, or Cloudflare Workers.
       </>
     ),
   },
 ];
 
-function Feature({title, Svg, description}: FeatureItem) {
+function Feature({title, description}: FeatureItem) {
   return (
-    <div className={clsx('col col--4')}>
-      <div className="text--center">
-        <Svg className={styles.featureSvg} role="img" />
-      </div>
-      <div className="text--center padding-horiz--md">
+    <div className={clsx('col col--4', styles.featureCol)}>
+      <div className={styles.featureCard}>
         <Heading as="h3">{title}</Heading>
         <p>{description}</p>
       </div>
