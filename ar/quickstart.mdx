@@ -112,7 +112,7 @@ console.log(result.text);
 
 ## 4. تحكّم كامل: `AgentBuilder` + `AgentExecutor`
 
-`createAgent()` مغلِّف رقيق فوق `AgentBuilder` والدالة الساكنة `AgentExecutor.execute()`. استخدمهما مباشرة عندما تحتاج إلى المجموعة الكاملة من خيارات التنفيذ (`maxSteps`، `temperature`، `onAgentEvent`، الموافقات، نقاط الحفظ، التتبّع، ...). `AgentExecutor` واجهة ساكنة (static)، فلا وجود لـ `new AgentExecutor()`.
+`createAgent()` مغلِّف رقيق فوق `AgentBuilder` والدالة الساكنة `AgentExecutor.execute()`. استخدمهما مباشرة فقط لما لا يقبله `createAgent()`: `temperature` و`maxTokens`، و`TraceExporter` للتتبّع (`exporter` و`captureContent`). أما `createAgent()` فيقبل بالفعل `maxSteps` و`limits` و`onEvent` والموافقات و`store` (نقاط الحفظ) و`hooks` و`compaction`. `AgentExecutor` واجهة ساكنة (static)، فلا وجود لـ `new AgentExecutor()`.
 
 ```ts
 import {
