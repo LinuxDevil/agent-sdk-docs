@@ -13,9 +13,9 @@ title: "القنوات"
 POST <basePath>/<name>  ->  verify  ->  parse  ->  session turn  ->  reply (or onApproval)
 ```
 
-القنوات ميزة جديدة. وما زالت [مهايئات المُشغِّلات](/ar/triggers)
-تعمل: صار `WebhookTriggerAdapter` يستخدم `webhookChannel()` في المصادقة
-والتحليل. وتضيف القنوات ما تفتقر إليه المُشغِّلات: كل محادثة على الواجهة هي
+تحلّ القنوات محلّ [مهايئات المُشغِّلات](/ar/triggers) المُهمَلة
+(يستخدم `WebhookTriggerAdapter` الدالة `webhookChannel()` في المصادقة
+والتحليل). وتضيف القنوات ما تفتقر إليه المُشغِّلات: كل محادثة على الواجهة هي
 [جلسة](/ar/sessions)، والموافقات والأسئلة تعود إلى الواجهة نفسها.
 
 ## البدء السريع
@@ -161,6 +161,7 @@ await channels.resolveApproval({ id: 'the-approval-id', approved: true });
 | `discordChannel({ publicKey, applicationId, botToken?, name?, fetch?, approvers?, onError? })` | تفاعلات الأوامر المائلة (slash commands) والأزرار في Discord (انظر [Discord](#discord)) | إقرار مؤجَّل فورًا؛ ثم يعدّل الردُّ الاستجابةَ الأصلية |
 | `telegramChannel({ botToken, secretToken, botUsername?, name?, fetch?, approvers?, onError? })` | تحديثات webhook لبوت Telegram: الرسائل والنقرات على لوحة المفاتيح المضمّنة (انظر [Telegram](#telegram)) | `200` فورًا؛ وتُرسل الردود بـ `sendMessage` نصًا عاديًا |
 | `githubChannel({ webhookSecret, botName, token?, app?, name?, apiUrl?, fetch?, triggers?, approvers?, onError? })` | تعليقات GitHub على القضايا وطلبات الدمج والمراجعات التي تذكر `@<botName>` (انظر [GitHub](#github)) | `200` فورًا؛ وتُنشر الردود تعليقاتٍ في السلسلة نفسها |
+| `teamsChannel({ appId, appPassword, tenantId?, name?, fetch?, approvers?, onError? })` | رسائل Microsoft Teams والنقرات على أزرار البطاقات التكيفية (Adaptive Card) من Azure Bot (انظر [Microsoft Teams](#microsoft-teams)) | `200` فورًا؛ وتُنشر الردود عبر Bot Framework Connector بصيغة Markdown |
 
 `webhookChannel({ secret })` تتحقق من توقيع HMAC-SHA256 للجسم الخام في
 `x-signature-256: sha256=<hex>`؛ ويقبل `auth` أي
@@ -189,8 +190,10 @@ const handler = mountChannels(agent, [
 ## من يحق له الموافقة (Slack وDiscord)
 
 تقبل القناتان الخيار `approvers`: قائمة بمعرّفات المستخدمين على المنصة، أو دالة
-`(user: { id, name?, roles? }, { toolName, input, sessionId }) => boolean | Promise<boolean>`
-(يملأ Discord الحقل `roles` بمعرّفات أدوار العضو). نقرة أي شخص آخر لا تحسم
+`(user: { id, name?, roles? }, { toolName, input, sessionId, principal? }) => boolean | Promise<boolean>`
+(يملأ Discord الحقل `roles` بمعرّفات أدوار العضو؛ و`principal` هو المُرسِل الذي توقفت دورته). يُسجَّل المستخدم الذي ينقر على أنه المُوافِق
+(`ctx.approval.by` في الأداة، راجع
+[المصادقة](/ar/auth#من-وافق))؛ وتظل الأداة تعمل نيابةً عن المُرسِل. نقرة أي شخص آخر لا تحسم
 الموافقة: تصله رسالة مؤقتة لا يراها غيره تفيد بأنه "غير مسموح له"، وتبقى
 الموافقة معلّقة.
 
@@ -342,9 +345,8 @@ http.createServer((req, res) => {
 لا تُلحق بسجل محادثة الجلسة.
 
 ملفات `channels/*.ts` في [مجلد الوكيل](/ar/agent-directories) تُحمَّل
-قنواتٍ هي أيضًا، ويركّبها خادم node. وما زال `SlackTriggerAdapter` و`verifySlackSignature()`
-(انظر [المُشغِّلات](/ar/triggers)) يعملان للردود لمرة واحدة
-عبر webhook وارد.
+قنواتٍ هي أيضًا، ويركّبها خادم node. أما `SlackTriggerAdapter` (انظر [المُشغِّلات](/ar/triggers))، الذي يرد
+عبر webhook وارد، فهو مُهمَل: استخدم `slackChannel()`. و`verifySlackSignature()` ليست مُهمَلة.
 
 ## Telegram
 
@@ -558,3 +560,85 @@ http.createServer((req, res) => {
 بتعليق "Sorry, that request failed." العام بدل أن يُتجاهل،
 ولا يعود المعرّف مرتبطًا بالسلسلة التي نُشر فيها. وتُنشر متابعة التشغيل بعد
 إعادة التشغيل لكنها لا تُلحق بسجل محادثة الجلسة.
+
+## Microsoft Teams
+
+تضع `teamsChannel({ appId, appPassword, tenantId?, name?, fetch?, approvers?, onError? })`
+وكيلًا خلف Azure Bot في Microsoft Teams: تبدأ المحادثات الشخصية والإشارات في القنوات
+جلسةً أو تتابعها، وتعود الردود عبر Bot
+Framework Connector، وتكون موافقة الأداة بطاقة تكيفية (Adaptive Card) فيها زرّا الموافقة والرفض
+(Approve وDeny). وهي تستخدم `fetch` وWeb Crypto فقط (من دون أي استيراد `node:*` ومن دون مكتبة Bot
+Framework)، فتعمل أيضًا على Workers.
+
+- يجب أن يحمل كل طلب رمز Bot Framework في `Authorization: Bearer`. ويُتحقَّق منه
+  قبل تحليل الجسم: توقيع RS256 يُفحص مقابل
+  مجموعة المفاتيح التي تشير إليها بيانات OpenID الوصفية الثابتة لـ Bot Framework
+  (`https://login.botframework.com/v1/.well-known/openidconfiguration`) (تُخزَّن مؤقتًا ولا تؤخذ أبدًا من عنوان داخل الرمز)، والمُصدِر
+  `https://api.botframework.com`، والجمهور `appId`، ومهلة انحراف الساعة 5 دقائق.
+  ويجب أن تساوي مطالبة `serviceurl` في الرمز قيمة `serviceUrl` في النشاط أيضًا، فلا يمكن إعادة استخدام رمز صالح
+  لعنوان خدمة واحد لجعل البوت ينشر في مكان آخر. وأي إخفاق يُجاب بـ 401. وليس للقناة وضع
+  بلا مصادقة، ومحاكي Bot Framework من دون مصادقة غير مدعوم.
+- يُقرّ النشاط بـ `200` فورًا وتجري الدورة بعد ذلك.
+  لا يصل إلى الوكيل إلا أنشطة `message`؛ أما `conversationUpdate` و`typing`
+  و`invoke` ورسائل البوت نفسه فتُتجاهل.
+- المحادثة الشخصية تبدأ جلسةً أو تتابعها دائمًا. وفي محادثة جماعية أو
+  قناة لا تفعل ذلك إلا رسالة تذكر البوت بـ `@mentions`؛ وتُزال الإشارة
+  من النص وتُتجاهل كل رسالة أخرى.
+- جلسة واحدة لكل محادثة (`conversation.id`؛ وفي قناة Teams
+  يتضمن الرسالة الجذر للسلسلة، فتكون كل سلسلة جلسة قائمة بذاتها). والمُرسِل
+  (`from.aadObjectId`، وإلا `from.id`) هو `principal` التشغيل
+  (`authenticator: 'teams'`، و`issuer`: المستأجر)، كما في القنوات الأخرى.
+- الردود بصيغة Markdown تُنشر إلى `{serviceUrl}/v3/conversations/{id}/activities/{replyToId}`،
+  مع `serviceUrl` الذي ضمنه الرمز (`https` فقط). ويُقسَّم النص الذي يتجاوز 25,000
+  حرف عند فواصل الأسطر. ويأتي رمز الوصول الصادر من تدفق بيانات اعتماد العميل
+  (client-credentials) بـ `appId` و`appPassword`، ويُخزَّن مؤقتًا حتى قبل 5
+  دقائق من انتهاء صلاحيته.
+- موافقة الأداة بطاقة تكيفية (الإصدار 1.4) فيها الأداة ووسائطها
+  (تُقطع عند 2,000 حرف) وزرّا `Action.Submit`. ولا يستطيع استخدامهما إلا
+  `approvers` (معرّفات مستخدمي Teams كما في `from.id`، أو دالة)؛ وافتراضيًا لا يستطيع إلا
+  المستخدم الذي بدأ الدورة. ويتلقى أي شخص آخر "You are not allowed to
+  approve this request." وتبقى الموافقة معلّقة. والنقر يستبدل
+  البطاقة بالنص "Approved by &lt;name>." أو "Denied by &lt;name>." (بلا أزرار) ويتابع التشغيل
+  برسالة جديدة. ويحمل الزر المحادثة التي نُشر فيها، والنقر الذي تختلف محادثته
+  (مرجع منسوخ) لا يحسم شيئًا؛ ومعرّف الموافقة هو معرّف الموافقة المعلّقة، فلا تستطيع بطاقة قديمة
+  حسم موافقة لاحقة، ولا تفعل البطاقة المستخدمة شيئًا، حتى بعد إعادة
+  التشغيل.
+- يُنشر `ask_question` نصًا وتكون الرسالة التالية في المحادثة
+  هي الإجابة. ويصمد السؤال المعلّق بعد إعادة التشغيل إذا كانت المخازن متينة للجلسات
+  ونقاط الحفظ والموافقات، كما في Slack وDiscord.
+
+إعداد البوت:
+
+1. أنشئ Azure Bot (أحادي المستأجر أو متعدد المستأجرين) ودوّن معرّف تطبيق Microsoft
+   (`appId`). ومن Configuration اضبط نقطة نهاية الرسائل على
+   `https://<host>/channels/teams`.
+2. ومن Manage Password أنشئ سرّ عميل (`appPassword`). وفي البوت أحادي المستأجر
+   مرّر أيضًا `tenantId` (فيُطلب السرّ حينئذٍ من مستأجرك).
+3. ومن Channels فعّل Microsoft Teams.
+4. أنشئ ملف manifest لتطبيق Teams يكون فيه `botId` في مدخل `bots` مساويًا لمعرّف التطبيق
+   مع النطاقات التي تريدها (`personal` و`team` و`groupChat`)، ثم ثبّته.
+
+```ts
+import * as http from 'node:http';
+import { createAgent, mountChannels, teamsChannel } from '@lousho/build-ai-agent';
+
+const agent = createAgent({ instructions: 'You help the team with questions.', provider });
+
+const channels = mountChannels(agent, [
+  teamsChannel({
+    appId: process.env.MICROSOFT_APP_ID ?? '',
+    appPassword: process.env.MICROSOFT_APP_PASSWORD ?? '',
+    tenantId: process.env.MICROSOFT_TENANT_ID,
+  }),
+]);
+
+http.createServer((req, res) => {
+  void channels(req, res).then((handled) => handled || res.writeHead(404).end());
+}).listen(3000);
+```
+
+لا يوضع سرّ التطبيق ولا رمز الوصول في رسالة خطأ ولا في سطر سجل:
+يُبلَّغ `onError` عن الاستدعاء الفاشل بالاستدعاء ورمز حالة HTTP
+فقط (`LOUSHO_CHANNEL_REQUEST_FAILED`). والنقر على بطاقة يعمل في عملية أُعيد تشغيلها،
+لأنه يسمّي المحادثة والموافقة نفسها؛ أما المتابعة بعد إعادة التشغيل فتُرسل لكنها لا تُلحق
+بسجل محادثة الجلسة.

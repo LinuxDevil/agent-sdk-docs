@@ -3,7 +3,7 @@ title: "المُشغِّلات"
 ---
 {/* Generated from docs/triggers.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-يحوّل مهايئ المُشغِّل (trigger adapter) آلية إيقاظ واحدة إلى تشغيل للوكيل: webhook وارد، أو مؤقّت زمني، أو حدث Slack. استوردها من المسار الفرعي `@lousho/build-ai-agent/triggers`: `WebhookTriggerAdapter` و`SlackTriggerAdapter` و`CronTriggerAdapter` و`TriggerRegistry`. اربط أيًّا منها بالدالة `listen(agent, onEvent)`، حيث تشغّل `onEvent` الوكيل، واستدعِ `stop()` على المقبض المُعاد لإيقاف المهايئ.
+يحوّل مهايئ المُشغِّل (trigger adapter) آلية إيقاظ واحدة إلى تشغيل للوكيل: webhook وارد، أو مؤقّت زمني، أو حدث Slack. **`WebhookTriggerAdapter` و`SlackTriggerAdapter` و`CronTriggerAdapter` مُهمَلة** وستُزال في إصدار رئيسي قادم: استخدم بدلًا منها `webhookChannel()` و`slackChannel()` و`defineSchedule()` (في كل قسم أدناه مقتطف للترحيل). أما `TriggerAdapter` و`TriggerRegistry` فهما نقطة التوسعة وهما غير مُهمَلتين. استوردها من المسار الفرعي `@lousho/build-ai-agent/triggers`: `WebhookTriggerAdapter` و`SlackTriggerAdapter` و`CronTriggerAdapter` و`TriggerRegistry`. اربط أيًّا منها بالدالة `listen(agent, onEvent)`، حيث تشغّل `onEvent` الوكيل، واستدعِ `stop()` على المقبض المُعاد لإيقاف المهايئ.
 
 ```ts
 import { createAgent, createMockProvider } from '@lousho/build-ai-agent';
@@ -26,11 +26,11 @@ await handle.stop();
 
 | | استخدمه من أجل | نقاط الدخول |
 |---|---|---|
-| المُشغِّلات | تشغيلات لمرة واحدة بلا محادثة: webhook يدخل والنتيجة تخرج، أو مهمة cron، أو إشارة في Slack. | `WebhookTriggerAdapter` و`SlackTriggerAdapter` و`CronTriggerAdapter` |
+| المُشغِّلات | نقطة التوسعة لآلية الإيقاظ الخاصة بك. المهايئات الثلاثة المضمَّنة مُهمَلة. | `TriggerAdapter` و`TriggerRegistry` (المُهمَلة: `WebhookTriggerAdapter` و`SlackTriggerAdapter` و`CronTriggerAdapter`) |
 | [القنوات](/ar/channels) | واجهة يتحدث الناس إليها. تُربط كل محادثة بجلسة، وتعود إلى الواجهة الموافقات والأسئلة التي يتوقف الوكيل عندها. | `defineChannel()` و`mountChannels()` و`httpChannel()` و`webhookChannel()` |
 | [الجداول الزمنية](/ar/schedules) | cron لمجلدات الوكلاء وخادم node، مع دعم في الأهداف المنشورة. | `defineSchedule()` و`startSchedules()` |
 
-يوجد cron اليوم في المُشغِّلات وفي الجداول الزمنية معًا. ينبغي للمشاريع الجديدة التي تستخدم مجلدات الوكلاء أو `lousho build` أن تفضّل `defineSchedule()`؛ وهذا إرشاد لا إلزام، وتبقى `CronTriggerAdapter` تعمل. أما `WebhookTriggerAdapter` فتستخدم `webhookChannel()` في المصادقة.
+لكل مهايئ مُهمَل بديل مرتبط بالجلسات والموافقات ومجلدات الوكلاء و`lousho build`: بديل Slack هو `slackChannel()`، وبديل webhook هو `webhookChannel()` (وكلاهما يُركَّب بـ`mountChannels()`)، وبديل cron هو `defineSchedule()` مع `startSchedules()`. تبقى المهايئات المُهمَلة تعمل إلى أن تُزال.
 
 ## واجهة TriggerAdapter
 
@@ -75,6 +75,19 @@ handle.stop();
 
 ### مصادقة Webhook
 
+**مُهمَل.** استُبدلت `WebhookTriggerAdapter` بالدالة `webhookChannel()` المركَّبة بـ`mountChannels()` (راجع [القنوات](/ar/channels))، وهي تأخذ خيار `auth` نفسه وتضيف الجلسات والموافقات. تبقى أشكال `WebhookAuth` أدناه مرجعًا لـ`webhookChannel({ auth })`.
+
+```ts
+import { createAgent, createMockProvider, mountChannels, webhookChannel } from '@lousho/build-ai-agent';
+
+const agent = createAgent({ instructions: 'You are helpful.', provider: createMockProvider() });
+
+// POST /webhook, authenticated with an HMAC of the raw body; serve it from any node server.
+const handler = mountChannels(agent, [
+  webhookChannel({ auth: { type: 'hmac', secret: process.env.WEBHOOK_SECRET ?? '' } }),
+]);
+```
+
 تُشغِّل `WebhookTriggerAdapter` خادم HTTP. **اضبط `auth` دائمًا لأي webhook يمكن الوصول إليه من خارج جهازك**: فبدونها يستطيع كل من يصل إلى المنفذ تشغيل وكيلك (وإنفاق رموزك (tokens)). وإذا استمعت على مضيف غير loopback دون `auth`، يسجّل المهايئ تحذيرًا لمرة واحدة عبر `options.logger`.
 
 ```ts
@@ -116,6 +129,21 @@ new WebhookTriggerAdapter({
 
 ### تواقيع طلبات Slack
 
+**مُهمَل.** استُبدلت `SlackTriggerAdapter` بالدالة `slackChannel()` المركَّبة بـ`mountChannels()` (راجع [Slack في القنوات](/ar/channels#slack)): جلسة واحدة لكل سلسلة رسائل في Slack، وأزرار موافقة، وفحص التوقيع مضمَّن. تبقى `verifySlackSignature()` وهي غير مُهمَلة.
+
+```ts
+import { createAgent, createMockProvider, mountChannels, slackChannel } from '@lousho/build-ai-agent';
+
+const agent = createAgent({ instructions: 'You are helpful.', provider: createMockProvider() });
+
+const handler = mountChannels(agent, [
+  slackChannel({
+    signingSecret: process.env.SLACK_SIGNING_SECRET ?? '',
+    botToken: process.env.SLACK_BOT_TOKEN ?? '',
+  }),
+]);
+```
+
 تعالج `SlackTriggerAdapter.handleRequest({ headers, rawBody })` طلبًا خامًا من Slack Events API وتعيد `{ status, body }` المطلوب إرساله. **اضبط `signingSecret` لأي نقطة وصول يمكن بلوغها من خارج جهازك**: فبدونه يستطيع كل من يصل إلى النقطة تشغيل وكيلك، وتسجّل `listen()` تحذيرًا لمرة واحدة عبر `options.logger`. ومعه يُتحقق من كل طلب [وفق توثيق Slack](https://docs.slack.dev/authentication/verifying-requests-from-slack) قبل تحليل المحتوى: HMAC-SHA256 على `v0:{X-Slack-Request-Timestamp}:{raw body}`، يُقارَن في زمن ثابت مع `X-Slack-Signature` (`v0=<hex>`)، وتُرفض الطلبات التي مضى عليها أكثر من خمس دقائق. وتحصل حالات الفشل على `401 {"error":"Unauthorized"}` عام؛ ويُسجَّل السبب (دون أي سر أو توقيع) بمستوى `warn`. ويُجاب عن مصافحة `url_verification` الموقَّعة بعد التحقق.
 
 ```ts
@@ -152,6 +180,23 @@ const authentic = verifySlackSignature({
 ## Cron
 
 ### جداول cron الزمنية
+
+**مُهمَل.** استُبدلت `CronTriggerAdapter` بالدالة `defineSchedule()` مع `startSchedules()` (راجع [الجداول الزمنية](/ar/schedules))، وهي تعمل أيضًا من `schedules/` في مجلد الوكيل ومن مُشغِّلات cron في ملف المواصفات. تبقى `parseCronExpression()` و`CronExpressionError`. لا يوجد في الجداول الزمنية `intervalMs`: اكتب تعبير cron المكافئ (`*/5 * * * *` لكل خمس دقائق)، أو أبقِ `setInterval` تستدعي `agent.send()`.
+
+```ts
+import { createAgent, createMockProvider, defineSchedule, startSchedules } from '@lousho/build-ai-agent';
+
+const agent = createAgent({ instructions: 'You are helpful.', provider: createMockProvider() });
+
+const queue = defineSchedule({
+  cron: '*/15 9-17 * * MON-FRI',
+  timezone: 'Europe/Paris',
+  prompt: 'Check the support queue',
+});
+const running = startSchedules(agent, [queue]);
+// later, on shutdown:
+running.stop();
+```
 
 تقبل `CronTriggerAdapter` إما `intervalMs` ثابتة أو تعبير cron حقيقيًا:
 

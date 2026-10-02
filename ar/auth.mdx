@@ -204,10 +204,119 @@ await agent.send('Hello', { principal: caller });
 await agent.session({ id: 'chat-1' }).send('Hello again', { principal: caller });
 ```
 
-الحقل `principal` منفصل عن `metadata` عن قصد: فـ `metadata` هو ما أرسله المستدعي، و`principal` هو ما تحقّقت منه المصادقة. والتشغيل الديناميكي المُستأنف من نقطة الحفظ يحتفظ بالهوية التي بدأ بها. وتضبط قناتا Slack وDiscord المُرسِل هويةً (`authenticator: 'slack'` / `'discord'`). أما الأدوات وسياسات الموافقة والتشغيلات الساكنة الموقوفة فلا ترى الهوية بعد.
+الحقل `principal` منفصل عن `metadata` عن قصد: فـ `metadata` هو ما أرسله المستدعي، و`principal` هو ما تحقّقت منه المصادقة. والتشغيل المُستأنف من نقطة الحفظ أو بعد موافقة يحتفظ بالهوية التي بدأ بها. وتضبط قنوات Slack وDiscord وTeams وGitHub وTelegram المُرسِل هويةً (`authenticator: 'slack'` و`'discord'` وهكذا). وترى الأدوات وسياسات الموافقة وقواعد الصلاحيات والوكلاء الفرعيون الهوية أيضًا: راجع [الهويات في الأدوات والموافقات](#الهويات-في-الأدوات-والموافقات).
 
 ## ملاحظات أمنية
 
-- **لا تتحقق مصادقة المسار ممن يملك الجلسة.** يستطيع أي مستدعٍ يجتاز المصادقة ويعرف معرّف جلسة أن يقرأ نصّها (`GET /chat/:id`) ويتابعها ويبتّ في موافقاتها المعلّقة. استخدم معرّفات جلسات لا يمكن تخمينها، أو اشتقّها من الهوية في جانبك، أو تحقق من الملكية في مسارك قبل استدعاء المعالج.
+- **لا تتحقق مصادقة المسار ممن يملك الجلسة.** يستطيع أي مستدعٍ يجتاز المصادقة ويعرف معرّف جلسة أن يقرأ نصّها (`GET /chat/:id`) ويتابعها ويبتّ في موافقاتها المعلّقة. استخدم معرّفات جلسات لا يمكن تخمينها، أو اشتقّها من الهوية في جانبك، أو تحقق من الملكية في مسارك قبل استدعاء المعالج. يُسجَّل المستدعي الذي يبتّ في موافقة مستدعٍ آخر على أنه المُوافِق (`ctx.approval.by`)؛ ويظل التشغيل يعمل نيابةً عن المستدعي الذي بدأه.
 - لا تستخدم `basic()` إلا عبر HTTPS؛ والرمز الحامل (bearer) كلمة مرور أيضًا، لذا أنهِ TLS أمام أي خادم ليس على localhost.
 - أبقِ `issuer` و`audience` مضبوطين في `jwt()`: وإلا قُبل هنا رمز صُدر لخدمة أخرى من خدماتك.
+
+## الهويات في الأدوات والموافقات
+
+كل ما يقرّر أو يتصرف نيابةً عن المستدعي يحصل على هوية التشغيل، وهي مجمّدة (أي أداة أو سياسة تحاول الإسناد إليها تُلقي خطأ):
+
+| أين | كيف |
+| --- | --- |
+| الدالة `execute(args, ctx)` في أداة | `ctx.principal` |
+| الدالة `needsApproval` | `ctx.principal` (وسيطها الثاني) |
+| الدالة `when(args, ctx)` في قاعدة صلاحية | `ctx.principal` |
+| الخطّافان `preToolCall` و`postToolCall` | `ctx.principal` |
+| `onPermissionDecision(entry, { principal })` | الوسيط الثاني؛ والمُدخَل نفسه لا يحمل هوية |
+| موافقة معلّقة (`agent.approvals.list()` و`approve` ودالة `approvers` في قناة) | `request.principal`: صاحب الاستدعاء |
+| الوكلاء الفرعيون داخل العملية (`task` والمهام الخلفية و`createDelegateTool()`) | هوية الوكيل الرئيسي، في كل ما سبق |
+
+والتشغيل الذي لا هوية له (لا مصادقة مسار، أو `send()` من دون `principal`) لا هوية له في أي من هذه المواضع.
+
+### في أداة
+
+```ts
+import { defineTool } from '@lousho/build-ai-agent';
+import { z } from 'zod';
+
+export const myOrders = defineTool({
+  name: 'my_orders',
+  description: "Lists the caller's orders",
+  input: z.object({}),
+  execute: async (_args, ctx) => {
+    if (!ctx.principal) return { error: 'Sign in first.' };
+    // Key on the issuer too: the same id from another issuer is another caller.
+    return { owner: `${ctx.principal.issuer ?? ''}:${ctx.principal.id}`, orders: [] };
+  },
+});
+```
+
+تأتي الهوية من مصادقة المسار أو من المُرسِل الذي تحقّقت منه القناة فقط، ولا تأتي أبدًا من جسم الطلب ولا من النموذج، ولا تستطيع الأداة تغييرها.
+
+### سياسات الموافقة وقواعد الصلاحيات
+
+```ts
+import { createAgent, defineTool } from '@lousho/build-ai-agent';
+import { mockModel } from '@lousho/build-ai-agent/testing';
+import { z } from 'zod';
+
+const deploy = defineTool({
+  name: 'deploy',
+  description: 'Deploys a service',
+  input: z.object({ service: z.string() }),
+  // Ask a human only when the caller has no `admin` claim.
+  needsApproval: (_args, ctx) => ctx.principal?.claims?.admin !== true,
+  execute: async ({ service }) => `deployed ${service}`,
+});
+
+const agent = createAgent({
+  provider: mockModel(['Ready.']),
+  tools: [deploy],
+  // Service accounts (CI tokens) may not deploy at all.
+  permissions: [{ tool: 'deploy', when: (_args, ctx) => ctx.principal?.type === 'service', action: 'deny', reason: 'Not for service accounts' }],
+});
+
+await agent.send('Deploy the API', { principal: { id: 'ci', type: 'service', authenticator: 'api-token' } });
+```
+
+### من وافق
+
+يمكن أن يُسمّي القرار من اتخذه. وترى الأداة الموافَق عليها صاحب القرار في `ctx.approval.by`، بجوار `ctx.approval.note`:
+
+```ts
+import { createAgent, defineTool, type Principal } from '@lousho/build-ai-agent';
+import { mockModel } from '@lousho/build-ai-agent/testing';
+import { z } from 'zod';
+
+const sendEmail = defineTool({
+  name: 'send_email',
+  description: 'Sends an email',
+  input: z.object({ to: z.string() }),
+  needsApproval: true,
+  execute: async ({ to }, ctx) => `sent to ${to} for ${ctx.principal?.id}, approved by ${ctx.approval?.by?.id}`,
+});
+
+const agent = createAgent({
+  provider: mockModel([{ toolCalls: [{ name: 'send_email', args: { to: 'sam@example.com' } }] }, 'Sent.']),
+  tools: [sendEmail],
+});
+const alice: Principal = { id: 'alice', type: 'user', authenticator: 'jwt' };
+const lead: Principal = { id: 'lead', type: 'user', authenticator: 'jwt' };
+
+const paused = await agent.send('Email Sam', { principal: alice });
+// The tool runs for alice; lead is recorded as the approver.
+await agent.approvals.resolve({ id: paused.approvalId!, approved: true }, { principal: lead });
+```
+
+تقبل `resolve()` و`answer()` و`streamResolve()` و`streamAnswer()` الوسيط `{ principal }`. ويمرّر مسار الموافقات (`POST /chat/:sessionId/approvals/:id`) المستدعي الذي قبلته قائمة المصادقة لديه؛ ولا تستطيع حقول الجسم ضبطه. وتمرّر `mountChannels()` المستخدم الذي ضغط الزر على هيئة `{ id, type: 'user', authenticator: <channel name> }`، أو مُرسِل الرسالة إن كان السؤال قد أُجيب برسالة. أما القرارات التي تتخذها دالة `approve` أو التي تُرسَل إلى `/channels/<name>/approvals/:id` فلا مُوافِق لها.
+
+لا يصير المُوافِق هوية التشغيل أبدًا: فالاستدعاء الموافَق عليه وبقية التشغيل يعملان نيابةً عن المستدعي الذي أوقفه. وأي بيانات اعتماد أو منحة تخص ذلك المستدعي لا تُستخدم إلا في استدعاءاته هو، أيًّا كان من يوافق.
+
+### الإيقافات والأعطال والتفرّعات
+
+تُحفظ الهوية مع نقاط حفظ التشغيل ولقطات الموافقات، فيعمل التشغيل المُستأنف في عملية أخرى (بعد إعادة تشغيل، أو `agent.approvals.resolve()`، أو `agent.resume()`، أو دورة معلّقة في جلسة) نيابةً عن المستدعي نفسه. والاستدعاء الذي يتابع تشغيلًا غير مكتمل له نقطة حفظ يجب ألا يمرّر هوية (فيتابع بالهوية المحفوظة) أو يمرّر الهوية نفسها؛ أما `send(message, { sessionId, principal })` من مستدعٍ آخر فيُلقي `LOUSHO_CONFIG_INVALID`، حتى لا يعمل مُدخَله تحت هوية غيره. ونقاط الحفظ واللقطات المحفوظة قبل هذا الإصدار لا هوية فيها وتُستأنف من دونها.
+
+تنسخ `agent.fork()` و`AgentExecutor.fork()` نقطة حفظ التشغيل مع هويته: فالتفرّع هو تشغيل المستدعي نفسه. ولا تُنسخ الموافقة المعلّقة؛ إذ يطلبها التفرّع من جديد. أما `session.fork()` فتنسخ المحادثة وحدها: لا هوية للتفرّع من تلقاء نفسه، وكل دورة من دوراته تعمل بالهوية التي يمرّرها `send()`، وتبقى الموافقة المعلّقة مع الجلسة الأصلية.
+
+### الوكلاء الفرعيون
+
+يعمل الوكلاء الفرعيون داخل العملية (الأداة `task` والمهام الخلفية و`createDelegateTool()`) نيابةً عن مستدعي الوكيل الرئيسي، حتى عند استئناف موافقتهم. أما [الوكيل الفرعي عن بُعد](/ar/sub-agents) (`remoteAgent()`) فلا يُخبَر بهوية المستدعي: تقرّر مصادقة المسار في الخادم البعيد هويته (مثل هوية الخدمة من `apiToken()` لرمز الوكيل الرئيسي).
+
+### ما يُخزَّن وما يُسجَّل
+
+تُخزَّن الهوية، بما فيها المطالبات (claims)، في نقاط الحفظ وسجلات الموافقات التي تحوي أصلًا نص المحادثة؛ فعامل هذه المخازن على أنها بيانات شخصية. ولا تُضاف إلى أحداث `AgentEvent` (ومنها `permission.decision`) ولا إلى مقاطع التتبّع (spans) في OpenTelemetry ولا إلى ملفات التتبّع، ولا تذكر رسائل الأخطاء أسماء المستدعين.

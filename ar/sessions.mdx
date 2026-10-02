@@ -34,6 +34,8 @@ console.log(session.id, session.messages.length);
 | `pending()` | في [جلسة متينة](#الجلسات-المتينة): الدورة التي لم تنتهِ (`{ status, approvalId?, approvalKind? }`؛ تكون قيمة `approvalKind` هي `'question'` حين تنتظر الدورة استدعاء `ask_question`)، أو `null`. |
 | `resume({ signal })` | في جلسة متينة: يُنهي دورة منقطعة ويُنجَز بنتيجتها، أو بـ `null` حين لا توجد دورة معلّقة. |
 | `discardPending()` | في جلسة متينة: يتخلى عن دورة غير منتهية دون تنفيذها. |
+| `history()` | خطوات سجل المحادثة (خطوة لكل استجابة من النموذج، مع استدعاءات أدواتها ونتائجها) - راجع [تفريع جلسة](#تفريع-جلسة). |
+| `fork({ fromStep, id?, patch? })` | جلسة جديدة تبدأ من سجل محادثة هذه الجلسة حتى خطوة معيّنة؛ ولا تتغير هذه الجلسة - راجع [تفريع جلسة](#تفريع-جلسة). |
 
 استدعاءات `send()` المتزامنة على جلسة واحدة توضع في طابور وتُنفَّذ واحدًا تلو الآخر
 بترتيب استدعائها، فلا تتداخل الرسائل في سجل المحادثة أبدًا.
@@ -221,6 +223,11 @@ await again.send('What is my name?'); // "Ali"
 يُرفض `../x` و`a/b` بخطأ يوضّح السبب). نفّذ
 `SessionStore` بنفسك لحفظ سجلات المحادثات في قاعدة بيانات أو في Redis.
 
+للمخزن `AgentStore` جزء رابع اختياري بجانب `sessions` و`checkpoints`
+و`approvals`: هو `tokens`، أي رموز الوصول والتحديث في OAuth للأدوات والاتصالات،
+وتحفظها مخازن الملفات وSQLite وKV مشفّرة (راجع
+[OAuth](/ar/oauth#تخزين-الرموز)).
+
 ## اختيار المخزن
 
 للجلسات ولنقاط حفظ التنفيذ المتين وللموافقات واجهة مخزن
@@ -270,7 +277,7 @@ const store = new SqliteStore('./.lousho/agent.db'); // or ':memory:'
 const agent = createAgent({ provider, store }); // transcripts, per-step checkpoints and approvals
 await agent.session({ id: 'user-42' }).send('Hello');
 
-store.prune({ olderThanMs: 7 * 24 * 60 * 60 * 1000 }); // { sessions, checkpoints, approvals } deleted
+store.prune({ olderThanMs: 7 * 24 * 60 * 60 * 1000 }); // { sessions, checkpoints, approvals, oauthPending } deleted
 store.close();
 ```
 
@@ -285,7 +292,8 @@ store.close();
 - نقاط الحفظ ولقطات الموافقة تُخزَّن JSON معتمًا لا يُفسَّر محتواه، فالحقول الجديدة
   تُكتب وتُقرأ دون تغيير.
 - `prune()` يزيل الجلسات ونقاط الحفظ التي لم تُحدَّث خلال `olderThanMs`،
-  والموافقات التي بُتّ فيها قبل تلك المدة؛ أما الموافقات التي لم يُبتّ فيها فتبقى.
+  والموافقات التي بُتّ فيها قبل تلك المدة وعمليات تسجيل الدخول المعلّقة في OAuth المنتهية؛
+  أما الموافقات التي لم يُبتّ فيها ورموز OAuth فتبقى.
 - الملف الذي ليس قاعدة بيانات SQLite يفشل بخطأ يذكر المسار؛
   واستخدام المخزن بعد `close()` يرمي خطأً واضحًا.
 
@@ -294,3 +302,91 @@ store.close();
 ليست جزءًا من الجلسات، لكنها تُطلب معها كثيرًا: انظر "تعليمات المشروع" في
 [الإعدادات](/ar/configuration) لتعطي الوكيل ملف
 `AGENTS.md` الخاص بمستودعك.
+
+## تفريع جلسة
+
+تسرد `session.history()` خطوات الجلسة، وتبدأ `session.fork({ fromStep })` جلسةً جديدة من أي منها، فتستطيع تجربة اتجاه آخر
+من دون أن تفقد المحادثة الأصلية:
+
+```ts
+import { createAgent, defineTool } from '@lousho/build-ai-agent';
+import { mockModel } from '@lousho/build-ai-agent/testing';
+import { z } from 'zod';
+
+const searchFlights = defineTool({
+  name: 'search_flights',
+  description: 'Find flights to a city',
+  input: z.object({ to: z.string() }),
+  execute: async ({ to }) => `2 flights to ${to}`,
+});
+const agent = createAgent({
+  tools: [searchFlights],
+  provider: mockModel([
+    { toolCalls: [{ name: 'search_flights', args: { to: 'Lisbon' } }] },
+    'Two flights to Lisbon on Friday.',
+    'Porto has a direct flight at 9:00.',
+  ]),
+});
+const session = agent.session({ id: 'trip' });
+await session.send('Find me a flight to Lisbon on Friday.');
+
+for (const { step, turn, text, toolCalls } of await session.history()) {
+  console.log(step, turn, text, toolCalls.map((call) => `${call.name} -> ${call.result}`));
+}
+
+// Keep everything up to and including step 1, then go another way.
+const fork = await session.fork({ fromStep: 1 }); // saved in the same store
+const reply = await fork.send('Look at Porto instead.');
+console.log(fork.id, reply.text); // 'trip-fork-1', 'Porto has a direct flight at 9:00.'
+```
+
+- **الخطوة** استجابة واحدة من النموذج في سجل المحادثة: رسالة مساعد،
+  مع رسائل الأدوات التي تجيب عن استدعاءات أدواتها. وتعيد `history()`
+  `{ step, turn, messageIndex, text, toolCalls }` لكل خطوة، من الأقدم: ترقيم
+  `step` يبدأ من 1 عبر الجلسة كلها (لا لكل دورة)، وترقيم `turn`
+  يبدأ من 0، و`messageIndex` هو فهرس رسالة المساعد في
+  `session.messages`، ولكل استدعاء أداة `id` و`name` و`args` المحلَّلة
+  (السلسلة الخام إن لم تكن JSON) و`result` (محتوى رسالة الأداة
+  نصًا، مرمَّزًا بـ JSON كما رآه النموذج). والخطوات نسخ.
+- **الدورة** تبدأ عند كل رسالة مستخدم، فـ `turn` الخطوة هو الفهرس المبدوء من 0
+  لرسالة المستخدم التي تجيب عنها، وهو الترقيم نفسه الذي يستخدمه
+  التراجع في مساحة العمل. والمُدخَل الذي يُوضع في قائمة الانتظار أو يُوجَّه إلى دورة جارية
+  (`turnPolicy: 'queue'` أو `'steer'`) رسالة مستخدم أيضًا، فيبدأ
+  دورة جديدة في `history()`.
+- `history()` هو تاريخ سجل المحادثة الحالي: فبعد
+  `session.compact()` يُعاد ترقيم الخطوات من السجل المضغوط.
+  والدورة المتينة غير المنتهية ليست في السجل بعد، فلا
+  تُسرد.
+- يحتفظ `fork({ fromStep })` بالسجل حتى آخر رسالة أداة في الخطوة
+  وبها؛ ويحتفظ `fromStep: 0` بلا شيء. والخطوة خارج
+  `0..history().length` تُرفض بالرمز
+  [`LOUSHO_SESSION_STEP_NOT_FOUND`](/ar/errors#lousho_session_step_not_found)،
+  وتسرد رسالته النطاق الصالح.
+- يستبدل `patch: { toolResult: { toolCallId, result } }` نتيجة استدعاء أداة
+  واحد في السجل المحتفَظ به ("ماذا لو لم يجد البحث شيئًا؟")،
+  بالطريقة نفسها التي يعمل بها patch في `agent.fork()`.
+- يُحفظ التفرّع في مخزن الجلسة نفسه، وهو جلسة للوكيل نفسه بالخيارات نفسها
+  (`store` ونقاط الحفظ و`limits` و`turnPolicy` و`compaction`، و[وضع الصلاحيات](/ar/permission-modes)
+  الذي تكون عليه الجلسة لحظة التفرّع)، فيعمل البث والموافقات والدورات ذات نقاط الحفظ كما في أي
+  `agent.session()`، وتتابعه `agent.session({ id: fork.id, store })`
+  لاحقًا، في عملية أخرى أيضًا. ومعرّفه هو `id` إن مرّرتَه، وإلا
+  `<id>-fork-<n>` لأول `n` من 1 ليس له سجل محادثة. والـ `id` الذي
+  له سجل محادثة بالفعل (أو معرّف الجلسة نفسها) يُرفض بالرمز
+  [`LOUSHO_SESSION_EXISTS`](/ar/errors#lousho_session_exists).
+- لا يتغير سجل محادثة الجلسة الأصلية ولا نقاط حفظها.
+- الميزانيات: يبقى الإنفاق المسجَّل لـ `limits` على الرسائل المحتفَظ بها، فتبدأ
+  `limits` في التفرّع مما أنفقته الجلسة عند نهاية آخر
+  دورة يحتفظ بها (تسجّل الدورة إنفاقها على رسالتها الأخيرة).
+- تنتظر `fork()` الاستدعاءات الموجودة في قائمة الانتظار، وتُرفض بالرمز `LOUSHO_SESSION_BUSY` عندما
+  تكون دورة قيد التنفيذ.
+- يمكن تفريع جلسة موقوفة. وتبقى الدورة الموقوفة وموافقتها أو
+  `ask_question` والدورة المنقطعة في جلسة متينة مع
+  الجلسة المصدر: ليس للتفرّع دورة معلّقة، وتتابع `agent.approvals.resolve()`
+  المصدر وحده، مرة واحدة.
+- يُفرَّع سجل المحادثة وحده. أما الملفات التي كتبها الوكيل والآثار الجانبية الأخرى
+  للخطوات بعد نقطة التفرّع فلا تُتراجَع؛ ولاستعادة
+  ملفات مساحة العمل راجع جزء التراجع في [أدوات مساحة العمل](/ar/workspace-tools).
+
+ولتفريع تشغيل واحد بدأ بـ `agent.send(message, { sessionId })`، من
+سجل نقاط حفظه، استخدم `agent.fork()` بدلًا من ذلك (راجع
+[التفريع وإعادة التشغيل](/ar/durable-execution#التفريع-وإعادة-التشغيل)).
