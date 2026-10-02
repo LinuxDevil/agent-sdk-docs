@@ -21,3 +21,4 @@ jobs:
       - run: npx mint validate
       - run: npx mint broken-links
       - run: node scripts/check-translations.mjs
+      - run: npm test
