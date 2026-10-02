@@ -1,12 +1,6 @@
 ---
 title: "الأدوات"
 ---
-
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/tools).
-</Warning>
-
 {/* Generated from docs/tools.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 الأداة دالة ذات أنواع محدّدة يستطيع النموذج استدعاءها. عرّفها بـ `defineTool()`: تُستنتج أنواع الوسائط والنتيجة من مخطط zod في `input`، ويُتحقَّق من صحة الوسائط قبل تشغيل `execute`، ويصلح الناتج للاستخدام في أي موضع يقبل الأدوات (`createAgent({ tools: [...] })`، `ToolRegistry.register(tool)`، `AgentBuilder.addTool(tool)`).
@@ -34,11 +28,11 @@ const agent = createAgent({ prompt: '...', provider, tools: [weather] });
 | ------ | -------- | ----------- |
 | `name` | نعم | الاسم الذي يستدعي به النموذج الأداة. يجب أن يطابق `^[a-zA-Z0-9_-]{1,64}$` (وهو القيد الذي يفرضه مزوّدو LLM على أسماء الدوال). |
 | `description` | نعم | ما تفعله الأداة. يقرؤه النموذج ليقرر متى يستدعيها. |
-| `input` | نعم | مخطط Zod للوسائط (zod 3 أو zod 4، أو أي Standard Schema آخر يوفّر `~standard.jsonSchema`). تستقبل `execute` و`needsApproval` و`sandboxExecute` نوعه بعد التحليل (نوع المخرجات). |
+| `input` | نعم | مخطط zod للوسائط (zod 3 أو zod 4، أو أي Standard Schema آخر يوفّر `~standard.jsonSchema`). تستقبل `execute` و`needsApproval` و`sandboxExecute` نوعه بعد التحليل (نوع المخرجات). |
 | `execute(args, ctx)` | نعم | تنفّذ الأداة. يحمل `ctx` قيمتَي `toolCallId` و`abortSignal` الخاصتين بالاستدعاء. ويُحفَظ نوع القيمة المُرجَعة على الأداة (`ToolOutput`). |
 | `displayName` | لا | تسمية لواجهات المستخدم. قيمتها الافتراضية `name`. |
 | `needsApproval` | لا | `true`، أو دالة شرطية تُستمد أنواعها من `input`، للتوقف بانتظار قرار بشري قبل تنفيذ الاستدعاء. راجع [الموافقات](/ar/approvals). |
-| `requiresSandbox` | لا | تشغيل الأداة عبر `SandboxAdapter` المُعَدّ بدلًا من تشغيلها داخل العملية (يتطلب `sandboxExecute`). راجع [حواجز الحماية والبيئات المعزولة](/ar/guardrails#الأدوات-المعزولة). |
+| `requiresSandbox` | لا | تشغيل الأداة عبر `SandboxAdapter` المُعَدّ بدلًا من تشغيلها داخل العملية (يتطلب `sandboxExecute`). راجع [حواجز الحماية وبيئات العزل](/ar/guardrails#الأدوات-المعزولة). |
 | `sandboxExecute(args, sandbox)` | لا | مسار التنفيذ داخل البيئة المعزولة، ويُستخدم عندما تكون قيمة `requiresSandbox` هي true. |
 
 تتحقق `defineTool()` من الاسم والوصف ومخطط zod في `input` عند استدعائها، وترمي خطأً يبيّن كيفية إصلاح القيمة غير الصالحة. وتسجيل أداتين بالاسم نفسه يرمي خطأً يذكر التعارض.
@@ -49,7 +43,7 @@ const agent = createAgent({ prompt: '...', provider, tools: [weather] });
 
 - **التحقق أولًا.** تُحلَّل وسائط النموذج بـ `inputSchema` (مع تطبيق القيم الافتراضية وتحويلات الأنواع والتحويلات المخصّصة) قبل أن تراها الخطّافات و`needsApproval` و`execute`. الوسائط غير المطابقة لا تصل إلى `execute` أبدًا: يحصل النموذج على نتيجة منظَّمة `ToolArgumentsValidationError` ويستطيع إعادة المحاولة.
 - **الأخطاء نتائج.** الأداة التي ترمي خطأً تعطي النموذج `{ error, toolName, message, kind }` (دون تتبّع المكدّس stack trace) ويستمر التشغيل. راجع [الأخطاء](#الأخطاء).
-- **الاستدعاءات المتوازية.** الاستدعاءات المتعددة في دورة نموذج واحدة تُنفَّذ بالتزامن؛ ضع لها حدًّا بـ `toolConcurrency` (`1` للتنفيذ التسلسلي الصارم). وتصل النتائج إلى سجل المحادثة بترتيب استدعاءات النموذج. راجع [استدعاءات الأدوات المتوازية](/ar/api-overview#استدعاءات-الأدوات-المتوازية).
+- **الاستدعاءات المتوازية.** الاستدعاءات المتعددة في دورة نموذج واحدة تُنفَّذ بالتزامن؛ ضع لها حدًّا بـ `toolConcurrency` (`1` للتنفيذ التسلسلي الصارم). وتصل النتائج إلى سجل المحادثة بترتيب استدعاءات النموذج. راجع [استدعاءات الأدوات المتوازية](/ar/runs#استدعاءات-الأدوات-المتوازية).
 - **الإلغاء.** تصل `AbortSignal` الخاصة بالتشغيل إلى كل استدعاء في `ctx.abortSignal`، فيمكن إيقاف العمل الطويل مبكرًا.
 - **إعادة المحاولة بعد انهيار.** مع التنفيذ المتين قد تُنفَّذ الأداة أكثر من مرة إذا وقع انهيار؛ استخدم `ctx.toolCallId` مفتاحًا يمنع تكرار الأثر (idempotency key). راجع [التنفيذ المتين](/ar/durable-execution#الأدوات-تُنفَّذ-مرة-واحدة-على-الأقل-اجعل-الآثار-الجانبية-آمنة-عند-التكرار).
 
@@ -92,26 +86,86 @@ const agent = createAgent({ prompt: '...', provider, tools: [weather] });
 | `sandbox` | `SandboxRequiredError` | الأداة تحمل `requiresSandbox` لكن بلا `sandboxExecute`، فرُفضت بدلًا من تشغيلها خارج البيئة المعزولة. |
 | `denied` | `ToolDeniedError` | رفضت الاستدعاءَ [قاعدة صلاحيات](/ar/approvals#سياسات-الصلاحيات) من نوع `deny`؛ ولم تُنفَّذ `execute`. يضيف `reason` إن كان للقاعدة سبب. |
 
+**التحقق من الوسائط.** تُحلَّل وسائط النموذج بمخطط zod الخاص بالأداة `inputSchema` (وفي الواصف القديم `tool.parameters`) قبل تشغيل الأداة، فتستقبل خطّافات ما قبل الأداة ودالة `needsApproval` الشرطية و`execute` جميعًا القيمة **بعد التحليل**. أما الأدوات التي لا تحمل مخطط zod فتُمرَّر وسائطها دون تغيير. وإذا لم تطابق الوسائط المخطط فلا تُستدعى `execute` وتُتخطّى خطّافات `preToolCall`، إذ لا يوجد استدعاء صالح. ويحصل النموذج على نتيجة `validation` يستطيع إعادة المحاولة بناءً عليها:
+
+```json
+{
+  "error": "ToolArgumentsValidationError",
+  "toolName": "sendEmail",
+  "message": "Invalid arguments for tool 'sendEmail': 2 issues (to: Required; count: Expected number, received string)",
+  "kind": "validation",
+  "issues": [
+    { "path": "to", "message": "Required" },
+    { "path": "count", "message": "Expected number, received string" }
+  ]
+}
+```
+
+يُصدَّر `ToolArgumentsValidationError` (مع مصفوفة `issues` محدّدة الأنواع) من جذر الحزمة.
+
 تبني `toolErrorResult({ toolName, error, kind?, toolCallId?, details? })` هذه النتيجة؛ استخدمها في مغلِّفات الأدوات الخاصة بك لتكون نتائجها مطابقة. ويستطيع الخطأ المرمي أن يختار نوعه بحمل خاصية `toolErrorKind`. أما الخطأ الذي يرث من `PropagatingToolError` فليس نتيجة: إنه يُنهي التشغيل.
 
 ## الأدوات المضمَّنة
 
 | التصدير | الأداة |
 | ------ | ---- |
-| `httpTool`, `createHttpTool(options)` | طلبات HTTP، مع حماية من SSRF (يُفحص كل عنوان ناتج عن تحليل الاسم قبل الاتصال). |
+| `httpTool`, `createHttpTool(options)` | `http_request`: طلبات HTTP (أي method، مع الترويسات والمحتوى)، مع حماية من SSRF: تُرفض الوجهات الحلقية (loopback) والخاصة والمحلية للرابط (link-local) في كل قفزة، ويتصل الاتصال بالعنوان الذي جرى فحصه. على Node فقط. |
+| `webFetchTool`, `createWebFetchTool(options)` | `web_fetch`: يرسل `GET` إلى صفحة ويب عامة واحدة ويعيدها نصًّا، بالحماية نفسها من SSRF وبحدود على عدد عمليات إعادة التوجيه والحجم والوقت. على Node فقط؛ انظر أدناه. |
 | `currentDateTool`, `dayNameTool` | التاريخ والوقت الحاليان (ISO، UTC) واسم يوم الأسبوع. |
-| `createTodoTools()` | `todo_write` / `todo_read` ليتمكن الوكيل من تخطيط عمل متعدد الخطوات؛ راجع [أدوات قائمة المهام](/ar/api-overview#أدوات-قائمة-المهام). |
+| `createTodoTools()` | `todo_write` / `todo_read` ليتمكن الوكيل من تخطيط عمل متعدد الخطوات؛ راجع [أدوات قائمة المهام](#أدوات-قائمة-المهام). |
 | `askQuestionTool()`, `createAgent({ askQuestion: true })` | `ask_question`: يطرح الوكيل سؤالًا على المستخدم ويتوقف التشغيل إلى حين استدعاء `agent.approvals.answer()`؛ راجع [طرح سؤال على المستخدم](/ar/approvals#طرح-سؤال-على-المستخدم). |
 | `createFsTools()`, `createShellTool()` | أدوات نظام الملفات والصدفة (shell) لوكلاء البرمجة؛ راجع [أدوات مساحة العمل](/ar/workspace-tools). |
 | `createEmailTool()`, `createSlackTool()`, `createGitHubTools()`, `createJiraTools()` | تكاملات تحتاج إلى بيانات اعتماد، ولذلك تُبنى بخيارات. |
-| `createAgent({ mcpServers })`, `connectMcp(servers)` | كل أدوات خوادم MCP المعطاة في الإعدادات (`command` عبر stdio أو `url` عبر HTTP)، وتُسمّى `<server>__<tool>`؛ راجع [ربط خوادم MCP](/ar/configuration#ربط-خوادم-mcp-mcpservers،-connectmcp). |
-| `loadMcpTools(client, name)` | كل أدوات خادم MCP متصل؛ راجع [أدوات MCP](/ar/configuration#أدوات-mcp-model-context-protocol). |
+| `createAgent({ mcpServers })`, `connectMcp(servers)` | كل أدوات خوادم MCP المعطاة في الإعدادات (`command` عبر stdio أو `url` عبر HTTP)، وتُسمّى `<server>__<tool>`؛ راجع [استخدام خوادم MCP في وكيل](/ar/mcp#استخدام-خوادم-mcp-في-وكيل). |
+| `openApiTools(document, options)` | أداة واحدة لكل عملية في مستند OpenAPI 3.0 / 3.1؛ والعمليات التي تغيّر البيانات تطلب موافقة. راجع [أدوات OpenAPI](/ar/openapi-tools). |
+| `loadMcpTools(client, name)` | كل أدوات خادم MCP متصل؛ راجع [أدوات MCP](/ar/mcp#أدوات-من-عميل-اتصلتَ-به-بنفسك). |
 
-تُمرَّر الواصفات المضمَّنة في كائن مفاتيحه الأسماء التي يستخدمها الوكيل: `createAgent({ tools: { current_date: currentDateTool } })`. وتشير ملفات المواصفات إلى `http` و`current-date` و`day-name` بالاسم (راجع [الإعدادات](/ar/configuration#الأدوات-التي-يمكن-لملف-المواصفات-الإشارة-إليها)).
+تُمرَّر الواصفات المضمَّنة في كائن مفاتيحه الأسماء التي يستخدمها الوكيل: `createAgent({ tools: { current_date: currentDateTool } })`. وتشير ملفات المواصفات إلى `http` و`web-fetch` و`current-date` و`day-name` بالاسم (راجع [الإعدادات](/ar/configuration#الأدوات-التي-يمكن-لملف-المواصفات-الإشارة-إليها)).
 
-## `ToolRegistry`
+كيف ترفض `http_request` و`web_fetch` الوجهات الخاصة: يُفحص المضيف إذا كان عنوان IP صريحًا قبل إرسال الطلب؛ أما اسم المضيف فيُحلَّل مرة واحدة عند فتح الاتصال، ويُفحص كل عنوان ينتج عنه (الحلقي loopback، وRFC 1918، والمحلي للرابط link-local بما فيه عنوان بيانات السحابة الوصفية، وCGNAT، ونطاقات البث المتعدد والنطاقات المحجوزة، وIPv6 المقابل لـ IPv4، وNAT64 و6to4)، ثم يتصل المقبس بالعنوان الذي جرى فحصه. وتُتبع عمليات إعادة التوجيه يدويًا ويُفحص كل قفزة بالطريقة نفسها. أما الاسم الذي يستغل DNS rebinding، أي الذي يجيب بعنوان عام أولًا ثم بعنوان خاص لاحقًا، فلا يجد استعلامًا ثانيًا يجيب عنه. وعندما تعمل `http_request` عبر بيئة معزولة يُحلَّل المضيف ويُفحص في عملية الوكيل، وتتصل العملية المعزولة بذلك العنوان. وتقبل الأداتان كلتاهما الخيار `allowPrivate` (أنماط مضيفين مثل `intranet.example` أو `*.corp.example`) للمضيفين الذين يجوز أن يُحلَّلوا إلى عناوين خاصة.
 
-تبني `createAgent()` سجلًا لك. ومع `AgentBuilder` + `AgentExecutor.execute()`، أو لمشاركة الأدوات بين الوكلاء، املأ سجلًا بنفسك: `register(tool)` لناتج `defineTool()`، و`register(name, descriptor)` لواصف `ToolDescriptor` خام (أداة مضمَّنة، أو أداة MCP، أو `tool()` قائمة من `ai` SDK)، و`registerMany()` لكائن من الواصفات أو مصفوفة من الأدوات المعرَّفة.
+تأخذ `web_fetch` الوسيط `{ url }` (بروتوكول `http:` أو `https:`، دون `user:password@`) وتعيد `{ url, finalUrl, status, contentType, content, truncated }`. وهي ترسل `GET` فقط، دون محتوى ولا ملفات تعريف ارتباط ولا ترويسات يختارها المستدعي. يتحوّل HTML إلى نص عادي (تُزال السكربتات والأنماط وما شابهها، وتوضع عناصر الكتل كل منها في سطر، وتُكتب روابط URL بين قوسين، وتُفك الكيانات)؛ ويُعاد JSON و`text/*` كما أُرسلا؛ وتعيد الأنواع الأخرى (الصور وملفات PDF والملفات الثنائية) ملاحظة بدلًا من المحتوى. وتُعاد استجابة 4xx أو 5xx مع محتواها ولا تُرمى خطأً، ليتمكن النموذج من قراءة صفحة الخطأ. أما حالات الرفض والمهلات وكثرة عمليات إعادة التوجيه وعناوين URL الخاطئة فهي أخطاء أداة تذكر المضيف. والصفحة مُدخَل غير موثوق: وصف الأداة يخبر النموذج بذلك، وقد ضُبط `readOnlyHint` و`openWorldHint`. خيارات `createWebFetchTool()`:
+
+```ts
+import { createAgent, createWebFetchTool } from '@lousho/build-ai-agent';
+
+const webFetch = createWebFetchTool({
+  timeoutMs: 30_000, // whole request: redirects and body included
+  maxRedirects: 10, // each hop is checked again
+  maxBytes: 2 * 1024 * 1024, // read from the network, then stop (truncated: true)
+  maxChars: 50_000, // characters of text returned to the model
+  allowedHosts: ['*.example.com'], // when set, any other host is refused before DNS
+  blockedHosts: ['private.example.com'], // always refused, before DNS
+  allowPrivate: [], // hosts allowed to resolve to private addresses
+  userAgent: 'lousho-web-fetch',
+});
+
+const agent = createAgent({ model: 'openai/gpt-4o-mini', tools: [webFetch] });
+```
+
+لكل `createWebFetchTool()` مجمّع اتصالات خاص بها، يبقى ما بقيت الأداة ويُحرَّر معها بجمع المهملات (garbage collection) (ولا توجد دالة إغلاق). و`web_fetch` غير موجودة في بناء Cloudflare Worker، أما `http_request` في Worker فأداة مختلفة لا تصل إلا إلى أسماء المضيفين المدرجة في ربط `LOUSHO_HTTP_ALLOW`؛ راجع [Cloudflare Workers](/ar/cloudflare-workers#المزوّدون-والأدوات).
+
+## أدوات قائمة المهام
+
+تمنح `createTodoTools(options?)` الوكلاء طويلي التشغيل خطة يتتبعونها: تستبدل `todo_write` القائمة كلها (عناصر `{ id?, content, status }`، والحالة `pending` أو `in_progress` أو `completed`، وعنصر واحد على الأكثر بحالة `in_progress`) وتعيد القائمة مع الأعداد؛ وتعيدها `todo_read`. تُسند المعرّفات تلقائيًا وتبقى ثابتة إذا كرّرت كتابة لاحقة محتوى عنصر. والقوائم غير الصالحة (مثل عنصرين بحالة `in_progress`) تصل إلى النموذج خطأ أداة منظَّمًا ليعيد المحاولة. تعيش القائمة في الذاكرة لكل استدعاء؛ مرّر `store` (`{ get, set }`) لحفظها، و`onChange` لتحديث واجهة المستخدم. وكل `todo_write` ناجح يُصدر أيضًا حدث البث `todo.updated` بالقائمة الجديدة وأعدادها (راجع [أحداث البث](/ar/stream-events))، وتحوّله روابط [React](/ar/react#المهام) و[Vue](/ar/vue#المهام) و[Svelte](/ar/svelte#المهام) إلى `useTodos()` / `loushoTodos()`، فتعرض واجهة المستخدم الخطة مباشرة دون `onChange`.
+
+```ts
+import { createAgent, createTodoTools, type TodoStore } from '@lousho/build-ai-agent';
+
+const todos = createTodoTools({ onChange: (list) => console.log(list.length, 'todos') });
+const planner = createAgent({ prompt: 'Plan multi-step work, then do it.', provider, tools: todos.tools });
+
+await planner.send('Migrate the repo to ESM');
+console.log(await todos.getTodos()); // [{ id: 'todo_1', content: '...', status: 'completed' }, ...]
+
+// Persist the list somewhere else:
+let saved: Awaited<ReturnType<TodoStore['get']>> = [];
+createTodoTools({ store: { get: () => saved, set: (next) => void (saved = next) } });
+```
+
+## متقدم: `ToolRegistry`
+
+تبني `createAgent()` سجلًا لك؛ لا تملأ سجلًا بنفسك إلا مع `AgentExecutor.execute()` (راجع [واجهة المنفِّذ](/ar/executor-api)) أو لمشاركة الأدوات بين الوكلاء: `register(tool)` لناتج `defineTool()`، و`register(name, descriptor)` لواصف `ToolDescriptor` خام (أداة مضمَّنة، أو أداة MCP، أو `tool()` قائمة من `ai` SDK)، و`registerMany()` لكائن من الواصفات أو مصفوفة من الأدوات المعرَّفة.
 
 ```ts
 import { ToolRegistry, currentDateTool, defineTool } from '@lousho/build-ai-agent';

@@ -1,8 +1,218 @@
 ---
-title: "Build a coding agent"
+title: "بناء وكيل برمجة"
+sidebarTitle: "بناء وكيل برمجة"
 ---
+{/* Generated from docs/build-a-coding-agent.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-{/* pending-translation */}
-<Note>
-هذه الصفحة لم تُترجَم إلى العربية بعد. اقرأ [النسخة الإنجليزية](/build-a-coding-agent).
-</Note>
+تبني هذه الصفحة وكيل برمجة للطرفية على غرار Claude Code: يقرأ الملفات في مشروعك ويعدّلها، ويشغّل الأوامر، ويسألك قبل أن يكتب ملفًا أو ينفّذ أمرًا فيه خطورة، ويُبقي المحادثة قائمة لأسئلة المتابعة. تحتاج إلى Node 22، ومفتاح API في متغير البيئة الذي يتوقعه مزوّد النموذج (`OPENAI_API_KEY` للنموذج المستخدم هنا)، ومجلد مشروع تشغّله فيه. الملف النهائي في آخر [الخطوة 5](#5-أبقِ-المحادثة-قائمة)، وتشغّله بالأمر `npx tsx coding.ts "Fix the failing test"`.
+
+## 1. امنح الوكيل مساحة عمل
+
+مساحة العمل (workspace) مجلد يُسمح للوكيل بالعمل فيه. الصنف `NodeWorkspace` نظام ملفات وصدفة (shell) له في الوقت نفسه، وتحوّله `createFsTools()` و`createShellTool()` إلى أدوات.
+
+```ts
+import { NodeWorkspace, createFsTools, createShellTool } from '@lousho/build-ai-agent';
+
+const workspace = new NodeWorkspace({ root: process.cwd() });
+const tools = [...createFsTools(workspace), createShellTool(workspace)];
+```
+
+الخيار `root` مهم: كل مسار يمرّره النموذج يُحصَر داخله، وتُرفض `..` والمسارات المطلقة وحروف الأقراص (راجع [نموذج الأمان](/ar/workspace-tools#نموذج-الأمان)). شغّل البرنامج من مجلد المشروع واستخدم `process.cwd()` جذرًا، فلا تستطيع أدوات الملفات الوصول إلى أي شيء خارج المشروع.
+
+يرى النموذج سبع أدوات: `read_file` و`write_file` و`edit_file` و`list_dir` و`glob` و`grep` من `createFsTools()`، و`shell` من `createShellTool()`. وسيطاتها وخياراتها في [أدوات مساحة العمل](/ar/workspace-tools#الأدوات).
+
+## 2. حدّد ما يحتاج إلى موافقة
+
+الأداة التي تحمل `needsApproval` توقف التشغيل قبل تنفيذها ليقرر إنسان. القراءة غير ضارة، لذا اشترط الموافقة على أدوات الملفات التي تغيّر شيئًا بخريطة لكل أداة. وللصدفة، مرّر دالة شرطية على نص الأمر، واشترط الموافقة على الأوامر التي تراها خطرة فقط.
+
+```ts
+import { NodeWorkspace, createFsTools, createShellTool } from '@lousho/build-ai-agent';
+
+const DESTRUCTIVE = /\b(rm|mv|chmod|chown|git\s+(push|reset|clean|checkout))\b|>/;
+
+const workspace = new NodeWorkspace({ root: process.cwd() });
+const tools = [
+  ...createFsTools(workspace, { needsApproval: { write_file: true, edit_file: true } }),
+  createShellTool(workspace, { needsApproval: (command) => DESTRUCTIVE.test(command) }),
+];
+```
+
+تطلب أداة الصدفة الموافقة افتراضيًا (`needsApproval: true`)؛ والدالة الشرطية أعلاه تدع كل ما عدا ذلك، مثل `npm test` أو `git status`، يعمل دون سؤال. والطريقة الأخرى لتخطّي السؤال هي قائمة `allow` بالأوامر التي تثق بها مع `needsApproval: false`، كما في أعلى [أدوات مساحة العمل](/ar/workspace-tools). التعبير النمطي للتسهيل وليس حدًّا أمنيًا: فأمر الصدفة يمكن كتابته بطرق كثيرة. وفي أي شيء لا تتحكم فيه، أبقِ الإعداد الافتراضي ووافق على كل أمر، أو شغّل الصدفة في بيئة معزولة (sandbox) (راجع `SandboxShell` في [أدوات مساحة العمل](/ar/workspace-tools#واجهة-أوامر-معزولة-sandboxshell)).
+
+## 3. شغّله وبُثّ الإجابة
+
+أنشئ الوكيل بالأدوات، ثم استدعِ `agent.stream()`. تُعيد تشغيلًا تمرّ عليه بحلقة للحصول على أحداث مُنمَّطة: يحمل `text.delta` نص النموذج أثناء كتابته، ويعلن `tool.start` عن كل استدعاء أداة (راجع [البث](/ar/streaming)).
+
+```ts
+import { NodeWorkspace, createAgent, createFsTools, createShellTool } from '@lousho/build-ai-agent';
+
+const workspace = new NodeWorkspace({ root: process.cwd() });
+const agent = createAgent({
+  model: 'openai/gpt-4o-mini',
+  instructions: 'You are a careful coding agent. Read before you edit; run the tests after every change.',
+  maxSteps: 30,
+  tools: [
+    ...createFsTools(workspace, { needsApproval: { write_file: true, edit_file: true } }),
+    createShellTool(workspace),
+  ],
+});
+
+const run = agent.stream('Fix the failing test');
+for await (const event of run) {
+  if (event.type === 'text.delta') process.stdout.write(event.text);
+  if (event.type === 'tool.start') console.log(`\n> ${event.toolName} ${JSON.stringify(event.args)}`);
+}
+```
+
+يحدّ `maxSteps` من عدد استدعاءات النموذج في تشغيل واحد، فلا يدور وكيل مرتبك إلى الأبد. يتوقف هذا البرنامج عند أول استدعاء مشروط بموافقة: ينتهي البث بحدث `approval.requested` وينتهي التشغيل بالحالة `'awaiting-approval'`. وتعالج الخطوة التالية ذلك.
+
+## 4. تعامل مع التوقف
+
+عندما ينتهي البث، يعطيك `await run.result` النتيجة النهائية. وإذا توقف التشغيل، يسمّي `result.approvalId` الاستدعاء المعلّق. اسأل المستخدم، ثم تابع بـ `agent.approvals.streamResolve()` التي تُعيد تشغيلًا جديدًا لبقية العمل. وقد يتوقف ذلك التشغيل مرة أخرى، لذا كرّر الحلقة حتى لا يبقى `approvalId`.
+
+```ts
+import { createInterface } from 'node:readline/promises';
+import { createAgent, type AgentRun } from '@lousho/build-ai-agent';
+
+const agent = createAgent({ model: 'openai/gpt-4o-mini', instructions: 'You are a coding agent.' });
+const rl = createInterface({ input: process.stdin, output: process.stdout });
+
+async function drain(first: AgentRun): Promise<void> {
+  let run = first;
+  for (;;) {
+    for await (const event of run) {
+      if (event.type === 'text.delta') process.stdout.write(event.text);
+      if (event.type === 'tool.start') console.log(`\n> ${event.toolName} ${JSON.stringify(event.args)}`);
+    }
+    const { approvalId } = await run.result;
+    if (!approvalId) return;
+    const answer = await rl.question('\nApprove this call? [y/N] ');
+    run = agent.approvals.streamResolve({ id: approvalId, approved: answer.trim().toLowerCase() === 'y' });
+  }
+}
+
+try {
+  await drain(agent.stream('Fix the failing test'));
+} finally {
+  rl.close();
+}
+```
+
+تفصيلان في البث المتابَع. الأول أن `tool.start` للاستدعاء الذي وافقت عليه للتوّ يصل في بدايته، فتطبع الحلقة كل استدعاء مرة واحدة. والثاني أن الاستدعاء المرفوض لا يُفشل التشغيل: يحصل النموذج على نتيجة رفض بدلًا من مخرجات الأداة ويواصل عمله. ولإخباره بالسبب، مرّر `note`: `streamResolve({ id, approved: false, note: 'Do not touch the lockfile' })`. ويُغلق `try` / `finally` واجهة `readline` حتى حين يُرفض `run.result` لأن التشغيل فشل.
+
+يحمل حدث `approval.requested` أيضًا `toolName` و`args`، فتستطيع أن تطبع ما سيفعله الاستدعاء قبل أن تسأل. راجع [الموافقات](/ar/approvals) للاطلاع على الواجهة كاملة.
+
+## 5. أبقِ المحادثة قائمة
+
+حتى الآن تبدأ كل مهمة من الصفر. تحتفظ `agent.session()` بالنص، فتستطيع متابعة مثل "now add a test for the empty case" أن ترى الدورات السابقة. و`session.stream(input)` هي `agent.stream()` لمحادثة، وتُعيد النوع نفسه من التشغيلات؛ والدورة التي تتوقف عند استدعاء مشروط بموافقة تتابع في الجلسة نفسها عندما تبتّ فيها عبر الوكيل نفسه (راجع [بث دورة جلسة](/ar/sessions#بث-دورة-في-جلسة)). حوّل الحلقة إلى REPL: استدعاء `session.stream()` واحد لكل سطر يكتبه المستخدم، مع معالجة التوقف نفسها.
+
+```ts
+// coding.ts
+// Run: OPENAI_API_KEY=... npx tsx coding.ts "Fix the failing test"
+import { createInterface } from 'node:readline/promises';
+import { NodeWorkspace, createAgent, createFsTools, createShellTool, type AgentRun } from '@lousho/build-ai-agent';
+
+const DESTRUCTIVE = /\b(rm|mv|chmod|chown|git\s+(push|reset|clean|checkout))\b|>/;
+
+const workspace = new NodeWorkspace({ root: process.cwd() });
+const agent = createAgent({
+  model: 'openai/gpt-4o-mini',
+  instructions: 'You are a careful coding agent. Read before you edit; run the tests after every change.',
+  maxSteps: 30,
+  tools: [
+    ...createFsTools(workspace, { needsApproval: { write_file: true, edit_file: true } }),
+    createShellTool(workspace, { needsApproval: (command) => DESTRUCTIVE.test(command) }),
+  ],
+});
+const session = agent.session();
+const rl = createInterface({ input: process.stdin, output: process.stdout });
+
+async function drain(first: AgentRun): Promise<void> {
+  let run = first;
+  for (;;) {
+    for await (const event of run) {
+      if (event.type === 'text.delta') process.stdout.write(event.text);
+      if (event.type === 'tool.start') console.log(`\n> ${event.toolName} ${JSON.stringify(event.args)}`);
+    }
+    const { approvalId } = await run.result;
+    if (!approvalId) return;
+    const answer = await rl.question('\nApprove this call? [y/N] ');
+    run = agent.approvals.streamResolve({ id: approvalId, approved: answer.trim().toLowerCase() === 'y' });
+  }
+}
+
+try {
+  let line = process.argv[2] ?? (await rl.question('> '));
+  while (line.trim() && line.trim() !== 'exit') {
+    await drain(session.stream(line));
+    process.stdout.write('\n');
+    line = await rl.question('> ');
+  }
+} finally {
+  rl.close();
+}
+```
+
+تأتي المهمة الأولى من سطر الأوامر (أو من موجّه إن لم توجد)؛ وبعد كل إجابة يطلب البرنامج السطر التالي، ويُنهيه سطر فارغ أو `exit`. تعيش الجلسة في الذاكرة، فتنتهي بانتهاء العملية؛ ولإبقاء محادثة عبر عدة تشغيلات، أعطِ الوكيل مخزنًا (راجع [اختيار مخزن](/ar/sessions#اختيار-المخزن)).
+
+## 6. اختبره دون نموذج
+
+لا يحتاج الوكيل إلى شبكة ليُختبَر. تُبقي `MemoryWorkspace` الملفات في الذاكرة وتقبل `exec` مكتوبًا مسبقًا للصدفة، ويؤدي `mockModel` دور النموذج. تحقق من `workspace.snapshot()` و`workspace.commands`.
+
+```ts
+import { createAgent, createFsTools, createShellTool, MemoryWorkspace } from '@lousho/build-ai-agent';
+import { mockModel } from '@lousho/build-ai-agent/testing';
+
+const workspace = new MemoryWorkspace({
+  files: { 'math.js': 'exports.add = (a, b) => a - b;\n' },
+  exec: (command) => (command === 'node --test' ? { stdout: 'pass 1\n' } : { exitCode: 1, stderr: 'unknown command\n' }),
+});
+const agent = createAgent({
+  instructions: 'Fix bugs. Run the tests after every change.',
+  provider: mockModel([
+    { toolCalls: [{ name: 'edit_file', args: { path: 'math.js', old_string: 'a - b', new_string: 'a + b' } }] },
+    { toolCalls: [{ name: 'shell', args: { command: 'node --test' } }] },
+    'Fixed add(); the tests pass.',
+  ]),
+  tools: [...createFsTools(workspace), createShellTool(workspace, { needsApproval: false })],
+});
+
+await agent.send('add() is broken');
+console.log(workspace.snapshot()['math.js']); // 'exports.add = (a, b) => a + b;\n'
+console.log(workspace.commands.map((c) => c.command)); // ['node --test']
+```
+
+لاختبار مسار الموافقة، اشترط الموافقة على `write_file` كما يفعل الوكيل الحقيقي. تنتهي `send()` بـ `finishReason: 'awaiting-approval'` وبـ `approvalId`، ويبقى الملف دون تغيير، ثم تنفّذ `agent.approvals.resolve()` الكتابة وتُنهي الدورة.
+
+```ts
+import { createAgent, createFsTools, MemoryWorkspace } from '@lousho/build-ai-agent';
+import { mockModel } from '@lousho/build-ai-agent/testing';
+
+const workspace = new MemoryWorkspace({ files: { 'notes.txt': 'old\n' } });
+const agent = createAgent({
+  instructions: 'Write notes.',
+  provider: mockModel([
+    { toolCalls: [{ name: 'write_file', args: { path: 'notes.txt', content: 'new\n' } }] },
+    'Wrote the file.',
+  ]),
+  tools: createFsTools(workspace, { needsApproval: { write_file: true } }),
+});
+
+const paused = await agent.send('Update the notes');
+console.log(paused.finishReason, workspace.snapshot()['notes.txt']); // 'awaiting-approval' 'old\n'
+
+const done = await agent.approvals.resolve({ id: paused.approvalId!, approved: true });
+console.log(done.text, workspace.snapshot()['notes.txt']); // 'Wrote the file.' 'new\n'
+```
+
+وللتحقق من الموجّه الحقيقي ومخططات الأدوات على نموذج مرة واحدة ثم إعادة تشغيل التسجيل بعدها، راجع [التسجيل وإعادة التشغيل](/ar/testing#التسجيل-والإعادة).
+
+## الخطوات التالية
+
+- [أدوات مساحة العمل](/ar/workspace-tools): المرجع الكامل للأدوات، ونموذج الأمان، و`SandboxShell` لتشغيل الأوامر في Docker.
+- [التراجع عن تغييرات الوكيل في الملفات](/ar/workspace-tools#الأدوات): مرّر `WorkspaceCheckpoints` إلى `createFsTools(workspace, { checkpoints })`، ثم يعرض `checkpoints.rewind(turn, { sessionId: session.id, dryRun: true })` ما سيُستعاد عند الرجوع إلى دورة.
+- [الموافقات](/ar/approvals): مخازن الموافقات المتينة، ودوال `approve` المرتدة، والبتّ من عملية أخرى.
+- [البث](/ar/streaming): كل أنواع الأحداث، وإلغاء التشغيل، وصيغ بث الويب.
+- [الجلسات](/ar/sessions): المخازن والحدود والجلسات المتينة.
+- [التنفيذ المتين](/ar/durable-execution): النجاة من انهيار في منتصف تشغيل طويل.
+- [الإعداد](/ar/configuration): الخيار `projectInstructions: true` يُلحق `AGENTS.md` أو `CLAUDE.md` بالتعليمات.

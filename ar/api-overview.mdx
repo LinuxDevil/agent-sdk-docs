@@ -3,12 +3,6 @@ title: "نظرة عامة على الواجهة البرمجية"
 sidebarTitle: "نظرة عامة على الواجهة البرمجية"
 description: "يصدّر جذر الحزمة (@lousho/build-ai-agent) كل ما يرد أدناه. للحصول على المرجع الكامل المولَّد للواجهة البرمجية (كل عنصر مُصدَّر وكل توقيع وكل تعليق توثيقي)، ابنِ موقع TypeDoc:"
 ---
-
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/api-overview).
-</Warning>
-
 {/* Generated from docs/api-overview.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 ```bash
@@ -49,17 +43,19 @@ npm run docs:build   # writes docs/api/index.html
 | العنصر المُصدَّر | الوصف |
 | ----------------------------- | --------------------------------------------------------------------------- |
 | `createAgent(config)`         | وكيل بواجهة `{ send(message) }` لا يحتاج إلى أي إعداد، يُنشأ من سلسلة `model` نصية أو من مزوّد (مع التعليمات والأدوات). |
-| `AgentBuilder`                | بانٍ بأسلوب الاستدعاءات المتسلسلة (fluent builder) لإنشاء `AgentConfig` (`AgentBuilder.create().setName(...)...build()`). |
-| `AgentExecutor.execute(opts)` | منفّذ ساكن (static): يشغّل وكيلًا (النموذج مع حلقة استدعاء الأدوات) ويُحَلّ (resolve) بقيمة `ExecutionResult`. |
-| `AgentType`                   | مُهمَل ولا أثر له وقت التشغيل: لا يحتاج الوكلاء إلى نوع (سيُزال في الإصدار الفرعي التالي). |
-| `resumeAfterApproval()`       | استئناف تنفيذ متوقف مؤقتًا بانتظار موافقة بشرية. |
+| `AgentBuilder`                | بانٍ بأسلوب الاستدعاءات المتسلسلة (fluent builder) لإنشاء `AgentConfig` (`AgentBuilder.create().setName(...)...build()`). استخدام متقدم: انظر [واجهة المنفِّذ](/ar/executor-api). |
+| `AgentExecutor.execute(opts)` | منفّذ ساكن (static): يشغّل وكيلًا (النموذج مع حلقة استدعاء الأدوات) ويُحَلّ (resolve) بقيمة `ExecutionResult`. استخدام متقدم: انظر [واجهة المنفِّذ](/ar/executor-api). |
+| `AgentType`                   | مُهمَل ولا أثر له وقت التشغيل: لا يحتاج الوكلاء إلى نوع. |
+| `resumeAfterApproval()`       | استئناف تنفيذ متوقف مؤقتًا بانتظار موافقة بشرية. استخدام متقدم: انظر [واجهة المنفِّذ](/ar/executor-api). |
 | `InMemoryApprovalStore`       | مخزن `ApprovalStore` محلي داخل العملية؛ وهو المخزن الافتراضي للوكلاء المُنشأين بـ `createAgent()`. |
 | `StorageServiceApprovalStore`, `LocalStorageCheckpointStore` | مخزنان للموافقات ونقاط الحفظ (checkpoints) يعتمدان على الملفات فوق `StorageService` (انظر [الموافقات](/ar/approvals) و[التنفيذ المتين](/ar/durable-execution)). |
 | `SqliteStore` (من `/sqlite`) | الجلسات ونقاط الحفظ والموافقات في ملف SQLite واحد (انظر [الجلسات](/ar/sessions#اختيار-المخزن)). |
+| `fileStore(dir)`              | الجلسات ونقاط الحفظ والموافقات في ملفات JSON عادية تحت `dir` (انظر [الجلسات](/ar/sessions#اختيار-المخزن)). |
+| `KVStore`, `KVCheckpointStore` (من `/kv`) | مخازن فوق ارتباط Cloudflare Workers KV، لـ Worker تكتبه يدويًا (انظر [النشر](/ar/deployment)). |
 | `AgentStore`, `memoryStore()` | الخيار `createAgent({ store })`: `{ sessions?, checkpoints?, approvals? }`، ومخزن جاهز يعمل في الذاكرة (انظر [الجلسات](/ar/sessions#اختيار-المخزن)). |
 | `SessionAwaitingApprovalError` | يرميه `execute()` عندما تكون الجلسة ذات الـ `sessionId` المُمرَّر إليه متوقفة مؤقتًا بانتظار موافقة (انظر [التنفيذ المتين](/ar/durable-execution)). |
 | `SDKError`, `ERROR_CODES`    | الصنف الأساسي لأخطاء الـ SDK: `code` ثابت و`hint` ورابط `docs` (انظر [الأخطاء](/ar/errors)). |
-| `createDelegateTool()`        | تغليف وكيل ابن في صورة أداة للتفويض بين عدة وكلاء. |
+| `createDelegateTool()`        | تغليف وكيل ابن في صورة أداة للتفويض بين عدة وكلاء. حلّت محلها `subagents`. |
 
 ### الإعداد الديناميكي
 
@@ -180,133 +176,7 @@ await agent.send('Hi', { metadata: { tenant: 'Globex', role: 'admin' } });
 `toolCallId` الخاص بالاستدعاء لاستخدامه مفتاحًا لمنع التكرار (idempotency key). انظر
 [التنفيذ المتين](/ar/durable-execution) لمعرفة الضمانات بدقة.
 
-### الإلغاء
-
-مرِّر `AbortSignal` لإيقاف تشغيل: `agent.send(input, { signal })` أو
-`AgentExecutor.execute({ ..., signal })` أو
-`resumeAfterApproval(..., { signal })`.
-
-```ts
-import { createAgent, createMockProvider } from '@lousho/build-ai-agent';
-const agent = createAgent({ prompt: 'You are helpful.', provider: createMockProvider() });
-const controller = new AbortController();
-setTimeout(() => controller.abort(), 5_000); // e.g. from a Stop button
-const result = await agent.send('Write a long report', { signal: controller.signal });
-console.log(result.finishReason); // 'aborted' if it was cancelled, else 'stop'
-```
-
-لتحديد مهلة زمنية، استخدم `AbortSignal.timeout(ms)`:
-
-```ts
-import { createAgent, createMockProvider } from '@lousho/build-ai-agent';
-const agent = createAgent({ prompt: 'You are helpful.', provider: createMockProvider() });
-const result = await agent.send('Summarize this', { signal: AbortSignal.timeout(30_000) });
-```
-
-كيف يتصرف الإلغاء:
-
-- تُفحَص الإشارة قبل كل استدعاء للنموذج وكل استدعاء أداة. وتُمرَّر إلى المزوّد
-  (`GenerateOptions.signal`، وتُرسَل إلى `ai` SDK باسم `abortSignal`) وإلى كل
-  أداة في صورة `execute(args, { abortSignal })`، فيمكن إيقاف العمل الجاري
-  مبكرًا. الأداة المضمّنة `httpTool` تمرّرها إلى `fetch`، والوكلاء المُنشأون بـ
-  `createDelegateTool()` يُلغَون مع الوكيل الأب.
-- التشغيل المُلغى **يُحَلّ** (ولا يُرفَض) بـ `finishReason: 'aborted'` وبالرسائل
-  والخطوات المنجزة حتى تلك اللحظة. والرفض الناتج عن الإلغاء، مثل `AbortError`،
-  لا يُعامَل على أنه إخفاق: فلا تعيد محاولتَه مغلِّفات إعادة المحاولة والبديل
-  الاحتياطي الخاصة بالمزوّد، ولا يُختزَل إلى خطأ مزوّد.
-- تنتهي أحداث التشغيل بـ `run.done` مع `finishReason: 'aborted'`.
-- مع `sessionId` + `checkpointStore` تُسجَّل الحالة في نقطة حفظ. واستدعاء
-  `execute()` مرة أخرى بالـ `sessionId` نفسه يستأنف من حيث توقف التشغيل؛
-  ويُضاف `input` الجديد بوصفه رسالة المستخدم التالية (انظر
-  [التنفيذ المتين](/ar/durable-execution)). أما استدعاءات الأدوات التي لم يبلغها
-  التشغيل فتحصل على نتيجة `{ error }` تفيد بأنها أُلغيت، فتبقى المحادثة صالحة
-  لدى المزوّد.
-- إذا كانت الإشارة مُلغاة مسبقًا عاد الاستدعاء فورًا من دون استدعاء المزوّد.
-
-### أسباب الانتهاء
-
-يبيّن `result.finishReason` سبب انتهاء التشغيل: السبب الذي أعطاه النموذج نفسه
-لدورته الأخيرة (`'stop'`، `'length'`، `'tool_calls'`، `'content_filter'`، `'error'`)،
-أو `'awaiting-approval'` (توقف مؤقت عند استدعاء أداة يحتاج إلى إنسان)، أو `'aborted'`
-(أُلغي بـ `signal`)، أو `'max-steps'`، أو `'output-invalid'` (لم يطابق الرد مخطط
-`output` حتى بعد خطوة الإصلاح، انظر
-[المخرجات المنظَّمة](/ar/structured-output))، أو `'budget-exceeded'` (تجاوُز إحدى
-ميزانيات `limits` مثل `maxTokens` أو `maxCostUsd`؛ ويبيّن `result.budget`
-أيّها، انظر [الميزانيات](/ar/configuration#الميزانيات))، أو `'guardrail'` (حظرٌ من حاجز
-حماية للمدخلات أو المخرجات أو الأدوات؛ ويبيّن `result.guardrail` أيّها، انظر
-[حواجز حماية المدخلات والمخرجات](/ar/guardrails#حواجز-حماية-المدخلات-والمخرجات)). وتعني `'max-steps'` أن ميزانية `maxSteps`
-(الافتراضي 10) نفدت والنموذج ما زال يريد المتابعة، فقد يكون الرد فارغًا أو
-جزئيًا؛ أما التشغيل الذي ينتهي طبيعيًا ضمن الميزانية فيحتفظ بـ `'stop'`.
-والخطوات المرحَّلة عبر `initialSteps` أو عبر استئناف بعد موافقة تُحتسَب من
-الميزانية، و`result.steps` هو عدد الخطوات المنفَّذة. ويظهر السبب نفسه في حدث
-`finish` وفي `run.done` عند
-[البث](/ar/streaming).
-
-```ts
-import { createAgent, createMockProvider } from '@lousho/build-ai-agent';
-const agent = createAgent({ prompt: 'You are helpful.', provider: createMockProvider(), maxSteps: 3 });
-const result = await agent.send('Research this thoroughly');
-if (result.finishReason === 'max-steps') console.warn(`Gave up after ${result.steps} steps`);
-```
-
-### استدعاءات الأدوات المتوازية
-
-عندما يطلب النموذج عدة أدوات في دورة واحدة تُنفَّذ بالتزامن.
-ويحدّد `toolConcurrency` (في `createAgent()` و`AgentExecutor.execute()`) الحد
-الأقصى لعدد ما يُنفَّذ منها في آن واحد: عدد صحيح موجب، أو `'unbounded'` (القيمة
-الافتراضية). استخدم `1` للتنفيذ التسلسلي الصارم، مثلًا حين تتشارك أدواتك حالة
-لا يصحّ المساس بها بالتزامن.
-
-```ts
-import { createAgent, createMockProvider, defineTool } from '@lousho/build-ai-agent';
-import { z } from 'zod';
-
-const getWeather = defineTool({
-  name: 'get_weather',
-  description: 'Current weather for a city',
-  input: z.object({ city: z.string() }),
-  execute: async ({ city }) => ({ city, tempC: 21 }),
-});
-
-const agent = createAgent({
-  prompt: 'You are a travel assistant.',
-  provider: createMockProvider(),
-  tools: [getWeather],
-  toolConcurrency: 4, // at most 4 tool calls of a turn in flight
-});
-```
-
-الضمانات، أيًّا كان الحد:
-
-- **ترتيب سجل المحادثة هو ترتيب الاستدعاء.** تُضاف نتائج الأدوات بالترتيب الذي
-  طلب به النموذج الاستدعاءات، لا بترتيب انتهائها، فيكون الطلب التالي إلى
-  المزوّد حتميًّا (deterministic).
-- **الأحداث.** تبدأ الاستدعاءات بترتيب طلبها. حدث `tool-call` الخاص بالاستدعاء،
-  و`onToolCall`، والتحقق من الوسائط، وخطّافات `preToolCall`، وفحص `needsApproval`
-  تُنفَّذ كلها قبيل بدئه مباشرة، استدعاءً واحدًا في كل مرة. أما حدث `tool-result`
-  فيُطلَق عند انتهاء الاستدعاء، فتصل النتائج بترتيب اكتمالها. ومع
-  `toolConcurrency: 1` تتناوب الأحداث استدعاءً فنتيجةً تمامًا كما في السابق.
-- **الموافقات.** أول استدعاء يحتاج إلى موافقة يوقف الدفعة: تُنفَّذ الاستدعاءات
-  التي قبله (بالتزامن) وتُسجَّل نتائجها، ثم يتوقف التشغيل مؤقتًا عند ذلك
-  الاستدعاء (`finishReason: 'awaiting-approval'`). أما الاستدعاءات التي بعده فلا
-  تبدأ في هذا التشغيل. ويسجّل `resumeAfterApproval()` نتيجة الاستدعاء المتوقف
-  (أو رفضه) ثم ينفّذ تلك الاستدعاءات اللاحقة بالطريقة نفسها، فيحصل كل استدعاء
-  في الدورة على نتيجة واحدة بالضبط - انظر
-  [التنفيذ المتين](/ar/durable-execution#الموافقات-في-منتصف-دفعة-أدوات).
-- **الإخفاقات معزولة.** الأداة التي ترمي خطأً تحصل على نتيجة خطأ خاصة بها؛
-  وتواصل الاستدعاءات المجاورة عملها. أما الخطأ المنتشر (`PropagatingToolError`، مثل
-  حارس عمق التفويض، أو خطّاف يرمي خطأً) فيمنع بدء استدعاءات جديدة، وينتظر حتى
-  تنتهي الاستدعاءات الجارية، ثم يرفض التشغيل. ولا تُترَك أي أداة تعمل منفصلةً
-  عن التشغيل.
-- **الإلغاء.** الإلغاء أثناء تنفيذ دفعة يُحَلّ بـ
-  `finishReason: 'aborted'`. الاستدعاءات التي انتهت تحتفظ بنتائجها؛ والبقية
-  تحصل على نتيجة تفيد بأنها أُلغيت ("cancelled"). وترى الأدوات الجارية الإلغاء عبر
-  `abortSignal` الخاص بها.
-- **نقاط الحفظ.** مع `sessionId` + `checkpointStore` تُسجَّل نقطة حفظ لدورة
-  النموذج قبل بدء أي استدعاء، ثم مرة أخرى كلما طالت سلسلة الاستدعاءات المنتهية
-  المتتالية بترتيب طلبها (ومع `1`، بعد كل استدعاء). والتشغيل المستأنَف لا يعيد
-  تنفيذ استدعاء مسجَّل أبدًا، ولا يسأل النموذج من جديد عن دورة سبق أن سُجّلت لها
-  نقطة حفظ.
+كيف ينتهي التشغيل (أسباب الانتهاء)، وكيف يُلغى، وكيف تُنفَّذ استدعاءات الأدوات بالتوازي: انظر [التشغيلات](/ar/runs).
 
 ## ملفات المواصفات التصريحية
 
@@ -324,7 +194,7 @@ const agent = createAgent({
 | `LLMProviderRegistry`           | سجل لمصانع المزوّدين (`create`، `register`، `has`). |
 | `OpenAIProvider`, `AnthropicProvider`, `OllamaProvider`, `OpenRouterProvider` | أصناف المزوّدين. |
 | `createMockProvider()`, `MockLLMProvider` | مزوّد وهمي حتمي للاختبارات والعروض التوضيحية. |
-| `withRetry(provider, opts?)`, `withFallback(providers, opts?)` | إعادة محاولة إخفاقات المزوّد العابرة مع تراجع زمني (backoff)؛ والانتقال إلى المزوّد التالي بديلًا احتياطيًا. انظر [الإعداد](/ar/configuration#إعادة-المحاولة-والبديل-الاحتياطي-لدى-المزوّد). |
+| `withRetry(provider, opts?)`, `withFallback(providers, opts?)` | إعادة محاولة إخفاقات المزوّد العابرة مع تراجع زمني (backoff)؛ والانتقال إلى المزوّد التالي بديلًا احتياطيًا. انظر [الإعدادات](/ar/configuration#إعادة-المحاولة-والبديل-الاحتياطي-لدى-المزوّد). |
 | `textOf(message)`               | نص الرسالة: `content` إن كان سلسلة نصية، أو أجزاؤها النصية مجتمعةً. |
 
 `Message.content` سلسلة نصية أو قائمة من عناصر `ContentPart` (`text`، `image`،
@@ -352,8 +222,8 @@ const agent = createAgent({
 | `httpTool`, `currentDateTool`, `dayNameTool` | أدوات مضمّنة. |
 | `createFsTools(fs, options?)`, `createShellTool(shell, options?)` | أدوات مساحة العمل (`read_file`، `write_file`، `edit_file`، `list_dir`، `glob`، `grep`، `shell`) فوق `FsProvider` / `ShellProvider`. انظر [أدوات مساحة العمل](/ar/workspace-tools). |
 | `NodeWorkspace`, `MemoryWorkspace`, `SandboxShell` | مزوّدو مساحة العمل: مجلد حقيقي (المسارات محصورة داخل `root`، وبيئة shell بأقل قدر من المتغيرات)، وشجرة في الذاكرة مع `exec` مُعدّ مسبقًا للاختبارات، و`ShellProvider` فوق `SandboxAdapter` (Docker). |
-| `createTodoTools({ store?, onChange? })`     | الأداتان `todo_write` / `todo_read` (مع `getTodos()`) ليتمكن الوكلاء من تخطيط الأعمال متعددة الخطوات ومتابعتها؛ انظر [أدوات قائمة المهام](#أدوات-قائمة-المهام). |
-| `connectMcp(servers, options?)`             | الاتصال بخوادم MCP انطلاقًا من الإعداد (stdio أو HTTP) وتحميل أدواتها؛ انظر [الاتصال بخوادم MCP](/ar/configuration#ربط-خوادم-mcp-mcpservers،-connectmcp). |
+| `createTodoTools({ store?, onChange? })`     | الأداتان `todo_write` / `todo_read` (مع `getTodos()`) ليتمكن الوكلاء من تخطيط الأعمال متعددة الخطوات ومتابعتها؛ انظر [أدوات قائمة المهام](/ar/tools#أدوات-قائمة-المهام). |
+| `connectMcp(servers, options?)`             | الاتصال بخوادم MCP انطلاقًا من الإعداد (stdio أو HTTP) وتحميل أدواتها؛ انظر [مشاركة الخوادم عبر `connectMcp()`](/ar/mcp#مشاركة-الخوادم-عبر-connectmcp). |
 | `loadMcpTools(client, connectionName)`       | تحميل أدوات خادم MCP متصل في صورة `ToolDescriptor`. متاحة من جذر الحزمة ومن `@lousho/build-ai-agent/tools` و`@lousho/build-ai-agent/mcp`. |
 
 انظر [الأدوات](/ar/tools) للاطلاع على دليل تعريف الأدوات وتسجيلها.
@@ -380,8 +250,8 @@ const sendEmail = defineTool({
 
 الأداة المعرَّفة تحمل مخططها في `inputSchema` (وهو مخطط zod نفسه الموجود في
 `input`) وتحمل دالة `execute` مباشرة. هذان هما الحقلان المعتمَدان في
-`ToolDescriptor`؛ أما الكائن `.tool` (وهو `{ description, parameters, execute }`
-بصيغة `ai` v4) فقديم، وما زال يُبنى حفاظًا على التوافق، ولا يُستخدَم إلا مع
+`ToolDescriptor`؛ أما الكائن `.tool` (وهو `{ description, parameters,
+execute }` بصيغة `ai` v4) فقديم، وما زال يُبنى حفاظًا على التوافق، ولا يُستخدَم إلا مع
 الواصفات التي لا تحدّد `inputSchema` / `execute`.
 
 ```ts
@@ -430,168 +300,21 @@ const tools = await loadMcpTools(mcpClient, 'my-server', {
 `{ structuredContent, text, content }` ويضم `content` الأجزاء غير النصية فقط،
 فلا تُسقَط الصور ولا الصوت ولا الموارد أبدًا.
 
-### أدوات قائمة المهام
-
-يمنح `createTodoTools(options?)` الوكلاء طويلي التشغيل خطة يتابعونها:
-`todo_write` تستبدل القائمة كلها (عناصر بصيغة `{ id?, content, status }`، والحالة
-`pending` | `in_progress` | `completed`، وعنصر `in_progress` واحد على الأكثر) وتعيد
-القائمة مع الأعداد؛ و`todo_read` تعيدها. تُعيَّن المعرّفات تلقائيًا وتبقى ثابتة
-عندما تكرّر كتابة لاحقة محتوى عنصر ما. والقوائم غير الصالحة (مثل عنصرين
-`in_progress`) تصل إلى النموذج في صورة خطأ أداة منظَّم ليعيد المحاولة. تبقى
-القائمة في الذاكرة لكل استدعاء؛ مرِّر `store` (`{ get, set }`) لحفظها بصورة
-دائمة، و`onChange` لتحديث واجهة المستخدم.
-
-```ts
-import { createAgent, createTodoTools, type TodoStore } from '@lousho/build-ai-agent';
-
-const todos = createTodoTools({ onChange: (list) => console.log(list.length, 'todos') });
-const planner = createAgent({ prompt: 'Plan multi-step work, then do it.', provider, tools: todos.tools });
-
-await planner.send('Migrate the repo to ESM');
-console.log(await todos.getTodos()); // [{ id: 'todo_1', content: '...', status: 'completed' }, ...]
-
-// Persist the list somewhere else:
-let saved: Awaited<ReturnType<TodoStore['get']>> = [];
-createTodoTools({ store: { get: () => saved, set: (next) => void (saved = next) } });
-```
-
-### أخطاء الأدوات
-
-قد يفشل استدعاء الأداة بطريقتين. وفي كلتيهما يستمر التشغيل ويتلقى النموذج خطأ
-JSON منظَّمًا بوصفه نتيجة الأداة (وليس السلسلة النصية `null` أبدًا)،
-فيتمكن من التعافي. وترى أحداث `tool-result` والتتبّع و`onToolResult` وخطّافات
-`postToolCall` الاستدعاء على أنه خطأ.
-
-**التحقق من الوسائط.** قبل تنفيذ الأداة تُحلَّل وسائط النموذج بمخطط zod
-`inputSchema` الخاص بالأداة (وفي الواصف القديم، `tool.parameters`). يجري التحقق أولًا، فتتلقى خطّافات ما قبل الأداة والدالة الشرطية
-`needsApproval` و`execute` كلها القيمة **المحلَّلة**
-(بعد تطبيق القيم الافتراضية والتحويلات القسرية (coercions) والتحويلات (transforms)). أما الأدوات التي ليس لها مخطط zod
-فتُمرَّر وسائطها كما هي بلا تغيير.
-
-إذا لم تطابق الوسائط المخطط فلا تُستدعى `execute`، ويستمر التشغيل، ويتلقى
-النموذج خطأً منظَّمًا بوصفه نتيجة الأداة ليعيد المحاولة
-(أحداث `tool-result` والتتبّع وخطّافات `postToolCall` تراه نتيجة خطأ؛
-وتُتخطّى خطّافات `preToolCall` لعدم وجود استدعاء صالح):
-
-```json
-{
-  "error": "ToolArgumentsValidationError",
-  "toolName": "sendEmail",
-  "message": "Invalid arguments for tool 'sendEmail': 2 issues (to: Required; count: Expected number, received string)",
-  "kind": "validation",
-  "issues": [
-    { "path": "to", "message": "Required" },
-    { "path": "count", "message": "Expected number, received string" }
-  ]
-}
-```
-
-يُصدَّر `ToolArgumentsValidationError` (مع مصفوفة `issues` محدّدة النوع) من
-جذر الحزمة.
-
-**الأخطاء المرمية.** إذا رمت `execute` خطأً فيتلقى النموذج اسم الخطأ
-واسم الأداة والرسالة فقط (ولا يتلقى تتبّع المكدّس (stack trace) أبدًا). يُحَدّ طول الرسائل
-بـ 2,000 حرف، وتنتهي بـ `... (truncated)` عند اقتطاعها:
-
-```json
-{ "error": "TypeError", "toolName": "search", "message": "query must not be empty", "kind": "execution" }
-```
-
-كل إخفاق آخر (أداة غير معروفة، موافقة مرفوضة، استدعاء لم يُنفَّذ،
-خطأ MCP، أداة تتطلب بيئة معزولة رُفض تنفيذها) يستخدم الصيغة نفسها
-`{ error, toolName, message, kind }`؛ انظر [الأخطاء](/ar/tools#الأخطاء) لمعرفة قيم `kind`.
-
-الأخطاء التي ترث من `PropagatingToolError` (مثل حارس عمق التفويض) هي
-الاستثناء: يُعاد رميها وتُنهي التشغيل بدل أن تُعرَض على
-النموذج.
+أدوات قائمة المهام وأخطاء الأدوات: انظر [الأدوات](/ar/tools#أدوات-قائمة-المهام).
 
 ## النماذج والرموز والتكلفة
 
-دوال مساعدة بلا اعتماديات لحساب الميزانيات واتخاذ قرارات السياق.
-
-```ts
-import { estimateTokens, estimateCost, getModelInfo, registerModel } from '@lousho/build-ai-agent';
-
-// A custom or self-hosted model: add it (or override a built-in) before use.
-registerModel({
-  id: 'my-llama',
-  provider: 'ollama',
-  contextWindow: 32768,
-  inputCostPerMTok: 0.2, // optional; omit for unknown or free
-  outputCostPerMTok: 0.6,
-});
-
-const used = estimateTokens([{ role: 'user', content: 'Summarise this report' }], { model: 'my-llama' });
-const info = getModelInfo('openai/gpt-4o-mini'); // exact id, `provider/id`, or a dated snapshot
-const usd = estimateCost({ inputTokens: used, outputTokens: 500 }, 'my-llama'); // undefined if unpriced
-```
-
-- `estimateTokens(input, { model?, estimator? })` تقدير تقريبي (نحو 4 أحرف لكل رمز (token) في الإنجليزية، وأكثر في لغات CJK والكتابات الأخرى، مع إضافة ثابتة لكل رسالة ومع JSON استدعاءات الأدوات). توقّع خطأً بنحو 15-20% في الإنجليزية: وهذا مناسب لضغط السياق والميزانيات، لا للفوترة. اربط مُرمِّزًا (tokenizer) حقيقيًا عبر `setTokenEstimator(fn)` أو `options.estimator`.
-- `getModelInfo(id)` يطابق المعرّف بحرفيّته، ثم `provider/id`، ثم اللقطات المؤرَّخة (`gpt-4o-mini-2024-07-18` يُردّ إلى `gpt-4o-mini`). والنماذج غير المعروفة تعيد `undefined`.
-- `registerModel(info)` يضيف مدخلة أو يستبدلها؛ ويُعتمَد آخر تسجيل.
-- `estimateCost(usage, model)` يعيد التكلفة بالدولار الأمريكي، أو `undefined` (لا `0`) عندما يكون النموذج أو أسعاره غير معروفة.
-
-نوافذ السياق والأسعار المضمّنة لقطة مؤرَّخة (انظر تاريخ الاسترجاع والمصادر في أعلى `src/models/modelData.ts`). والمزوّدون يغيّرون الأسعار والنماذج، فاستبدل المدخلات عبر `registerModel` عندما تحتاج إلى أرقام بدقة تصلح للفوترة.
-
-### استهلاك التشغيل وتكلفته
-
-كل `ExecutionResult` (وكذلك نتيجة `agent.send()`) يحمل `usage`، وهو المجموع التراكمي للتشغيل كله:
-
-```ts
-import { AgentExecutor, formatUsage } from '@lousho/build-ai-agent';
-
-const result = await AgentExecutor.execute({ agent, input: 'Compare 3 cities', provider });
-
-result.usage.inputTokens; // all model calls of the run, delegated children included
-result.usage.costUsd; // number, or undefined if any model used has no known price
-result.usage.estimated; // true if some call reported no usage and was estimated
-result.usage.byModel['gpt-4o-mini']; // { inputTokens, outputTokens, costUsd?, calls }
-result.stepUsage?.[0]; // { step, model, usage, estimated, costUsd? } per model call
-console.log(formatUsage(result.usage)); // 1,234 in / 567 out tokens · $0.0042 (2 model calls)
-```
-
-- **المُبلَّغ عنه مقابل المقدَّر.** يبلّغ المزوّدون عن `promptTokens`/`completionTokens`؛ والمزوّدون المضمّنون يمرّرون كذلك `cachedInputTokens`/`reasoningTokens` عندما تحملها بيانات المزوّد الوصفية في 'ai' SDK (ولا يظهر `usage.cachedInputTokens` و`usage.reasoningTokens` إلا حينها). والخلفية (backend) التي لا تبلّغ عن شيء تعطي استهلاكًا قيمته `undefined`، لا أصفارًا أبدًا. وفي تلك الخطوة يلجأ المنفّذ إلى `estimateTokens` ويضبط `usage.estimated` (تسبق الناتجَ علامة `~` في `formatUsage`). وعلى المزوّد المخصّص أن يترك `GenerateResult.usage` بلا قيمة بدل أن يملأه بأصفار.
-- **التكلفة.** `costUsd` هو مجموع `estimateCost` لكل نموذج. ويكون `undefined`، لا مجموعًا جزئيًا مضلِّلًا أبدًا، ما إن يكون تسعير أي نموذج مستخدَم غير معروف؛ ويبيّن `byModel` أيّ النماذج مسعَّر.
-- **التفويض.** يُضاف استهلاك الوكيل الابن المفوَّض إلى مجاميع الأب وإلى `byModel`، ويُعرَض كذلك منفردًا في `usage.delegated` (`{ inputTokens, outputTokens, totalTokens, costUsd, modelCalls, estimated, runs }`).
-- **الاستئناف.** التشغيل المستأنَف من نقطة حفظ، أو بعد موافقة، يتابع من المجاميع المحفوظة بدل أن يبدأ من الصفر. ونقاط الحفظ التي كتبتها إصدارات أقدم تبدأ من أعداد الرموز المحفوظة فيها مع تكلفة غير معروفة.
-- **الأحداث والتتبّعات.** حدث `finish` (وكل حدث من أحداث دورة الحياة كان يحمل `usage`) يحمل الآن المجاميع التراكمية؛ ويحمل `text-complete` كذلك `stepUsage`، ويتلقى `onLLMResponse` استهلاك الاستدعاء وسيطًا ثالثًا. وسمات `gen_ai.usage.*` في مقطع التتبّع (span) `chat` تستخدم الأرقام نفسها، مع ضبط `lousho.usage.estimated` على `true` عندما تكون تقديرات.
-- **البث.** أحداث `agent.stream()` تحمل المحاسبة نفسها: في `step.done` و`run.done` حقل `usage` يضم `inputTokens` و`outputTokens` و`estimated` و`costUsd` (وعلى مستوى التشغيل `modelCalls` أيضًا)، إلى جانب `promptTokens`/`completionTokens` الأقدم.
-- يبقى `promptTokens` و`completionTokens` في `usage` اسمين بديلين مُهمَلين لـ `inputTokens` و`outputTokens`.
-
-تأتي الأسعار من سجل النماذج المذكور أعلاه، فللحصول على تكلفة نموذج مخصّص أو مضبوط بدقة (fine-tuned)، سجّله بالمعرّف الذي تمرّره بوصفه النموذج:
-
-```ts
-import { registerModel } from '@lousho/build-ai-agent';
-
-registerModel({
-  id: 'ft:gpt-4o-mini:acme',
-  provider: 'openai',
-  contextWindow: 128000,
-  inputCostPerMTok: 0.3,
-  outputCostPerMTok: 1.2,
-});
-```
-
-### ضغط السياق
-
-يعيد `createCompactionHook({ thresholdPercent?, contextWindow?, protectedTokens?, strategy?, onCompaction? })`
-خطّافًا من النوع `AgentHook` يضع، قبل كل استدعاء للنموذج يتجاوز 90% (افتراضيًا) من
-نافذة سياق النموذج، علامة بصيغة `[pruned: <tool> result, N chars]` مكان نتائج
-الأدوات الأقدم من أحدث 40,000 رمز. وهو يعدّل سجل محادثة التشغيل في موضعه،
-فيبقى التشذيب (pruning) محفوظًا في نقاط الحفظ وفي
-`result.messages`. و`twoPhaseStrategy({ model })` (الموصى بها) تشذّب أولًا،
-وإذا بقي التشغيل أكبر مما ينبغي وضعت مكان الدورات القديمة ملخصًا يكتبه
-`model`؛ أما `summarizeStrategy()` فتلخّص فقط. و`pinMessage(message)` تعلّم
-رسالة فلا تُشذَّب ولا تُلخَّص أبدًا. و`compactMessages(messages, options)`
-تفعل الشيء نفسه مرة واحدة يدويًا (وهي غير متزامنة)، و`CompactionStrategy` هي
-الواجهة القابلة للاستبدال (ويجوز أن تكون `compact()` غير متزامنة). و`createAgent({ compaction: true })`
-يثبّت الخطّاف على وكيل (ويقبل `createAgent({ hooks })` أي خطّافات `AgentHook`
-أخرى)، ويُصدر `stream()` الحدثين `compaction.start` / `compaction.done`.
-انظر [ضغط السياق](/ar/compaction).
+تقديرات الرموز (tokens)، وجدول أسعار النماذج، واستهلاك التشغيل وتكلفته: انظر [النماذج والرموز والتكلفة](/ar/models-and-cost). أما ضغط السياق فله [صفحته الخاصة](/ar/compaction).
 
 ## مسارات العمل والتقييمات والمراقبة والأمان
 
 - `FlowBuilder` / `FlowExecutor` - مخططات بيانية (graphs) لمسارات عمل متعددة الخطوات؛ انظر [مسارات العمل](/ar/flows).
+- `WebhookTriggerAdapter` و`SlackTriggerAdapter` و`CronTriggerAdapter` و`TriggerRegistry`
+  (`@lousho/build-ai-agent/triggers`) - توقظ الوكيل عند ورود webhook أو رسالة Slack
+  أو حلول موعد في جدول زمني؛ انظر [المُشغِّلات](/ar/triggers).
+- `jwt()` و`oidc()` و`basic()` و`apiToken()` و`anonymous()` و`routeAuth()`
+  (`@lousho/build-ai-agent/auth`) - مصادقة المسارات في صورة قائمة مرتّبة؛ والمستدعي
+  الذي تقبله يصل إلى التشغيل بوصفه `principal`؛ انظر [مصادقة المسارات والهويات](/ar/auth).
 - `defineEval()`، ودوال التقييم (scorers) مثل `exactMatch` و`toolCallOrder` و`budget`، والفحوص
   مثل `includes` و`atLeast`، و`llmJudge()` - تقييمات للوكلاء تُشغَّل تحت vitest
   أو `lousho eval`؛ انظر [التقييمات](/ar/evals).
@@ -608,268 +331,13 @@ registerModel({
   `requiresSandbox`؛ و`runGuardrails()` وحواجز حماية مثل
   `createCommandGuardrail()` و`createDiffSizeGuardrail()` و
   `secretScanGuardrail`. انظر [حواجز الحماية والعزل](/ar/guardrails).
-- `HookRegistry`، `AgentHook`، `HookContext`، `ToolCallHookContext`،
-  `GenerateHookContext` - خطّافات الوكيل القبلية والبعدية (تُنفَّذ قبل استدعاء أداة
-  أو استدعاء `generate` للنموذج وبعده، ويمكنها تعديل الوسائط/الرسائل/النتائج أو رمي
-  خطأ لإلغاء الخطوة؛ وخطّافات استدعاء الأدوات يمكنها أيضًا رفض استدعاء أو استبدال
-  نتيجته أو تعديل مدخلاته، انظر [قرارات الخطّافات](#قرارات-الخطّافات)). متاحة من جذر الحزمة ومن
-  `@lousho/build-ai-agent/hooks`. محرّر الخطّافات في لوحة Agent Forge
-  ([docs/agent-forge.md](/ar/agent-forge#الخطّافات)) يحوّل بهذه الطريقة الخطّافات التي
-  يربطها المستخدم بعقدة إلى `HookRegistry`، وتُنفَّذ في بيئة معزولة عبر
-  `SandboxAdapter` لا في عملية المضيف.
-
-  ```ts
-  import { HookRegistry, type AgentHook } from '@lousho/build-ai-agent/hooks';
-
-  const redactPii: AgentHook = {
-    name: 'redact-pii',
-    async preToolCall(ctx) {
-      // mutate ctx.args, or throw to abort the tool call before it runs
-    },
-  };
-  const hooks = new HookRegistry();
-  hooks.register(redactPii);
-  ```
-- `EncryptionUtils`، `sha256`، `StorageService` - أدوات مساعدة داعمة؛ انظر
+- `HookRegistry` و`AgentHook` و`HookContext` و`ToolCallHookContext` و
+  `GenerateHookContext` - خطّافات تراقب استدعاءات الأدوات واستدعاءات النموذج أو ترفضها
+  أو تعيد كتابتها أو تحجب أجزاء منها. انظر [الخطّافات](/ar/hooks).
+- `EncryptionUtils` و`sha256` و`StorageService` - أدوات مساعدة داعمة؛ انظر
   [الأدوات المساعدة](/ar/utilities).
-
-### قرارات الخطّافات
-
-خطّاف استدعاء الأداة يستطيع أن يغيّر ما يحدث، لا أن يراقبه فحسب. يجوز لخطّاف
-`preToolCall` أن يعيد:
-
-- لا شيء: يمضي الاستدعاء بلا تغيير (وتعديل `ctx.args` في موضعه ما زال يعمل).
-- `{ deny: reason }`: لا يُنفَّذ الاستدعاء. يتلقى النموذج خطأ الأداة نفسه ذا
-  `kind: 'denied'` الذي ينتج عن رفض `needsApproval` (انظر
-  [الموافقات](/ar/approvals#الموافقة-أو-المنع-أو-السؤال))، وترى تدفقات البث `tool.error`،
-  ويسجّل `onPermissionDecision` القيمة `decision: 'deny'` مع `hook` و`reason`.
-- `{ result: value }`: لا يُنفَّذ الاستدعاء وتكون `value` نتيجته. ويحمل حدث
-  `tool.done` ورسالة `tool` في سجل المحادثة (`metadata`) القيمة
-  `replacedByHook: '<hook name>'`.
-- `{ input: args }`: يُنفَّذ الاستدعاء بـ `args`. ويُتحقَّق منها مجددًا وفق
-  مخطط مدخلات الأداة؛ وعدم المطابقة يصبح خطأ أداة ذا `kind: 'validation'`
-  تذكر رسالته اسم الخطّاف، ولا تُنفَّذ الأداة.
-
-يجوز لخطّاف `postToolCall` أن يعيد `{ result: value }` ليستبدل النتيجة التي
-يراها النموذج (لحجب أجزاء منها أو اقتطاعها)؛ وإن لم يُعِد شيئًا بقيت كما هي. تُنفَّذ الخطّافات
-بترتيب تسجيلها: أول `deny` أو `result` من خطّاف قبلي يتخطى الخطّافات
-القبلية التي بعده، وقيم `input` تتسلسل (يرى كل خطّاف مدخلات سابقه في
-`ctx.args`)، ويرى كل خطّاف بعدي النتيجة التي استبدلها خطّاف سابق. والخطّاف
-الذي يرمي خطأً ما زال يرفض التشغيل، كما في السابق. ويرث الوكلاء الفرعيون خطّافات
-الوكيل الرئيسي وقراراتها.
-
-في استدعاء الأداة الواحد يكون الترتيب: التحقق من الوسائط، ثم خطّافات `preToolCall`،
-ثم قواعد الصلاحيات (`permissions`)، ثم حواجز حماية الأدوات، ثم `needsApproval` الخاص بالأداة،
-ثم التوقف المؤقت للموافقة، ثم التنفيذ، ثم خطّافات `postToolCall`. تُنفَّذ الخطّافات قبل كل
-قرار موافقة، فالقواعد و`needsApproval` والإنسان كلهم يرون المدخلات التي أنتجها
-الخطّاف (ويوافقون عليها)؛ وتُظهرها `args` في الموافقة المعلّقة. وعند استئناف
-استدعاء تمت الموافقة عليه تُنفَّذ الخطّافات القبلية مرة أخرى: فما زال بإمكانها رفضه أو
-تقديم نتيجته، لكنّ `{ input }` المختلف عن المدخلات الموافَق عليها
-يُرفَض بخطأ أداة بدل أن يُنفَّذ.
-
-```ts
-import { createAgent, type AgentHook } from '@lousho/build-ai-agent';
-
-const guard: AgentHook = {
-  name: 'guard',
-  preToolCall(ctx) {
-    if (ctx.toolName === 'shell') return { deny: 'Use the workspace tools instead' };
-    if (ctx.toolName === 'search') return { input: { ...ctx.args, limit: 10 } };
-    return undefined; // continue unchanged
-  },
-  postToolCall(_ctx, result) {
-    return typeof result.result === 'string' ? { result: result.result.slice(0, 2000) } : undefined;
-  },
-};
-
-const agent = createAgent({ provider, instructions: 'You research things.', hooks: [guard] });
-```
-
-### تعبيرات مسارات العمل
-
-شروط فروع `oneOf` (وشروط فروع عقدة الموجِّه (router) في Agent Forge)
-وتعبيرات عقدة `evaluator` يقيّمها مقيِّم تعبيرات صغير مضمّن.
-وهو لا يصرّف شيفرة المضيف ولا ينفّذها أبدًا: فلا وجود لـ `eval` ولا
-`new Function` ولا `vm` في `src/flows`. العناصر النائبة `{{name}}` تُربَط بوصفها
-قيمًا، ولا تُلصَق أبدًا في نص التعبير: فالتعبير المجرّد `{{score}} >= 90` يستخدم
-قيمة المتغير، وداخل سلسلة نصية حرفية، يُدرِج `'{{classify}}' === 'refund'`
-نص القيمة في تلك السلسلة بعد أن يكون التعبير قد قُطِّع إلى وحداته
-(tokenized). ولذلك فالمتغير الذي تحتوي قيمته على علامات اقتباس أو شرطات مائلة عكسية أو عوامل
-(مثل `x' === 'x' || 'a`) مجرد بيانات ولا يستطيع تغيير
-منطق الشرط. والمتغير المفقود أو الذي قيمته `null` يكون سلسلة فارغة داخل
-السلسلة الحرفية؛ وإذا استُخدم مجرّدًا لم يُضِف شيئًا، فيكون `{{missing}} >= 90` خطأً
-في الصياغة ويُعَدّ الشرط غير متحقق. ويُقيَّم التعبير
-على متغيرات مسار العمل.
-
-| الصيغة | أمثلة |
-| --- | --- |
-| القيم الحرفية | `'text'`، `"text"`، `42`، `1.5`، `true`، `false`، `null` |
-| المتغيرات والمسارات | `score`، `user.address.city`، `user['first-name']`، `items[0].id` |
-| الطول | `name.length`، `items.length` (للسلاسل النصية والمصفوفات) |
-| المقارنة | `==`، `===`، `!=`، `!==`، `<`، `<=`، `>`، `>=` |
-| العوامل المنطقية | `&&`، `\|\|`، `!` (بتقييم مختصر (short-circuit)، وتعيد المعامَل الحاسم) |
-| العمليات الحسابية | `+`، `-`، `*`، `/`، `%`، و`-` و`+` الأحاديان |
-| التجميع | `( ... )` |
-| التوابع المسموح بها | `s.includes(x)`، `s.startsWith(x)`، `s.endsWith(x)` على السلاسل النصية؛ `list.includes(x)` على المصفوفات (وسيط واحد بالضبط) |
-
-الأسبقية، من الأضعف ربطًا إلى الأقوى: `||`، `&&`، المساواة، المقارنة العلائقية، `+ -`،
-`* / %`، العوامل الأحادية، الوصول إلى الأعضاء.
-
-غير مدعوم، ويُرفَض بخطأ `ExpressionError` يذكر
-التعبير وموضع الحرف وهذه القائمة من الصيغ المدعومة: أي استدعاء آخر
-لدالة أو تابع، والإسناد (`=`، `+=`، `++`)، والتعبيرات الثلاثية، والسلاسل
-القالبية، والقيم الحرفية للكائنات/المصفوفات، والوصول إلى `constructor` أو `__proto__` أو
-`prototype`، والكائنات العامة (`process`، `require`، `globalThis`، ...). ولا يمكن الوصول إلا إلى
-متغيرات مسار العمل نفسه، وإلى خصائصها الذاتية فقط.
-
-سلوك الإخفاق لم يتغير: شرط `oneOf` الذي يتعذّر تقييمه
-يُعَدّ غير متحقق (`false`)، وتعبير `evaluator` الذي يتعذّر
-تقييمه يُفشل مسار العمل بالرسالة `Failed to evaluate expression: ...`، متضمّنةً
-تفاصيل `ExpressionError`.
-
-## المُشغِّلات
-
-محوِّلات المُشغِّلات (`@lousho/build-ai-agent/triggers`) توقظ الوكيل عند ورود
-webhook أو حلول موعد في جدول زمني أو وصول رسالة Slack. اربط أيًّا منها بـ
-`listen(agent, onEvent)`، حيث تشغّل `onEvent` الوكيل.
-
-وإذا كانت الواجهة مما يتحدث الناس إليه فاستخدم [قناة](/ar/channels) بدلًا من ذلك:
-`defineChannel()` و`mountChannels()` (من جذر الحزمة) تربطان كل محادثة
-على تلك الواجهة بجلسة، وتعيدان إليها الرد وأي موافقة أو سؤال
-يتوقف الوكيل عنده. و`httpChannel()` و`webhookChannel()` مضمّنتان؛
-ويستخدم `WebhookTriggerAdapter` القناة `webhookChannel()` للمصادقة.
-
-### مصادقة Webhook
-
-يشغّل `WebhookTriggerAdapter` خادم HTTP. **اضبط `auth` دائمًا لأي
-webhook يمكن الوصول إليه من خارج جهازك**: فمن دونه يستطيع كل من
-يصل إلى المنفذ أن يشغّل وكيلك (وأن ينفق رموزك). وإذا استمعت
-على مضيف غير محلي (non-loopback) بلا `auth` سجّل المحوِّل تحذيرًا لمرة واحدة
-عبر `options.logger`.
-
-```ts
-import { createAgent, createMockProvider } from '@lousho/build-ai-agent';
-import { WebhookTriggerAdapter } from '@lousho/build-ai-agent/triggers';
-
-const agent = createAgent({ prompt: 'You are helpful.', provider: createMockProvider() });
-
-// HMAC of the RAW request body (GitHub / Shopify style): header `x-signature-256: sha256=<hex>`.
-new WebhookTriggerAdapter({
-  port: 8787,
-  auth: { type: 'hmac', secret: process.env.WEBHOOK_SECRET ?? '' },
-}).listen(agent, (input) => agent.send(input));
-
-// Replay protection: the signed payload becomes `${timestamp}.${body}` and
-// requests more than `toleranceSeconds` (default 300) old are rejected.
-new WebhookTriggerAdapter({
-  auth: {
-    type: 'hmac',
-    secret: process.env.WEBHOOK_SECRET ?? '',
-    header: 'x-signature',
-    timestampHeader: 'x-timestamp',
-    toleranceSeconds: 120,
-  },
-});
-
-// A shared bearer token (`Authorization: Bearer <token>`).
-new WebhookTriggerAdapter({ auth: { type: 'bearer', token: process.env.WEBHOOK_TOKEN ?? '' } });
-
-// Anything else: return true to accept. `rawBody` is a Buffer of the exact bytes received.
-new WebhookTriggerAdapter({
-  auth: { type: 'custom', verify: (req) => req.headers['x-api-key'] === process.env.API_KEY },
-});
-```
-
-خيارات HMAC: `header` (الافتراضي `x-signature-256`)، و`algorithm` (`sha256` أو
-`sha1`، والافتراضي `sha256`)، و`prefix` (الافتراضي `sha256=`؛ و`''` لخلاصة (digest)
-مجرّدة)، و`timestampHeader` و`toleranceSeconds`. تُقارَن التوقيعات ورموز
-bearer في زمن ثابت. والطلب الذي يفشل في المصادقة يحصل على رد
-عام `401 {"error":"Unauthorized"}` - ولا يذكر الرد أبدًا أيّ فحص
-فشل - ويُسجَّل السبب (لا سرّ ولا توقيع أبدًا) بمستوى `warn`.
-قدِّم الـ webhooks عبر HTTPS (أنهِ اتصال TLS أمام المحوِّل) كي
-لا تُرسَل الرموز والحمولات نصًّا واضحًا غير مشفَّر.
-
-### توقيعات طلبات Slack
-
-يعالج `SlackTriggerAdapter.handleRequest({ headers, rawBody })` طلبًا خامًا من
-Slack Events API ويعيد `{ status, body }` المطلوب إرساله ردًّا. **اضبط
-`signingSecret` لأي نقطة نهاية يمكن الوصول إليها من خارج جهازك**: فمن
-دونه يستطيع كل من يصل إلى نقطة النهاية أن يشغّل وكيلك، ويسجّل `listen()`
-تحذيرًا لمرة واحدة عبر `options.logger`. ومعه يُتحقَّق من كل طلب
-[كما توثّق Slack](https://docs.slack.dev/authentication/verifying-requests-from-slack)
-قبل تحليل الجسم: HMAC-SHA256 على `v0:{X-Slack-Request-Timestamp}:{raw body}`،
-يُقارَن في زمن ثابت مع `X-Slack-Signature` (`v0=<hex>`)، وتُرفَض الطلبات
-التي مضى عليها أكثر من خمس دقائق. وتحصل الإخفاقات على رد عام
-`401 {"error":"Unauthorized"}`؛ ويُسجَّل السبب (لا سرّ ولا توقيع أبدًا)
-بمستوى `warn`. أما مصافحة `url_verification` الموقَّعة فيُرَدّ عليها
-بعد التحقق.
-
-```ts
-import { createAgent, createMockProvider } from '@lousho/build-ai-agent';
-import { SlackTriggerAdapter, verifySlackSignature } from '@lousho/build-ai-agent/triggers';
-import * as http from 'node:http';
-
-const agent = createAgent({ prompt: 'You are helpful.', provider: createMockProvider() });
-const slack = new SlackTriggerAdapter({ signingSecret: process.env.SLACK_SIGNING_SECRET });
-slack.listen(agent, (input) => agent.send(input));
-
-http
-  .createServer((req, res) => {
-    const chunks: Buffer[] = [];
-    req.on('data', (chunk: Buffer) => chunks.push(chunk));
-    req.on('end', async () => {
-      const { status, body } = await slack.handleRequest({ headers: req.headers, rawBody: Buffer.concat(chunks) });
-      res.writeHead(status, { 'Content-Type': 'application/json' }).end(JSON.stringify(body));
-    });
-  })
-  .listen(3000);
-
-// Your own handler (slash commands, interactivity)? Verify the RAW body yourself:
-const authentic = verifySlackSignature({
-  signingSecret: process.env.SLACK_SIGNING_SECRET ?? '',
-  timestamp: '1700000000', // the X-Slack-Request-Timestamp header
-  signature: 'v0=...', // the X-Slack-Signature header
-  rawBody: '{"type":"url_verification"}',
-});
-```
-
-يردّ `handleRequest` على Slack بعد أن ينتهي الوكيل؛ وSlack تتوقع ردًّا
-خلال ثلاث ثوانٍ، فمع الوكلاء البطيئين أرسل الإقرار بالاستلام أولًا ثم شغّل الوكيل في
-الخلفية.
-
-### جداول Cron الزمنية
-
-يقبل `CronTriggerAdapter` إما `intervalMs` ثابتًا أو تعبير cron
-حقيقيًا:
-
-```ts
-import { createAgent, createMockProvider } from '@lousho/build-ai-agent';
-import { CronTriggerAdapter } from '@lousho/build-ai-agent/triggers';
-
-const agent = createAgent({ prompt: 'You are helpful.', provider: createMockProvider() });
-
-new CronTriggerAdapter({
-  cron: '*/15 9-17 * * MON-FRI', // minute hour day-of-month month day-of-week
-  timezone: 'Europe/Paris', // IANA name; defaults to the machine's local zone
-  input: 'Check the support queue',
-  onResult: (result, error) => console.log(error ?? result?.text),
-}).listen(agent, (input) => agent.send(input));
-```
-
-الصيغة المدعومة: `*`، والقوائم (`1,15`)، والنطاقات (`1-5`)، والخطوات (`*/15`،
-`10-40/10`)، وأسماء الأشهر (`JAN`) وأسماء أيام الأسبوع (`MON`)، مع دلالة كلٍّ من `0` و`7`
-على الأحد، إضافةً إلى `@hourly` و`@daily` و`@weekly` و`@monthly`. وكما في
-cron التقليدي، عندما يُقيَّد يوم الشهر ويوم الأسبوع معًا يطابق اليوم
-إذا تحقق أحدهما. والتعبير غير الصالح يرمي `CronExpressionError`
-يذكر الحقل ويعرض مثالًا صالحًا. وتُصدَّر
-`parseCronExpression(expr, timezone).nextRun(after)` إن احتجت إلى موعد الإطلاق التالي.
-
-عند تغيّرات التوقيت الصيفي، الوقت الذي لا وجود له (عند تقديم الساعة)
-يُتخطّى في ذلك اليوم، والوقت الذي يتكرر مرتين (عند تأخير الساعة) يُطلَق مرة واحدة؛
-والجدول الزمني الذي يعمل كل ساعة يظل يُطلَق كل ساعة. يُعاد ضبط المؤقِّت بعد كل
-تشغيل انطلاقًا من الموعد المجدوَل (بلا انحراف ولا إطلاق مزدوج)، و`stop()` يلغيه.
 
 ## النشر
 
-- `DeploymentAdapter`، `registerAdapter()`، `getAdapter()`، `listAdapters()` -
+- `DeploymentAdapter` و`registerAdapter()` و`getAdapter()` و`listAdapters()` -
   سجل المحوِّلات الذي يقوم عليه `lousho build` (انظر [النشر](/ar/deployment)).

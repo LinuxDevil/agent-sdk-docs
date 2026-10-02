@@ -1,8 +1,73 @@
 ---
-title: "Queued input and steering"
+title: "المدخلات المصطفّة والتوجيه"
+sidebarTitle: "المدخلات المصطفّة والتوجيه"
 ---
+{/* Generated from docs/queue-and-steer.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-{/* pending-translation */}
-<Note>
-هذه الصفحة لم تُترجَم إلى العربية بعد. اقرأ [النسخة الإنجليزية](/queue-and-steer).
-</Note>
+أضِف مدخلات إلى تشغيل ما زال جاريًا، أو غيّر وجهته. كلا الأمرين من دوال مقبض التشغيل (run handle) الذي يعيده `agent.stream()`؛ راجع [البث](/ar/streaming).
+
+## المدخلات المصطفّة
+
+تضيف `run.enqueue(input)` مدخلات المستخدم (نصًا أو أجزاء محتوى أو `Message[]`) إلى تشغيل ما زال جاريًا، مثل متابعة يكتبها المستخدم أثناء عمل الوكيل. لا يتوقف التشغيل: ينضم المُدخَل إلى السجل عند أقرب نقطة آمنة - بعد نتائج أدوات الخطوة الحالية، ولا يقع أبدًا بين دورة استدعاء الأدوات ونتائجها - ويراه استدعاء النموذج التالي كما لو كتبه المستخدم. أما المُدخَل الذي يُصَفّ بينما يكتب النموذج ردّه الأخير فيحصل على خطوة إضافية واحدة، فيجيب عنه النموذج في التشغيل نفسه.
+
+```ts
+import { createAgent } from '@lousho/build-ai-agent';
+
+const agent = createAgent({ model: 'openai/gpt-4o-mini' });
+const run = agent.stream('Plan a weekend in Rome.');
+
+const queued = run.enqueue('Keep it under 500 EUR.');
+for await (const event of run) {
+  if (event.type === 'input.applied') console.log(`applied before step ${event.step}`);
+}
+if (queued.applied === false || !(await queued.applied)) {
+  // The run ended without it: send it as a new turn (e.g. session.send()).
+}
+```
+
+تعيد `enqueue()` الكائن `{ id, applied }`. يظهر `id` في الحدثين `input.queued` و`input.applied`. وتكون `applied` مساوية لـ`false` إذا كان التشغيل قد انتهى بالفعل: لم يُقبل المُدخَل، فأرسله بنفسك بوصفه دورة جديدة (`session.send()`). وفيما عدا ذلك تكون وعدًا (promise) يُحَلّ إلى `true` متى أصبح المُدخَل في السجل، أو إلى `false` إذا توقف التشغيل قبل استدعاء النموذج التالي (بإلغاء، أو توقف لانتظار موافقة، أو نفاد `maxSteps` أو الميزانية، أو فشل)؛ ويُترك المُدخَل حينئذٍ لك أيضًا.
+
+- المدخلات المتعددة المصطفّة قبل استدعاء النموذج نفسه تُطبَّق معًا بترتيب اصطفافها.
+- مع نقاط الحفظ (`sessionId` أو جلسة متينة)، يُحفظ المُدخَل المنتظر فورًا في نهاية نقطة حفظ التشغيل، في الموضع نفسه الذي يُحفظ فيه المُدخَل المصطف خلف استدعاءات أدوات لم يُجَب عنها (راجع [التنفيذ المتين](/ar/durable-execution)). فلا يضيع بسبب تعطّل أو فشل التشغيل: تطبّقه `agent.resume()` (أما `applied` لتشغيل فشل داخل العملية فتبقى تُحَلّ إلى `false`). أما التشغيل الذي ينتهي أو يتوقف أو يُلغى فلا يحتفظ به.
+- بلا بث، مرّر `InputQueue` بوصفه `ExecuteOptions.inputQueue` واستدعِ `push()` الخاصة به: وهي الطابور نفسه الذي تعتمد عليه `run.enqueue()`. ويخدم الطابور الواحد تشغيلًا واحدًا.
+- في الجلسة، تجعل `agent.session({ turnPolicy: 'queue' })` أي `send()` أو `stream()` يجري أثناء تشغيل دورة (أو انتظار بدئها) ينضم إلى تلك الدورة بهذه الطريقة. راجع [الجلسات](/ar/sessions#كائن-الجلسة).
+
+يبقى المُدخَل المصطف ينتظر انتهاء الخطوة الجارية. ولتغيير وجهة التشغيل فورًا، وجِّهه (القسم التالي).
+
+#### متقدم: واجهة المنفِّذ
+
+بلا بث، مرّر `InputQueue` إلى `AgentExecutor.execute()` (راجع [واجهة المنفِّذ](/ar/executor-api)):
+
+```ts
+import { AgentExecutor, InputQueue } from '@lousho/build-ai-agent';
+
+const inputQueue = new InputQueue();
+const pending = AgentExecutor.execute({ agent, provider, input: 'Plan my trip.', inputQueue });
+inputQueue.push('Also book a hotel.');
+const result = await pending;
+```
+
+## التوجيه
+
+تعيد `run.steer(input)` توجيه تشغيل جارٍ إلى مُدخَل مستخدم جديد، مثلًا عندما يغيّر المستخدم رأيه والوكيل ما زال يفكّر:
+
+- إذا كان استدعاء النموذج جاريًا ولم يُصدر نصًا ولا استدعاءات أدوات بعد، فإنه يُلغى (بإشارة خاصة به لا بإشارة التشغيل: فيستمر التشغيل)، ويُهمل ناتجه الجزئي، ويُضاف `input` رسالةَ مستخدم، ويُستدعى النموذج من جديد. تكون `applied` مساوية لـ`'immediate'`، وتنتهي خطوة الاستدعاء الملغى بالحدث `step.done` مع `'steered'`. ولا يُنتظر المزوّد الذي يتجاهل إشارة الإلغاء؛ ويُهمل ردّه المتأخر.
+- إذا كان النموذج قد أصدر نصًا بالفعل (أو استدعاءات أدوات)، فإن `input` ينتظر النقطة الآمنة التالية مثل [`enqueue()`](#المدخلات-المصطفّة): وتكون `applied` مساوية لـ`'queued'`.
+- تكمل استدعاءات الأدوات الجارية عملها وتُحفظ نتائجها؛ أما استدعاءات تلك الدورة التي لم تبدأ بعد فلا تُشغَّل وتحصل على النتيجة المعتادة "أُلغي قبل أن يعمل". ثم يُطبَّق المُدخَل.
+- تكون `applied` مساوية لـ`false` متى انتهى التشغيل: أرسل المُدخَل بوصفه دورة جديدة.
+
+```ts
+import { createAgent } from '@lousho/build-ai-agent';
+
+const agent = createAgent({ model: 'openai/gpt-4o-mini' });
+const run = agent.stream('Plan a weekend in Rome.');
+
+const steered = run.steer('Actually, make it Paris.');
+console.log(steered.applied); // 'immediate', 'queued' or false
+for await (const event of run) {
+  if (event.type === 'input.steered') console.log(`steered (${event.mode})`);
+}
+console.log(await steered.joined); // true once the input is in the transcript
+```
+
+تعيد `steer()` الكائن `{ id, applied, joined }`: يظهر `id` في الحدثين `input.steered` و`input.applied`، و`joined` وعد يبيّن هل بلغ المُدخَل السجل (مثل `applied` في `enqueue()`). ويُحسب الاستدعاء الملغى خطوةً من `maxSteps`. ومع نقاط الحفظ، يُحفظ المُدخَل في نهاية نقطة الحفظ بمجرد قبوله وقبل استدعاء النموذج من جديد، فلا يضيع إن تعطّل التشغيل أثناء إعادة التوجيه؛ أما الدورة الجزئية المهملة فلا تُحفظ في نقطة حفظ أبدًا. وبلا بث، استدعِ `steer()` على `ExecuteOptions.inputQueue` الخاص بالتشغيل. وفي الجلسة، تجعل `agent.session({ turnPolicy: 'steer' })` أي `send()` أو `stream()` يجري أثناء تشغيل دورة يوجّه تلك الدورة (راجع [الجلسات](/ar/sessions#كائن-الجلسة)).

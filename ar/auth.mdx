@@ -1,8 +1,213 @@
 ---
-title: "Route auth and principals"
+title: "مصادقة المسارات والهويات (principals)"
 ---
+{/* Generated from docs/auth.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-{/* pending-translation */}
-<Note>
-هذه الصفحة لم تُترجَم إلى العربية بعد. اقرأ [النسخة الإنجليزية](/auth).
-</Note>
+يحتاج الوكيل الذي يُقدَّم عبر HTTP إلى معرفة أمرين عن كل طلب: هل يحق له الاستدعاء أصلًا، ومن هو صاحبه. تجيب الوحدة `@lousho/build-ai-agent/auth` عن السؤالين. تعطي المسار قائمة مرتبة من مدخلات المصادقة (`jwt()` أو `oidc()` أو `basic()` أو `apiToken()` أو `anonymous()` أو دالة من كتابتك)؛ فيُعيد أول مدخل يقبل الطلب **هوية (principal)**، وتدخل هذه الهوية في التشغيل، حيث تستطيع دوال `model` و`instructions` و`tools` ونطاقات الذاكرة قراءتها.
+
+```ts
+import { createAgent, createRouteHandler } from '@lousho/build-ai-agent';
+import { apiToken, jwt } from '@lousho/build-ai-agent/auth';
+import { mockModel } from '@lousho/build-ai-agent/testing';
+
+const agent = createAgent({
+  provider: mockModel(['Hello!']),
+  instructions: ({ principal }) => `You are helping ${principal?.id ?? 'a guest'}.`,
+});
+
+export const { GET, POST } = createRouteHandler(agent, {
+  auth: [
+    jwt({ secret: process.env.JWT_SECRET ?? 'a-development-secret-of-32-bytes!!', issuer: 'https://auth.example.com', audience: 'agent-api' }),
+    apiToken(process.env.CI_TOKEN ?? 'ci-token', { id: 'ci' }),
+  ],
+});
+```
+
+## قائمة المصادقة
+
+تُنفَّذ المدخلات بالترتيب، ويفعل كل مدخل واحدًا من ثلاثة أشياء:
+
+| عندما ... المدخل | يحدث التالي |
+| --- | --- |
+| يُعيد `Principal` | يُقبل الطلب، ولا تُسأل المدخلات اللاحقة |
+| يُعيد `null` أو `undefined` | يتجاوز الطلب: يُسأل المدخل التالي |
+| يرمي `AuthError(401)` أو `AuthError(403)` | يُرفض الطلب بهذه الحالة، ولا تُسأل المدخلات اللاحقة |
+
+إذا تجاوزت كل المدخلات الطلب، يحصل على `401`. والقائمة الفارغة ترفض كل الطلبات. أما المدخل الذي يرمي أي خطأ آخر فهو خلل برمجي: يحصل الطلب على `500` بجسم عام، ويُسجَّل الخطأ بـ `console.error` (ولا يُرسَل أبدًا).
+
+لا ترمي الأدوات المساعدة المضمّنة أي خطأ عند بيانات اعتماد سيئة: كلمة مرور خاطئة أو رمز منتهي الصلاحية أو رمز مُصدَر لجمهور (audience) آخر، كلها تتجاوز الطلب، فتُتاح الفرصة للمدخل التالي (يعمل مدخلا `jwt()` لمُصدِرَين مختلفين)، وينتهي الطلب الذي لا يقبله أحد بالـ `401` نفسه.
+
+الـ `Principal` هو:
+
+```ts
+interface Principal {
+  id: string;                                 // JWT `sub`, Basic user name, 'api-token', ...
+  type: 'user' | 'service';
+  authenticator: string;                      // 'jwt' | 'oidc' | 'basic' | 'api-token' | 'anonymous' | your name
+  issuer?: string;                            // JWT `iss`: the same id from another issuer is another caller
+  claims?: Readonly<Record<string, unknown>>; // verified claims; never the raw token or a password
+}
+```
+
+## الأدوات المساعدة
+
+تُنشأ كل الأدوات المساعدة مرة واحدة عند بدء التشغيل، وتتحقق من خياراتها حينها: الأداة التي لا يمكنها العمل ترمي [`LOUSHO_AUTH_CONFIG_INVALID`](/ar/errors#lousho_auth_config_invalid) بدلًا من أن ترفض كل الطلبات لاحقًا.
+
+### `jwt()`
+
+تقبل `Authorization: Bearer <JWT>` الموقّع بالمفتاح الذي تضبطه. أعطِ مصدر مفتاح واحدًا بالضبط:
+
+| الخيار | المفتاح | الخوارزميات (الافتراضي: كل خوارزميات عائلة المفتاح) |
+| --- | --- | --- |
+| `secret` | سر HMAC من 32 بايت على الأقل | `HS256` و`HS384` و`HS512` |
+| `publicKey` | مفتاح PEM بصيغة `-----BEGIN PUBLIC KEY-----` أو JWK | `RS256` و`RS384` و`RS512` (RSA بطول 2048 بت أو أكثر) و`ES256` (P-256) و`ES384` (P-384) |
+| `jwksUrl` | نقطة JWKS (https، أو http على localhost) | `RS256` و`ES256` افتراضيًا؛ مفاتيح RSA وEC فقط |
+
+```ts
+import { jwt } from '@lousho/build-ai-agent/auth';
+
+const fromOurAuthServer = jwt({
+  jwksUrl: 'https://auth.example.com/.well-known/jwks.json',
+  issuer: 'https://auth.example.com',
+  audience: 'agent-api',
+  // Map the verified claims to the principal; return null to skip.
+  principal: (claims) => (typeof claims.sub === 'string' ? { id: claims.sub, type: 'user', authenticator: 'jwt', issuer: claims.iss, claims } : null),
+});
+```
+
+ما الذي يُفحَص:
+
+- يجب أن تكون قيمة `alg` في الترويسة إحدى قيم `algorithms`؛ ويُرفض `none` دائمًا، وكذلك الرمز الذي تعلن ترويسته امتدادًا بـ `crit`.
+- يجب أن تناسب الخوارزمية المفتاح: لا يُستخدم المفتاح العام أبدًا كسر HMAC مهما قالت ترويسة الرمز، ولا توفّر مجموعة المفاتيح مفتاح HMAC أبدًا.
+- الحقل `exp` مطلوب؛ ويُعمل بـ `nbf` و`iat`. وتسمح الثلاثة بفارق ساعة قدره `clockToleranceSec` (الافتراضي 60، والحد الأقصى 300).
+- يجب أن يساوي `iss` إحدى قيم `issuer` تمامًا (دون تسامح مع الشرطة المائلة الأخيرة)، عندما تضبط `issuer`.
+- يجب أن يحتوي `aud` (نصًّا أو قائمة) على إحدى قيم `audience`. والخيار `audience` مطلوب؛ مرّر `allowAnyAudience: true` لتخطّي هذا الفحص عن قصد.
+- تُجلب مجموعة المفاتيح بمهلة 5 ثوانٍ، وتُخزَّن مؤقتًا 10 دقائق، وتُعاد جلبها مرة واحدة كل 30 ثانية على الأكثر حين يذكر رمز `kid` لا تعرفه (وتُعاد محاولة الجلب الفاشل بالحد الزمني نفسه البالغ 30 ثانية). وعنوانها إعداد فقط: تُتجاهل ترويسات `jku` و`x5u` و`jwk` في الرمز.
+
+الهوية الافتراضية هي `{ id: sub, type: 'user', authenticator: 'jwt', issuer: iss, claims }`؛ والرمز الذي لا يحوي `sub` يُتجاوز.
+
+### `oidc()`
+
+هي `jwt()` تأتي مفاتيحها من مزوّد OpenID Connect. تجلب `<issuer>/.well-known/openid-configuration` مرة واحدة (أو `discoveryUrl`)، وتشترط أن يساوي `issuer` في الوثيقة قيمتك تمامًا، وتستخدم `jwks_uri` منها (ويجب أن يكون https). الخوارزميات الافتراضية `RS256` و`ES256`؛ ولا يُسمح بـ HMAC.
+
+```ts
+import { oidc } from '@lousho/build-ai-agent/auth';
+
+const google = oidc({ issuer: 'https://accounts.google.com', audience: process.env.GOOGLE_CLIENT_ID ?? 'client-id' });
+```
+
+تحمل الهوية `authenticator: 'oidc'`، و`iss` الخاص بالمزوّد في `issuer`.
+
+### `basic()`
+
+بيانات اعتماد HTTP Basic. تُطبَّع أسماء المستخدمين وكلمات المرور بصيغة NFC وتُقارَن في زمن ثابت، ويُقارَن كل مستخدم مضبوط في كل طلب، فيستغرق المستخدم المجهول الوقت نفسه الذي تستغرقه كلمة المرور الخاطئة. ويحمل الرد `401` الترويسة `WWW-Authenticate: Basic realm="<realm>", charset="UTF-8"` لتعرض المتصفحات نافذة تسجيل الدخول.
+
+```ts
+import { basic } from '@lousho/build-ai-agent/auth';
+
+const operators = basic({ users: { ops: process.env.OPS_PASSWORD ?? 'change-me' }, realm: 'agent' });
+// Or check against your own store (compare in constant time there):
+const fromDatabase = basic({ users: async (user, password) => user === 'svc' && password === (process.env.SVC_PASSWORD ?? '') });
+```
+
+**لا تستخدم `basic()` إلا عبر HTTPS**: فكلمة المرور تنتقل مع كل طلب.
+
+### `apiToken()` و`anonymous()`
+
+تقبل `apiToken(token, { id })` الترويسة `Authorization: Bearer <token>` (تُقارَن في زمن ثابت) بوصفها الهوية الخدمية `{ id: id ?? 'api-token', type: 'service', authenticator: 'api-token' }`. وهي ما كان يعنيه النص الرمزي دائمًا: `createRouteHandler({ auth: '<token>' })` و`LOUSHO_API_TOKEN` هما `apiToken()`.
+
+تقبل `anonymous()` الجميع بالهوية `{ id: 'anonymous', type: 'user', authenticator: 'anonymous' }`: ضعها أخيرًا في المسارات التي تخدم المستخدمين المسجّلين والمجهولين معًا، واقرأ `principal.authenticator` أثناء التشغيل.
+
+### مدخل من كتابتك
+
+أي دالة تأخذ `Request` تصلح مدخلًا. أعلِن التحديات (challenges) التي تردّ بها بالحالة `401`، وإلا أعلنت `Bearer`:
+
+```ts
+import { AuthError, type AuthFn } from '@lousho/build-ai-agent/auth';
+
+const tenantKey: AuthFn = async (request) => {
+  const key = request.headers.get('x-tenant-key');
+  if (!key) return null; // not ours: ask the next entry
+  if (key === 'suspended-tenant') throw new AuthError(403); // stop here
+  return { id: key, type: 'service', authenticator: 'tenant-key' };
+};
+tenantKey.challenges = [{ scheme: 'Bearer', realm: 'tenants' }];
+```
+
+## الحالتان 401 و403 والترويسة `WWW-Authenticate`
+
+- لم يقبل أحد الطلب (أو رمى مدخل `AuthError(401)`): تُعاد `401` مع `{ "error": "Unauthorized" }` وترويسة `WWW-Authenticate` واحدة لكل تحدٍّ مميّز في القائمة، بالترتيب (`Bearer` لـ `jwt` و`oidc` و`apiToken`؛ و`Basic realm="..."` لـ `basic`).
+- رمى مدخل `AuthError(403)`: تُعاد `403` مع `{ "error": "Forbidden" }`.
+- فشل مدخل بطريقة أخرى: تُعاد `500` مع `{ "error": "Internal Server Error" }`.
+
+لا يذكر الجسم أبدًا أي فحص فشل: فالرمز المنتهي والتوقيع السيئ والجمهور الخاطئ كلها تحصل على `401` نفسها. ويحمل كل ردّ مصادقة الترويسة `Cache-Control: no-store`. ولا تُسجَّل الرموز وكلمات المرور أبدًا.
+
+## أين يعمل
+
+| الأداة أو الخادم | Node 22+ | Cloudflare Workers وVercel Edge وBun وDeno |
+| --- | --- | --- |
+| `jwt()` و`oidc()` و`basic()` و`apiToken()` و`anonymous()` و`routeAuth()` | نعم | نعم: Web Crypto و`fetch` فقط، دون استيراد `node:` |
+| `createRouteHandler({ auth })` | نعم | نعم |
+| `createDeployedServer({ auth })`، والهدفان `node-server` و`docker` | نعم | لا (Node `http`) |
+| الملف `auth.ts` في مجلد الوكيل | نعم (`node-server` و`docker`) | لا |
+| هدف البناء `cloudflare-worker` | | `LOUSHO_API_TOKEN` فقط؛ لا قائمة مصادقة بعد |
+
+تحتاج `oidc()` و`jwt({ jwksUrl })` إلى `fetch` صادر إلى مجموعة المفاتيح، وهو متاح في كل بيئات التشغيل المذكورة. وفي Worker مكتوب يدويًا، استدعِ `createRouteHandler` أو `routeAuth()` بنفسك مع أي أداة مساعدة.
+
+## `createRouteHandler`
+
+يقبل `auth` القائمة، أو مدخلًا واحدًا، أو نص رمز، أو (كما في السابق) دالة تُعيد قيمة منطقية. تقبل `true` الطلب بالهوية `{ id: 'anonymous', type: 'user', authenticator: 'custom' }`، وتعني `false` الحالة `401`. وبلا `auth` يكون المسار مفتوحًا، وفي بيئة الإنتاج (`NODE_ENV=production`) يُسجَّل تحذير واحد. والمسار `GET <basePath>/health` ليس خلف `auth` أبدًا. وتصل الهوية المقبولة إلى كل المسارات: `POST <basePath>` و`/chat` والموافقات ونقطة `useChat`. راجع [Next.js](/ar/nextjs#المسارات).
+
+## خادم Node و`auth.ts`
+
+يأخذ `createDeployedServer(agent, { auth })` القائمة نفسها (أو مدخلًا واحدًا). وعند ضبط `LOUSHO_API_TOKEN`، تُلحَق `apiToken(LOUSHO_API_TOKEN)` بعد مدخلاتك، فيظل رمز المشغّل صالحًا. أما القنوات تحت `/channels/<name>` فليست خلف القائمة: فهي تتحقق من طلباتها بنفسها.
+
+في [مجلد الوكيل](/ar/agent-directories)، ضع القائمة في `auth.ts` (أو `auth.js`) بجوار `agent.ts`:
+
+```ts
+// my-agent/auth.ts
+import { apiToken, oidc } from '@lousho/build-ai-agent/auth';
+
+export default [
+  oidc({ issuer: 'https://login.example.com', audience: 'agent-api' }),
+  apiToken(process.env.CI_TOKEN!, { id: 'ci' }),
+];
+```
+
+يجمّعها `lousho build --target=node-server` (أو `docker`) ويستخدمها الخادم المبني (تُعيدها `resolveAgentDir()` باسم `auth`؛ ويذكر البيان `auth: true`). ومع وجود `auth.ts`، لا يُستخدم الرمز المضمَّن عبر `adapter.scaffold(..., { auth: { token } })`؛ أما `LOUSHO_API_TOKEN` فيبقى مستخدمًا. ويقدّم الهدف `cloudflare-worker` ملفات المواصفات فقط ويُبقي رمز `LOUSHO_API_TOKEN`؛ راجع [النشر](/ar/deployment#المصادقة).
+
+## قراءة الهوية أثناء التشغيل
+
+تكون الهوية في سياق التشغيل بجوار `sessionId` و`metadata`:
+
+```ts
+import { createAgent, defineMemory, inMemoryMemory, type Principal } from '@lousho/build-ai-agent';
+import { mockModel } from '@lousho/build-ai-agent/testing';
+
+const notes = defineMemory({
+  name: 'notes',
+  // One memory per caller. Key on the issuer too: ids from different issuers can collide.
+  scope: ({ principal }) => principal && `user:${principal.issuer ?? ''}:${principal.id}`,
+  provider: inMemoryMemory(),
+});
+
+const agent = createAgent({
+  provider: mockModel(['Hi!']),
+  model: ({ principal }) => (principal?.claims?.plan === 'pro' ? 'openai/gpt-4o' : 'openai/gpt-4o-mini'),
+  instructions: ({ principal }) => (principal?.type === 'service' ? 'Answer in JSON.' : 'Be friendly.'),
+  memory: [notes],
+});
+
+// Outside a route, pass the principal yourself:
+const caller: Principal = { id: 'u-42', type: 'user', authenticator: 'jwt', issuer: 'https://auth.example.com' };
+await agent.send('Hello', { principal: caller });
+await agent.session({ id: 'chat-1' }).send('Hello again', { principal: caller });
+```
+
+الحقل `principal` منفصل عن `metadata` عن قصد: فـ `metadata` هو ما أرسله المستدعي، و`principal` هو ما تحقّقت منه المصادقة. والتشغيل الديناميكي المُستأنف من نقطة الحفظ يحتفظ بالهوية التي بدأ بها. وتضبط قناتا Slack وDiscord المُرسِل هويةً (`authenticator: 'slack'` / `'discord'`). أما الأدوات وسياسات الموافقة والتشغيلات الساكنة الموقوفة فلا ترى الهوية بعد.
+
+## ملاحظات أمنية
+
+- **لا تتحقق مصادقة المسار ممن يملك الجلسة.** يستطيع أي مستدعٍ يجتاز المصادقة ويعرف معرّف جلسة أن يقرأ نصّها (`GET /chat/:id`) ويتابعها ويبتّ في موافقاتها المعلّقة. استخدم معرّفات جلسات لا يمكن تخمينها، أو اشتقّها من الهوية في جانبك، أو تحقق من الملكية في مسارك قبل استدعاء المعالج.
+- لا تستخدم `basic()` إلا عبر HTTPS؛ والرمز الحامل (bearer) كلمة مرور أيضًا، لذا أنهِ TLS أمام أي خادم ليس على localhost.
+- أبقِ `issuer` و`audience` مضبوطين في `jwt()`: وإلا قُبل هنا رمز صُدر لخدمة أخرى من خدماتك.

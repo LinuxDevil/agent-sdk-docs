@@ -1,12 +1,6 @@
 ---
 title: "المزوّدون"
 ---
-
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/providers).
-</Warning>
-
 {/* Generated from docs/providers.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 `LLMProvider` هو ما يولّد به الوكيل ردوده. تأتي الـ SDK بمزوّدين لـ OpenAI وAnthropic وOpenRouter وOllama (كل منهم يستند إلى حزمة نظيرة اختيارية، انظر [التثبيت](/ar/installation#حزم-المزوّدين)) وبمزوّد وهمي حتمي للاختبارات. حدِّد المزوّد بسلسلة نصية بصيغة `provider/model`، أو مرِّر كائن مزوّد (instance).
@@ -67,39 +61,84 @@ const agent = createAgent({
 
 ## الإدخال متعدد الوسائط
 
-`Message.content` سلسلة نصية أو قائمة أجزاء: `{ type: 'text', text }`، و`{ type: 'image', image, mimeType? }` (عنوان `http(s)`، أو عنوان `data:`، أو البايتات على هيئة `Uint8Array`) و`{ type: 'file', data, mimeType, filename? }`. تقبل `agent.send()` و`agent.stream()` و`session.send()` / `stream()` و`t.send()` في التقييمات و`send()` في خطّاف React كلها قيمة من نوع `AgentInput`: سلسلة نصية، أو قائمة أجزاء (تُرسَل كرسالة مستخدم واحدة)، أو `Message[]` (تُمرَّر كما هي). ويقبل `AgentExecutor.execute()` الرسائل نفسها في `input`:
+`Message.content` سلسلة نصية أو قائمة أجزاء: `{ type: 'text', text }`، و`{ type: 'image', image, mimeType? }` (عنوان `http(s)`، أو عنوان `data:`، أو البايتات على هيئة `Uint8Array`) و`{ type: 'file', data, mimeType, filename? }`. تقبل `agent.send()` و`agent.stream()` و`session.send()` / `stream()` و`t.send()` في التقييمات و`send()` في خطّاف React كلها قيمة من نوع `AgentInput`: سلسلة نصية، أو قائمة أجزاء (تُرسَل كرسالة مستخدم واحدة)، أو `Message[]` (تُمرَّر كما هي). أجزاء تُرسَل عبر `createAgent()`:
 
 ```ts
 import { readFileSync } from 'node:fs';
-import { AgentBuilder, AgentExecutor, createAgent, resolveProvider, textOf, type Message } from '@lousho/build-ai-agent';
+import { createAgent } from '@lousho/build-ai-agent';
+
+const agent = createAgent({ instructions: 'Describe images briefly.', model: 'openai/gpt-4o-mini' });
+
+// Parts become one user message.
+const answer = await agent.send([
+  { type: 'text', text: 'What is in these pictures?' },
+  { type: 'image', image: 'https://example.com/cat.png' },
+  { type: 'image', image: new Uint8Array(readFileSync('dog.png')), mimeType: 'image/png' },
+]);
+console.log(answer.text);
+```
+
+تُمرَّر `Message[]` كما هي؛ و`textOf()` تُرجع الأجزاء النصية من الرسالة:
+
+```ts
+import { createAgent, textOf, type Message } from '@lousho/build-ai-agent';
+
+const agent = createAgent({ instructions: 'Describe images briefly.', model: 'openai/gpt-4o-mini' });
+const messages: Message[] = [
+  {
+    role: 'user',
+    content: [
+      { type: 'text', text: 'What is in this picture?' },
+      { type: 'image', image: 'https://example.com/cat.png' },
+    ],
+  },
+];
+
+const result = await agent.send(messages);
+console.log(textOf(messages[0]), '->', result.text);
+```
+
+- **الصور** تصل إلى النموذج ضمن رسائل `user` مع كل المزوّدين المدمجين (مع Anthropic وOllama تنزّل حزمة `ai` الصورة من عنوانها أولًا). اختر نموذجًا يدعم الرؤية: Ollama يتجاهل الصور مع نموذج نصي فقط، وOpenRouter يرفضها معه.
+- **الملفات** (`{ type: 'file', data, mimeType }`) تُرسَل أجزاء `file` لأنواع الوسائط التالية، بحسب المزوّد والإصدار الرئيسي من `ai`:
+
+  | المزوّد | `ai` 4 | `ai` 6 / 7 |
+  | -------- | ------ | ---------- |
+  | `openai` | ملاحظة نصية | `application/pdf` |
+  | `anthropic` | ملاحظة نصية | `application/pdf` و`text/plain` |
+  | `openrouter` | ملاحظة نصية | `application/pdf` |
+  | `ollama` | ملاحظة نصية | ملاحظة نصية |
+
+  أي جزء ملف آخر يُرسَل ملاحظة نصية
+  (`[file report.pdf (application/pdf) not sent]`)، ويحذّر المزوّد مرة واحدة
+  لكل نوع وسائط، ذاكرًا النوع والإصدار الرئيسي من `ai`. وعلى `ai` 4 يشمل النطاق
+  المقبول من `@ai-sdk/*` حزم 0.0.x التي لا تدعم أجزاء الملفات، فيصير كل
+  ملف ملاحظة نصية هناك. والصنف الفرعي من مزوّد يقبل نموذجه أنواعًا أكثر يتجاوز
+  `protected fileMediaTypes(): readonly string[]` ليسردها، أو
+  يضبط `protected readonly acceptsFileParts = true` ليرسل كل الأنواع.
+- رسائل `system` و`assistant` و`tool` تُرسَل بأجزائها النصية.
+- كل ما يقرأ نص الرسائل يستخدم `textOf()`: `estimateTokens()` (يُحتسب كل جزء صورة أو ملف 1,000 رمز ثابتة)، وضغط السياق، وأشرطة تسجيل `recordReplay()` (التي تخزّن النص وبصمة كل صورة أو ملف، أو عنوانه) و`mockModel()`. يحفظ `FileSessionStore` البايتات بترميز base64 (`{ "$bytes": "..." }`) ويعيد تحميلها على هيئة `Uint8Array`؛ ويفعل `SqliteStore` (للجلسات ونقاط الحفظ) الشيء نفسه.
+
+#### متقدم: واجهة المنفّذ
+
+يقبل `AgentExecutor.execute()` الرسائل نفسها في `input` (انظر [واجهة المنفّذ](/ar/executor-api)):
+
+```ts
+import { AgentBuilder, AgentExecutor, resolveProvider, type Message } from '@lousho/build-ai-agent';
 
 const agent = AgentBuilder.create().setName('vision').setPrompt('Describe images briefly.').build();
 const input: Message[] = [
   {
     role: 'user',
     content: [
-      { type: 'text', text: 'What is in these pictures?' },
+      { type: 'text', text: 'What is in this picture?' },
       { type: 'image', image: 'https://example.com/cat.png' },
-      { type: 'image', image: new Uint8Array(readFileSync('dog.png')), mimeType: 'image/png' },
     ],
   },
 ];
 
 const result = await AgentExecutor.execute({ agent, input, provider: resolveProvider('openai/gpt-4o-mini') });
-console.log(textOf(input[0]), '->', result.text); // textOf(): the text parts of a message
-
-// The same through the public API: parts become one user message.
-const answer = await createAgent({ prompt: 'Describe images briefly.', model: 'openai/gpt-4o-mini' }).send([
-  { type: 'text', text: 'What is in this picture?' },
-  { type: 'image', image: 'https://example.com/cat.png' },
-]);
-console.log(answer.text);
+console.log(result.text);
 ```
-
-- **الصور** تصل إلى النموذج ضمن رسائل `user` مع كل المزوّدين المدمجين (مع Anthropic وOllama تنزّل حزمة `ai` الصورة من عنوانها أولًا). اختر نموذجًا يدعم الرؤية: Ollama يتجاهل الصور مع نموذج نصي فقط، وOpenRouter يرفضها معه.
-- **الملفات** لا يرسلها المزوّدون المدمجون، على أي إصدار رئيسي من `ai`: يُرسَل جزء الملف كملاحظة نصية (`[file report.pdf (application/pdf) not sent]`) ويحذّر المزوّد مرة واحدة. الصنف الفرعي من مزوّد يقبل نموذجه الملفات يضبط `protected readonly acceptsFileParts = true` ليرسلها كأجزاء ملفات بصيغة `ai` v4.
-- رسائل `system` و`assistant` و`tool` تُرسَل بأجزائها النصية.
-- كل ما يقرأ نص الرسائل يستخدم `textOf()`: `estimateTokens()` (يُحتسب كل جزء صورة أو ملف 1,000 رمز ثابتة)، وضغط السياق، وأشرطة تسجيل `recordReplay()` (التي تخزّن النص وبصمة كل صورة أو ملف، أو عنوانه) و`mockModel()`. يحفظ `FileSessionStore` البايتات بترميز base64 (`{ "$bytes": "..." }`) ويعيد تحميلها على هيئة `Uint8Array`؛ ويفعل `SqliteStore` (للجلسات ونقاط الحفظ) الشيء نفسه.
 
 ## أصناف المزوّدين
 
@@ -111,8 +150,55 @@ console.log(answer.text);
 | `createMockProvider()`, `MockLLMProvider` | ردود جاهزة للعروض التوضيحية؛ يحاكي استدعاء أداة حين تذكر الرسالة اسم أداة. |
 | `mockModel(script)` | مزوّد للاختبارات يتبع نصًّا معدًّا مسبقًا ويتحقق منه (من `/testing`)؛ انظر [الاختبار](/ar/testing). |
 | `withRetry()`, `withFallback()` | يعيدان محاولة الإخفاقات العابرة مع تراجع زمني، وينتقلان إلى المزوّد التالي؛ انظر [إعادة المحاولة والبديل الاحتياطي للمزوّد](/ar/configuration#إعادة-المحاولة-والبديل-الاحتياطي-لدى-المزوّد). |
+| `fromAiSdk(model, options?)` | أي `LanguageModel` من AI SDK (Google وBedrock وAzure وMistral وGateway وغيرها) بوصفه مزوّدًا؛ انظر [أدناه](#أي-نموذج-من-ai-sdk-fromaisdk). |
 
-لاستخدام خدمة خلفية أخرى، نفّذ الواجهة `LLMProvider` (`name` و`generate()` و`stream()` و`supportsTools()` و`supportsStreaming()` و`getModels()`، واختياريًا `defaultModel`) ومرِّر الكائن بوصفه `provider`، أو سجّل مصنعًا بـ `LLMProviderRegistry.register(name, factory)`.
+لاستخدام خدمة خلفية أخرى، تحقق أولًا مما إذا كانت لها حزمة مزوّد لـ AI SDK:
+فإن وُجدت، فغلّف نموذجها بـ `fromAiSdk()` (أدناه). وإلا فنفّذ الواجهة
+`LLMProvider` (`name` و`generate()` و`stream()` و`supportsTools()` و
+`supportsStreaming()` و`getModels()`، واختياريًا `defaultModel`) ومرِّر الكائن بوصفه `provider`، أو سجّل مصنعًا بـ
+`LLMProviderRegistry.register(name, factory)`.
+
+### أي نموذج من AI SDK: `fromAiSdk()`
+
+تحوّل `fromAiSdk(model)` نموذج لغة من أي حزمة مزوّد في AI SDK
+إلى `LLMProvider`، فلا تكتب مهايئًا بنفسك:
+
+```ts
+import { createOpenAI } from '@ai-sdk/openai';
+import { createAgent, fromAiSdk } from '@lousho/build-ai-agent';
+
+const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const agent = createAgent({
+  provider: fromAiSdk(openai.chat('gpt-4o-mini'), { fileMediaTypes: ['application/pdf'] }),
+  instructions: 'You are a helpful assistant.',
+});
+```
+
+وينطبق الأمر نفسه على `@ai-sdk/google` (`google('gemini-2.0-flash')`)
+و`@ai-sdk/amazon-bedrock` و`@ai-sdk/azure` و`@ai-sdk/mistral` وAI Gateway
+(`gateway('openai/gpt-4o')` من `ai` 7 أو من `@ai-sdk/gateway`). تمر الاستدعاءات عبر
+حزمة `ai` المثبَّتة لديك، فثبّت الإصدار الرئيسي من حزمة المزوّد الذي يقترن بها
+(انظر [إصدارات Vercel AI SDK](#إصدارات-vercel-ai-sdk)).
+
+| الخيار | الافتراضي | الوصف |
+| ------ | ------- | ----------- |
+| `name` | حقل `provider` في النموذج، وإلا `'ai-sdk'` | اسم المزوّد في الأحداث ومقاطع التتبّع والتحذيرات. |
+| `fileMediaTypes` | `[]` | أنواع الوسائط التي تُرسَل أجزاء `file`؛ وأجزاء الملفات الأخرى تصبح ملاحظة نصية. أما الصور فتُرسَل دائمًا. |
+| `replaysReasoning` | `false` | يعيد إرسال كتل الاستدلال الموقَّعة في دورات المساعد (نماذج Anthropic). |
+| `maxRetries` | `0` | إعادات المحاولة الخاصة بـ AI SDK لكل استدعاء؛ أما `createAgent()` فتعيد المحاولة عبر خيارها `retry`. |
+
+يخدم هذا المزوّد النموذج الواحد الذي يغلّفه، مع تفعيل الأدوات والبث،
+ويترك إعدادات الاستدلال للنموذج الذي بنيته أنت (فخيار `reasoning` لا يُحوَّل إلى
+شيء). وكل حالة مما يلي ترمي `LOUSHO_CONFIG_INVALID`:
+
+- سلسلة معرّف نموذج (`fromAiSdk('openai/gpt-4o')`): مرِّر نموذج دالة
+  المزوّد بدلًا منها؛
+- نموذج لإصدار رئيسي من `ai` غير المثبَّت (نموذج
+  `specificationVersion: 'v1'` مع `ai` 6 / 7، أو أحدث منه مع
+  `ai` 4)؛
+- تشغيل بمعرّف `model` غير المعرّف المغلَّف (وداخل التشغيل يكون هذا
+  سبب الخطأ `LOUSHO_PROVIDER_REQUEST_FAILED`): غلّف كل نموذج بـ
+  `fromAiSdk()` واجمعها بـ `withFallback()`.
 
 ## إصدارات Vercel AI SDK
 
@@ -131,7 +217,9 @@ console.log(answer.text);
 | `^6.0.0` | `^3.0.0` | `ollama-ai-provider-v2@^3.0.0` |
 | `^7.0.0` | `^4.0.0` | `ollama-ai-provider-v2@^4.0.0` |
 
-تلميح التثبيت لحزمة مزوّد ناقصة و`lousho doctor` يذكران الإصدار المناسب لنسخة `ai` المثبَّتة لديك، وينبّه `lousho doctor` إلى الزوج غير المتوافق (مثلًا `ai` 7 مع `@ai-sdk/openai` 1.x). يحمّل `OllamaProvider` الحزمة `ollama-ai-provider` على `ai` 4 والحزمة `ollama-ai-provider-v2` على `ai` 6/7؛ وحزمة v2 تعتمد اعتمادًا نظيرًا على zod 4، وهو ما تقبله الـ SDK، فثبّت zod 4 معها (مشاريع zod 3 تستخدم Ollama مع `ai` 4). ينشئ `lousho init` هيكل المشروع بـ `ai@^7.0.0` مع `@ai-sdk/*@^4.0.0` لـ OpenAI وAnthropic وOpenRouter، وبـ `ai@^4.3.19` لـ Ollama.
+تلميح التثبيت لحزمة مزوّد ناقصة و`lousho doctor` يذكران الإصدار المناسب لنسخة `ai` المثبَّتة لديك، وينبّه `lousho doctor` إلى الزوج غير المتوافق (مثلًا `ai` 7 مع `@ai-sdk/openai` 1.x). يحمّل `OllamaProvider` الحزمة `ollama-ai-provider` على `ai` 4 والحزمة `ollama-ai-provider-v2` على `ai` 6/7؛ وحزمة v2 تعتمد اعتمادًا نظيرًا على zod 4، وهو ما تقبله الـ SDK، فثبّت zod 4 معها (مشاريع zod 3 تستخدم Ollama مع `ai` 4). ينشئ `lousho init` هيكل المشروع بـ `ai@^7.0.0` مع `@ai-sdk/*@^4.0.0` لـ OpenAI وAnthropic وOpenRouter، وبـ `ai@^7.0.0` مع `ollama-ai-provider-v2@^4.0.0` وzod 4 لـ Ollama.
+
+يثبّت CI ويختبر `ai` 4 و6 و7، كلًّا مع zod 3 وzod 4 (ستة اقترانات؛ والاقتران `ai` 4 مع zod 4 هو الوحيد الذي لا تعلنه حزم المزوّدين)، مع الحزمة الحقيقية `ollama-ai-provider-v2` على `ai` 6 و7 في مهام zod 4.
 
 يستخدم OpenRouter الحزمة `@ai-sdk/openai` موجَّهة إلى عنوان OpenRouter الأساسي. ابتداءً من `@ai-sdk/openai` 2، يستهدف الاستدعاء الافتراضي `openai(modelId)` واجهة Responses API، التي لا ينفّذها OpenRouter، ولذلك يطلب `OpenRouterProvider` نموذج Chat Completions (`provider.chat(modelId)`) على كل إصدار رئيسي؛ وهو يعمل على `ai` 4 و6 و7 مع الاقتران المذكور أعلاه.
 
@@ -144,8 +232,8 @@ console.log(answer.text);
 - يأتي الاستهلاك من `inputTokens` / `outputTokens` / `totalTokens`، مع `cachedInputTokens` من `inputTokenDetails.cacheReadTokens` و`reasoningTokens` من `outputTokenDetails.reasoningTokens`.
 - يقرأ `stream()` المجرى `fullStream` الخاص بـ AI SDK على أي من الإصدارين الرئيسيين ويحوّله إلى القطع (chunks) نفسها: `text-delta` (في v6/v7 الحقل `text`، وفي v4 الحقل `textDelta`)، و`tool-call` (الاستدعاء الكامل الذي يرسله v6/v7 بعد `tool-input-start`/`-delta`/`-end`، أو استدعاء يُجمَّع من ذلك الإدخال حين لا يرسل النموذج استدعاءً كاملًا)، و`finish` مع سبب الانتهاء الذي تعطيه AI SDK والاستهلاك المذكور أعلاه (في v6/v7 الحقل `totalUsage`). جزء `error` يجعل المجرى يُرفض بخطئه، على v4 أيضًا (كان v4 ينهي مجرى كهذا بسبب الانتهاء `error`)، وجزء `abort` يرفضه بسبب الإشارة. تغيّرات الاستدلال الجزئية (deltas) يُبلَّغ عنها قطعًا من النوع `reasoning-delta` وتظهر أحداثًا `reasoning.*` (انظر [الاستدلال](/ar/reasoning)).
 
-على v6/v7 يجب أن يأتي النموذج من حزمة مزوّد خاصة بذلك الإصدار الرئيسي (الجدول أعلاه)؛ فحزم `0.0.x`/`1.x` تنتج نماذج يرفضها `ai` v7. تُرسَل أجزاء الصور كأجزاء `image`، وهي ما يقبله `ai` v7 مع تحذير إهمال لكل جزء (`globalThis.AI_SDK_LOG_WARNINGS = false` يوقف تحذيرات `ai`). الإصدار `ai` v5 غير مدعوم.
+على v6/v7 يجب أن يأتي النموذج من حزمة مزوّد خاصة بذلك الإصدار الرئيسي (الجدول أعلاه)؛ فحزم `0.0.x`/`1.x` تنتج نماذج يرفضها `ai` v7. تُرسَل أجزاء الصور أجزاء `file` بنوع وسائط صورة (وهو الشكل الذي يقبله `ai` v6/v7 للصور، فلا يظهر تحذير إهمال). الإصدار `ai` v5 غير مدعوم.
 
 ## أين يعمل كل مزوّد
 
-كل المزوّدين يعملون على Node. هدف النشر `cloudflare-worker` يدعم `mock` و`openai` و`anthropic`؛ أما `ollama` و`openrouter` فيحتاجان إلى الهدف `node-server` أو `docker` (انظر [النشر](/ar/deployment#cloudflare-worker)).
+كل المزوّدين يعملون على Node. هدف النشر `cloudflare-worker` يدعم `mock` و`openai` و`anthropic` و`openrouter` (المفتاح من الربط `OPENROUTER_API_KEY`)؛ أما `ollama` فيحتاج إلى الهدف `node-server` أو `docker` (انظر [Cloudflare Workers](/ar/cloudflare-workers)).

@@ -1,24 +1,11 @@
 ---
 title: "Svelte"
 ---
-
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/svelte).
-</Warning>
-
 {/* Generated from docs/svelte.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-`loushoAgent()` لـ Svelte هو [خطّاف React](/ar/react) في صورة مخزن (store):
-المصادر نفسها، والحالة نفسها، والإجراءات نفسها، فوق
-[بث الأحداث محدَّد الأنواع](/ar/streaming) نفسه. اقرأ [React](/ar/react) لتعرف معنى كل
-حقل، ونوعَي المصدر، وطريقة عمل الموافقات، وجانب الخادم؛
-أما هذه الصفحة فتغطي ما يختلف.
+`loushoAgent()` لـSvelte هو [خطّاف React](/ar/react) في صورة مخزن (store): المصادر نفسها، والحالة نفسها، والإجراءات نفسها، فوق [بث الأحداث محدَّد الأنواع](/ar/streaming) نفسه. اقرأ [React](/ar/react) لتعرف معنى كل حقل، ونوعَي المصدر، وطريقة عمل الموافقات، وجانب الخادم؛ أما هذه الصفحة فتغطي ما يختلف.
 
-يقع في المسار الفرعي `@lousho/build-ai-agent/svelte`. ينفّذ المخزن
-عقد المخازن في Svelte (`subscribe(run) => unsubscribe`) يدويًا، فيعمل
-مع `$agent` في Svelte 4 و 5 ولا يحتاج إلى استيراد `svelte`: لا توجد اعتمادية
-نظيرة تثبّتها.
+يقع في المسار الفرعي `@lousho/build-ai-agent/svelte`. ينفّذ المخزن عقد المخازن في Svelte (`subscribe(run) => unsubscribe`) يدويًا، فيعمل مع `$agent` في Svelte 4 و5 ولا يحتاج إلى استيراد `svelte`: لا توجد اعتمادية نظيرة تثبّتها.
 
 ```ts
 import { loushoAgent } from '@lousho/build-ai-agent/svelte';
@@ -31,8 +18,7 @@ export async function submit(text: string): Promise<void> {
 }
 ```
 
-وفي المكوّن (قالب Svelte، ولذلك لا يخضع لفحص الأنواع مع بقية
-المقتطفات هنا):
+وفي المكوّن (قالب Svelte، ولذلك لا يخضع لفحص الأنواع مع بقية المقتطفات هنا):
 
 ```html
 {#each $agent.messages as message (message.id)}
@@ -56,21 +42,28 @@ export async function submit(text: string): Promise<void> {
 
 ## ما يختلف عن React
 
-- **الحالة هي قيمة المخزن.** `$agent` هو كائن الحالة في خطّاف React:
-  `messages` و`status` و`pendingApproval` و`error` و`usage` و`lastEvent`.
-  والأوامر (`send` و`stop` و`approve` و`reject` و`answer`) موجودة على
-  المخزن نفسه بتواقيع خطّاف React؛ ولا تحتاج إلى
-  مشترك.
-- **`reset()`** يُلغي التشغيل الجاري، وينسى الجلسة العاملة داخل العملية
-  (`{ agent, sessionId }` يبدأ محادثة جديدة) ويمسح الحالة.
-- **المصدر والخيارات قيم عادية**، تُقرأ عند بدء الدورة. لاستخدام
-  وكيل آخر أو `url` آخر، أنشئ مخزنًا آخر.
-- **التنظيف هو إلغاء الاشتراك.** `stop()` يُلغي الطلب الجاري، وكذلك
-  يفعل زوال آخر مشترك (حين يُدمَّر المكوّن الذي يستخدم `$agent`).
-  لا توجد `destroy()`: هكذا توقف مخازن Svelte
-  عملها. والمخزن الذي لا يشترك فيه أحد يظل ينفّذ دورة بدأتها
-  بـ `send()`؛ فاستدعِ `stop()` بنفسك إن تخليت عنه.
+- **الحالة هي قيمة المخزن.** `$agent` هو كائن الحالة في خطّاف React: `messages` و`status` و`pendingApproval` و`error` و`usage` و`todos` و`lastEvent`. والأوامر (`send` و`stop` و`approve` و`reject` و`answer`) موجودة على المخزن نفسه بتواقيع خطّاف React؛ ولا تحتاج إلى مشترك.
+- **`reset()`** يُلغي التشغيل الجاري، وينسى الجلسة العاملة داخل العملية (`{ agent, sessionId }` يبدأ محادثة جديدة) ويمسح الحالة.
+- **المصدر والخيارات قيم عادية**، تُقرأ عند بدء الدورة. لاستخدام وكيل آخر أو `url` آخر، أنشئ مخزنًا آخر.
+- **التنظيف هو إلغاء الاشتراك.** يُلغي `stop()` الطلب الجاري، وكذلك يفعل زوال آخر مشترك (حين يُدمَّر المكوّن الذي يستخدم `$agent`). لا توجد `destroy()`: هكذا توقف مخازن Svelte عملها. والمخزن الذي لا يشترك فيه أحد يظل ينفّذ دورة بدأتها بـ`send()`؛ فاستدعِ `stop()` بنفسك إن تخليت عنه.
 
-المختزِل (reducer) ومحلِّل البث مصدَّران من هذا المسار الفرعي أيضًا
-(`reduceAgentEvents` و`initialAgentUIState` و`parseEventStream`)، وهما
-نفساهما الموجودان في `@lousho/build-ai-agent/react`.
+المختزِل (reducer) ومحلِّل البث مصدَّران من هذا المسار الفرعي أيضًا (`reduceAgentEvents` و`initialAgentUIState` و`parseEventStream`)، وهما نفساهما الموجودان في `@lousho/build-ai-agent/react`.
+
+## المهام
+
+`loushoTodos(agent)` مخزن للقراءة مشتق من مخزن `loushoAgent()`: فـ`$plan` هو عرض المهام ويضم `todos` و`counts` و`current` (عنصر `in_progress`، وإلا فأول عنصر `pending`) و`progress` (`completed / total`). وهو يعرض خطة الوكيل الذي يستخدم [أدوات المهام](/ar/tools#أدوات-قائمة-المهام) مباشرةً، من البث نفسه الذي تعتمد عليه المحادثة، ولا يُخطر إلا حين تتغير القائمة (انظر [React](/ar/react#المهام)).
+
+```ts
+import { loushoAgent, loushoTodos } from '@lousho/build-ai-agent/svelte';
+
+export const agent = loushoAgent({ url: '/api/agent' });
+export const plan = loushoTodos(agent);
+```
+
+```html
+<p>{$plan.counts.completed} of {$plan.counts.total} done ({Math.round($plan.progress * 100)}%)</p>
+{#if $plan.current}<p>Now: {$plan.current.content}</p>{/if}
+<ul>
+  {#each $plan.todos as todo (todo.id)}<li>{todo.status}: {todo.content}</li>{/each}
+</ul>
+```

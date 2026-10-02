@@ -2,12 +2,6 @@
 title: "التتبّع وقابلية المراقبة"
 sidebarTitle: "التتبّع"
 ---
-
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/observability).
-</Warning>
-
 {/* Generated from docs/observability.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 يُصدر `AgentExecutor.execute()` و`FlowExecutor.execute()` مقاطع تتبّع (spans) عبر `TraceExporter`. تتبع أسماء المقاطع وسماتها [الاصطلاحات الدلالية للذكاء الاصطناعي التوليدي (GenAI) في OpenTelemetry](https://opentelemetry.io/docs/specs/semconv/gen-ai/)، فتستطيع أنظمة المراقبة التي تدعم GenAI التعرّف عليها دون ربط مخصّص.
@@ -15,6 +9,25 @@ sidebarTitle: "التتبّع"
 > **الاستقرار.** اصطلاحات GenAI في حالة `Development` (غير مستقرة). سبق أن تغيّرت أسماء السمات بين إصدارات المواصفة (مثلًا أصبح `gen_ai.system` هو `gen_ai.provider.name`) وقد تتغير مجددًا. تتبع حزمة SDK هذه المواصفةَ كما استُرجعت بتاريخ 2026-10-01 من [مستودع semantic-conventions-genai](https://github.com/open-telemetry/semantic-conventions-genai) (حيث توجد الاصطلاحات الآن). ثبّت إصدار SDK لديك إذا كانت لوحات المتابعة تعتمد على هذه الأسماء.
 
 ## البدء السريع
+
+مرّر `exporter` إلى `createAgent()`؛ فيُتتبَّع كل تشغيل للوكيل (`send()` و`stream()` ودورات الجلسة و`resume()` والتشغيلات التي يواصلها `agent.approvals.resolve()`)، بما فيها الوكلاء الفرعيون. ولحفظ التتبّعات على القرص وتصفحها بالأمر `npx lousho traces`، استخدم `fileTraceExporter()` (راجع [التتبّعات المحلية](#التتبّعات-المحلية)):
+
+```ts
+import { createAgent } from '@lousho/build-ai-agent';
+import { fileTraceExporter } from '@lousho/build-ai-agent/traces';
+
+const agent = createAgent({
+  model: 'openai/gpt-4o-mini',
+  instructions: 'You are a helpful assistant.',
+  exporter: fileTraceExporter(), // writes .lousho/traces/<day>/<traceId>.jsonl
+});
+```
+
+أي كائن يملك `onSpanStart` و`onSpanEnd` هو مُصدِّر (exporter).
+
+#### متقدم: واجهة المنفِّذ
+
+مع المنفِّذ، مرّر المُصدِّر إلى `AgentExecutor.execute()`:
 
 ```ts
 import { AgentExecutor, type TraceExporter } from '@lousho/build-ai-agent';
@@ -137,7 +150,11 @@ const exporter = createOtelTraceExporter(); // metrics on by default
 
 ## محتوى الرسائل والوسائط لا يُسجَّل إلا بتفعيل صريح
 
-الموجّهات ومخرجات النموذج ووسائط الأدوات ونتائجها بيانات حساسة وكبيرة الحجم، ولذلك **لا تُسجَّل** سمات المحتوى `gen_ai.*` **افتراضيًا أبدًا**. فعّلها لكل تشغيل على حدة:
+الموجّهات ومخرجات النموذج ووسائط الأدوات ونتائجها بيانات حساسة وكبيرة الحجم، ولذلك **لا تُسجَّل** سمات المحتوى `gen_ai.*` **افتراضيًا أبدًا**. فعّلها لكل وكيل على حدة بالخيار `createAgent({ exporter, captureContent: true })`.
+
+#### متقدم: واجهة المنفِّذ
+
+مع المنفِّذ، فعّلها لكل تشغيل على حدة:
 
 ```ts
 import { AgentExecutor, type TraceExporter } from '@lousho/build-ai-agent';
@@ -178,6 +195,61 @@ await AgentExecutor.execute({ agent, input, provider, exporter, captureContent: 
 | `input`, `prompt`, `args`, `result` | `gen_ai.input.messages`, `gen_ai.tool.call.arguments`, `gen_ai.tool.call.result` (بتفعيل صريح، انظر أعلاه) |
 
 سمات المحتوى المُهمَلة (`input`، `prompt`، `args`، `result`) تحتفظ بسلوكها القديم: تُسجَّل ما لم يُضبط `redactContent: true`. اضبط `redactContent: true` إذا أردت ألا يظهر أي محتوى في المقاطع إلا إذا فعّلته عبر `captureContent`.
+
+## التتبّعات المحلية
+
+تكتب `fileTraceExporter()` من `@lousho/build-ai-agent/traces` كل تشغيل في ملف، ويعرض الأمر `lousho traces` الملفات في الطرفية. دون نظام خلفي لـ OpenTelemetry ودون حزمة إضافية.
+
+```ts
+import { createAgent, defineTool } from '@lousho/build-ai-agent';
+import { fileTraceExporter } from '@lousho/build-ai-agent/traces';
+import { z } from 'zod';
+
+const getWeather = defineTool({
+  name: 'get_weather',
+  description: 'Current weather for a city',
+  input: z.object({ city: z.string() }),
+  execute: async ({ city }) => `Sunny in ${city}`,
+});
+
+const agent = createAgent({
+  model: 'openai/gpt-4o-mini',
+  tools: [getWeather],
+  exporter: fileTraceExporter({ dir: '.lousho/traces' }), // the default dir
+});
+```
+
+ثم، من مجلد المشروع:
+
+```bash
+npx lousho traces                 # the 20 most recent runs, newest first
+npx lousho traces --limit 50 --json
+npx lousho traces 3f2a            # one run as a tree; a unique id prefix is enough
+npx lousho traces 3f2a --content  # also the captured messages and tool arguments
+```
+
+```
+TIME    AGENT    DURATION  MODEL  TOOLS  TOKENS IN/OUT  COST       STATUS  ID
+2h ago  weather  1.65s     2      1      159/32         $0.000043  ok      3f2a9c1e-5b7d-4e8a-9c0f-1a2b3c4d5e6f
+
+Trace 3f2a9c1e-5b7d-4e8a-9c0f-1a2b3c4d5e6f  4 spans, 1.65s
+invoke_agent weather         |████████████████████████|     1.65s  $0.000043
+├─ chat gpt-4o-mini          |█████████████           |     900ms  openai/gpt-4o-mini  in 62 out 18  $0.000020
+├─ execute_tool get_weather  |             █          |      22ms  tool get_weather
+└─ chat gpt-4o-mini          |             ██████████ |     705ms  openai/gpt-4o-mini  in 97 out 14  $0.000023
+```
+
+الخيارات: `--dir D` يقرأ مجلدًا آخر (الافتراضي `.lousho/traces`)، و`--limit N` يعرض N تشغيلًا (الافتراضي 20)، و`--json` يطبع الملخّصات أو المقاطع بصيغة JSON. وإذا طابقت بادئة المعرّف عدة تشغيلات فإنها تُعرض جميعًا ويخرج الأمر بالرمز 1. تُعطَّل الألوان عند ضبط `NO_COLOR` أو عندما لا يكون الخرج طرفية. وأعداد الرموز مأخوذة من مقاطع `chat` في التشغيل، بما فيها مقاطع الوكلاء الفرعيين؛ والتكلفة هي `lousho.cost_usd` المجمَّعة للتشغيل، وتبقى فارغة (`-`) عندما يكون سعر أحد النماذج مجهولًا.
+
+**الملفات.** ملف واحد لكل تشغيل في `<dir>/<YYYY-MM-DD>/<traceId>.jsonl` (تاريخ بدء التشغيل بالتوقيت المحلي؛ ومعرّف التتبّع هو معرّف مقطعه `invoke_agent`)، فيمكن حذف التتبّعات القديمة يومًا بيوم. كل سطر مقطع منتهٍ واحد، يُكتب فور انتهائه:
+
+```json
+{"v":1,"traceId":"3f2a…","id":"a100…","parentId":"3f2a…","name":"chat gpt-4o-mini","kind":"client","startTime":1790848800005,"endTime":1790848800905,"attributes":{"gen_ai.usage.input_tokens":62,"…":"…"}}
+```
+
+`startTime` و`endTime` بالمللي ثانية منذ بداية العصر (epoch)؛ و`attributes` هي سمات المقطع المذكورة أعلاه، دون اختصار. والمقطع الذي لم ينتهِ قط (ماتت العملية) لا يوجد في الملف. وإذا تعذّرت الكتابة في المجلد فإن المُصدِّر يحذّر مرة واحدة ويستمر التشغيل. وتقرأ `listTraces({ dir, limit })` و`readTrace(idOrPrefix, { dir })` الملفات من الشيفرة.
+
+تحمل الملفات ما تحمله المقاطع: سمات `input` و`prompt` و`args` و`result` المُهمَلة تحمل محتوى الرسائل والأدوات (راجع [أسماء السمات المُهمَلة](#أسماء-السمات-المُهمَلة))، ويضيف `captureContent: true` محتوى `gen_ai.*`. أبقِ `.lousho/` خارج نظام التحكم في الإصدارات؛ والمشاريع التي ينشئها `lousho init` تتجاهله.
 
 ## الأنظمة الخلفية
 
