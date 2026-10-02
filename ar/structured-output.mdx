@@ -1,0 +1,145 @@
+---
+title: "المخرجات المنظَّمة"
+description: "أعطِ الوكيل مخطط zod في الخيار output فيصبح رده النهائي كائنًا محدَّد النوع ومُتحقَّقًا منه: result.object. ويبقى بإمكان الوكيل أن يستدعي الأدوات أولًا؛ فالإجابة النهائية وحدها هي التي يجب أن تطابق المخطط."
+---
+{/* Generated from docs/structured-output.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
+
+```ts
+import { z } from 'zod';
+import { createAgent } from '@lousho/build-ai-agent';
+
+const agent = createAgent({
+  model: 'openai/gpt-4o-mini',
+  instructions: 'You report the weather.',
+  output: z.object({ city: z.string(), tempC: z.number(), summary: z.string() }),
+});
+
+const result = await agent.send('Weather in Paris?');
+if (result.object) {
+  console.log(result.object.tempC); // typed: number
+} else {
+  console.error(result.finishReason, result.outputError?.issues); // 'output-invalid', [{ path, message }]
+}
+```
+
+نوع `result.object` هو `z.output<typeof schema>`، ولذلك تُطبَّق القيم الافتراضية
+والتحويلات (transforms) في zod. أما `result.text` فيحتفظ بنص JSON الخام الذي كتبه النموذج.
+
+يمكن أن يأتي المخطط من zod 3 أو zod 4: يُحوَّل إلى JSON Schema بالدالة `z.toJSONSchema`
+في zod 4 وبمحوِّل حزمة `ai` SDK في zod 3، ويُتحقَّق منه في الحالتين بالدالة
+`safeParse` الخاصة بالمخطط نفسه. نوع `output` هو Standard Schema،
+مثل `defineTool({ input })` تمامًا، ولذلك يُستنتج نوع `result.object` دون تحويل نوع
+صريح (cast) سواء كان المخطط من zod 3، أو من zod 4 (`zod/v4` في zod 3.25، أو zod 4
+نفسه)، أو أي Standard Schema آخر يستطيع إنتاج JSON Schema:
+
+```ts
+import { z } from 'zod/v4';
+import { createAgent } from '@lousho/build-ai-agent';
+
+const agent = createAgent({ model: 'openai/gpt-4o-mini', output: z.object({ city: z.string() }) });
+const { object } = await agent.send('Where is the Eiffel Tower?');
+console.log(object?.city); // typed: string
+```
+
+## الجلسات
+
+استدعاء `agent.session()` على وكيل له `output` يُعيد جلسة تحمل فيها نتيجةُ
+`send()` (وكذلك `result` في `stream()`) الكائنَ `object` محدَّد النوع لكل
+دورة. لا يمكن تغيير `output` لاستدعاء بعينه: المخطط هو مخطط الوكيل.
+
+```ts
+import { z } from 'zod';
+import { createAgent } from '@lousho/build-ai-agent';
+
+const agent = createAgent({ model: 'openai/gpt-4o-mini', output: z.object({ city: z.string(), tempC: z.number() }) });
+const session = agent.session();
+const { object } = await session.send('Weather in Paris?');
+console.log(object?.tempC); // typed: number
+```
+
+## الوكلاء الفرعيون
+
+الوكيل الفرعي المُنشأ بمخطط `output` خاص به يجيب الوكيل الرئيسي بكائنه
+المُتحقَّق منه. نتيجة الأداة `task` (وكذلك `result` في `agent_await` للمهمة
+العاملة في الخلفية) هي الكائن بصيغة JSON، يليه سطر فارغ ثم التذييل المعتاد
+`[sub-agent '<name>': ... taskId '<id>']`، فيرى نموذج الوكيل الرئيسي
+الكائن نفسه لا صياغة نثرية له. وإذا بقي رد الوكيل الفرعي غير صالح
+بعد خطوة الإصلاح، فشل استدعاء `task` بخطأ الأداة المنظَّم
+(`kind: 'execution'`، ورسالة تذكر مشكلات المخطط) ويستطيع الوكيل الرئيسي أن
+يعيد المحاولة أو يتكيّف.
+
+الوكيل الفرعي **لا** يرث `output` الوكيل الرئيسي: مخرجات كل وكيل خاصة
+به، والوكيل الفرعي الذي ليس له `output` يُعيد نصًا كما كان من قبل.
+و[`remoteAgent()`](/ar/sub-agents#الوكلاء-الفرعيون-عن-بُعد) الذي يملك وكيله المنشور مخطط
+`output` يُعيد الكائن البعيد بالطريقة نفسها (JSON ثم تذييله)،
+مقروءًا من `object` في الحدث `run.done` من البث البعيد.
+
+```ts
+import { z } from 'zod';
+import { createAgent } from '@lousho/build-ai-agent';
+
+const reporter = createAgent({
+  model: 'openai/gpt-4o-mini',
+  description: 'Reports the weather as { city, tempC }',
+  output: z.object({ city: z.string(), tempC: z.number() }),
+});
+const lead = createAgent({ model: 'openai/gpt-4o-mini', subagents: { reporter } });
+const result = await lead.send('What is the weather in Paris?');
+console.log(result.text);
+```
+
+## كيف يعمل
+
+1. يُضاف إلى موجّه النظام قسم `## Output format` يطلب أن تكون الإجابة النهائية
+   كائن JSON فقط يطابق المخطط، معروضًا بصيغة JSON Schema.
+2. يحمل كل استدعاء للنموذج `responseFormat: { type: 'json', schema }` في
+   `GenerateOptions`. وهو تلميح: المزوّدون المضمَّنون المبنيون على `ai`-SDK يفعّلون
+   وضع JSON في النموذج (مع المخطط، في النماذج التي تدعم المخرجات
+   المنظَّمة)؛ أما المزوّد المخصَّص فله أن يستخدمه أو يتجاهله.
+3. عندما يرد النموذج دون استدعاءات أدوات، يُحلَّل الرد بوصفه JSON (ويُقبل
+   أن يكون محاطًا بسياج شيفرة ```` ```json ````) ثم يُتحقَّق منه وفق
+   المخطط.
+4. إذا كان غير صالح، يحصل النموذج على خطوة إصلاح واحدة: رسالة مستخدم
+   تبدأ بـ `[output-invalid]` وتسرد المشكلات، مثل
+   `1 issue (tempC: Expected number, received string)`. تُحتسب خطوة الإصلاح
+   من `maxSteps`، ولا تُمنح إذا استُنفدت الميزانية.
+5. إذا بقي غير صالح، يُحسم التشغيل (ولا يُرفض) بـ
+   `finishReason: 'output-invalid'`، دون `object`، ومع `outputError`:
+   `{ message, issues: [{ path, message }] }`.
+
+## البث
+
+`agent.stream()` يعمل بالطريقة نفسها: يُحسم `run.result` ومعه `object`،
+ويحمل الحدث النهائي `run.done` الكائن `object` (مرمَّزًا بصيغة JSON) إذا كان
+الرد صالحًا. وتظهر خطوة الإصلاح زوجًا إضافيًا من
+`step.start` / `step.done`. راجع [البث](./streaming.md).
+
+## دون createAgent()
+
+`AgentExecutor.execute()` و`AgentExecutor.stream()` يقبلان الخيار
+`output` نفسه. هناك يكون نوع `result.object` هو `unknown`؛ حلّله مرة أخرى
+بمخططك، أو استخدم `createAgent()` للحصول على النوع المستنتَج.
+
+```ts
+import { z } from 'zod';
+import { AgentBuilder, AgentExecutor, createMockProvider } from '@lousho/build-ai-agent';
+
+const Ticket = z.object({ title: z.string(), priority: z.enum(['low', 'high']) });
+const agent = AgentBuilder.create().setName('triage').setPrompt('You triage bug reports.').build();
+const result = await AgentExecutor.execute({ agent, input: 'The app crashes on login', provider: createMockProvider(), output: Ticket });
+const ticket = result.object === undefined ? undefined : Ticket.parse(result.object);
+```
+
+## الاختبار
+
+مع `mockModel`، اكتب سلفًا نص JSON الذي كان النموذج سيكتبه:
+
+```ts
+import { z } from 'zod';
+import { createAgent } from '@lousho/build-ai-agent';
+import { mockModel } from '@lousho/build-ai-agent/testing';
+
+const agent = createAgent({ provider: mockModel(['{"city":"Paris","tempC":21}']), output: z.object({ city: z.string(), tempC: z.number() }) });
+const { object } = await agent.send('Weather in Paris?');
+console.log(object?.city); // 'Paris'
+```

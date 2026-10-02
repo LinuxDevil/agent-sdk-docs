@@ -1,0 +1,174 @@
+---
+title: "مجلدات الوكلاء"
+---
+{/* Generated from docs/agent-directories.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
+
+يمكن تعريف الوكيل على هيئة مجلد. تقرأ `loadAgentDir()` المجلد وتستدعي `createAgent()` بالخيارات التي تصفها الملفات، فتُرجع بالضبط ما تُرجعه `createAgent()`. تبقى واجهة الكود ذات الأنواع المحدّدة هي المرجع الأساسي: المجلد طريقة أخرى لكتابة الخيارات نفسها، وتستطيع الانتقال إلى الكود في أي وقت دون إعادة كتابة.
+
+> **الأمان:** تحميل مجلد وكيل **ينفّذ الكود الذي فيه** (`agent.ts`، وكل ما في `tools/`). لا تحمّل إلا المجلدات التي تثق بها. لا يوجد أي عزل ضمني في بيئة معزولة (sandbox)؛ فالملفات تعمل بكامل صلاحيات عمليتك.
+
+```ts
+import { loadAgentDir } from '@lousho/build-ai-agent';
+
+const agent = await loadAgentDir('./my-agent');
+const { text } = await agent.send('Hello!');
+```
+
+## هيكل المجلد
+
+```text
+my-agent/
+  agent.ts | agent.js | agent.json | agent.yaml   # optional config
+  instructions.md                                  # system prompt
+  tools/*.ts | *.js                                # defineTool() tools
+  skills/                                          # same layouts as loadSkills()
+  subagents/<name>/                                # nested agent directories
+  schedules/*.ts|js                                # defineSchedule() cron schedules (see schedules.md)
+  channels/*.ts|js                                 # a channel each: defineChannel(), webhookChannel(), ... (see channels.md)
+  memory/*.ts|js                                   # a memory slot each: defineMemory() (see memory.md); part of the agent
+```
+
+لا يجوز وجود أكثر من ملف إعدادات واحد. تُقرأ الملفات داخل `tools/` ومدخلات `skills/` و`subagents/` بترتيب مفروز، فيكون التحميل حتميًا.
+
+### ملف الإعدادات
+
+```ts
+// agent.ts
+export default {
+  model: 'openai/gpt-4o-mini',
+  description: 'Triages bug reports',
+  maxSteps: 8,
+  toolConcurrency: 2,
+};
+```
+
+| المفتاح | يقابل |
+| --- | ------- |
+| `name` | `createAgent({ name })` (الافتراضي: اسم المجلد) |
+| `description` | ليس من خيارات `createAgent`؛ هو ما يقرؤه الوكيل الأب عن وكيل فرعي (وهو إلزامي هناك) |
+| `model` | `createAgent({ model })` |
+| `provider` | `createAgent({ provider })` (في ملفات الإعدادات البرمجية فقط) |
+| `instructions` | `createAgent({ instructions })` (استخدم هذا أو `instructions.md`، لا كليهما) |
+| `maxSteps` | `createAgent({ maxSteps })` |
+| `toolConcurrency` | `createAgent({ toolConcurrency })` |
+| `projectInstructions` | `createAgent({ projectInstructions })` |
+
+المفاتيح غير المعروفة تُعدّ خطأً مصحوبًا باقتراح (`'modle' (did you mean 'model'?)`).
+
+### الأدوات
+
+كل ملف في `tools/` يصدّر تصديرًا افتراضيًا (default export) أداة معرّفة بـ `defineTool()`، ويجوز أن يصدّر أيضًا أدوات أخرى بالاسم (أو مصفوفة أدوات). تُتجاهل التصديرات الأخرى، لكن الملف الذي لا يصدّر أي أداة إطلاقًا يُعدّ خطأً، وكذلك وجود أداتين بالاسم نفسه (ويُذكر الملفان كلاهما في الرسالة).
+
+```ts
+// tools/send_email.ts
+import { z } from 'zod';
+import { defineTool } from '@lousho/build-ai-agent';
+
+export default defineTool({
+  name: 'send_email',
+  description: 'Send an email',
+  input: z.object({ to: z.string(), body: z.string() }),
+  execute: async ({ to, body }) => ({ sent: true, to, length: body.length }),
+});
+```
+
+### المهارات
+
+يقبل `skills/` ما تقبله `loadSkills()`: `skills/<name>/SKILL.md` و`skills/<name>.md`، ولكل منهما `description` في ترويسة الملف (frontmatter). راجع [المهارات](/ar/skills).
+
+### الوكلاء الفرعيون
+
+كل مجلد داخل `subagents/` هو نفسه مجلد وكيل (ويمكن أن يحوي `subagents/` خاصًا به). ويجب أن يتضمن `description` في إعداداته. يحصل الوكيل الأب على أداة `delegate_to_<name>` تشغّل الوكيل الفرعي بنص المهمة وتُرجع إجابته النهائية. يستخدم الوكيل الفرعي `model` الخاص به إن حدّده، وإلا ورث نموذج الأب؛ أما تجاوز `provider` الممرَّر إلى `loadAgentDir()` فيصل إليهم جميعًا.
+
+### القنوات
+
+كل ملف في `channels/` يصدّر تصديرًا افتراضيًا [قناة](/ar/channels) منشأة بـ `defineChannel()` أو بإحدى دوال المصنع المضمَّنة (`webhookChannel()`، `httpChannel()`، `slackChannel()`). اسم القناة هو الاسم الذي تحدّده هي، وإلا فاسم الملف. الملف الذي لا يصدّر قناة يفشل بالخطأ `LOUSHO_CHANNEL_INVALID` مع ذكر اسم الملف. تُرجعها `resolveAgentDir()` في `channels` (وأسماءها في `manifest.channels`)؛ أما `loadAgentDir()` فلا تركّبها. خادم Node (`createDeployedServer(agent, { channels })`) يركّبها تحت `/channels` إلى جانب مسارات المحادثة؛ ومع خادمك الخاص استخدم `mountChannels()`:
+
+```ts
+import { createServer } from 'node:http';
+import { createAgent, mountChannels, resolveAgentDir } from '@lousho/build-ai-agent';
+
+// channels/support.ts: export default webhookChannel({ secret: process.env.HOOK_SECRET ?? '' })
+const { config, channels } = await resolveAgentDir('./my-agent');
+const handler = mountChannels(createAgent(config), channels);
+createServer((req, res) => void handler(req, res).then((handled) => handled || res.writeHead(404).end())).listen(3000);
+```
+
+يركّبها `lousho dev` أيضًا، وينشرها `lousho build` (انظر أدناه).
+
+### الذاكرة
+
+كل ملف في `memory/` يصدّر تصديرًا افتراضيًا [خانة ذاكرة](/ar/memory): ناتج `defineMemory({ ... })`، أو الخيارات نفسها دون `name`، وعندئذ يكون اسم الملف هو اسم الخانة. وبخلاف الجداول الزمنية والقنوات، الخانات جزء من الوكيل: تمرّرها `loadAgentDir()` إلى `createAgent({ memory })`، فتعمل أدوات `remember_<name>` / `recall_<name>` والاسترجاع إلى الموجّه دون أي كود إضافي، ويسرد `manifest.memory` أسماءها. تستخدم كل خانة `provider` الخاص بها. الملف الذي لا يصدّر خانة يفشل بالخطأ `LOUSHO_MEMORY_INVALID` مع ذكر اسم الملف. وتجاوز `memory` الممرَّر إلى `loadAgentDir(dir, { overrides })` يُدمج مع خانات المجلد بحسب الاسم: وعند تعارض الأسماء يغلب التجاوز.
+
+```ts
+import { defineMemory, fileMemory, resolveAgentDir } from '@lousho/build-ai-agent';
+
+// memory/notes.ts: export default { scope: 'global', provider: fileMemory({ dir: './.lousho/memory' }) }
+const { manifest } = await resolveAgentDir('./my-agent', {
+  memory: [defineMemory({ name: 'notes', scope: 'global', provider: fileMemory({ dir: './.lousho/memory' }) })],
+});
+console.log(manifest.memory); // names found in memory/
+```
+
+## كيف يقابل `createAgent()`
+
+| المجلد | خيار `createAgent()` |
+| --------- | ---------------------- |
+| `instructions.md` | `instructions` |
+| مفاتيح `agent.*` | الخيارات الواردة في الجدول أعلاه |
+| `tools/` | `tools: [...]` |
+| `skills/` | `skills: await loadSkills('./skills')` |
+| `subagents/<name>/` | مُدخَل `delegate_to_<name>` واحد في `tools` |
+
+تُرجع `resolveAgentDir()` الخيارات المجمَّعة وبيانًا (manifest)، وهو مفيد للاختبارات والأدوات المساعدة:
+
+```ts
+import { resolveAgentDir, createAgent } from '@lousho/build-ai-agent';
+
+const { config, manifest } = await resolveAgentDir('./my-agent');
+console.log(manifest.tools, manifest.skills, manifest.subagents);
+const agent = createAgent({ ...config, maxSteps: 3 });
+```
+
+## التجاوزات
+
+يأخذ الوسيط الثاني الخيارات نفسها التي تأخذها `createAgent()`، وتغلب قيمُه ما في الملفات. استخدمه لتبديل النموذج في الاختبارات:
+
+```ts
+import { loadAgentDir } from '@lousho/build-ai-agent';
+import { mockModel } from '@lousho/build-ai-agent/testing';
+
+const agent = await loadAgentDir('./my-agent', { provider: mockModel(['Hi there.']) });
+```
+
+تجاوزات `tools` و`skills` تستبدل ما اكتُشف في المجلد (ولا تُدمج معه). والسلسلة `provider/model` الواردة في ملف تُهمَل حين تتجاوز `provider`، فيُستخدم الكائن الممرَّر كما هو.
+
+## الانتقال من الملفات إلى الكود
+
+استدعِ `resolveAgentDir()`، واطبع `config`، ثم الصق ما تحتاج إليه في استدعاء `createAgent()`؛ أو حمّل المجلد وتجاوز فقط الأجزاء التي تريد أن تتولاها في الكود. الأدوات قيم `defineTool()` عادية، فيمكن استيراد ملف أداة من الكود دون تغيير.
+
+## تحميل TypeScript
+
+تُحمَّل ملفات `.ts` باستيراد ديناميكي `import()`، ولذلك يجب أن تكون العملية تعمل أصلًا تحت محمِّل TypeScript: `npx tsx your-script.ts` (أو ts-node أو bun أو deno أو خاصية إزالة الأنواع المضمَّنة في Node). ومن دونه يفشل التحميل بخطأ يوضّح ذلك. صرّف المجلد أولًا، أو استخدم أدوات `.js`/`.mjs` مع إعدادات `agent.json` / `agent.yaml`، وهي تعمل في كل مكان. وأداة `.js` التي تستخدم صيغة `import` تحتاج إلى `"type": "module"` في أقرب `package.json` (أو إلى الامتداد `.mjs`).
+
+## شغّله بالأمر `lousho dev`
+
+```bash
+npx lousho dev ./my-agent
+```
+
+يقدّم واجهة المحادثة و`POST /chat` للمجلد، ويعيد تحميله عند تغيّر `instructions.md` أو ملف الإعدادات أو `tools/` أو `skills/` أو `subagents/` (راجع [`lousho dev`](/ar/cli#lousho-dev) للتفاصيل). يُستورد ملف الأداة من جديد عند كل إعادة تحميل، فيسري أي تعديل على `tools/*.ts` مع الرسالة التالية. وإعادة التحميل الفاشلة (خطأ نحوي، أو `instructions.md` فارغ) تُدوَّن في السجل وتُعرض في صفحة المحادثة، ويواصل الوكيل السابق الإجابة.
+
+تُركَّب `channels/` الخاصة بالمجلد تحت `/channels` وتُشغَّل `schedules/` الخاصة به، وإعادة التحميل تبدّل الاثنين: تُوقَف الجداول الزمنية القديمة قبل بدء الجديدة، فلا يبقى مؤقِّت ولا مسار بعد زوال ملفه. مرّر `--no-schedules` لتركيب القنوات دون تشغيل مهام cron (راجع [الجداول الزمنية في dev](/ar/schedules#في-lousho-dev)).
+
+## انشره بالأمر `lousho build`
+
+```bash
+npx lousho build ./my-agent --target=node-server    # or docker
+```
+
+مجلد الوكيل هو وحدة النشر: الخادم المبنيّ يحمّله بـ `resolveAgentDir()` عند بدء التشغيل، ويشغّل `schedules/` الخاصة به ويركّب `channels/` تحت `/channels`، ويطبع ما وجده منها. تُحزَّم ملفات الكود (الإعدادات، و`tools/`، و`schedules/`، و`channels/`، و`memory/`، ومثلها في كل وكيل فرعي) في `dist/agent/**.js`، وتُنسخ `instructions.md` و`skills/` وإعدادات JSON/YAML إلى جانبها، فلا يحتاج الخادم إلى محمِّل TypeScript ولا إلى الملفات المصدرية ولا إلى `node_modules`. راجع [النشر](/ar/deployment#مجلدات-الوكيل). أما هدف Cloudflare Worker فيقبل ملفات المواصفات فقط.
+
+## ما لا يشمله ذلك
+
+ما زال `lousho mcp` يأخذ ملف مواصفات وكيل ([الإعدادات](/ar/configuration))، لا مجلدًا.

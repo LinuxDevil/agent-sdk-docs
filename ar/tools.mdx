@@ -1,0 +1,126 @@
+---
+title: "الأدوات"
+---
+{/* Generated from docs/tools.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
+
+الأداة دالة ذات أنواع محدّدة يستطيع النموذج استدعاءها. عرّفها بـ `defineTool()`: تُستنتج أنواع الوسائط والنتيجة من مخطط zod في `input`، ويُتحقَّق من صحة الوسائط قبل تشغيل `execute`، ويصلح الناتج للاستخدام في أي موضع يقبل الأدوات (`createAgent({ tools: [...] })`، `ToolRegistry.register(tool)`، `AgentBuilder.addTool(tool)`).
+
+```ts
+import { defineTool, createAgent, type ToolInput, type ToolOutput } from '@lousho/build-ai-agent';
+import { z } from 'zod';
+
+const weather = defineTool({
+  name: 'weather', // 1-64 chars: letters, digits, _ and -
+  description: 'Get weather information',
+  input: z.object({ location: z.string(), units: z.enum(['celsius', 'fahrenheit']) }),
+  execute: async ({ location, units }) => ({ temperature: 72, conditions: 'sunny' }),
+});
+
+type WeatherArgs = ToolInput<typeof weather>;   // { location: string; units: 'celsius' | 'fahrenheit' }
+type WeatherResult = ToolOutput<typeof weather>; // { temperature: number; conditions: string }
+
+const agent = createAgent({ prompt: '...', provider, tools: [weather] });
+```
+
+## خيارات `defineTool()`
+
+| الخيار | إلزامي | الوصف |
+| ------ | -------- | ----------- |
+| `name` | نعم | الاسم الذي يستدعي به النموذج الأداة. يجب أن يطابق `^[a-zA-Z0-9_-]{1,64}$` (وهو القيد الذي يفرضه مزوّدو LLM على أسماء الدوال). |
+| `description` | نعم | ما تفعله الأداة. يقرؤه النموذج ليقرر متى يستدعيها. |
+| `input` | نعم | مخطط Zod للوسائط (zod 3 أو zod 4، أو أي Standard Schema آخر يوفّر `~standard.jsonSchema`). تستقبل `execute` و`needsApproval` و`sandboxExecute` نوعه بعد التحليل (نوع المخرجات). |
+| `execute(args, ctx)` | نعم | تنفّذ الأداة. يحمل `ctx` قيمتَي `toolCallId` و`abortSignal` الخاصتين بالاستدعاء. ويُحفَظ نوع القيمة المُرجَعة على الأداة (`ToolOutput`). |
+| `displayName` | لا | تسمية لواجهات المستخدم. قيمتها الافتراضية `name`. |
+| `needsApproval` | لا | `true`، أو دالة شرطية تُستمد أنواعها من `input`، للتوقف بانتظار قرار بشري قبل تنفيذ الاستدعاء. راجع [الموافقات](/ar/approvals). |
+| `requiresSandbox` | لا | تشغيل الأداة عبر `SandboxAdapter` المُعَدّ بدلًا من تشغيلها داخل العملية (يتطلب `sandboxExecute`). راجع [حواجز الحماية والبيئات المعزولة](/ar/guardrails#الأدوات-المعزولة). |
+| `sandboxExecute(args, sandbox)` | لا | مسار التنفيذ داخل البيئة المعزولة، ويُستخدم عندما تكون قيمة `requiresSandbox` هي true. |
+
+تتحقق `defineTool()` من الاسم والوصف ومخطط zod في `input` عند استدعائها، وترمي خطأً يبيّن كيفية إصلاح القيمة غير الصالحة. وتسجيل أداتين بالاسم نفسه يرمي خطأً يذكر التعارض.
+
+الأداة المعرَّفة هي `ToolDescriptor` عادي: تحمل مخططها في `inputSchema` (وهو المخطط نفسه في `input`) وتحمل دالة `execute` مباشرة. أما الحقل `.tool` (كائن `{ description, parameters, execute }` من `ai` v4) فقديم: ما زال يُبنى للتوافق، ولا يُستخدم إلا في الواصفات المكتوبة يدويًا التي لا تحدّد `inputSchema` ولا `execute`.
+
+## ما يحدث عندما يستدعي النموذج أداة
+
+- **التحقق أولًا.** تُحلَّل وسائط النموذج بـ `inputSchema` (مع تطبيق القيم الافتراضية وتحويلات الأنواع والتحويلات المخصّصة) قبل أن تراها الخطّافات و`needsApproval` و`execute`. الوسائط غير المطابقة لا تصل إلى `execute` أبدًا: يحصل النموذج على نتيجة منظَّمة `ToolArgumentsValidationError` ويستطيع إعادة المحاولة.
+- **الأخطاء نتائج.** الأداة التي ترمي خطأً تعطي النموذج `{ error, toolName, message, kind }` (دون تتبّع المكدّس stack trace) ويستمر التشغيل. راجع [الأخطاء](#الأخطاء).
+- **الاستدعاءات المتوازية.** الاستدعاءات المتعددة في دورة نموذج واحدة تُنفَّذ بالتزامن؛ ضع لها حدًّا بـ `toolConcurrency` (`1` للتنفيذ التسلسلي الصارم). وتصل النتائج إلى سجل المحادثة بترتيب استدعاءات النموذج. راجع [استدعاءات الأدوات المتوازية](/ar/api-overview#استدعاءات-الأدوات-المتوازية).
+- **الإلغاء.** تصل `AbortSignal` الخاصة بالتشغيل إلى كل استدعاء في `ctx.abortSignal`، فيمكن إيقاف العمل الطويل مبكرًا.
+- **إعادة المحاولة بعد انهيار.** مع التنفيذ المتين قد تُنفَّذ الأداة أكثر من مرة إذا وقع انهيار؛ استخدم `ctx.toolCallId` مفتاحًا يمنع تكرار الأثر (idempotency key). راجع [التنفيذ المتين](/ar/durable-execution#الأدوات-تُنفَّذ-مرة-واحدة-على-الأقل-اجعل-الآثار-الجانبية-آمنة-عند-التكرار).
+
+## سياق التنفيذ
+
+تحصل `execute(args, ctx)` دائمًا على وسيط ثانٍ حقيقي، نوعه `ToolExecutionContext` (مصدَّر من جذر الحزمة؛ ويحلّ محل `ToolExecutionOptions` في `ai` SDK)، في كل مسار ينفّذ أداة: الحلقة الرئيسية، والاستدعاء الذي يُنفَّذ بعد موافقة، والأدوات التي تعمل في بيئة معزولة (`sandboxExecute(args, sandbox, ctx)`)، وعقدة استدعاء الأداة في مسار عمل.
+
+| الحقل | القيمة |
+| --- | --- |
+| `ctx.toolCallId` | معرّف النموذج لهذا الاستدعاء. يبقى كما هو عند إعادة تنفيذ الاستدعاء بعد انهيار. والاستدعاء الذي لا تقف وراءه دورة نموذج (عقدة في مسار عمل) يحصل على معرّف مولَّد. |
+| `ctx.messages` | نسخة للقراءة فقط من سجل المحادثة الذي رآه النموذج قبل أن يُجري الاستدعاء: بلا موجّه النظام وبلا دورة المساعد التي أجرت الاستدعاء. وتكون فارغة لعقدة في مسار عمل. |
+| `ctx.abortSignal` | `AbortSignal` الخاصة بالتشغيل، وتُضبط حين يكون للتشغيل واحدة. |
+| `ctx.sessionId` | محجوز: النوع يتضمنه و`buildToolRunContext()` تمرّره، لكن المنفِّذ لا يضبطه بعد. |
+
+الدالة `sandboxExecute(args, sandbox)` التي تتجاهل الوسيط الثالث تبقى تعمل.
+
+## الأخطاء
+
+كل طريقة يمكن أن يفشل بها استدعاء أداة تصل إلى النموذج بالنتيجة نفسها، فيكفي فحص واحد في كل الحالات (ومنها الاستدعاء الذي يُنفَّذ بعد موافقة):
+
+```json
+{ "error": "TypeError", "toolName": "search", "message": "query must not be empty", "kind": "execution" }
+```
+
+- `error`: اسم الخطأ (`TypeError`، `ToolArgumentsValidationError`، ...)، أو الاسم الافتراضي لنوع الفشل عندما لا يكون الفشل خطأً مرميًّا.
+- `toolName` و`message`: الرسالة فقط، دون مكدّس الاستدعاءات أبدًا، وبحد أقصى 2,000 حرف (العلامة `... (truncated)` تدل على القطع).
+- `kind`: سبب فشل الاستدعاء.
+- بعض الأنواع تضيف حقولًا: `issues` مع `validation`، و`note` مع `rejected`، و`reason` مع `denied`.
+
+تحمل رسالة سجل المحادثة `isError: true`؛ وترى أحداث `tool-result` و`onToolResult` وخطّافات `postToolCall` وأحداث `tool.error` الاستدعاء فاشلًا.
+
+| `kind` | `error` | متى |
+| ------ | ------- | ---- |
+| `execution` | اسم الخطأ المرمي | رمت `execute` (أو `needsApproval`) خطأً. |
+| `validation` | `ToolArgumentsValidationError` | لم تطابق الوسائط `inputSchema`؛ ولم تُنفَّذ `execute`. يضيف `issues`. |
+| `not-found` | `ToolNotFoundError` | استدعى النموذج أداة غير موجودة في السجل (أو أن التشغيل بلا سجل). |
+| `rejected` | `ToolRejectedError` | رفض مراجِعٌ الاستدعاء عند طلب الموافقة. يضيف `note` إن أُعطيت. |
+| `not-run` | `ToolNotRunError` | لم يبدأ الاستدعاء قط (تشغيل مستأنَف حُفظت موافقته دون استدعاءاته المتبقية). |
+| `mcp` | `McpToolError` | أجاب خادم MCP بـ `isError: true`؛ و`message` هو نص الخادم. |
+| `sandbox` | `SandboxRequiredError` | الأداة تحمل `requiresSandbox` لكن بلا `sandboxExecute`، فرُفضت بدلًا من تشغيلها خارج البيئة المعزولة. |
+| `denied` | `ToolDeniedError` | رفضت الاستدعاءَ [قاعدة صلاحيات](/ar/approvals#سياسات-الصلاحيات) من نوع `deny`؛ ولم تُنفَّذ `execute`. يضيف `reason` إن كان للقاعدة سبب. |
+
+تبني `toolErrorResult({ toolName, error, kind?, toolCallId?, details? })` هذه النتيجة؛ استخدمها في مغلِّفات الأدوات الخاصة بك لتكون نتائجها مطابقة. ويستطيع الخطأ المرمي أن يختار نوعه بحمل خاصية `toolErrorKind`. أما الخطأ الذي يرث من `PropagatingToolError` فليس نتيجة: إنه يُنهي التشغيل.
+
+## الأدوات المضمَّنة
+
+| التصدير | الأداة |
+| ------ | ---- |
+| `httpTool`, `createHttpTool(options)` | طلبات HTTP، مع حماية من SSRF (يُفحص كل عنوان ناتج عن تحليل الاسم قبل الاتصال). |
+| `currentDateTool`, `dayNameTool` | التاريخ والوقت الحاليان (ISO، UTC) واسم يوم الأسبوع. |
+| `createTodoTools()` | `todo_write` / `todo_read` ليتمكن الوكيل من تخطيط عمل متعدد الخطوات؛ راجع [أدوات قائمة المهام](/ar/api-overview#أدوات-قائمة-المهام). |
+| `askQuestionTool()`, `createAgent({ askQuestion: true })` | `ask_question`: يطرح الوكيل سؤالًا على المستخدم ويتوقف التشغيل إلى حين استدعاء `agent.approvals.answer()`؛ راجع [طرح سؤال على المستخدم](/ar/approvals#طرح-سؤال-على-المستخدم). |
+| `createFsTools()`, `createShellTool()` | أدوات نظام الملفات والصدفة (shell) لوكلاء البرمجة؛ راجع [أدوات مساحة العمل](/ar/workspace-tools). |
+| `createEmailTool()`, `createSlackTool()`, `createGitHubTools()`, `createJiraTools()` | تكاملات تحتاج إلى بيانات اعتماد، ولذلك تُبنى بخيارات. |
+| `createAgent({ mcpServers })`, `connectMcp(servers)` | كل أدوات خوادم MCP المعطاة في الإعدادات (`command` عبر stdio أو `url` عبر HTTP)، وتُسمّى `<server>__<tool>`؛ راجع [ربط خوادم MCP](/ar/configuration#ربط-خوادم-mcp-mcpservers،-connectmcp). |
+| `loadMcpTools(client, name)` | كل أدوات خادم MCP متصل؛ راجع [أدوات MCP](/ar/configuration#أدوات-mcp-model-context-protocol). |
+
+تُمرَّر الواصفات المضمَّنة في كائن مفاتيحه الأسماء التي يستخدمها الوكيل: `createAgent({ tools: { current_date: currentDateTool } })`. وتشير ملفات المواصفات إلى `http` و`current-date` و`day-name` بالاسم (راجع [الإعدادات](/ar/configuration#الأدوات-التي-يمكن-لملف-المواصفات-الإشارة-إليها)).
+
+## `ToolRegistry`
+
+تبني `createAgent()` سجلًا لك. ومع `AgentBuilder` + `AgentExecutor.execute()`، أو لمشاركة الأدوات بين الوكلاء، املأ سجلًا بنفسك: `register(tool)` لناتج `defineTool()`، و`register(name, descriptor)` لواصف `ToolDescriptor` خام (أداة مضمَّنة، أو أداة MCP، أو `tool()` قائمة من `ai` SDK)، و`registerMany()` لكائن من الواصفات أو مصفوفة من الأدوات المعرَّفة.
+
+```ts
+import { ToolRegistry, currentDateTool, defineTool } from '@lousho/build-ai-agent';
+import { z } from 'zod';
+
+const lookupOrder = defineTool({
+  name: 'lookup_order',
+  description: 'Look up an order',
+  input: z.object({ orderId: z.string() }),
+  execute: async ({ orderId }) => ({ orderId, status: 'shipped' }),
+});
+
+const tools = new ToolRegistry();
+tools.register(lookupOrder);
+tools.register('current_date', currentDateTool);
+```
+
+مرّره في `toolRegistry` إلى `AgentExecutor.execute()`؛ وخريطة `tools` في إعدادات الوكيل تسمّي الأدوات التي يجوز له استخدامها.

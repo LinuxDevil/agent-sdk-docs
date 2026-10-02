@@ -1,0 +1,132 @@
+---
+title: "بروتوكول Agent Client Protocol (ACP)"
+sidebarTitle: "المحررات (ACP)"
+---
+{/* Generated from docs/acp.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
+
+يتيح [Agent Client Protocol](https://agentclientprotocol.com) للمحرر أن
+يقود وكيل برمجة يعمل عمليةً فرعية: يكتب المحرر طلبات JSON-RPC 2.0
+إلى stdin الخاص بالوكيل، رسالة JSON واحدة في كل سطر، ويقرأ
+ردود الوكيل وتحديثاته المبثوثة من stdout. يدعمه Zed ومحررات
+أخرى. والأمر `lousho acp` يقدّم أي وكيل Lousho بهذه الطريقة، فتستطيع أن تحادثه
+وتراقب استدعاءات أدواته وتوافق عليها من لوحة الوكيل في المحرر.
+
+## الأمر
+
+```bash
+npx lousho acp agent.yaml                          # a spec file
+npx lousho acp ./my-agent --model openai/gpt-4o    # an agent directory, on another model
+npx lousho acp src/agent.ts                        # a .ts/.js module (createAgent() options or an agent)
+```
+
+```text
+lousho acp <spec.yaml|spec.json|agent-dir|agent.ts> [--model provider/model]
+```
+
+يُحمَّل `<path>` كما يحمّله [`lousho chat`](/ar/cli#lousho-chat)، ويعمل
+`--model` بالطريقة نفسها. المحرر هو من يبدأ العملية؛ وتستمر حتى
+يُغلق stdin. لا يحمل stdout سوى رسائل البروتوكول: فالأخطاء،
+وكل ما تطبعه شيفرة الوكيل عبر `console.log`، تذهب إلى stderr الذي
+تعرضه المحررات في سجلاتها. المسار أو الخيار الخاطئ يُنهي العملية برمز الخروج 1 مع
+الخطأ ذي الرمز (`LOUSHO_CONFIG_INVALID`، ...) على stderr.
+
+## Zed
+
+أضف الوكيل إلى ملف `settings.json` في Zed، ثم اختره من لوحة الوكيل:
+
+```json
+{
+  "agent_servers": {
+    "My Lousho agent": {
+      "type": "custom",
+      "command": "npx",
+      "args": ["lousho", "acp", "/path/to/my-agent"],
+      "env": { "OPENAI_API_KEY": "sk-..." }
+    }
+  }
+}
+```
+
+شغّله من المشروع المثبَّت فيه `@lousho/build-ai-agent` (أو استخدم
+مسارًا مطلقًا إلى `node_modules/.bin/lousho` في `command`). تأتي مفاتيح المزوّد
+من `env` أو من البيئة التي شُغّل Zed فيها.
+
+## ما المدعوم
+
+الإصدار 1 من البروتوكول. يستجيب الوكيل لما يلي:
+
+| الطريقة | ما تفعله |
+| ------ | ------------ |
+| `initialize` | تُعيد `protocolVersion: 1` و`loadSession: false`، وقدرات موجّه نصية فقط، ودون طرق مصادقة. |
+| `session/new` | تفتح جلسة SDK (`agent.session()`): موجّهات جلسة ACP الواحدة تتشارك سجلّها. تُعيد `{ sessionId }`. يُتجاهل `cwd` و`mcpServers`؛ عرّف خوادم MCP للوكيل في إعداداته هو. |
+| `session/prompt` | تنفّذ دورة واحدة. كتل النص هي المدخل؛ وكتلة `resource_link` تصبح رابط Markdown إلى URI الخاص بها. تُحسم بـ `{ stopReason }` عند انتهاء الدورة. |
+| `session/cancel` (إشعار) | تُلغي الدورة الجارية في الجلسة: يُحسم `session/prompt` الخاص بها بـ `{ stopReason: 'cancelled' }`، وطلب الصلاحية الذي ما زال مفتوحًا يُعدّ مرفوضًا. |
+
+أثناء تنفيذ الدورة يرسل الوكيل إشعارات `session/update`:
+
+- `agent_message_chunk` مع كتلة محتوى `text` لكل جزء من النص يكتبه النموذج؛
+- `agent_thought_chunk` مع كتلة محتوى `text` لكل جزء من [استدلال](/ar/reasoning) النموذج؛
+- `tool_call` (`status: 'in_progress'`، و`kind: 'other'`، واسم الأداة في `title`، ومعاملاتها في `rawInput`) عند بدء استدعاء أداة؛
+- `tool_call_update` مع `status: 'completed'` (النتيجة محتوًى نصيًا وفي `rawOutput`) أو `'failed'` (الخطأ) عند انتهائه.
+
+تشغيلات الوكلاء الفرعيين التي تبدأها الأداة `task` لا تُمرَّر إلى المحرر؛ ويظهر استدعاء `task`
+نفسه استدعاءَ أداة واحدًا.
+
+**الصلاحيات.** عندما تحتاج أداة إلى موافقة (`needsApproval`، أو قواعد `permissions`
+التي تطلب السؤال)، يرسل الوكيل إلى المحرر طلب `session/request_permission`
+يتضمن استدعاء الأداة وخيارين: `allow` (Allow، `allow_once`)
+و`reject` (Reject، `reject_once`). تحسم الإجابةُ الموافقةَ عبر
+`agent.approvals.streamResolve()` وتواصل الدورة المستأنفة بثّ
+التحديثات؛ والرفض يضع استدعاء الأداة في حالة `failed` ويواصل النموذج عمله.
+قد تطلب الدورة الواحدة الصلاحية عدة مرات.
+
+**الأسئلة.** التوقف المؤقت من نوع `ask_question` (`askQuestion: true`) لا يُحوَّل إلى
+طلب صلاحية، لأن إجابة المستخدم قد تكون نصًا حرًا. بل يُنهي
+الدورة (`end_turn`) ويكون السؤال، مع خياراته المرقَّمة، هو رسالة
+الوكيل؛ والموجّه التالي في الجلسة هو الإجابة
+(`agent.approvals.streamAnswer()`).
+
+**أسباب التوقف.** `end_turn` للانتهاء الطبيعي، و`max_turn_requests` عند
+استنفاد `maxSteps`، و`max_tokens` عند تجاوز إحدى ميزانيات `limits` أو توقف النموذج
+عند حدّ مخرجاته، و`refusal` عندما يحظر حاجز حماية أو يوقف
+مرشّح المحتوى لدى المزوّد النموذج، و`cancelled` بعد
+`session/cancel`.
+
+**الأخطاء.** الطريقة غير المعروفة يُرَدّ عليها بخطأ JSON-RPC رقمه `-32601`، والسطر الذي
+ليس JSON بالخطأ `-32700`، و`sessionId` غير المعروف أو الموجّه الفارغ بالخطأ `-32602`، والموجّه
+الثاني أثناء تنفيذ موجّه آخر في الجلسة نفسها بالخطأ `-32600`. والتشغيل الذي يفشل
+يُرَدّ عليه بالخطأ `-32603` مع رسالة الخطأ، ورمز خطأ الـ SDK الخاص به (مثل
+`LOUSHO_PROVIDER_RATE_LIMITED`) في `error.data.code`.
+
+## غير المدعوم
+
+- `session/load` (`loadSession: false`) وأوضاع الجلسة.
+- طرق العميل `fs/*` و`terminal/*`: يقرأ الوكيل الملفات وينفّذ
+  الأوامر بأدواته هو ([أدوات مساحة العمل](/ar/workspace-tools))، لا
+  عبر المحرر.
+- كتل الموجّه من نوع الصور والصوت والموارد المضمَّنة (الموجّهات النصية فقط).
+- تحديثات `plan`، وخيارا الصلاحية `allow_always` /
+  `reject_always`.
+- المصادقة (`authMethods` فارغة): تأتي مفاتيح المزوّد من البيئة.
+
+## في الشيفرة
+
+نواة البروتوكول هي `serveAcp(agent, { input, write })`: تقرأ أسطر JSON-RPC
+من أي كائن قابل للتكرار غير المتزامن (async iterable) وتسلّم كل سطر صادر إلى `write`،
+فتستطيع تقديمه عبر وسيلة نقل أخرى أو تشغيله في الاختبارات دون عملية.
+ويُحسم وعدها عند انتهاء `input`، بعد إلغاء أي دورة جارية.
+
+```ts
+import * as readline from 'node:readline';
+import { createAgent, serveAcp } from '@lousho/build-ai-agent';
+
+const agent = createAgent({ model: 'openai/gpt-4o-mini', instructions: 'You are a coding assistant.' });
+
+await serveAcp(agent, {
+  input: readline.createInterface({ input: process.stdin }),
+  write: (line) => process.stdout.write(`${line}\n`),
+});
+```
+
+مرّر `store` لحفظ سجلات محادثات جلسات ACP في `AgentStore` (مثل
+`SqliteStore`)؛ وافتراضيًا تستخدم `store` الخاص بالوكيل، أو الذاكرة.

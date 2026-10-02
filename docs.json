@@ -33,78 +33,238 @@
     }
   },
   "navigation": {
-    "tabs": [
+    "languages": [
       {
-        "tab": "Documentation",
-        "icon": "book-open",
-        "groups": [
+        "language": "en",
+        "tabs": [
           {
-            "group": "Get started",
-            "pages": ["introduction", "quickstart", "installation", "coding-agents"]
-          },
-          {
-            "group": "Build an agent",
-            "pages": [
-              "tools",
-              "approvals",
-              "sessions",
-              "memory",
-              "structured-output",
-              "streaming",
-              "reasoning",
-              "providers"
+            "tab": "Documentation",
+            "icon": "book-open",
+            "groups": [
+              {
+                "group": "Get started",
+                "pages": [
+                  "introduction",
+                  "quickstart",
+                  "installation",
+                  "coding-agents"
+                ]
+              },
+              {
+                "group": "Build an agent",
+                "pages": [
+                  "tools",
+                  "approvals",
+                  "sessions",
+                  "memory",
+                  "structured-output",
+                  "streaming",
+                  "reasoning",
+                  "providers"
+                ]
+              },
+              {
+                "group": "Compose agents",
+                "pages": [
+                  "sub-agents",
+                  "skills",
+                  "agent-directories",
+                  "flows"
+                ]
+              },
+              {
+                "group": "Run it reliably",
+                "pages": [
+                  "durable-execution",
+                  "compaction",
+                  "guardrails",
+                  "workspace-tools"
+                ]
+              },
+              {
+                "group": "Put it in front of people",
+                "pages": [
+                  "react",
+                  "vue",
+                  "svelte",
+                  "ai-sdk-ui",
+                  "nextjs",
+                  "channels",
+                  "schedules",
+                  "acp"
+                ]
+              },
+              {
+                "group": "Test and observe",
+                "pages": [
+                  "testing",
+                  "evals",
+                  "observability"
+                ]
+              },
+              {
+                "group": "Ship",
+                "pages": [
+                  "cli",
+                  "deployment",
+                  "registry",
+                  "agent-forge"
+                ]
+              }
             ]
           },
           {
-            "group": "Compose agents",
-            "pages": ["sub-agents", "skills", "agent-directories", "flows"]
+            "tab": "Examples",
+            "icon": "chef-hat",
+            "groups": [
+              {
+                "group": "Examples",
+                "pages": [
+                  "examples"
+                ]
+              }
+            ]
           },
           {
-            "group": "Run it reliably",
-            "pages": ["durable-execution", "compaction", "guardrails", "workspace-tools"]
-          },
-          {
-            "group": "Put it in front of people",
-            "pages": ["react", "vue", "svelte", "ai-sdk-ui", "nextjs", "channels", "schedules", "acp"]
-          },
-          {
-            "group": "Test and observe",
-            "pages": ["testing", "evals", "observability"]
-          },
-          {
-            "group": "Ship",
-            "pages": ["cli", "deployment", "registry", "agent-forge"]
+            "tab": "Reference",
+            "icon": "code",
+            "groups": [
+              {
+                "group": "Reference",
+                "pages": [
+                  "api-overview",
+                  "configuration",
+                  "errors",
+                  "utilities"
+                ]
+              },
+              {
+                "group": "Releases",
+                "pages": [
+                  "changelog"
+                ]
+              }
+            ]
           }
         ]
       },
       {
-        "tab": "Examples",
-        "icon": "chef-hat",
-        "groups": [
+        "language": "ar",
+        "tabs": [
           {
-            "group": "Examples",
-            "pages": ["examples"]
-          }
-        ]
-      },
-      {
-        "tab": "Reference",
-        "icon": "code",
-        "groups": [
-          {
-            "group": "Reference",
-            "pages": ["api-overview", "configuration", "errors", "utilities"]
+            "tab": "التوثيق",
+            "icon": "book-open",
+            "groups": [
+              {
+                "group": "البداية",
+                "pages": [
+                  "ar/introduction",
+                  "ar/quickstart",
+                  "ar/installation",
+                  "ar/coding-agents"
+                ]
+              },
+              {
+                "group": "بناء وكيل",
+                "pages": [
+                  "ar/tools",
+                  "ar/approvals",
+                  "ar/sessions",
+                  "ar/memory",
+                  "ar/structured-output",
+                  "ar/streaming",
+                  "ar/reasoning",
+                  "ar/providers"
+                ]
+              },
+              {
+                "group": "تركيب الوكلاء",
+                "pages": [
+                  "ar/sub-agents",
+                  "ar/skills",
+                  "ar/agent-directories",
+                  "ar/flows"
+                ]
+              },
+              {
+                "group": "تشغيل موثوق",
+                "pages": [
+                  "ar/durable-execution",
+                  "ar/compaction",
+                  "ar/guardrails",
+                  "ar/workspace-tools"
+                ]
+              },
+              {
+                "group": "واجهات المستخدمين",
+                "pages": [
+                  "ar/react",
+                  "ar/vue",
+                  "ar/svelte",
+                  "ar/ai-sdk-ui",
+                  "ar/nextjs",
+                  "ar/channels",
+                  "ar/schedules",
+                  "ar/acp"
+                ]
+              },
+              {
+                "group": "الاختبار والمراقبة",
+                "pages": [
+                  "ar/testing",
+                  "ar/evals",
+                  "ar/observability"
+                ]
+              },
+              {
+                "group": "النشر",
+                "pages": [
+                  "ar/cli",
+                  "ar/deployment",
+                  "ar/registry",
+                  "ar/agent-forge"
+                ]
+              }
+            ]
           },
           {
-            "group": "Releases",
-            "pages": ["changelog"]
+            "tab": "أمثلة",
+            "icon": "chef-hat",
+            "groups": [
+              {
+                "group": "أمثلة",
+                "pages": [
+                  "ar/examples"
+                ]
+              }
+            ]
+          },
+          {
+            "tab": "المرجع",
+            "icon": "code",
+            "groups": [
+              {
+                "group": "المرجع",
+                "pages": [
+                  "ar/api-overview",
+                  "ar/configuration",
+                  "ar/errors",
+                  "ar/utilities"
+                ]
+              }
+            ]
           }
         ]
       }
     ]
   },
   "contextual": {
-    "options": ["copy", "view", "chatgpt", "claude"]
+    "options": [
+      "copy",
+      "view",
+      "chatgpt",
+      "claude"
+    ]
   },
   "footer": {
     "socials": {

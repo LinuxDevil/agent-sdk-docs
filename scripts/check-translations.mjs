@@ -11,6 +11,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { headings, mintSlug, slugList } from './anchors.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const LANG = 'ar';
@@ -32,7 +33,7 @@ function codeBlocks(text) {
   let marker = '';
   for (const line of text.split('\n')) {
     const match = /^(\s*)(`{3,}|~{3,})(.*)$/.exec(line);
-    if (current === null && match) {
+    if (current === null && match && !match[3].includes("`")) {
       current = [line.trim()];
       marker = match[2];
     } else if (current !== null && match && match[2].startsWith(marker) && match[3].trim() === '') {
@@ -45,6 +46,13 @@ function codeBlocks(text) {
   return blocks;
 }
 
+const anchorLink = new RegExp(`\\]\\((/${LANG}/([a-z0-9-]+))?#([^)\\s]+)\\)`, 'g');
+/** The heading ids Mintlify renders for a page ('' = English, LANG = translated). */
+function pageSlugs(slug, lang) {
+  const file = join(root, lang, `${slug}.mdx`);
+  return existsSync(file) ? slugList(headings(read(file)), mintSlug) : [];
+}
+
 if (mode === '--fix-links') {
   let changed = 0;
   const pattern = new RegExp(`(\\]\\(|href=")/(?!${LANG}/)(${slugs.map((s) => s.replace(/[-]/g, '\\-')).join('|')})(?=[)#"])`, 'g');
@@ -52,7 +60,16 @@ if (mode === '--fix-links') {
     const file = join(root, LANG, `${slug}.mdx`);
     if (!existsSync(file)) continue;
     const before = read(file);
-    const after = before.replace(pattern, `$1/${LANG}/$2`);
+    const after = before
+      .replace(pattern, `$1/${LANG}/$2`)
+      // Heading anchors: the English id becomes the id of the heading at the same position.
+      .replace(anchorLink, (whole, path, page, anchor) => {
+        const target = page ?? slug;
+        const index = pageSlugs(target, '').indexOf(anchor);
+        const translatedSlugs = pageSlugs(target, LANG);
+        if (index < 0 || index >= translatedSlugs.length) return whole;
+        return `](${path ?? ''}#${translatedSlugs[index]})`;
+      });
     if (after !== before) {
       writeFileSync(file, after);
       changed++;
@@ -81,17 +98,24 @@ for (const slug of slugs) {
   if (a.length !== b.length) {
     problems.push(`${slug}: ${b.length} code blocks, the English page has ${a.length}`);
   } else {
-    const index = a.findIndex((block, i) => block !== b[i]);
+    // Mermaid labels are translated, so those blocks may differ.
+    const index = a.findIndex((block, i) => block !== b[i] && !/^(`{3,}|~{3,})mermaid/.test(block));
     if (index >= 0) problems.push(`${slug}: code block ${index + 1} differs from the English page`);
   }
 
-  const headings = (text) => text.split('\n').filter((line) => /^#{2,4} /.test(line)).length;
-  if (headings(english) !== headings(translated)) {
-    problems.push(`${slug}: ${headings(translated)} headings, the English page has ${headings(english)}`);
+  const headingCount = (text) => text.split('\n').filter((line) => /^#{2,4} /.test(line)).length;
+  if (headingCount(english) !== headingCount(translated)) {
+    problems.push(`${slug}: ${headingCount(translated)} headings, the English page has ${headingCount(english)}`);
   }
 
-  const unfixed = translated.match(new RegExp(`\\]\\(/(?!${LANG}/)[a-z]`, 'g'));
+  const unfixed = translated.match(new RegExp(`\\]\\(/(?!${LANG}/)(?!(${[...UNTRANSLATED].join('|')})[)#])[a-z]`, 'g'));
   if (unfixed) problems.push(`${slug}: ${unfixed.length} internal links not under /${LANG}/ (run --fix-links)`);
+
+  for (const [, , page, anchor] of translated.matchAll(anchorLink)) {
+    if (!pageSlugs(page ?? slug, LANG).includes(anchor)) {
+      problems.push(`${slug}: link to a heading that does not exist: ${page ? `/${LANG}/${page}` : ''}#${anchor} (run --fix-links)`);
+    }
+  }
 
   if (mode === '--record') manifest[slug] = hash(english);
   else if (manifest[slug] && manifest[slug] !== hash(english)) stale.push(slug);

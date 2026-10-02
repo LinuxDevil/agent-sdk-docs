@@ -1,0 +1,178 @@
+---
+title: "التتبّع وقابلية المراقبة"
+sidebarTitle: "التتبّع"
+---
+{/* Generated from docs/observability.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
+
+يُصدر `AgentExecutor.execute()` و`FlowExecutor.execute()` مقاطع تتبّع (spans) عبر `TraceExporter`. تتبع أسماء المقاطع وسماتها [الاصطلاحات الدلالية للذكاء الاصطناعي التوليدي (GenAI) في OpenTelemetry](https://opentelemetry.io/docs/specs/semconv/gen-ai/)، فتستطيع أنظمة المراقبة التي تدعم GenAI التعرّف عليها دون ربط مخصّص.
+
+> **الاستقرار.** اصطلاحات GenAI في حالة `Development` (غير مستقرة). سبق أن تغيّرت أسماء السمات بين إصدارات المواصفة (مثلًا أصبح `gen_ai.system` هو `gen_ai.provider.name`) وقد تتغير مجددًا. تتبع حزمة SDK هذه المواصفةَ كما استُرجعت بتاريخ 2026-10-01 من [مستودع semantic-conventions-genai](https://github.com/open-telemetry/semantic-conventions-genai) (حيث توجد الاصطلاحات الآن). ثبّت إصدار SDK لديك إذا كانت لوحات المتابعة تعتمد على هذه الأسماء.
+
+## البدء السريع
+
+```ts
+import { AgentExecutor, type TraceExporter } from '@lousho/build-ai-agent';
+
+const exporter: TraceExporter = {
+  onSpanStart: (span) => console.log('[start]', span.kind, span.name),
+  onSpanEnd: (span) => console.log('[end]', span.name, span.status?.code ?? 'ok', span.attributes),
+};
+
+await AgentExecutor.execute({ agent, input, provider, toolRegistry, exporter });
+```
+
+للحصول على مقاطع تتبّع OpenTelemetry حقيقية، استورد `createOtelTraceExporter()` من `@lousho/build-ai-agent/otel` (يتطلب الاعتمادية النظيرة الاختيارية `@opentelemetry/api` و`TracerProvider` مسجَّلًا). وهو ينقل نوع المقطع وحالة الخطأ إلى OpenTelemetry. راجع `examples/tracing` (`npm run example:tracing:console`، و`npm run example:tracing:otel` الذي يطبع المقاييس أيضًا).
+
+## شجرة المقاطع
+
+```
+invoke_agent {agent name}          INTERNAL
+  chat {model}                     CLIENT     one per provider.generate() call
+  execute_tool {tool name}         INTERNAL   one per tool call
+```
+
+تشغيل مسار عمل (`FlowExecutor.execute`) يُنتج:
+
+```
+invoke_workflow {flow name}        INTERNAL
+  flow.node {node type}            INTERNAL   one per node execution, nested like the flow
+    chat {model}                   CLIENT     inside an llmCall node
+    execute_tool {tool name}       INTERNAL   inside a toolCall node
+```
+
+لإدراج مسار عمل تحت مقطع تتبّع خاص بوكيل، مرّر معرّف ذلك المقطع في `parentSpanId` (تسلّم `withSpan` المقطع إلى دالة رد النداء الممرَّرة إليها)؛ فيصبح مقطع مسار العمل ابنًا له.
+
+## السمات
+
+ثوابت جميع الأسماء موجودة في `src/execution/semconv.ts` (ومصدَّرة بالأسماء `GenAiAttr`، `GenAiOperation`، `GenAiMetric`، `ErrorAttr`، `FlowAttr`، `SdkAttr`، `LegacyAttr`).
+
+### تشغيل الوكيل: `invoke_agent {agent name}`
+
+| السمة | القيمة |
+| --- | --- |
+| `gen_ai.operation.name` | `invoke_agent` |
+| `gen_ai.agent.name` | قيمة `name` للوكيل |
+| `gen_ai.agent.id` | قيمة `id` للوكيل، إن حُدِّدت |
+| `gen_ai.provider.name` | قيمة `name` للمزوّد |
+| `gen_ai.conversation.id` | `sessionId`، إن حُدِّد |
+| `lousho.cost_usd` | التكلفة التقديرية التراكمية للتشغيل بالدولار الأمريكي (كل استدعاء نموذج وكل تشغيل فرعي مفوَّض)؛ تغيب إذا كان أي نموذج مستخدَم بلا سعر معروف |
+| `lousho.usage.estimated` | `true` إذا كان أي من رموز (tokens) التشغيل مقدَّرًا |
+
+### استدعاء النموذج: `chat {model}` (CLIENT)
+
+| السمة | القيمة |
+| --- | --- |
+| `gen_ai.operation.name` | `chat` |
+| `gen_ai.provider.name` | قيمة `name` للمزوّد |
+| `gen_ai.request.model` | النموذج المطلوب |
+| `gen_ai.request.temperature`, `gen_ai.request.max_tokens` | عند تحديدهما |
+| `gen_ai.response.model` | عندما يُبلّغ به المزوّد |
+| `gen_ai.response.finish_reasons` | مثلًا `["stop"]`، `["tool_call"]` |
+| `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens` | استهلاك الرموز |
+| `lousho.cost_usd` | التكلفة التقديرية لهذه الخطوة بالدولار الأمريكي، عندما يعرف جدول الأسعار المضمَّن (أو `registerModel`) النموذج؛ تغيب في غير ذلك |
+| `lousho.usage.estimated` | `true` إذا لم يُبلّغ المزوّد عن الاستهلاك وقُدِّرت الرموز |
+
+### استدعاء الأداة: `execute_tool {tool}`
+
+| السمة | القيمة |
+| --- | --- |
+| `gen_ai.operation.name` | `execute_tool` |
+| `gen_ai.tool.name` | اسم الأداة |
+| `gen_ai.tool.call.id` | معرّف استدعاء الأداة لدى النموذج (في تشغيلات الوكلاء) |
+| `gen_ai.tool.description` | وصف الأداة، إن كان لها وصف |
+| `gen_ai.tool.type` | `function` |
+| `gen_ai.agent.name`, `gen_ai.conversation.id` | الوكيل المستدعي / الجلسة |
+
+### مسارات العمل
+
+لا تعرّف مواصفة GenAI أي اصطلاح لعُقد مسارات العمل، ولذلك تستخدم مقاطع العُقد فضاء الأسماء `lousho.flow.*`. أما مقطع التشغيل فيستخدم اصطلاح workflow الوارد في المواصفة.
+
+| المقطع | السمة | القيمة |
+| --- | --- | --- |
+| `invoke_workflow {name}` | `gen_ai.operation.name` | `invoke_workflow` |
+| | `gen_ai.workflow.name` | قيمة `name` لمسار العمل |
+| | `lousho.flow.code` | قيمة `code` لمسار العمل |
+| | `lousho.flow.outcome` | `success` أو `error` |
+| `flow.node {type}` | `lousho.flow.node.id` | معرّف العقدة |
+| | `lousho.flow.node.type` | نوع العقدة (`sequence`، `llmCall`، ...) |
+| | `lousho.flow.outcome` | `success` أو `error` |
+
+### الأخطاء
+
+المقطع الفاشل يحصل على `error.type` وعلى حالة خطأ للمقطع (`ERROR` في OpenTelemetry، والرسالة = رسالة الخطأ). قيمة `error.type` هي `name` الخطأ المرمي (و`_OTHER` عندما يُرمى شيء ليس من نوع `Error`). واستدعاء الأداة الذي يُرجع خطأً إلى النموذج (`isError`) يوسَم بـ `error.type = tool_error`.
+
+## المقاييس
+
+يسجّل `createOtelTraceExporter()` أيضًا مقاييس عميل GenAI في OpenTelemetry عبر واجهة المقاييس في `@opentelemetry/api`، مستخدمًا `MeterProvider` العام (`metrics.getMeter(...)`) أو الخيار `meter`:
+
+| المقياس | النوع، الوحدة | متى يُسجَّل | السمات |
+| --- | --- | --- | --- |
+| `gen_ai.client.token.usage` | مدرَّج تكراري (Histogram)، `{token}` | مرة لكل نوع من الرموز في كل استدعاء نموذج يُبلّغ عن الاستهلاك (أو يقدّره) | `gen_ai.operation.name` (`chat`)، `gen_ai.provider.name`، `gen_ai.request.model`، `gen_ai.response.model` (عند معرفته)، `gen_ai.token.type` (`input` أو `output`) |
+| `gen_ai.client.operation.duration` | مدرَّج تكراري (Histogram)، `s` | كل استدعاء نموذج (`chat`) وكل استدعاء أداة (`execute_tool`) | `gen_ai.operation.name`، و`gen_ai.provider.name` و`gen_ai.request.model` (استدعاءات النموذج)، و`gen_ai.response.model` (عند معرفته)، و`error.type` (عند الفشل) |
+
+يستخدم كلاهما حدود الفئات (bucket boundaries) التي توصي بها المواصفة. وهما يتبعان صفحة `gen-ai-metrics` من semantic-conventions v1.40 (بدرجة استقرار `Development`): أحدث الاصطلاحات تقسّم المدرَّج التكراري للرموز إلى عدّادات لكل نوع، وحزمة SDK هذه لا تُصدرها بعد. لا تُحتسب مقاطع الوكلاء ومسارات العمل في مقياس المدة، بل استدعاءات النموذج والأدوات داخلها فقط.
+
+```ts
+import { metrics } from '@opentelemetry/api';
+import { ConsoleMetricExporter, MeterProvider, PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
+import { createOtelTraceExporter } from '@lousho/build-ai-agent/otel';
+
+// Swap ConsoleMetricExporter for an OTLP exporter to reach any backend.
+metrics.setGlobalMeterProvider(
+  new MeterProvider({ readers: [new PeriodicExportingMetricReader({ exporter: new ConsoleMetricExporter() })] })
+);
+
+const exporter = createOtelTraceExporter(); // metrics on by default
+// createOtelTraceExporter({ metrics: false })  // spans only
+// createOtelTraceExporter({ meter })           // an already-obtained Meter
+```
+
+من دون `MeterProvider` مسجَّل، يتجاهل العدّاد الخامل (no-op meter) في OpenTelemetry القياسات المسجَّلة. واجهة المقاييس موجودة في `@opentelemetry/api`، فلا يُسجَّل شيء (ولا يُحمَّل شيء) إذا لم تكن تلك الاعتمادية النظيرة الاختيارية مثبّتة. والتكلفة تقدير مستمد من جدول الأسعار (راجع `registerModel`)، وليست فاتورة.
+
+## محتوى الرسائل والوسائط لا يُسجَّل إلا بتفعيل صريح
+
+الموجّهات ومخرجات النموذج ووسائط الأدوات ونتائجها بيانات حساسة وكبيرة الحجم، ولذلك **لا تُسجَّل** سمات المحتوى `gen_ai.*` **افتراضيًا أبدًا**. فعّلها لكل تشغيل على حدة:
+
+```ts
+import { AgentExecutor, type TraceExporter } from '@lousho/build-ai-agent';
+
+declare const exporter: TraceExporter;
+
+await AgentExecutor.execute({ agent, input, provider, exporter, captureContent: true });
+```
+
+تأخذ مسارات العمل الراية نفسها في سياقها (`captureContent`). وإذا لم يُحدَّد `captureContent`، فإن متغير البيئة `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true` (وهو الاسم الذي تورده المواصفة مثالًا) يفعّله. والقيمة الصريحة `captureContent: false` تغلب دائمًا.
+
+عند تفعيله، يُسجَّل المحتوى على هيئة سلاسل JSON (وهو البديل الاحتياطي الذي تنص عليه المواصفة للمقاطع) وفق مخطط الرسائل في المواصفة:
+
+| السمة | في المقطع | المحتوى |
+| --- | --- | --- |
+| `gen_ai.input.messages` | `invoke_agent`, `chat` | `[{ role, parts: [{ type: 'text', content }, { type: 'tool_call', id, name, arguments }, { type: 'tool_call_response', id, response }] }]` |
+| `gen_ai.system_instructions` | `chat` | `[{ type: 'text', content }]` |
+| `gen_ai.output.messages` | `chat` | `[{ role: 'assistant', parts: [...] }]` |
+| `gen_ai.tool.call.arguments` | `execute_tool` | الوسائط بصيغة JSON |
+| `gen_ai.tool.call.result` | `execute_tool` | النتيجة بصيغة JSON (لا تُضبط إذا فشلت الأداة) |
+
+## أسماء السمات المُهمَلة
+
+قبل اصطلاحات GenAI، كانت المقاطع تستخدم أسماء ارتجالية، وكانت أسماء المقاطع `agent.run` و`llm.generate` و`tool.call`. ما زالت أسماء السمات القديمة تُصدَر إلى جانب الجديدة لتستمر لوحات المتابعة القائمة في العمل، لكنها **مُهمَلة** وستُزال في إصدار رئيسي قادم. أما أسماء المقاطع فقد تغيّرت (إلى ما تشترطه المواصفة)؛ فحدّث الاستعلامات التي كانت تطابقها.
+
+| المُهمَل | استخدم بدلًا منه |
+| --- | --- |
+| المقطع `agent.run` | المقطع `invoke_agent {name}`، `gen_ai.operation.name = invoke_agent` |
+| المقطع `llm.generate` | المقطع `chat {model}`، `gen_ai.operation.name = chat` |
+| المقطع `tool.call` | المقطع `execute_tool {tool}`، `gen_ai.operation.name = execute_tool` |
+| `model` | `gen_ai.request.model` |
+| `promptTokens` | `gen_ai.usage.input_tokens` |
+| `completionTokens` | `gen_ai.usage.output_tokens` |
+| `totalTokens` | (اجمع سمتَي الاستهلاك) |
+| `finishReason` | `gen_ai.response.finish_reasons` (مصفوفة؛ و`tool_calls` أصبحت `tool_call`) |
+| `toolName` | `gen_ai.tool.name` |
+| `error` (رسالة عند رمي خطأ؛ وقيمة منطقية في `execute_tool`) | `error.type` وحالة المقطع |
+| `input`, `prompt`, `args`, `result` | `gen_ai.input.messages`, `gen_ai.tool.call.arguments`, `gen_ai.tool.call.result` (بتفعيل صريح، انظر أعلاه) |
+
+سمات المحتوى المُهمَلة (`input`، `prompt`، `args`، `result`) تحتفظ بسلوكها القديم: تُسجَّل ما لم يُضبط `redactContent: true`. اضبط `redactContent: true` إذا أردت ألا يظهر أي محتوى في المقاطع إلا إذا فعّلته عبر `captureContent`.
+
+## الأنظمة الخلفية
+
+أي نظام خلفي يستقبل تتبّعات OpenTelemetry (OTLP) يستقبل هذه المقاطع. الأنظمة والأدوات التي تفهم الاصطلاحات الدلالية لـ GenAI تستطيع عرضها بوصفها استدعاءات LLM ووكلاء وأدوات مع استهلاك الرموز؛ وغيرها يعرضها مقاطع عادية ذات سمات. تختلف الاصطلاحات التي يدعمها كل نظام، وإصدارها، من نظام إلى آخر؛ فراجع توثيقه.

@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "mint dev",
     "sync": "node scripts/sync-sdk-docs.mjs",
-    "check": "mint broken-links"
+    "check": "mint broken-links",
+    "check:translations": "node scripts/check-translations.mjs"
   },
   "devDependencies": {
     "mint": "^4.2.0"

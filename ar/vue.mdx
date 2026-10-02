@@ -1,0 +1,65 @@
+---
+title: "Vue"
+---
+{/* Generated from docs/vue.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
+
+`useLoushoAgent()` لـ Vue 3 هو [خطّاف React](/ar/react) في صورة دالة تركيبية (composable):
+المصادر نفسها، والحالة نفسها، والإجراءات نفسها، فوق
+[بث الأحداث محدَّد الأنواع](/ar/streaming) نفسه. اقرأ [React](/ar/react) لتعرف معنى كل
+حقل، ونوعَي المصدر، وطريقة عمل الموافقات، وجانب الخادم؛
+أما هذه الصفحة فتغطي ما يختلف.
+
+يقع في المسار الفرعي `@lousho/build-ai-agent/vue`. و`vue` (3.x) اعتمادية
+نظيرة اختيارية: ثبّتها في التطبيق الذي يستخدم الدالة التركيبية.
+
+```ts
+import { useLoushoAgent } from '@lousho/build-ai-agent/vue';
+
+// In <script setup>:
+const { messages, status, pendingApproval, send, stop, approve, reject, reset } = useLoushoAgent(
+  { url: '/api/agent' },
+  { approvalsUrl: '/api/approvals' }
+);
+
+export async function submit(text: string): Promise<void> {
+  if (text.trim() && status.value !== 'streaming') await send(text);
+}
+
+export { messages, status, pendingApproval, stop, approve, reject, reset };
+```
+
+وفي القالب:
+
+```html
+<article v-for="message in messages" :key="message.id">
+  <header>{{ message.role }}</header>
+  <p>{{ message.text }}</p>
+  <code v-for="call in message.toolCalls" :key="call.id">{{ call.name }}: {{ call.status }}</code>
+</article>
+<p v-if="pendingApproval">
+  Run {{ pendingApproval.toolName }}?
+  <button @click="approve()">Approve</button>
+  <button @click="reject('Not now')">Reject</button>
+</p>
+<button v-if="status === 'streaming'" @click="stop">Stop</button>
+```
+
+## ما يختلف عن React
+
+- **الحالة مراجع (refs).** `messages` و`status` و`pendingApproval` و`error` و`usage`
+  و`lastEvent` كائنات `ComputedRef` للقراءة فقط: استخدم `.value` في السكربت،
+  ولا شيء في القالب. والأوامر (`send` و`stop` و`approve` و`reject`
+  و`answer`) دوال عادية بتواقيع خطّاف React.
+- **`reset()`** يُلغي التشغيل الجاري، وينسى الجلسة العاملة داخل العملية
+  (`{ agent, sessionId }` يبدأ محادثة جديدة) ويمسح الحالة.
+- **المصدر والخيارات يمكن أن تكون مراجع.** مرّر كائنًا عاديًا أو `ref`؛ ويُقرأ
+  عند بدء الدورة، فأي تغيير في `url` أو `agent` يسري على الدورة
+  التالية.
+- **التنظيف هو التخلص من النطاق.** `stop()` يُلغي الطلب الجاري، وكذلك
+  يفعل إيقاف النطاق المالك: إزالة مكوّن (unmount)، أو
+  `effectScope().stop()` في الاختبارات والسكربتات العادية. وإذا استُدعيت الدالة التركيبية خارج أي نطاق،
+  فليس لديها ما تتخلص منه: استدعِ `stop()` بنفسك.
+
+المختزِل (reducer) ومحلِّل البث مصدَّران من هذا المسار الفرعي أيضًا
+(`reduceAgentEvents` و`initialAgentUIState` و`parseEventStream`)، وهما
+نفساهما الموجودان في `@lousho/build-ai-agent/react`.

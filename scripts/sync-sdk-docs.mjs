@@ -11,6 +11,7 @@
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, posix, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { githubSlug, headings, mintSlug, slugList } from './anchors.mjs';
 
 const siteRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const sdkRoot = resolve(process.argv[2] ?? join(siteRoot, '..', 'agent-sdk'));
@@ -93,7 +94,7 @@ function segments(markdown) {
   };
   for (const line of lines) {
     const match = /^(\s*)(`{3,}|~{3,})(.*)$/.exec(line);
-    if (!fence && match) {
+    if (!fence && match && !match[3].includes("`")) {
       flush('prose');
       fence = { marker: match[2] };
       buffer.push(line);
@@ -211,6 +212,35 @@ for (const [file, slug] of Object.entries(PAGES)) {
   written++;
 }
 
+// Links in the SDK docs use GitHub's heading slugs; rewrite them to the ids Mintlify renders.
+const allSlugs = [...Object.values(PAGES), ...HAND_WRITTEN];
+const anchorMaps = {};
+for (const slug of allSlugs) {
+  const file = join(siteRoot, `${slug}.mdx`);
+  if (!existsSync(file)) continue;
+  const texts = headings(readFileSync(file, 'utf8').replace(/\r\n/g, '\n'));
+  const github = slugList(texts, githubSlug);
+  const mint = slugList(texts, mintSlug);
+  anchorMaps[slug] = { github: new Map(github.map((g, i) => [g, mint[i]])), mint: new Set(mint) };
+}
+const unresolved = [];
+for (const slug of Object.values(PAGES)) {
+  const file = join(siteRoot, `${slug}.mdx`);
+  if (!existsSync(file)) continue;
+  const before = readFileSync(file, 'utf8');
+  const after = before.replace(/\]\((\/([a-z0-9-]+))?#([^)\s]+)\)/g, (whole, path, page, anchor) => {
+    const map = anchorMaps[page ?? slug];
+    if (!map) return whole;
+    const target = map.github.get(anchor) ?? (map.mint.has(anchor) ? anchor : undefined);
+    if (!target) {
+      unresolved.push(`${slug}: ${path ?? ''}#${anchor}`);
+      return whole;
+    }
+    return `](${path ?? ''}#${target})`;
+  });
+  if (after !== before) writeFileSync(file, after);
+}
+
 const unmapped = readdirSync(join(sdkRoot, 'docs'))
   .filter((name) => name.endsWith('.md'))
   .map((name) => `docs/${name}`)
@@ -221,4 +251,5 @@ const notInNav = [...Object.values(PAGES), ...HAND_WRITTEN].filter((slug) => !na
 console.log(`wrote ${written} pages from ${sdkRoot}`);
 if (unmapped.length) console.log(`SDK docs with no page (add them to PAGES): ${unmapped.join(', ')}`);
 if (notInNav.length) console.log(`pages missing from docs.json navigation: ${notInNav.join(', ')}`);
+if (unresolved.length) console.log(`links to headings that do not exist:\n  ${unresolved.join('\n  ')}`);
 if (unmapped.length || notInNav.length) process.exitCode = 1;

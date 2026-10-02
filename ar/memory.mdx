@@ -1,0 +1,157 @@
+---
+title: "الذاكرة"
+---
+{/* Generated from docs/memory.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
+
+[الجلسة](/ar/sessions) تتذكر محادثة واحدة. أما الذاكرة فهي ما يحتفظ به الوكيل **عبر** المحادثات: تفضيلات المستخدم، وحقائق أُخبر بها، وقرارات اتُّخذت الأسبوع الماضي. تعطي الوكيل **خانة ذاكرة** (memory slot) مسمّاة واحدة أو أكثر؛ كل خانة تخزّن عناصر نصية قصيرة عبر مزوّد، ويحدّد مفتاحَها **نطاقٌ** (scope) (ذاكرة واحدة للجميع، أو واحدة لكل جلسة، أو واحدة لكل مستخدم).
+
+لكل خانة، تقوم `createAgent({ memory })` بما يلي:
+
+1. **تسترجع** في بداية كل تشغيل (`send()`، `stream()`، كل دورة في جلسة): عند أول استدعاء للنموذج في التشغيل، تُدرَج أحدث العناصر في موجّه النظام داخل كتلة `<memory name="...">`. تبقى الكتلة حتى نهاية التشغيل ولا تُحفَظ في سجل محادثة الجلسة.
+2. تعطي النموذج أداة **`remember_<name>`** (مُدخَلها `{ text }`) لتخزين عنصر جديد، وأداة **`recall_<name>`** (مُدخَلها `{ query?, limit? }`) للبحث في الخانة، الأحدث أولًا.
+
+## الذاكرة في الكود
+
+```ts
+import { createAgent, defineMemory, fileMemory } from '@lousho/build-ai-agent';
+
+const preferences = defineMemory({
+  name: 'preferences',
+  description: "the user's preferences: language, tone, tools they like",
+  scope: 'session',
+  provider: fileMemory({ dir: './.lousho/memory' }),
+});
+
+const agent = createAgent({
+  model: 'openai/gpt-4o-mini',
+  instructions: 'You are a helpful assistant. Save lasting preferences with remember_preferences.',
+  memory: [preferences],
+});
+
+await agent.session({ id: 'user-42' }).send('Please always answer in French.');
+// Later, in a new conversation with the same id, the preference is in the system prompt:
+const { text } = await agent.session({ id: 'user-42' }).send('What is the capital of Japan?');
+```
+
+ينتهي موجّه النظام في المحادثة الثانية بما يلي:
+
+```text
+<memory name="preferences">
+- The user wants answers in French.
+</memory>
+```
+
+## النطاقات
+
+يقرأ التشغيل ويكتب العناصر التابعة **لمفتاح النطاق** الخاص به:
+
+| `scope` | مفتاح النطاق | ذاكرة واحدة لكل |
+|---|---|---|
+| `'global'` | `'global'` | وكيل (يتشاركها كل تشغيل) |
+| `'session'` | `'session:<id>'`: معرّف `agent.session({ id })`، أو `sessionId` الممرَّر إلى `send()` / `stream()` | جلسة |
+| `({ sessionId, metadata }) => string \| undefined` | ما تُرجعه الدالة | ما تختاره مفتاحًا، كالمستخدم مثلًا |
+
+ترى دالة النطاق `sessionId` الخاص بالتشغيل و`metadata` الممرَّرة إلى `send()` / `stream()`، فتستطيع الاحتفاظ بذاكرة واحدة لكل مستخدم عبر جميع جلساته:
+
+```ts
+import { createAgent, defineMemory, inMemoryMemory } from '@lousho/build-ai-agent';
+import { mockModel } from '@lousho/build-ai-agent/testing';
+
+const userFacts = defineMemory({
+  name: 'user_facts',
+  scope: ({ metadata }) => (typeof metadata?.userId === 'string' ? `user:${metadata.userId}` : undefined),
+  provider: inMemoryMemory(),
+});
+
+const agent = createAgent({ provider: mockModel(['Hello!']), memory: [userFacts] });
+await agent.send('Hi again!', { metadata: { userId: 'u-42' } });
+```
+
+عندما لا يكون للتشغيل مفتاح نطاق (خانة `'session'` في `send()` دون `sessionId`، أو دالة نطاق تُرجع `undefined`)، تُعطَّل الخانة في ذلك التشغيل: لا يُسترجَع شيء ولا تُعرَض أدواتها على النموذج.
+
+## خيارات الإعداد
+
+تُرجع `defineMemory(options)` كائن `MemorySlot`:
+
+| الخيار | النوع | الافتراضي | الوصف |
+|---|---|---|---|
+| `name` | `string` | إلزامي | من 1 إلى 55 محرفًا من `A-Za-z0-9_-`؛ والأداتان هما `remember_<name>` و`recall_<name>`. فريد لكل وكيل. |
+| `description` | `string` | لا يوجد | ما تحتويه الخانة؛ يُضاف إلى أوصاف الأدوات. |
+| `scope` | `'global' \| 'session' \| (ctx) => string \| undefined` | إلزامي | راجع [النطاقات](#النطاقات). |
+| `provider` | `MemoryProvider` | إلزامي | مكان تخزين العناصر: `inMemoryMemory()` أو `fileMemory({ dir })` أو مزوّدك الخاص. |
+| `recall.onSessionStart` | `boolean` | `true` | الاسترجاع إلى موجّه النظام عند أول استدعاء للنموذج في كل تشغيل. |
+| `recall.maxItems` | `number` | `10` | الحد الأقصى للعناصر المسترجَعة إلى الموجّه، والقيمة الافتراضية لـ `limit` في `recall_<name>`. |
+| `recall.query` | `'last-input' \| 'none'` | `'none'` | القيمة `'last-input'` تمرّر آخر رسالة مستخدم في التشغيل إلى المزوّد بصفتها `query`، لاسترجاع العناصر ذات الصلة بدلًا من الأحدث. |
+| `expose.remember` | `boolean` | `true` | عرض الأداة `remember_<name>` على النموذج. |
+| `expose.recall` | `boolean` | `true` | عرض الأداة `recall_<name>` على النموذج. |
+
+الخانة ذات `expose: { remember: false }` للقراءة فقط بالنسبة إلى النموذج: تملؤها أنت من الكود بـ `provider.add(scopeKey, { text })`.
+
+## المزوّدون
+
+| المزوّد | التخزين |
+|---|---|
+| `inMemoryMemory({ maxItems? })` | هذه العملية؛ ويُفقد عند إعادة التشغيل. للاختبارات والعروض التوضيحية. |
+| `fileMemory({ dir, maxItems? })` | ملف JSON لكل مفتاح نطاق في `dir` (المفتاح مرمَّز بترميز URI)، ويُكتب كتابة ذرّية. |
+| `sqliteMemory(store, { maxItems? })` (من `/sqlite`) | جدول `memory_items` في ملف `SqliteStore` الخاص بالوكيل، مصفوفة JSON لكل مفتاح نطاق. |
+
+تحتفظ جميعها بما لا يزيد على `maxItems` عنصرًا لكل مفتاح نطاق (الافتراضي 1000؛ وإضافة عنصر زائد تحذف الأقدم) وتطابق `query` بالكلمات المفتاحية: يطابق العنصر إذا احتوى على إحدى كلمات الاستعلام المؤلفة من ثلاثة أحرف أو أكثر، دون تمييز بين الأحرف الكبيرة والصغيرة.
+
+### SQLite
+
+مرّر `SqliteStore` نفسه إلى الوكيل وإلى المزوّد، فتتشارك الجلسات ونقاط الحفظ والذاكرة ملف قاعدة بيانات واحدًا. الملف الموجود مسبقًا يُضاف إليه الجدول عند فتحه. أبقِ المخزن مفتوحًا ما دام الوكيل يعمل.
+
+```ts
+import { createAgent, defineMemory } from '@lousho/build-ai-agent';
+import { SqliteStore, sqliteMemory } from '@lousho/build-ai-agent/sqlite';
+
+const store = new SqliteStore('./.lousho/agent.db');
+const notes = defineMemory({ name: 'notes', scope: 'global', provider: sqliteMemory(store) });
+const agent = createAgent({ model: 'openai/gpt-4o-mini', store, memory: [notes] });
+```
+
+للبحث الدلالي أو لمخزن مستضاف، طبّق الواجهة `MemoryProvider`:
+
+```ts
+import type { MemoryItem, MemoryProvider } from '@lousho/build-ai-agent';
+
+const items = new Map<string, MemoryItem[]>();
+const myProvider: MemoryProvider = {
+  async list(scopeKey, { limit, query } = {}) {
+    // Newest first; use `query` to rank (e.g. by embedding similarity).
+    return (items.get(scopeKey) ?? []).slice(0, limit);
+  },
+  async add(scopeKey, { text, metadata }) {
+    const item: MemoryItem = { id: crypto.randomUUID(), text, createdAt: new Date().toISOString(), metadata };
+    items.set(scopeKey, [item, ...(items.get(scopeKey) ?? [])]);
+    return item;
+  },
+  async remove(scopeKey, id) {
+    items.set(scopeKey, (items.get(scopeKey) ?? []).filter((item) => item.id !== id));
+  },
+};
+```
+
+## اختبار الذاكرة
+
+باستخدام [`mockModel`](/ar/testing)، تحقّق من موجّه النظام في الطلب الأول، وحرّك الأدوات باستدعاءات أدوات مكتوبة في السيناريو:
+
+```ts
+import { createAgent, defineMemory, inMemoryMemory } from '@lousho/build-ai-agent';
+import { mockModel } from '@lousho/build-ai-agent/testing';
+
+const store = inMemoryMemory();
+await store.add('global', { text: 'The user likes tea.' });
+const notes = defineMemory({ name: 'notes', scope: 'global', provider: store });
+
+const model = mockModel([{ toolCalls: [{ name: 'remember_notes', args: { text: 'Lives in Oslo.' } }] }, 'Noted.']);
+await createAgent({ provider: model, memory: [notes] }).send('I moved to Oslo.');
+
+console.log(model.calls[0].messages[0].content); // ends with <memory name="notes">\n- The user likes tea.\n</memory>
+console.log((await store.list('global')).map((item) => item.text)); // ['Lives in Oslo.', 'The user likes tea.']
+```
+
+## القيود
+
+- الاسترجاع وأدوات الذاكرة تنطبق على تشغيلات الوكيل نفسه، لا على وكلائه الفرعيين. وعندما يواصل `agent.approvals.resolve()` تشغيلًا بعد توقف بانتظار موافقة، تبقى الكتلة المسترجَعة في الموجّه لكن أدوات الذاكرة لا تُعرَض في ما بقي من ذلك التشغيل.
+- مجلد `memory/` في مجلد الوكيل جزء من الوكيل: راجع [مجلدات الوكلاء](/ar/agent-directories#الذاكرة).

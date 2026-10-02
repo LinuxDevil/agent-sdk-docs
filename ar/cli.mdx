@@ -1,0 +1,150 @@
+---
+title: "واجهة سطر الأوامر (CLI)"
+---
+{/* Generated from docs/cli.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
+
+تثبيت الحزمة يثبّت معها الأمر `lousho`. ينشئ هذا الأمر هياكل المشاريع، ويفحص إعدادك، ويشغّل وكيلًا محليًا، ويقدّمه عبر MCP، ويشغّل التقييمات، ويبني مخرجًا قابلًا للنشر، ويفتح لوحة التحكم Agent Forge. شغّله بـ `npx lousho <command>` داخل مشروع مثبَّتة فيه الـ SDK.
+
+| الأمر | ما يفعله | التفاصيل |
+| ------- | ------------ | ------- |
+| `lousho init [dir]` | ينشئ هيكل مشروع: وكيل مع أداة نموذجية، واختبار يعمل دون اتصال، و`.env.example`؛ ثم يثبّت الاعتماديات ويشغّل `git init`. | [التثبيت](/ar/installation#إنشاء-هيكل-مشروع-جديد) |
+| `lousho doctor [spec] [--json]` | يفحص Node، والحزم النظيرة، ومفاتيح المزوّدين، واختياريًا ملف مواصفات؛ ويطبع حلًّا لكل مشكلة. | [التثبيت](/ar/installation#استكشاف-الأخطاء-وإصلاحها-lousho-doctor) |
+| `lousho dev <path>` | خادم تطوير محلي لملف مواصفات أو مجلد وكيل أو وكيل مكتوب بـ TS: واجهة محادثة فيها جلسة لكل تبويب وأحداث مبثوثة، مع إعادة تحميل فوري عند الحفظ. | [أدناه](#lousho-dev) |
+| `lousho chat <path>` | حلقة REPL في الطرفية لملف مواصفات أو مجلد وكيل أو وكيل مكتوب بـ TS: تبث الردود، وتعرض استدعاءات الأدوات، وتطلب الموافقات وتطرح الأسئلة. | [أدناه](#lousho-chat) |
+| `lousho acp <path>` | يقدّم ملف مواصفات أو مجلد وكيل أو وكيلًا مكتوبًا بـ TS إلى محرر (Zed وغيره من عملاء ACP) عبر Agent Client Protocol على stdio. | [ACP](/ar/acp) |
+| `lousho add <name>` | يثبّت أداة أو مهارة أو قناة أو جدولًا زمنيًا أو خانة ذاكرة من سجل JSON في مجلد وكيل، بعد عرض بيان صلاحياتها. | [السجل](/ar/registry) |
+| `lousho mcp <spec>` | يقدّم الوكيل كخادم MCP (عبر stdio، أو HTTP مع `--http`). | [الإعداد](/ar/configuration#تقديم-وكيل-عبر-mcp) |
+| `lousho eval [globs...]` | يشغّل ملفات `*.eval.ts` تحت vitest؛ ويطبع ملخصًا ويكتب تقارير JUnit/JSON. | [التقييمات](/ar/evals#lousho-eval) |
+| `lousho build --target=<t> --agent=<spec>` | يبني خادم Node أو صورة Docker أو Cloudflare Worker قابلًا للنشر. | [النشر](/ar/deployment) |
+| `lousho studio` | يفتح Agent Forge، لوحة التحكم المرئية، على منفذ محلي واحد. | [Agent Forge](/ar/agent-forge) |
+
+كل أمر يقبل `<spec>` يقرأ ملف مواصفات وكيل (`.yaml` أو `.yml` أو `.json`، انظر [الإعداد](/ar/configuration#ملفات-مواصفات-الوكيل-agentspec)).
+
+## طريقة الاستخدام
+
+```text
+lousho init [dir] [--provider P] [--template T] [--yes] [--no-install] [--no-git] [--package-manager PM] [--force]
+lousho dev <spec.yaml|spec.json|agent-dir|agent.ts> [--port N] [--host H] [--no-schedules]
+lousho chat <spec.yaml|spec.json|agent-dir|agent.ts> [--model provider/model] [--session id] [--store sqlite:<file>]
+lousho acp <spec.yaml|spec.json|agent-dir|agent.ts> [--model provider/model]
+lousho add <name> [--registry <url-or-path>] [--dir <agent-dir>] [--yes] [--overwrite] [--dry-run]    (or --list)
+lousho build <agent-dir|spec> --target=<name> [--out=<dir>]    (or --agent=<path>)
+lousho studio [--port N] [--host H] [--prod|--dev]
+lousho mcp <agent.yaml|json> [--http --port N --host H]
+lousho doctor [agent.yaml|json] [--json]
+lousho eval [globs...] [--tag t] [--junit path] [--json path] [--strict] [--judge] [--record | --replay | --drift [--drift-usage]] [--url <base> [--token <bearer>]]
+```
+
+تحلّل الأوامر كلها خياراتها بالطريقة نفسها (`parseArgs` في Node، بالوضع الصارم): تعمل الصيغتان `--flag value` و`--flag=value`، وعند تكرار خيار تُعتمد قيمته الأخيرة (أما `--tag` فتتراكم قيمه)، وتنهي `--` الخيارات، ويطبع `-h` / `--help` صيغة استخدام الأمر ويخرج بالرمز 0. الخيار غير المعروف، أو الخيار الذي تنقصه قيمته (لا يأخذ الخيارَ التالي قيمةً له أبدًا)، أو الوسيط الزائد، يفشل بالخطأ `LOUSHO_CONFIG_INVALID` مع سطر صيغة الاستخدام. والقيمة التي تبدأ بـ `-` تحتاج إلى صيغة `=`: `--model=-x`.
+
+يشغّل `npm create lousho-agent my-agent` الأمر `lousho init` بالوسائط نفسها. ولإنشاء هيكل مشروع يعتمد على بناء غير منشور من الـ SDK، مرِّر `--sdk-path` (انظر [التثبيت من بناء محلي](/ar/installation#التثبيت-من-بناء-محلي)).
+
+## `lousho dev`
+
+```bash
+npx lousho dev agent.yaml                  # a spec file
+npx lousho dev ./my-agent                  # an agent directory
+npx lousho dev src/agent.ts                # a TypeScript (or JavaScript) module
+npx lousho dev agent.yaml --port 4000 --host 0.0.0.0
+npx lousho dev ./my-agent --no-schedules   # do not fire the directory's cron schedules
+```
+
+في حالة مجلد الوكيل، تُركَّب القنوات في `channels/` تحت `/channels` وتُشغَّل الجداول الزمنية في `schedules/` (ويُستبدل الاثنان عند إعادة التحميل، بعد إيقاف الجداول القديمة أولًا)؛ ومع `--no-schedules` لا يُشغَّل أي جدول. انظر [مجلدات الوكلاء](/ar/agent-directories#شغّله-بالأمر-lousho-dev).
+
+يقدّم واجهة محادثة على `GET /`، و`GET /health`، و`GET /dev/status` ونقاط نهاية المحادثة أدناه (حدّ الجسم 1 ميغابايت). ونوع `<path>` يُستنتج من المسار نفسه:
+
+| المسار | يُحمَّل بواسطة |
+| ---- | ----------- |
+| `.yaml`, `.yml`, `.json` | `loadSpec()` + `specToAgent()` ([الإعداد](/ar/configuration)) |
+| مجلد | `loadAgentDir()` ([مجلدات الوكلاء](/ar/agent-directories)) |
+| `.ts`, `.mts`, `.js`, `.mjs`, `.cjs` | التصدير الافتراضي للوحدة، أو تصديرها المسمّى `agent`: كائن `SimpleAgent` (ما يعيده `createAgent()`) أو كائن خيارات `createAgent()` |
+
+أي امتداد آخر، أو مسار غير موجود، أو وحدة لا تصدّر وكيلًا، يفشل بخطأ ذي رمز (`LOUSHO_SPEC_UNSUPPORTED_FORMAT` أو `LOUSHO_CONFIG_INVALID`) مع حلّه. وحدة `.ts` يستوردها Node العامل نفسه (الإصدار 22.19 أو أحدث يزيل الأنواع، ولذلك تحتاج الاستيرادات النسبية إلى امتداد الملف)؛ استخدم `.js` للشيفرة التي تحتاج إلى مترجم مصدري (transpiler).
+
+**جلسات المحادثة.** تحتفظ واجهة المحادثة بجلسة واحدة لكل تبويب في المتصفح (معرّفها في `sessionStorage`؛ والزر "New session" يبدأ جلسة أخرى) وتعرض الدورة المبثوثة: النص فور وصوله، واستدعاءات الأدوات مع وسائطها ونتائجها، والأخطاء، والرموز (tokens) والتكلفة من `run.done`. استدعاء الأداة الذي يحتاج إلى موافقة يعرض زرَّي Approve / Reject؛ واستدعاء `ask_question` يعرض خياراته كأزرار مع حقل نص حر. وتعمل نقاط النهاية نفسها من `curl` أو من صفحتك الخاصة:
+
+| نقطة النهاية | ما تفعله |
+| -------- | ------------ |
+| `POST /chat` `{ "sessionId", "input" }` | تشغّل `agent.session({ id: sessionId }).stream(input)` وتبث الدورة بصيغة SSE: سطر `data: <AgentEvent JSON>` لكل حدث ([البث](/ar/streaming))، ثم `event: done`. يُحفظ السجل لكل `sessionId` (من 1 إلى 128 محرفًا من `A-Za-z0-9_-`). |
+| `GET /chat/:sessionId` | سجل محادثة الجلسة: `{ sessionId, messages, pending }`؛ وتكون `pending` هي `{ status, approvalId? }` ما دامت دورة تنتظر موافقة، وإلا `null`. |
+| `POST /chat/:sessionId/approvals/:id` `{ "approved", "note"? }` أو `{ "answer" }` | تبتّ في الموافقة المعلّقة (`agent.approvals.resolve()`)، أو تجيب عن سؤال (`agent.approvals.answer()`)، وتبث تتمة الدورة بصيغة SSE. قد تتوقف الدورة مرة أخرى بحدث `approval.requested` آخر. تعيد `404` حين لا يكون `id` معلّقًا. |
+| `POST /chat` `{ "message" }` | مُهمَل: بلا جلسة وبلا بث. تعيد `ExecutionResult` الخاص بالوكيل بصيغة JSON، مع الترويسة `Deprecation: true`. |
+
+تعيش الجلسات في `memoryStore()` داخل العملية (تزول حين يتوقف `lousho dev`)، أو في مخزن `store` الخاص بالوكيل حين تضبطه خيارات `createAgent()` في الوحدة. تتمة الموافقة لا تُبَث رمزًا رمزًا: فنقطة النهاية تشغّلها بـ `agent.approvals.resolve()` وترسل نتائج أدوات الدورة ونصها كأحداث بعد انتهائها.
+
+خوادم `lousho build` (`node-server` و`docker`) تقدّم نقاط النهاية نفسها من الشيفرة نفسها، مع جلسات في مخزن يحدده `LOUSHO_STORE` ومصادقة bearer اختيارية: انظر [النشر: واجهة HTTP البرمجية](/ar/deployment#واجهة-http).
+
+**إعادة التحميل الفوري.** يُعاد بناء الوكيل بعد لحظة (100 ميلي ثانية) من تغيّر ملف، دون إعادة تشغيل الخادم ولا تحرير المنفذ:
+
+- في حالة ملف المواصفات: ملف المواصفات نفسه؛
+- في حالة المجلد: كل ما تحته (`instructions.md`، وملف الإعداد، و`tools/`، و`skills/`، و`subagents/`)، ما عدا `node_modules` و`.git`؛
+- في حالة الوحدة: الملف والملفات المحلية التي يستوردها (محدِّدات `import` / `require` النسبية، ويُعثر عليها مرة واحدة عند بدء التشغيل؛ دون مُحزِّم).
+
+تُستورد ملفات المجلدات والوحدات مع استعلام `?t=<time>` يتجاوز التخزين المؤقت، فيُعاد تقييم ملف الأداة أو الوكيل بعد تعديله. أما الملف الذي *يستورده* ذلك الملف (دالة مساعدة مشتركة مثلًا) فيبقى مخزَّنًا مؤقتًا لدى Node: أعد تشغيل `lousho dev` بعد تعديل ملف كهذا. تسجّل الطرفية ما أُعيد تحميله. يُبنى الوكيل الجديد (ويُنتظر `ready()`، فتتصل خوادم MCP) قبل أن يحل محل القديم، ثم يُستدعى `close()` على القديم. وإذا فشلت إعادة البناء، استمر آخر وكيل سليم في الإجابة، وسُجِّل الخطأ وعُرض في شريط تنبيه على صفحة المحادثة (وكذلك في الحقل `error` ضمن `GET /dev/status`)؛ ويزيله أول تعديل سليم لاحق. الجلسات تبقى بعد إعادة التحميل: فالمخزن يعيش أطول من تبديل الوكيل، ولذلك تكمل الرسالة التالية المحادثةَ على الوكيل الجديد. أما الموافقة التي كانت معلّقة على الوكيل القديم فلا يعرفها الجديد (`404`)؛ ابدأ جلسة جديدة.
+
+المجلدات والوحدات هي شيفرتك وتعمل بصلاحياتك؛ فلا تشغّل `lousho dev` إلا على ما تثق به منها.
+
+- `--port` - الافتراضي `3737`.
+- `--host` - الافتراضي `127.0.0.1` (localhost فقط). مرِّر مثلًا `--host=0.0.0.0` لتتيح الوصول من الشبكة المحلية صراحةً.
+
+## `lousho chat`
+
+```bash
+npx lousho chat agent.yaml                          # a spec file
+npx lousho chat ./my-agent --model openai/gpt-4o    # an agent directory, on another model
+npx lousho chat src/agent.ts --store sqlite:.lousho/chat.db --session support
+```
+
+حلقة REPL في الطرفية: كل سطر تكتبه هو دورة واحدة في جلسة. يُحمَّل `<path>` كما يحمّله `lousho dev` (ملف مواصفات، أو مجلد وكيل، أو وحدة `.ts`/`.js`، انظر [`lousho dev`](#lousho-dev))؛ والمسار غير الموجود أو الامتداد غير الصالح يفشل بالخطأ ذي الرمز نفسه (`LOUSHO_CONFIG_INVALID` أو `LOUSHO_SPEC_UNSUPPORTED_FORMAT`)، وكذلك معرّف `--session` غير الصالح (`LOUSHO_SESSION_ID_INVALID`).
+
+```text
+> look up cats
+[lookup] {"q":"cats"}
+  -> found cats
+Cats are great.
+[usage] 20 in / 6 out tokens, $0.0004
+> email the report to sam
+Approve send_email({"to":"sam@example.com"})? [y/N] y
+  -> sent
+Done, the report is on its way.
+```
+
+- يُكتب النص فور أن ينتجه النموذج. وكل استدعاء أداة سطر واحد باهت اللون، `[tool_name] {args}`، يتبعه `  -> result` (أو `  -> error: ...`).
+- استدعاء الأداة الذي يحتاج إلى موافقة يسأل `Approve <tool>(args)? [y/N]`: الإجابة `y` أو `yes` تنفّذه، وأي إجابة أخرى ترفضه ويواصل النموذج عمله. استدعاء `ask_question` (`askQuestion: true`) يطبع السؤال مع خيارات مرقَّمة؛ أجب بالرقم أو بنص حر.
+- بعد كل دورة يعرض `[usage]` عدد الرموز، وكذلك التكلفة حين تكون أسعار كل النماذج المستخدمة معروفة (العلامة `~` تدل على رموز مقدَّرة).
+- أخطاء الـ SDK تُطبع مع رمزها `[LOUSHO_...]` وحلّها، وتستمر الجلسة.
+
+| الأمر | ما يفعله |
+| ------- | ------------ |
+| `/new` | يبدأ جلسة جديدة (تبقى القديمة في المخزن). |
+| `/model <provider/model>` | يعيد بناء الوكيل على نموذج آخر؛ وتستمر الجلسة. عند الفشل يبقى النموذج الحالي. |
+| `/compact` | يضغط سجل محادثة الجلسة فورًا (تُقلَّم نتائج الأدوات القديمة) ويطبع الحجم قبل الضغط وبعده. |
+| `/clear` | يفرّغ سجل محادثة الجلسة؛ ويبقى معرّف الجلسة. |
+| `/history` | يطبع سجل محادثة الجلسة. |
+| `/quit` | يخرج (ويعمل Ctrl-D أيضًا). |
+
+| الخيار | المعنى |
+| ------ | ------- |
+| `--model provider/model` | يستخدم هذا النموذج بدل الذي يسمّيه الهدف. ينطبق على ملفات المواصفات، ومجلدات الوكلاء، وتصديرات خيارات `createAgent()`؛ أما الوحدة التي تصدّر وكيلًا مبنيًا مسبقًا فتحتفظ بنموذجها. |
+| `--session id` | يفتح هذه الجلسة (من 1 إلى 128 محرفًا من `A-Za-z0-9_-`)؛ والافتراضي جلسة جديدة باسم `chat-<id>`. |
+| `--store sqlite:<file>` | يحفظ الجلسات في ملف SQLite ([`SqliteStore`](/ar/durable-execution))، فيكمل `--session id` المحادثة بعد إعادة التشغيل. الافتراضي: في الذاكرة. الموافقات المعلّقة لا تُستعاد بعد إعادة التشغيل. |
+
+حلقة REPL نفسها هي `runChatRepl()` في `src/cli/chatRepl.ts`؛ وهي تأخذ أسطر الإدخال، ومجرى إخراج، ودالة مصنع للوكيل، فيمكن اختبارها بأسطر معدّة مسبقًا ووكيل `mockModel` ودون طرفية.
+
+## `lousho build`
+
+```bash
+npx lousho build --target=node-server --agent=agent.yaml        # or docker / cloudflare-worker
+npx lousho build ./my-agent --target=node-server                # an agent directory (node-server, docker)
+```
+
+يكتب المخرج في `--out` (الافتراضي `.lousho/build/<target>`) ويطبع أمر تشغيله أو نشره. يحتاج البناء إلى `tsup` (`npm install --save-dev tsup`). الأهداف، وواجهة HTTP البرمجية التي تقدّمها، وحدود Workers مذكورة في [النشر](/ar/deployment).
+
+## `lousho studio`
+
+```bash
+npx lousho studio            # http://127.0.0.1:4750
+npx lousho studio --port 5000
+```
+
+يشغّل خادمًا محليًا واحدًا للواجهة البرمجية ولواجهة المستخدم الخاصتين بـ Agent Forge. يُخزَّن الوكلاء وحالة التشغيل تحت `.lousho/` في المجلد الحالي. انظر [Agent Forge](/ar/agent-forge) للجولة التعريفية.

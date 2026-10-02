@@ -1,0 +1,342 @@
+---
+title: "الوكلاء الفرعيون"
+---
+{/* Generated from docs/sub-agents.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
+
+الوكيل الفرعي (sub-agent) وكيل مستقل، له تعليماته ونموذجه وأدواته ومهاراته، يسند إليه الوكيل الرئيسي مهمة مكتفية بذاتها. يبدأ الوكيل الفرعي بسياق نظيف (لا يرى إلا موجّه المهمة، ولا يرى محادثة الوكيل الرئيسي أبدًا)، وينفّذ ما يحتاج إليه من خطوات، ثم تعود إجابته النهائية إلى الوكيل الرئيسي كنتيجة أداة واحدة.
+
+## وكلاء فرعيون أم مهارات أم مسارات عمل؟
+
+| استخدم | متى |
+| --- | --- |
+| **المهارات** ([التوثيق](/ar/skills)) | حين يحتاج الوكيل *نفسه* إلى تعليمات إضافية لبعض المهام. تكلفتها قليلة: المهارة نص يُحمَّل في المحادثة الحالية. |
+| **الوكلاء الفرعيون** | حين تحتاج المهمة إلى أدوات مختلفة، أو نموذج مختلف، أو استكشاف طويل كثير استدعاءات الأدوات لا تريده في سياق الوكيل الرئيسي. يقرر الوكيل الرئيسي وقت التشغيل هل يفوّض وماذا يفوّض؛ والمهام المستقلة تعمل بالتوازي. |
+| **مسارات العمل** | حين تكون الخطوات وترتيبها معروفة سلفًا (خط معالجة ثابت)، فلا ينبغي تركها لتقدير النموذج. |
+
+## البدء السريع
+
+أعطِ كل وكيل فرعي `description` (يقرؤه نموذج الوكيل الرئيسي ليختار)، ثم مرّر الوكلاء الفرعيين إلى الوكيل الرئيسي في `subagents`:
+
+```ts
+import { createAgent } from '@lousho/build-ai-agent';
+
+const researcher = createAgent({
+  provider,
+  instructions: 'You research a question and report your sources.',
+  description: 'Finds and summarizes sources',
+});
+const writer = createAgent({
+  provider,
+  instructions: 'You write clear, short articles.',
+  description: 'Turns notes into a polished article',
+});
+
+const lead = createAgent({
+  provider,
+  instructions: 'You coordinate research and writing.',
+  subagents: { researcher, writer },
+});
+
+const { text } = await lead.send('Write a short article about the history of the bicycle.');
+```
+
+تقبل `AgentExecutor.execute()` الخيارين نفسيهما `subagents` و`maxSubagentDepth`. استخدمها حين تحتاج إلى خطّافات أو تتبّع على تشغيل الوكيل الرئيسي، فالوكلاء الفرعيون يرثونها (انظر [الوراثة](#ما-يرثه-الوكيل-الفرعي)). والموافقات تعمل مع `createAgent()` أيضًا (انظر [الموافقات](#الموافقات-داخل-وكيل-فرعي)).
+
+## كيف يعمل
+
+مع `subagents` يحصل الوكيل الرئيسي على:
+
+1. كتلة **Available sub-agents** في موجّه النظام: سطر لكل وكيل فرعي (`- name: description`)، وجملة تقول إن الوكيل الفرعي لا يرى إلا الموجّه الذي يُعطى له.
+2. أداة واحدة فقط، `task`، مدخلها
+   `{ agent: <one of the names>, prompt: string, description: string, background?: boolean, taskId?: string, mode?: 'new' | 'resume' | 'fork' }`
+   (`description` تسمية من 3 إلى 5 كلمات تُستخدم في الأحداث والخطّافات؛ و`taskId` و`mode` يتابعان مهمة سابقة، انظر [متابعة مهمة](#متابعة-مهمة)).
+3. ثلاث أدوات للمهام الخلفية: `agent_status` و`agent_await` و`agent_cancel` (انظر [الوكلاء الفرعيون في الخلفية](#الوكلاء-الفرعيون-في-الخلفية)).
+
+حين يستدعي الوكيل الرئيسي `task`، يعمل الوكيل الفرعي المسمّى على `prompt` وحده. ونتيجة الأداة هي النص النهائي للوكيل الفرعي متبوعًا بتذييل صغير يستطيع الوكيل الرئيسي الاستفادة منه:
+
+```text
+The first bicycles appeared in the 1810s ...
+
+[sub-agent 'researcher': 3 step(s), finish reason 'stop', taskId 'task_1']
+```
+
+إذا لم يُكمل الوكيل الفرعي عمله (رمى خطأً، أو استنفد `maxSteps`، أو أُوقف) يحصل الوكيل الرئيسي على نتيجة خطأ (`isError: true`) تذكر السبب، مثل `Sub-agent 'researcher' used all 10 of its steps (maxSteps) without giving a final answer.` واسم وكيل غير معروف هو أيضًا نتيجة خطأ تسرد الأسماء الصحيحة. ويُضاف استهلاك الوكيل الفرعي من الرموز (tokens) إلى `result.usage` الخاص بالوكيل الرئيسي.
+
+أخطاء الإعداد تُرمى ومعها طريقة إصلاحها: وكيل فرعي بلا `description`، أو قيمة ليست وكيلًا من `createAgent()`، أو أداة من أدواتك تحمل أصلًا الاسم `task` (أو `agent_status` أو `agent_await` أو `agent_cancel`).
+
+## متابعة مهمة
+
+كل استدعاء لـ`task` يعمل في محادثة فرعية لها `taskId` (`task_1`، `task_2`، ... في التذييل). ويستطيع الوكيل الرئيسي العودة إليها:
+
+| مدخل `task` | ما الذي يعمل |
+| --- | --- |
+| بلا `taskId` (`mode: 'new'`) | وكيل فرعي جديد، كما سبق، بـ`taskId` جديد. |
+| `taskId` (`mode: 'resume'`، وهو الافتراضي عند وجود `taskId`) | الوكيل الفرعي نفسه بسجل محادثته كاملًا (موجّهاته السابقة واستدعاءات أدواته وإجاباته) مع `prompt` بوصفه دورة المستخدم التالية. وتحتفظ النتيجة بالـ`taskId` نفسه. |
+| `taskId` مع `mode: 'fork'` | مهمة جديدة (`taskId` جديد) تبدأ من نسخة من ذلك السجل. تبقى المهمة الأصلية كما كانت ويمكن استئنافها لاحقًا. |
+
+يعرف النموذج ذلك من وصف الأداة `task`، فطرح سؤال متابعة لا يحتاج إلى أي شيفرة. أما الوكيل الرئيسي الذي يحتفظ بعمله عبر الدورات أو عبر إعادة التشغيل فيحتاج إلى مخزن وجلسة:
+
+```ts
+import { createAgent } from '@lousho/build-ai-agent';
+import { SqliteStore } from '@lousho/build-ai-agent/sqlite';
+
+const store = new SqliteStore('./.lousho/agent.db');
+const researcher = createAgent({ provider, instructions: 'You research.', description: 'Finds and summarizes sources' });
+const lead = createAgent({ provider, instructions: 'You coordinate research.', store, subagents: { researcher } });
+
+const chat = lead.session({ id: 'user-42' });
+await chat.send('Research the history of the bicycle.'); // the lead calls task -> taskId 'task_1'
+await chat.send('Ask the researcher which source it trusted most.'); // the lead calls task({ taskId: 'task_1', ... })
+```
+
+أين تُحفظ المحادثات:
+
+- مع `createAgent({ store })` (`store.sessions`) وتشغيل للوكيل الرئيسي له `sessionId` (استدعاء `send(message, { sessionId })` تُحفظ له نقاط حفظ (checkpoints)، أو دورة في جلسة)، تُحفظ كل مهمة في `store.sessions` بعد تشغيلها، تحت مفتاح مشتق بالتجزئة (hash) من معرّف جلسة الوكيل الرئيسي ومن `taskId`. وهي تبقى بعد انتهاء تشغيل الوكيل الرئيسي: تستطيع متابعتَها الدوراتُ اللاحقة في الجلسة نفسها، ووكيلٌ رئيسي استُؤنف بـ`agent.resume()` أو `approvals.resolve()`، وعمليةٌ جديدة تعمل على المخزن الدائم نفسه. والـ`taskId` القادم من جلسة وكيل رئيسي أخرى لا يطابق أبدًا. مخزن الجلسات لا يوفّر واجهة لسرد محتوياته، ولذلك لا تُسرد هذه المدخلات ولا تُحذف مع جلسة الوكيل الرئيسي؛ احذف بيانات المخزن للتخلص منها. ومع `AgentExecutor.execute()` عيّن المخزن بـ`withSubagentOptions(subagents, { sessions })`.
+- في غير ذلك (لا مخزن جلسات، أو تشغيل للوكيل الرئيسي بلا `sessionId`) تعيش المهمة في الذاكرة طوال ذلك الاستدعاء الواحد لـ`execute()` / `send()`: والتشغيل الذي يتوقف مؤقتًا بانتظار موافقة ثم يُستأنف يبدأ بلا أي مهمة.
+
+لا تُحفظ إلا المهام التي انتهت (`stop` أو `length` أو `max-steps`)، فالمهمة التي فشلت أو أُلغيت لا يمكن متابعتها. وتصل الأخطاء إلى الوكيل الرئيسي كأخطاء أداة منظَّمة: الـ`taskId` غير المعروف، أو التابع لجلسة وكيل رئيسي أخرى، أو التابع لوكيل فرعي آخر، يفشل بـ`LOUSHO_SUBAGENT_TASK_NOT_FOUND`؛ والمهمة التي ما زالت تعمل (مهمة خلفية لم تنتهِ) تفشل بـ`LOUSHO_SUBAGENT_TASK_BUSY`، مع توجيه النموذج إلى استدعاء `agent_await` أو `agent_cancel` عليها أولًا.
+
+المهمة المستأنفة أو المتفرّعة هي في ما عدا ذلك استدعاء `task` عادي: يمكن أن تعمل في الخلفية (وتحتفظ بـ`taskId` نفسه)، والموافقة داخلها توقف الوكيل الرئيسي مؤقتًا وتستأنفه كأي موافقة لوكيل فرعي، واستهلاكها يُحتسب ضمن `usage` و`limits` الخاصين بالوكيل الرئيسي. ويرى الوكيل الفرعي سجل محادثته كاملًا من جديد عند كل استئناف، فالمهمة طويلة العمر تكلّف رموزًا أكثر في كل مرة.
+
+## المهام المتوازية
+
+استدعاءات الأدوات في دورة نموذج واحدة تعمل بالتزامن (انظر `toolConcurrency`)، فحين يستدعي الوكيل الرئيسي `task` عدة مرات في دورة واحدة يعمل أولئك الوكلاء الفرعيون بالتوازي. وتصل النتائج إلى سجل محادثة الوكيل الرئيسي بالترتيب الذي أجرى به النموذج الاستدعاءات. ضع سقفًا لذلك بـ`toolConcurrency` على الوكيل الرئيسي (القيمة `1` تشغّلهم واحدًا تلو الآخر).
+
+## الوكلاء الفرعيون في الخلفية
+
+مع `background: true` تبدأ `task` الوكيل الفرعي وتعود فورًا بـ`{ taskId, status: 'running', agent }`، فيستطيع الوكيل الرئيسي مواصلة عمله (أو بدء مهام أخرى) أثناء تشغيله. ثم يستخدم الوكيل الرئيسي:
+
+| الأداة | المدخل | النتيجة |
+| --- | --- | --- |
+| `agent_status` | `{ taskId? }` | `{ tasks: [{ taskId, agent, status, elapsedMs, approvalId?, toolName?, error? }] }` لمهمة واحدة أو لجميع المهام. وقيمة `status` هي `queued` أو `running` أو `done` أو `failed` أو `cancelled` أو `awaiting-approval`. |
+| `agent_await` | `{ taskId }` أو `{ taskIds }`، مع `timeoutMs` اختياري | تنتظر حتى تنتهي المهمة أو المهام. المهمة ذات الحالة `done` تحمل `result`: النص نفسه (مع التذييل) الذي تعيده `task` المتزامنة. والمهمة ذات الحالة `failed` تحمل `error`. والمهمة التي ما زالت تعمل بعد انقضاء `timeoutMs` تُبلَّغ بـ`status: 'timeout'`. ومع `taskIds` تكون النتيجة `{ tasks: [...] }`. |
+| `agent_cancel` | `{ taskId }` | تلغي مهمة في قائمة الانتظار أو قيد التشغيل (يُوقَف تشغيلها) وتعيد حالتها. |
+
+يعمل في الوقت نفسه `maxConcurrent` وكيلًا فرعيًا خلفيًا على الأكثر لكل تشغيل للوكيل الرئيسي (الافتراضي 3)؛ والاستدعاءات الإضافية بـ`background: true` تحصل على `status: 'queued'` وتبدأ كلما شغر مكان. عيّن القيمة عبر `subagentOptions` في `createAgent()`:
+
+```ts
+import { createAgent } from '@lousho/build-ai-agent';
+
+const researcher = createAgent({ provider, instructions: 'You research.', description: 'Finds and summarizes sources' });
+
+const lead = createAgent({
+  provider,
+  instructions: 'You coordinate research.',
+  subagents: { researcher },
+  subagentOptions: { maxConcurrent: 2, awaitBackgroundOnFinish: true },
+});
+```
+
+مع `AgentExecutor.execute()`، أرفق الخيارات نفسها بقيمة `subagents` باستخدام `withSubagentOptions(subagents, options)` التي تعيد تلك القيمة. وفي `createAgent()` تتقدّم `subagentOptions` على الخيارات المرفقة بتلك الطريقة.
+
+يرث الوكيل الفرعي الخلفي من تشغيل الوكيل الرئيسي كما يرث المتزامن (الخطّافات، والتتبّع، ومستمعو الأحداث، وتجميع الاستهلاك)، وينطبق `maxSubagentDepth` بالطريقة نفسها. وإيقاف إشارة الوكيل الرئيسي (abort) يلغي وكلاءه الفرعيين الخلفيين، سواء كانوا في قائمة الانتظار أو قيد التشغيل.
+
+### عند انتهاء تشغيل الوكيل الرئيسي
+
+المهام الخلفية تتبع تشغيلًا واحدًا (استدعاء واحد لـ`execute()` / `send()` / `stream()`). وحين ينتهي ذلك التشغيل، أيًّا كانت طريقة انتهائه، **تُلغى** افتراضيًا المهام التي ما زالت في قائمة الانتظار أو قيد التشغيل (يُوقَف تشغيلها). أما مع `awaitBackgroundOnFinish: true` فينتظر التشغيل انتهاءها قبل أن يكتمل (وتشغيل الوكيل الرئيسي الذي أُوقف أو فشل يلغيها مع ذلك). وفي الحالتين لا يكتمل التشغيل إلا بعد أن تتوقف تشغيلاتها، فلا يصل أي حدث لوكيل فرعي إلى مستمعي التشغيل بعد اكتماله؛ ومع `awaitBackgroundOnFinish` تصل أحداثها قبل حدث `run.done` الخاص بالوكيل الرئيسي.
+
+تسرد النتيجة كل مهمة خلفية في التشغيل مع حالتها النهائية:
+
+```ts
+import { createAgent } from '@lousho/build-ai-agent';
+
+const researcher = createAgent({ provider, instructions: 'You research.', description: 'Finds and summarizes sources' });
+const lead = createAgent({ provider, instructions: 'You coordinate research.', subagents: { researcher } });
+
+const result = await lead.send('Research three topics in the background.');
+for (const task of result.backgroundTasks ?? []) {
+  console.log(task.taskId, task.agent, task.status); // e.g. task_1 researcher cancelled
+}
+```
+
+يحتوي `result.backgroundTasks` على `{ taskId, agent, status, elapsedMs, error?, approvalId?, toolName? }` لكل مهمة (بنية `agent_status` نفسها)، ويغيب حين لا يبدأ التشغيل أي مهمة خلفية. استخدم `agent_await` في الوكيل الرئيسي (وموجّه النظام يطلب منه ذلك) لإدخال إجاباتها في المحادثة.
+
+خطّاف المنفِّذ الذي يقف وراء ذلك متاح للاستخدام العام: يُستدعى `ExecuteOptions.onRunEnd` مرة واحدة بالضبط لكل تشغيل، مع `{ result }` (أيًّا كان `finishReason`) أو `{ error }`؛ ويُحسم التشغيل بعد عودته. وتُدرج المهام الخلفية في `result` قبل أن يراه `onRunEnd` الذي كتبته.
+
+القيود:
+
+- تشغيل الوكيل الرئيسي الذي يتوقف مؤقتًا بانتظار موافقة (`finishReason: 'awaiting-approval'`) ينتهي عند تلك النقطة: تُلغى مهامه الخلفية (أو يُنتظر انتهاؤها) كما في أي نهاية أخرى، ويبدأ التشغيل المستأنف بلا أي مهمة. فالتشغيل المستأنف تشغيل مستقل لا صلة له بمهام التشغيل المتوقف (وقد يعمل في عملية أخرى)، ولذلك لا يمكن إبقاؤها حيّة خلال التوقف.
+- الوكيل الفرعي الخلفي الذي يحتاج إلى موافقة يتوقف بـ`status: 'awaiting-approval'` (مع `approvalId` و`toolName` الخاصين بالوكيل الفرعي)؛ فلا يُنفَّذ استدعاؤه، ولا يمكن استئنافه عبر مخزن الموافقات. شغّل تلك المهمة بشكل متزامن (`background: false`) إذا كان من المحتمل أن تحتاج إلى موافقة.
+
+## الفهارس الديناميكية
+
+بدلًا من كائن ثابت (record)، مرّر فهرسًا (catalog) فيه `list()` و`resolve(name)`. تُستدعى `list()` عند بداية كل تشغيل يعرض الأداة `task`، فيمكن أن تتغير المجموعة بين تشغيل وآخر؛ وتُستدعى `resolve()` حين يختار الوكيل الرئيسي اسمًا (أعِد `undefined` للاسم غير المعروف).
+
+```ts
+import { createAgent, type SubagentCatalog } from '@lousho/build-ai-agent';
+
+const experts = new Map([
+  ['researcher', createAgent({ provider, instructions: 'You research.' })],
+]);
+
+const catalog: SubagentCatalog = {
+  list: async () => [{ name: 'researcher', description: 'Finds and summarizes sources' }],
+  resolve: async (name) => experts.get(name),
+};
+
+const lead = createAgent({ provider, instructions: 'You coordinate.', subagents: catalog });
+```
+
+## الوكلاء الفرعيون عن بُعد
+
+تستخدم `remoteAgent()` وكيلًا سبق أن نشرته (`lousho deploy`: خادم node أو Docker أو Cloudflare Worker) بوصفه وكيلًا فرعيًا. يوضع في `subagents` إلى جانب الوكلاء المحليين، ويفوّض إليه الوكيل الرئيسي بالأداة `task` نفسها، بما في ذلك `background: true`.
+
+```ts
+import { createAgent, remoteAgent } from '@lousho/build-ai-agent';
+
+const lead = createAgent({
+  provider,
+  instructions: 'You coordinate.',
+  subagents: {
+    researcher: remoteAgent({
+      url: 'https://researcher.example.workers.dev',
+      auth: process.env.RESEARCHER_TOKEN, // the deployment's LOUSHO_API_TOKEN; or () => string | Promise<string>
+      description: 'Finds and summarizes sources',
+    }),
+  },
+});
+```
+
+تفتح كل مهمة جلسة جديدة على الوكيل البعيد (`POST <url>/chat` مع `{ sessionId, input }`، وتُقرأ الاستجابة كتدفق أحداث SSE، انظر [النشر](/ar/deployment#واجهة-http))، وترسل موجّه المهمة وتعيد النص النهائي للوكيل البعيد (أو كائنه بصيغة JSON حين يكون للوكيل المنشور مخطط `output`، انظر [المخرجات المنظَّمة](/ar/structured-output))، متبوعًا بتذييل يسمّي الجلسة و`taskId`. واستدعاء `task` الذي يستأنف ذلك الـ`taskId` يرسل إلى الجلسة البعيدة نفسها، فيواصل الوكيل البعيد بسجل محادثته الخاص (احفظه في مخزن على الطرف البعيد)؛ ولا يمكن تفريع مهمة بعيدة. لا يرى الوكيل البعيد إلا ذلك الموجّه، ويعمل بنموذجه وأدواته وحدوده الخاصة، فبيئة تشغيل الوكيل الرئيسي (الخطّافات، والبيئة المعزولة، ومخزن الموافقات) لا تصل إليه. وإشارة الإيقاف الخاصة بتشغيل الوكيل الرئيسي توقف الطلب. الخيارات: `url` و`auth` و`name` و`description` و`headers` و`fetch` (احقن دالة `fetch` خاصة بك في الاختبارات؛ فمسارات `serveFetch()` لوكيل يعمل داخل العملية نفسها تصلح نشرًا زائفًا).
+
+حالات الفشل (تعذّر الوصول إلى الوكيل، أو رد 401 أو أي رد آخر خارج نطاق 2xx، أو تدفق مشوَّه، أو تشغيل بعيد ينتهي بخطأ) تصل إلى الوكيل الرئيسي كخطأ أداة منظَّم برمز الخطأ `LOUSHO_REMOTE_REQUEST_FAILED` (و`LOUSHO_REMOTE_UNAUTHORIZED` في حالة 401)؛ ولا يكون رمز الوصول جزءًا من أي خطأ أو حدث أبدًا.
+
+### الموافقات عن بُعد
+
+إذا توقف التشغيل البعيد مؤقتًا بانتظار موافقة، يتوقف تشغيل الوكيل الرئيسي عندها تمامًا كما في حالة الوكيل الفرعي المحلي: تكون قيمة `result.finishReason` هي `'awaiting-approval'`، والموافقة المعلّقة في `agent.approvals.list()` (وفي أزرار القنوات، ومحادثة التطوير، وطلبات الصلاحية في ACP) تحمل اسم الأداة البعيدة ومدخلها، مع `subagentPath: ['researcher']`. واستدعاء `ask_question` على الطرف البعيد يصل كسؤال (`kind: 'question'`) تجيب عنه `agent.approvals.answer()`. والبتّ فيها على الوكيل الرئيسي (`resolve` أو `streamResolve` أو `answer`) يرسل القرار إلى مسار الموافقات لدى الوكيل البعيد (`POST <url>/chat/<session>/approvals/<id>`)، ويقرأ تتمة التشغيل، وتصبح إجابته النهائية نتيجة `task`؛ والتتمة التي تتوقف مرة أخرى توقف الوكيل الرئيسي مرة أخرى.
+
+```ts
+import type { SimpleAgent } from '@lousho/build-ai-agent';
+declare const lead: SimpleAgent; // the lead agent above
+
+const paused = await lead.send('Deploy the docs site');
+if (paused.finishReason === 'awaiting-approval') {
+  const [pending] = await lead.approvals.list(); // e.g. { toolName: 'deploy', args: {...}, subagentPath: ['researcher'] }
+  const result = await lead.approvals.resolve({ id: pending.id, approved: true });
+  console.log(result.text);
+}
+```
+
+لا تحتفظ لقطة الموافقة (snapshot) لدى الوكيل الرئيسي إلا بمعرّف الجلسة البعيدة، ومعرّف الموافقة البعيدة، و`taskId`، واسم الوكيل الفرعي، فتستطيع عملية جديدة للوكيل الرئيسي تعمل على المخزن نفسه أن تبتّ فيها؛ ولا يُخزَّن رمز الوصول (bearer token) أبدًا (بل يُقرأ من خيارات `remoteAgent()` من جديد). والفشل أثناء البتّ (رد 401، أو أي رد آخر خارج نطاق 2xx مثل رد 404 من الطرف البعيد على موافقة لم تعد معلّقة، أو خطأ في الشبكة) هو خطأ الأداة المنظَّم لذلك الاستدعاء لـ`task` برموز الخطأ المذكورة أعلاه، ويواصل تشغيل الوكيل الرئيسي عمله. والتشغيل الذي بلا مخزن موافقات (`AgentExecutor` مجرّد) هو وحده الذي ما زال يُفشل المهمة بـ`LOUSHO_SESSION_AWAITING_APPROVAL`، مع ذكر الجلسة البعيدة ومعرّف الموافقة ليُبتّ فيها على الوكيل البعيد.
+
+## العمق
+
+يحدّ `maxSubagentDepth` (الافتراضي `1`) من عمق تداخل الوكلاء الفرعيين. بالقيمة الافتراضية يستطيع الوكيل الرئيسي استدعاء وكلاء فرعيين، لكنهم لا يستطيعون استدعاء وكلاء فرعيين خاصين بهم: فالتشغيل الذي بلغ الحد لا تُعرض عليه الأداة `task` أصلًا، حتى لو أُنشئ مع `subagents`. والقيمة `maxSubagentDepth: 2` تتيح للوكلاء الفرعيين التابعين للوكيل الرئيسي أن يفوّضوا مرة إضافية. قيمة التشغيل في المستوى الأعلى تنطبق على الشجرة كلها؛ أما `maxSubagentDepth` الخاص بوكيل فرعي فلا أثر له إلا حين يعمل هذا الوكيل في المستوى الأعلى.
+
+## ما يرثه الوكيل الفرعي
+
+يحتفظ الوكيل الفرعي بتعليماته، ونموذجه/مزوّده، وأدواته، ومهاراته، و`maxSteps` الخاص به، وسياقه معزول. ويرث من التشغيل الذي استدعاه:
+
+| إعداد وقت التشغيل | هل يُورَّث؟ | ملاحظات |
+| --- | --- | --- |
+| `signal` الإيقاف | نعم | إيقاف الوكيل الرئيسي يوقف وكلاءه الفرعيين. |
+| التتبّع (`exporter`) | نعم | مقطع التتبّع (span) `invoke_agent` الخاص بالوكيل الفرعي ابنٌ لمقطع `execute_tool task` الخاص بالوكيل الرئيسي. ويُورَّث `captureContent` و`redactContent` أيضًا. |
+| الخطّافات (`hooks`) | نعم | تعمل على استدعاءات النموذج واستدعاءات الأدوات لدى الوكيل الفرعي، مع تعيين `ctx.subagent` (انظر أدناه). والخطّاف الذي يرمي خطأً داخل وكيل فرعي يوقف التشغيل كله. |
+| مخزن الموافقات (`approvalStore`) | نعم | انظر [الموافقات](#الموافقات-داخل-وكيل-فرعي). |
+| مستمعو الأحداث (`onAgentEvent`، `createAgent({ onEvent })`) و`stream()` | نعم | تُمرَّر أحداث الوكيل الفرعي ومعها حقل `subagent`. |
+| `toolConcurrency` | نعم، ما لم يعيّن الوكيل الفرعي قيمته الخاصة | |
+| `sandbox` | نعم | |
+| استهلاك الرموز | يُجمَّع | يُضاف إلى `result.usage` الخاص بالوكيل الرئيسي (الإجماليات، و`byModel`، و`usage.delegated`). |
+| `maxSubagentDepth` | الميزانية المتبقية | انظر [العمق](#العمق). |
+| `onLLMRequest` و`onToolCall` وسائر دوال رد النداء الخاصة بتشغيل واحد | لا | فهي تصف تشغيلًا واحدًا؛ استخدم الخطّافات أو مستمع أحداث لمراقبة الوكلاء الفرعيين. |
+| `sessionId` / `checkpointStore` | لا | لا تُحفظ للوكيل الفرعي نقاط حفظ مستقلة. إذا توقفت العملية أثناء عمل وكيل فرعي، فإن الوكيل الرئيسي المستأنف ينفّذ ذلك الاستدعاء لـ`task` من جديد. |
+| مخطط `output` | لا | مخرجات الوكيل الفرعي خاصة به: إن كان له مخطط، تعيد `task` كائنه بعد التحقق منه بصيغة JSON (انظر [المخرجات المنظَّمة](/ar/structured-output#الوكلاء-الفرعيون))؛ وإلا فتعيد نصًا. |
+| سجل المحادثة | لا | لا يرى الوكيل الفرعي إلا موجّه المهمة (مع دوراته السابقة حين [يستأنف الوكيل الرئيسي المهمة](#متابعة-مهمة)). |
+
+أبناء `createDelegateTool()` يرثون بالطريقة نفسها.
+
+### الخطّافات داخل الوكلاء الفرعيين
+
+تنطبق خطّافات الأب على وكلائه الفرعيين افتراضيًا. ويُعلِم `ctx.subagent` الخطّافَ بأنه يعمل داخل وكيل فرعي: فيه `name` اسم الوكيل الفرعي، و`depth` عمقه (1 لوكيل فرعي تابع لتشغيل المستوى الأعلى)، و`toolCallId` الخاص بالوكيل الرئيسي الذي بدأه، والوكيل الفرعي المحيط به في `parent` عند تداخل أعمق. والخطّاف الذي ينبغي ألا يرى إلا تشغيل المستوى الأعلى يعود مبكرًا:
+
+```ts
+import { HookRegistry } from '@lousho/build-ai-agent';
+
+const hooks = new HookRegistry();
+hooks.register({
+  name: 'audit',
+  preToolCall(ctx) {
+    if (ctx.subagent) return; // top-level tool calls only
+    console.log('tool call', ctx.toolName, ctx.args);
+  },
+});
+```
+
+### الأحداث
+
+استدعاء `agent.stream()` / `AgentExecutor.stream()` على الوكيل الرئيسي يبثّ تشغيل كل وكيل فرعي داخل التدفق نفسه (الخطوات، وأجزاء النص المتتابعة، وأحداث الأدوات، والأخطاء) مع حقل `subagent` في كل حدث من أحداثه، فتستطيع واجهة المستخدم أن تعرض نشاط الوكيل الفرعي متداخلًا تحت استدعاء `task` الخاص بالوكيل الرئيسي (`subagent.toolCallId`). انظر [البث: الوكلاء الفرعيون](/ar/streaming#الوكلاء-الفرعيون).
+
+المستمع المسجَّل على الوكيل الرئيسي (`createAgent({ onEvent })` أو `onAgentEvent`) يتلقى الأحداث نفسها، ومنها أحداث الوكلاء الفرعيين، لحظة وقوعها. انظر [الاستماع من دون المرور على التدفق](/ar/streaming#الاستماع-دون-المرور-على-الأحداث).
+
+## الموافقات داخل وكيل فرعي
+
+حين يستدعي وكيل فرعي أداة لها `needsApproval`، **يتوقف التشغيل كله مؤقتًا**: يكتمل `execute()` الخاص بالوكيل الرئيسي بـ`finishReason: 'awaiting-approval'` ومعه `approvalId`، ويحتفظ مخزن الموافقات بقيد واحد فقط، استدعاؤه المعلّق هو استدعاء الوكيل الفرعي (`toolName`، `args`) مع `subagentPath` يسمّي الوكلاء الفرعيين الذين يعمل داخلهم (مثل `['researcher']`). وافق عليه أو ارفضه بـ`resumeAfterApproval()`، مع تمرير خيار `subagents` نفسه الذي استخدمه التشغيل المتوقف:
+
+```ts
+import { AgentExecutor, resumeAfterApproval, ToolRegistry, createAgent } from '@lousho/build-ai-agent';
+
+const subagents = { researcher: createAgent({ provider, instructions: 'You research.', description: 'Researches' }) };
+
+const paused = await AgentExecutor.execute({ agent, input: 'Go', provider, subagents, approvalStore });
+if (paused.finishReason === 'awaiting-approval' && paused.approvalId) {
+  const result = await resumeAfterApproval(
+    { id: paused.approvalId, approved: true },
+    approvalStore,
+    new ToolRegistry(),
+    provider,
+    { subagents }
+  );
+  console.log(result.text);
+}
+```
+
+الاستئناف ينفّذ الاستدعاء المعلّق للوكيل الفرعي (أو يرفضه)، ويدع الوكيل الفرعي يُكمل عمله، ويعيد إجابته النهائية إلى الوكيل الرئيسي نتيجةً لـ`task`، ثم يواصل الوكيل الرئيسي. وإذا احتاج الوكيل الفرعي إلى موافقة أخرى، يتوقف التشغيل مرة أخرى بـ`approvalId` جديد. يعمل ذلك عند أي عمق، ومع أبناء `createDelegateTool()` (مرّر السجل (registry) الذي يحتوي أداة التفويض).
+
+مع وكيل رئيسي من `createAgent()`، يتوقف `lead.send()` بالطريقة نفسها ويستأنفه `lead.approvals.resolve({ id, approved })` (فالوكيل الرئيسي يعرف `subagents` الخاصة به مسبقًا)؛ وخيار `approve` على الوكيل الرئيسي يبتّ في استدعاءات وكلائه الفرعيين أيضًا.
+
+الضمانات والقيود:
+
+- لا يُنفَّذ أي استدعاء مرتين ولا يضيع أي استدعاء: تُخزَّن حالة الوكيل الفرعي المتوقف داخل قيد الموافقة الخاص بالوكيل الرئيسي (JSON عادي، فيصلح أي `ApprovalStore`)، ويُنفَّذ الاستدعاء الموافَق عليه مرة واحدة بالضبط، عند الاستئناف.
+- استدعاءات الأدوات الأخرى التي اكتملت في دورة الوكيل الرئيسي نفسها تحتفظ بنتائجها ولا تُنفَّذ من جديد.
+- تكون موافقة واحدة فقط معلّقة لكل تشغيل. إذا توقف وكيلان فرعيان في الدورة نفسها، يتوقف التشغيل عند الأول (بترتيب الاستدعاء)؛ ويتوقف الوكيل الفرعي الثاني ويحصل الوكيل الرئيسي على نتيجة خطأ لذلك الاستدعاء لـ`task` تفيد بأن استدعاءه لم يُنفَّذ، فيستطيع أن يطلبه من جديد بعد الموافقة.
+- خطّافات ما قبل الأداة وما بعدها الخاصة باستدعاء `task` تُطلَق من جديد عند الاستئناف، كخطّافات أي أداة موافَق عليها.
+- تحتاج الموافقات إلى `approvalStore` على تشغيل الوكيل الرئيسي، وهو خيار لا تقبله `createAgent()` بعد؛ استخدم `AgentExecutor.execute()` للوكيل الرئيسي. ومن دونه يصبح استدعاء الوكيل الفرعي نتيجة خطأ ولا يُنفَّذ شيء.
+- يستمر تراكم استهلاك الرموز عبر التوقف: استهلاك الوكيل الفرعي قبل التوقف موجود في نتيجة التشغيل المتوقف، وما ينفقه بعد الاستئناف يُضاف إلى `result.usage` الخاص بالوكيل الرئيسي المستأنف.
+
+## `createDelegateTool()`
+
+تغلّف `createDelegateTool({ agent, provider, toolRegistry })` وكيلًا ابنًا واحدًا في أداة تسمّيها وتسجّلها بنفسك، مع حارس `maxDepth` خاص بها. وهي تعمل على نواة التفويض نفسها التي تعمل عليها `task`، فترث بيئة تشغيل الأب بالطريقة نفسها، وبنية نتيجتها (`{ text, usage }`) لم تتغير. فضِّل `subagents` في الشيفرة الجديدة: أداة واحدة، وسرد للوكلاء في الموجّه، ومهام متوازية، وحدود للعمق، كلها تأتي بلا جهد إضافي.
+
+```ts
+import { AgentExecutor, createDelegateTool, ToolRegistry } from '@lousho/build-ai-agent';
+
+const billingAgent = {
+  name: 'Billing Agent',
+  prompt: 'You answer billing questions and look up invoices.',
+};
+
+const registry = new ToolRegistry();
+registry.register(
+  'delegate_billing_agent',
+  createDelegateTool({
+    agent: billingAgent,
+    provider,
+    contextMode: 'none', // 'full-history' shares the parent's context array too
+    maxSteps: 10,
+    maxDepth: 3, // bounds a delegation chain (e.g. A -> B -> A) before it throws
+  })
+);
+
+const supportAgent = {
+  name: 'Support Agent',
+  prompt: 'You help customers. Delegate billing questions to the billing agent.',
+  tools: { delegate_billing_agent: { tool: 'delegate_billing_agent' } },
+};
+
+const result = await AgentExecutor.execute({
+  agent: supportAgent,
+  input: 'Why was I charged twice this month?',
+  provider,
+  toolRegistry: registry,
+});
+```

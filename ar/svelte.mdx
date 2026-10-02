@@ -1,0 +1,70 @@
+---
+title: "Svelte"
+---
+{/* Generated from docs/svelte.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
+
+`loushoAgent()` لـ Svelte هو [خطّاف React](/ar/react) في صورة مخزن (store):
+المصادر نفسها، والحالة نفسها، والإجراءات نفسها، فوق
+[بث الأحداث محدَّد الأنواع](/ar/streaming) نفسه. اقرأ [React](/ar/react) لتعرف معنى كل
+حقل، ونوعَي المصدر، وطريقة عمل الموافقات، وجانب الخادم؛
+أما هذه الصفحة فتغطي ما يختلف.
+
+يقع في المسار الفرعي `@lousho/build-ai-agent/svelte`. ينفّذ المخزن
+عقد المخازن في Svelte (`subscribe(run) => unsubscribe`) يدويًا، فيعمل
+مع `$agent` في Svelte 4 و 5 ولا يحتاج إلى استيراد `svelte`: لا توجد اعتمادية
+نظيرة تثبّتها.
+
+```ts
+import { loushoAgent } from '@lousho/build-ai-agent/svelte';
+
+// In a component's <script lang="ts">, or a module that several components share:
+export const agent = loushoAgent({ url: '/api/agent' }, { approvalsUrl: '/api/approvals' });
+
+export async function submit(text: string): Promise<void> {
+  if (text.trim()) await agent.send(text);
+}
+```
+
+وفي المكوّن (قالب Svelte، ولذلك لا يخضع لفحص الأنواع مع بقية
+المقتطفات هنا):
+
+```html
+{#each $agent.messages as message (message.id)}
+  <article>
+    <header>{message.role}</header>
+    <p>{message.text}</p>
+    {#each message.toolCalls ?? [] as call (call.id)}
+      <code>{call.name}: {call.status}</code>
+    {/each}
+  </article>
+{/each}
+{#if $agent.pendingApproval}
+  <p>
+    Run {$agent.pendingApproval.toolName}?
+    <button on:click={() => agent.approve()}>Approve</button>
+    <button on:click={() => agent.reject('Not now')}>Reject</button>
+  </p>
+{/if}
+{#if $agent.status === 'streaming'}<button on:click={agent.stop}>Stop</button>{/if}
+```
+
+## ما يختلف عن React
+
+- **الحالة هي قيمة المخزن.** `$agent` هو كائن الحالة في خطّاف React:
+  `messages` و`status` و`pendingApproval` و`error` و`usage` و`lastEvent`.
+  والأوامر (`send` و`stop` و`approve` و`reject` و`answer`) موجودة على
+  المخزن نفسه بتواقيع خطّاف React؛ ولا تحتاج إلى
+  مشترك.
+- **`reset()`** يُلغي التشغيل الجاري، وينسى الجلسة العاملة داخل العملية
+  (`{ agent, sessionId }` يبدأ محادثة جديدة) ويمسح الحالة.
+- **المصدر والخيارات قيم عادية**، تُقرأ عند بدء الدورة. لاستخدام
+  وكيل آخر أو `url` آخر، أنشئ مخزنًا آخر.
+- **التنظيف هو إلغاء الاشتراك.** `stop()` يُلغي الطلب الجاري، وكذلك
+  يفعل زوال آخر مشترك (حين يُدمَّر المكوّن الذي يستخدم `$agent`).
+  لا توجد `destroy()`: هكذا توقف مخازن Svelte
+  عملها. والمخزن الذي لا يشترك فيه أحد يظل ينفّذ دورة بدأتها
+  بـ `send()`؛ فاستدعِ `stop()` بنفسك إن تخليت عنه.
+
+المختزِل (reducer) ومحلِّل البث مصدَّران من هذا المسار الفرعي أيضًا
+(`reduceAgentEvents` و`initialAgentUIState` و`parseEventStream`)، وهما
+نفساهما الموجودان في `@lousho/build-ai-agent/react`.

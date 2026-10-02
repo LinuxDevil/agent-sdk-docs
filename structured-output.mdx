@@ -97,7 +97,7 @@ console.log(result.text);
    the model's JSON mode (with the schema, for models that support structured
    outputs); a custom provider may use it or ignore it.
 3. When the model replies without tool calls, the reply is parsed as JSON (a
-   ````
+   ```` ```json ```` code fence around it is tolerated) and validated with
    the schema.
 4. If it is invalid, the model gets one repair step: a user message
    starting with `[output-invalid]` that lists the issues, for example
@@ -112,7 +112,7 @@ console.log(result.text);
 `agent.stream()` works the same way: `run.result` resolves with `object`,
 and the final `run.done` event carries `object` (JSON-encoded) when the
 reply was valid. The repair step shows up as one more
-`step.start` / `step.done` pair. See [Streaming](./streaming.md).
+`step.start` / `step.done` pair. See [Streaming](/streaming).
 
 ## Without createAgent()
 
