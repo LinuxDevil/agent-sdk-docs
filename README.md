@@ -1,6 +1,6 @@
 # Lousho docs
 
-The documentation site for [`@lousho/build-ai-agent`](https://github.com/LinuxDevil/agent-sdk), built with [Mintlify](https://mintlify.com).
+The documentation site for [`@lousho/build-ai-agent`](https://github.com/LinuxDevil/agent-sdk), live at **[lousho.com](https://lousho.com)** in English and [Arabic](https://lousho.com/ar/introduction). Built with [Mintlify](https://mintlify.com).
 
 ## Where the content comes from
 
@@ -49,4 +49,4 @@ Both run in CI on every pull request.
 
 ## Deployment
 
-Mintlify deploys the default branch through its GitHub app; there is no build step in this repository. The Mintlify project must be connected to this repository in the Mintlify dashboard (Settings, Git settings).
+Mintlify deploys the `main` branch to [lousho.com](https://lousho.com) through its GitHub app; there is no build step in this repository. A merge to `main` is a deploy.
