@@ -4,8 +4,17 @@
 //   node scripts/check-translations.mjs               report problems (exit 1 if any)
 //   node scripts/check-translations.mjs --fix-links   rewrite internal links in ar/ to /ar/...
 //   node scripts/check-translations.mjs --record      store the English hashes the translations match
+//   node scripts/check-translations.mjs --list-pending  print ar/pending.json (the pages waiting for translation)
+//   node scripts/check-translations.mjs --mark-pending  give every pending page its Arabic notice (see below)
 //
 // A page is "stale" when its English source changed after --record was last run for it.
+//
+// ar/pending.json is a JSON array of slugs whose Arabic page is not up to date yet. Every check is
+// skipped for such a slug and the run prints "pending  <slug>". A pending page carries the notice
+// below (--mark-pending adds it: a banner above the old translation, or a stub page when there is
+// no translation yet), so a reader is never shown wrong content without being told. Once a page is
+// translated, remove its slug from pending.json AND delete the notice: the check fails for a
+// page that is not pending but still has the marker.
 
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
@@ -18,6 +27,8 @@ const LANG = 'ar';
 const UNTRANSLATED = new Set(['changelog']);
 const manifestPath = join(root, LANG, 'translations.json');
 const mode = process.argv[2];
+const pendingPath = join(root, LANG, 'pending.json');
+const MARKER = '{/* pending-translation */}';
 
 const read = (file) => readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
 const hash = (text) => createHash('sha1').update(text).digest('hex').slice(0, 12);
@@ -26,6 +37,54 @@ const slugs = readdirSync(root)
   .map((name) => name.slice(0, -4))
   .filter((slug) => !UNTRANSLATED.has(slug));
 const manifest = existsSync(manifestPath) ? JSON.parse(read(manifestPath)) : {};
+const pending = existsSync(pendingPath) ? JSON.parse(read(pendingPath)) : [];
+if (!Array.isArray(pending) || pending.some((slug) => typeof slug !== 'string')) {
+  console.error(`${LANG}/pending.json must be a JSON array of slugs`);
+  process.exit(1);
+}
+const isPending = (slug) => pending.includes(slug);
+
+if (mode === '--list-pending') {
+  console.log(JSON.stringify(pending));
+  process.exit(0);
+}
+
+function notice(slug, stub) {
+  const body = stub
+    ? `<Note>\nهذه الصفحة لم تُترجَم إلى العربية بعد. اقرأ [النسخة الإنجليزية](/${slug}).\n</Note>`
+    : `<Warning>\nلم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/${slug}).\n</Warning>`;
+  return `${MARKER}\n${body}\n`;
+}
+
+if (mode === '--mark-pending') {
+  let marked = 0;
+  for (const slug of pending) {
+    const english = join(root, `${slug}.mdx`);
+    if (!existsSync(english)) {
+      console.error(`pending slug without an English page: ${slug}`);
+      process.exit(1);
+    }
+    const file = join(root, LANG, `${slug}.mdx`);
+    if (!existsSync(file)) {
+      const title = /^title: (".*")$/m.exec(read(english))?.[1] ?? JSON.stringify(slug);
+      writeFileSync(file, `---\ntitle: ${title}\n---\n\n${notice(slug, true)}`);
+      marked++;
+    } else {
+      const text = read(file);
+      if (text.includes(MARKER)) continue;
+      const end = text.indexOf('\n---\n', 4);
+      if (!text.startsWith('---\n') || end < 0) {
+        console.error(`${LANG}/${slug}.mdx has no front matter`);
+        process.exit(1);
+      }
+      const head = end + 5;
+      writeFileSync(file, `${text.slice(0, head)}\n${notice(slug, false)}\n${text.slice(head).replace(/^\n+/, '')}`);
+      marked++;
+    }
+  }
+  console.log(`marked ${marked} pending pages`);
+  process.exit(0);
+}
 
 function codeBlocks(text) {
   const blocks = [];
@@ -58,7 +117,7 @@ if (mode === '--fix-links') {
   const pattern = new RegExp(`(\\]\\(|href=")/(?!${LANG}/)(${slugs.map((s) => s.replace(/[-]/g, '\\-')).join('|')})(?=[)#"])`, 'g');
   for (const slug of slugs) {
     const file = join(root, LANG, `${slug}.mdx`);
-    if (!existsSync(file)) continue;
+    if (!existsSync(file) || isPending(slug)) continue;
     const before = read(file);
     const after = before
       .replace(pattern, `$1/${LANG}/$2`)
@@ -81,14 +140,27 @@ if (mode === '--fix-links') {
 
 const problems = [];
 const stale = [];
+const pendingSeen = [];
+for (const slug of pending) {
+  if (!slugs.includes(slug)) problems.push(`${LANG}/pending.json lists "${slug}", which is not an English page`);
+}
 for (const slug of slugs) {
+  if (isPending(slug)) {
+    pendingSeen.push(slug);
+    const file = join(root, LANG, `${slug}.mdx`);
+    if (!existsSync(file) || !read(file).includes(MARKER)) {
+      problems.push(`${slug}: pending, but ${LANG}/${slug}.mdx has no pending notice (run --mark-pending)`);
+    }
+    continue;
+  }
   const file = join(root, LANG, `${slug}.mdx`);
   if (!existsSync(file)) {
-    problems.push(`${slug}: no ${LANG}/${slug}.mdx`);
+    problems.push(`${slug}: no ${LANG}/${slug}.mdx (translate it, or add "${slug}" to ${LANG}/pending.json)`);
     continue;
   }
   const english = read(join(root, `${slug}.mdx`));
   const translated = read(file);
+  if (translated.includes(MARKER)) problems.push(`${slug}: still has the pending notice; delete it`);
 
   if (!/^---\ntitle: ".+"\n/.test(translated)) problems.push(`${slug}: front matter must start with a quoted title`);
   if (!/[؀-ۿ]/.test(translated)) problems.push(`${slug}: contains no Arabic text`);
@@ -128,7 +200,8 @@ if (mode === '--record') {
   console.log(`recorded ${Object.keys(sorted).length} pages`);
 }
 
+for (const slug of pendingSeen) console.log(`pending  ${slug}`);
 for (const problem of problems) console.log(`problem  ${problem}`);
 for (const slug of stale) console.log(`stale    ${slug}: the English page changed since it was translated`);
-console.log(`${slugs.length} pages, ${problems.length} problems, ${stale.length} stale`);
+console.log(`${slugs.length} pages, ${pendingSeen.length} pending, ${problems.length} problems, ${stale.length} stale`);
 if (problems.length || (mode !== '--record' && stale.length)) process.exit(1);

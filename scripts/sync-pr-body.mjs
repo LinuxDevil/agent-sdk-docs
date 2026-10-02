@@ -76,8 +76,8 @@ export function buildPullRequest({ sdkSha, syncOutput, syncExitCode, translation
   out.push('');
   out.push('## Before merging');
   out.push('');
-  out.push('- [ ] Translate the stale pages (see `scripts/TRANSLATING.md`), run `node scripts/check-translations.mjs --fix-links` and `--record`.');
-  out.push('- [ ] Add new pages to `PAGES` in `scripts/sync-sdk-docs.mjs` and to `docs.json` for both languages.');
+  out.push('- [ ] Stale pages: translate them (see `scripts/TRANSLATING.md`) and run `--fix-links` and `--record`, or add their slugs to `ar/pending.json` and run `node scripts/check-translations.mjs --mark-pending` (the checker skips pending pages).');
+  out.push('- [ ] Add new pages to `PAGES` in `scripts/sync-sdk-docs.mjs` and to `docs.json` for both languages (`ar/<slug>` in the Arabic navigation, with the slug in `ar/pending.json`).');
   out.push('- [ ] Merging is manual: a merge to `main` deploys lousho.com.');
   if (defaultToken) {
     out.push('', '> This pull request was opened with the default `GITHUB_TOKEN`, so the `Check docs` workflow does not run on it: run the checks locally or trigger them by hand before merging.');

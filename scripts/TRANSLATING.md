@@ -96,4 +96,14 @@ node scripts/check-translations.mjs               # code blocks, front matter, s
 node scripts/check-translations.mjs --record      # store the English hashes the translation matches
 ```
 
+## Pending pages
+
+`ar/pending.json` lists the slugs whose Arabic page is new or out of date. To translate one:
+
+1. Translate (or update) `ar/<slug>.mdx` completely, following the rules above. Delete the `{/* pending-translation */}` marker and the `<Note>` or `<Warning>` block under it.
+2. Remove `"<slug>"` from `ar/pending.json`.
+3. Run `--fix-links`, then the check, then `--record`.
+
+While a slug is pending the checker skips it, and the page shows a notice that the English page is newer (a stub page, with a link to the English page, if there is no translation yet). Once the slug is out of `pending.json` the checker enforces everything, and fails if the marker is still in the file. `--list-pending` prints the list.
+
 `check-translations.mjs` reports a page as **stale** when its English source changed after the translation was recorded. The changelog is not translated. The daily sync pull request (`sync/sdk-docs`) lists the stale pages as `ar/<slug>.mdx`; translate them on that branch and run `--record` afterwards.

@@ -33,6 +33,21 @@ node scripts/check-translations.mjs --record      # mark the translations as mat
 
 The check fails when a code block differs from the English page, when a link points to a heading that does not exist, or when an English page changed after its translation was recorded (the page is reported as stale). It runs in CI.
 
+### Pages waiting for translation
+
+`ar/pending.json` is a JSON array of slugs whose Arabic page is not up to date: new pages, or pages whose English changed after a sync. For a pending slug the checker skips every check and prints `pending  <slug>`, so CI stays green while translators catch up. `node scripts/check-translations.mjs --list-pending` prints the array.
+
+What a reader sees: the Arabic navigation always lists every page. A pending page that has an older translation keeps it, under an Arabic warning that the English page is newer and the content below may differ (with a link to the English page). A pending page with no translation yet is a stub: an Arabic note that the page is not translated, with a link to the English page. Both carry the marker `{/* pending-translation */}`; `node scripts/check-translations.mjs --mark-pending` adds the notice to every pending page that lacks it.
+
+### Adding a page later
+
+1. Add the SDK file to `PAGES` in `scripts/sync-sdk-docs.mjs` (and a `SIDEBAR_TITLES` entry if the title is long), then run `npm run sync`.
+2. Add the slug to the English navigation in `docs.json` and `ar/<slug>` at the same place in the Arabic navigation.
+3. Add the slug to `ar/pending.json` and run `node scripts/check-translations.mjs --mark-pending`.
+4. Translate later: follow `scripts/TRANSLATING.md`; the translator removes the slug from `ar/pending.json`, deletes the notice and runs `--fix-links` and `--record`. From then on CI enforces the page.
+
+After a sync that makes translated pages stale, add the slugs the checker reports as `stale` to `ar/pending.json` and run `--mark-pending` in the same pull request.
+
 ## Local preview
 
 ```bash

@@ -61,6 +61,18 @@ const PAGES = {
   'docs/configuration.md': 'configuration',
   'docs/errors.md': 'errors',
   'docs/utilities.md': 'utilities',
+  'docs/executor-api.md': 'executor-api',
+  'docs/build-a-coding-agent.md': 'build-a-coding-agent',
+  'docs/troubleshooting.md': 'troubleshooting',
+  'docs/migrating-to-create-agent.md': 'migrating-to-create-agent',
+  'docs/mcp.md': 'mcp',
+  'docs/hooks.md': 'hooks',
+  'docs/triggers.md': 'triggers',
+  'docs/runs.md': 'runs',
+  'docs/models-and-cost.md': 'models-and-cost',
+  'docs/stream-events.md': 'stream-events',
+  'docs/queue-and-steer.md': 'queue-and-steer',
+  'docs/openapi-tools.md': 'openapi-tools',
   'CHANGELOG.md': 'changelog',
 };
 
@@ -72,6 +84,14 @@ const SIDEBAR_TITLES = {
   acp: 'Editors (ACP)',
   'api-overview': 'API overview',
   observability: 'Tracing',
+  'executor-api': 'Executor API',
+  'migrating-to-create-agent': 'Migrating to createAgent()',
+  'build-a-coding-agent': 'Build a coding agent',
+  mcp: 'MCP',
+  runs: 'Runs and cancellation',
+  'stream-events': 'Stream events',
+  'queue-and-steer': 'Queued input and steering',
+  'models-and-cost': 'Models and cost',
 };
 
 /** Pages written by hand in this repository. Listed so the report can flag SDK docs with no page. */
