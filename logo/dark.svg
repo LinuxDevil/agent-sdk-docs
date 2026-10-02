@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="132" height="32" viewBox="0 0 132 32" fill="none">
+  <rect x="2" y="4" width="24" height="24" rx="7" fill="#34D8A6"/>
+  <path d="M10 10v12h8" stroke="#06281E" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="36" y="22.5" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="19" font-weight="650" letter-spacing="-0.3" fill="#FFFFFF">lousho</text>
+</svg>
