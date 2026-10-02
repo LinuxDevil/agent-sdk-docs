@@ -1,0 +1,37 @@
+---
+title: "Examples"
+description: "Runnable examples from the SDK repository. Most use the built-in mock provider, so they need no API key."
+---
+
+The examples live in the [`examples/`](https://github.com/LinuxDevil/agent-sdk/tree/main/examples) directory of the SDK repository. Clone it, install, and run any of them with the command shown:
+
+```bash
+git clone https://github.com/LinuxDevil/agent-sdk.git
+cd agent-sdk
+npm install
+```
+
+## Flagship
+
+<Card title="ops-pipeline" icon="siren" href="https://github.com/LinuxDevil/agent-sdk/tree/main/examples/ops-pipeline" horizontal>
+  A monitoring alert reaches a monitor agent, which delegates a fix behind a human approval gate. A Slack "Fix it" button resumes the paused run, a fixer agent writes a patch, and guardrails check the patch before a GitHub pull request is opened. Runs against mocks by default: `npm run pipeline:demo`.
+</Card>
+
+## Starting points
+
+| Example | What it shows | Run it |
+| ------- | ------------- | ------ |
+| [agent-dir](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/agent-dir) | An agent defined as a directory (`instructions.md`, `tools/`, `skills/`, `agent.json`) and loaded with `loadAgentDir()` | `npm run example:agent-dir` |
+| [support-bot](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/support-bot) | A minimal customer-support agent | `npm run example:support-bot` |
+| [research-assistant](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/research-assistant) | A research agent with the built-in `http` tool | `npm run example:research-assistant` |
+| [doc-qa](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/doc-qa) | Question answering scoped to one document | `npm run example:doc-qa` |
+| [workflow-router](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/workflow-router) | Classifying a request into a fixed set of categories | `npm run example:workflow-router` |
+| [slack-notifier](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/slack-notifier) | Turning a raw event description into a short Slack notification | `npm run example:slack-notifier` |
+| [tracing](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/tracing) | A run wired to console and OpenTelemetry trace exporters | `npm run example:tracing:console` |
+| [openrouter](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/openrouter) | `OpenRouterProvider`: generation, streaming, tool calling, model listing. Needs `OPENROUTER_API_KEY` | `npm run example:openrouter` |
+
+## Related guides
+
+- [Agent directories](/agent-directories) explains the layout the `agent-dir` example uses.
+- [Approvals](/approvals) and [Guardrails](/guardrails) cover the two gates in `ops-pipeline`.
+- [Tracing](/observability) lists the spans and attributes the `tracing` example prints.

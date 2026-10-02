@@ -1,0 +1,114 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "Lousho",
+  "description": "A TypeScript SDK for building AI agents that run in your own code, on your own host.",
+  "colors": {
+    "primary": "#0F9D74",
+    "light": "#34D8A6",
+    "dark": "#0B7A5A"
+  },
+  "favicon": "/favicon.svg",
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg",
+    "href": "/introduction"
+  },
+  "appearance": {
+    "default": "dark"
+  },
+  "fonts": {
+    "family": "Inter"
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "npm",
+        "href": "https://www.npmjs.com/package/@lousho/build-ai-agent"
+      }
+    ],
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/LinuxDevil/agent-sdk"
+    }
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "icon": "book-open",
+        "groups": [
+          {
+            "group": "Get started",
+            "pages": ["introduction", "quickstart", "installation", "coding-agents"]
+          },
+          {
+            "group": "Build an agent",
+            "pages": [
+              "tools",
+              "approvals",
+              "sessions",
+              "memory",
+              "structured-output",
+              "streaming",
+              "reasoning",
+              "providers"
+            ]
+          },
+          {
+            "group": "Compose agents",
+            "pages": ["sub-agents", "skills", "agent-directories", "flows"]
+          },
+          {
+            "group": "Run it reliably",
+            "pages": ["durable-execution", "compaction", "guardrails", "workspace-tools"]
+          },
+          {
+            "group": "Put it in front of people",
+            "pages": ["react", "vue", "svelte", "ai-sdk-ui", "nextjs", "channels", "schedules", "acp"]
+          },
+          {
+            "group": "Test and observe",
+            "pages": ["testing", "evals", "observability"]
+          },
+          {
+            "group": "Ship",
+            "pages": ["cli", "deployment", "registry", "agent-forge"]
+          }
+        ]
+      },
+      {
+        "tab": "Examples",
+        "icon": "chef-hat",
+        "groups": [
+          {
+            "group": "Examples",
+            "pages": ["examples"]
+          }
+        ]
+      },
+      {
+        "tab": "Reference",
+        "icon": "code",
+        "groups": [
+          {
+            "group": "Reference",
+            "pages": ["api-overview", "configuration", "errors", "utilities"]
+          },
+          {
+            "group": "Releases",
+            "pages": ["changelog"]
+          }
+        ]
+      }
+    ]
+  },
+  "contextual": {
+    "options": ["copy", "view", "chatgpt", "claude"]
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/LinuxDevil/agent-sdk"
+    }
+  }
+}

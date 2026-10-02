@@ -1,47 +1,36 @@
-# Build AI Agent SDK Documentation
+# Lousho docs
 
-This website is built using [Docusaurus](https://docusaurus.io/), a modern static website generator.
+The documentation site for [`@lousho/build-ai-agent`](https://github.com/LinuxDevil/agent-sdk), built with [Mintlify](https://mintlify.com).
 
-## Installation
+## Where the content comes from
+
+Most pages are **generated** from the SDK repository's `docs/*.md` (and its `CHANGELOG.md`). Those files are the source of truth: their TypeScript snippets are type-checked and executed in the SDK's CI. Do not edit a generated page here; edit the SDK doc and sync.
+
+```bash
+npm run sync                      # reads ../agent-sdk
+npm run sync -- /path/to/agent-sdk
+```
+
+The script (`scripts/sync-sdk-docs.mjs`) adds front matter, rewrites links between pages, points links to source files at GitHub, and escapes what MDX would otherwise read as JSX. It reports any SDK doc that has no page and any page missing from the navigation.
+
+Three pages are written by hand and are never overwritten: `introduction.mdx`, `coding-agents.mdx` and `examples.mdx`. Navigation, colours and the logo are in `docs.json`.
+
+## Local preview
 
 ```bash
 npm install
+npm run dev        # http://localhost:3000
 ```
 
-## Local Development
+## Checks
 
 ```bash
-npm start
+npm run check      # broken links
+npx mint validate  # strict build validation
 ```
 
-This command starts a local development server and opens up a browser window. Most changes are reflected live without having to restart the server.
-
-## Build
-
-```bash
-npm run build
-```
-
-This command generates static content into the `build` directory and can be served using any static contents hosting service.
+Both run in CI on every pull request.
 
 ## Deployment
 
-This site is automatically deployed to GitHub Pages when changes are pushed to the `main` branch. The deployment is handled by GitHub Actions (see `.github/workflows/deploy.yml`).
-
-The site will be available at: https://linuxdevil.github.io/agent-sdk-docs/
-
-### Manual Deployment
-
-If you need to deploy manually:
-
-```bash
-npm run deploy
-```
-
-### Setting up GitHub Pages
-
-1. Go to your repository settings on GitHub
-2. Navigate to "Pages" in the left sidebar
-3. Under "Build and deployment", set:
-   - **Source**: GitHub Actions
-4. Push changes to the `main` branch to trigger automatic deployment
+Mintlify deploys the default branch through its GitHub app; there is no build step in this repository. The Mintlify project must be connected to this repository in the Mintlify dashboard (Settings, Git settings).

@@ -1,0 +1,46 @@
+---
+title: "Lousho with coding agents"
+description: "Give Claude Code, Cursor or another coding agent the SDK's docs in a form it can read, so it writes code against the real API."
+---
+
+A coding agent writes better Lousho code when it reads the current docs instead of guessing from training data. The SDK ships its documentation in two machine-readable files, and this site serves every page as Markdown.
+
+## The docs, as files
+
+The npm package contains both files, next to its `README.md`:
+
+| File | What it is |
+| ---- | ---------- |
+| `node_modules/@lousho/build-ai-agent/llms.txt` | An [llmstxt.org](https://llmstxt.org) index: one line per docs page, with a summary and a link |
+| `node_modules/@lousho/build-ai-agent/llms-full.txt` | The README and every docs page in one file, with absolute links |
+
+They are generated from the same docs as this site and checked in the SDK's CI, so they match the version you have installed. Tell your coding agent where they are, for example in your project's `AGENTS.md` or `CLAUDE.md`:
+
+```markdown
+## Lousho SDK
+
+This project uses @lousho/build-ai-agent. Before writing or changing agent code,
+read node_modules/@lousho/build-ai-agent/llms-full.txt. It documents the installed version.
+Tests must run offline: use mockModel from @lousho/build-ai-agent/testing.
+```
+
+## The docs, from this site
+
+Every page here has a **Copy page** button at the top, which copies the page as Markdown for pasting into a chat. The same menu opens the page in ChatGPT or Claude.
+
+## Let the coding agent check its work
+
+Two parts of the SDK make an agent's work easy to verify without an API key:
+
+- [Testing](/testing): `mockModel` scripts the model's replies, so a test can assert on tool calls and final text and run offline in CI.
+- [Evals](/evals): `defineEval()` asserts on the trajectory (which tools, in what order, with which arguments) and `lousho eval` reports the result as JUnit.
+
+`npx lousho doctor` checks the Node version, peer dependencies and API keys, and prints a fix for anything missing. It is a useful first command for a coding agent to run in a new checkout.
+
+## Your Lousho agent as a coding agent
+
+The other direction is covered too. An agent you build with the SDK can itself work on code:
+
+- [Workspace tools](/workspace-tools): file system and shell tools confined to a root directory, with the shell behind approval.
+- [Editors (ACP)](/acp): `lousho acp ./my-agent` serves your agent to Zed and other Agent Client Protocol editors.
+- [Project instructions](/configuration#project-instructions): `projectInstructions` appends your repository's `AGENTS.md` to the agent's instructions.
