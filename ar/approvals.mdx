@@ -123,7 +123,11 @@ const agent = createAgent({
 `{ index, reason? }` لتلك القاعدة، و`at` طابع زمني بصيغة ISO، ويُحذف `args` حين
 يضبط التشغيل الخيار `redactContent`. ويتلقى البث المُدخَل نفسه في حدث `permission.decision`
 (انظر [البث](/ar/streaming)). ولا يُنتَج أيٌّ منهما إلا حين يضبط الوكيل
-`permissions` أو `onPermissionDecision`.
+`permissions` أو `onPermissionDecision`، أو وضع صلاحيات غير `'default'`.
+
+وللحصول على إعداد مسبق مسمّى فوق هذه القواعد - `plan` (انظر ولا تلمس)،
+أو `acceptEdits` أو `dontAsk`، ويمكن تبديله في منتصف الجلسة - راجع
+[أوضاع الصلاحيات](/ar/permission-modes).
 
 الخياران متاحان أيضًا في `AgentExecutor.execute()` / `stream()` وفي
 `resumeAfterApproval()`. يرث الوكلاء الفرعيون قواعد الوكيل الرئيسي، وتُفحص
@@ -133,7 +137,9 @@ const agent = createAgent({
 ## الموافقة أو المنع أو السؤال
 
 يمكن لدالة `needsApproval` أن تُرجع أكثر من قيمة منطقية. تستقبل
-الوسائط بعد التحقق منها و`{ toolName, toolCallId, sessionId, messages }`،
+الوسائط بعد التحقق منها و`{ toolName, toolCallId, sessionId, messages, principal }`
+(`principal`: من يعمل التشغيل نيابةً عنه، انظر
+[المبادئ في الأدوات والموافقات](/ar/auth#الهويات-في-الأدوات-والموافقات))،
 وتُرجع (أو تُنجَز بـ):
 
 - `'ask'` أو `true`: التوقف المؤقت بانتظار الموافقة، كما كان من قبل.
@@ -238,6 +244,9 @@ const agent = createAgent({ provider, tools: [emailTool], store }); // or approv
 مرّر `approve` للبتّ في كل استدعاء لحظة ظهوره بدل التوقف المؤقت: `true`
 تنفّذ الأداة، و`false` ترسل رفضًا إلى النموذج. يسري ذلك على `send()`
 والجلسات و`agent.approvals.resolve()`؛ أما `stream()` فيبقى ينتهي عند التوقف المؤقت.
+وقيمة `principal` في وسيطها هي صاحب الاستدعاء، و
+`agent.approvals.resolve(decision, { principal })` تسجّل من اتخذ القرار بوصفه
+`ctx.approval.by` للأداة (انظر [auth](/ar/auth#من-وافق)).
 
 ```ts
 import { createAgent } from '@lousho/build-ai-agent';

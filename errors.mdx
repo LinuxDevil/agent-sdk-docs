@@ -48,10 +48,10 @@ Find a code by area:
 | Area | Codes | When you meet them |
 | ---- | ----- | ------------------ |
 | [Configuration](#configuration) | [`LOUSHO_CONFIG_INVALID`](#lousho_config_invalid), [`LOUSHO_CONFIG_MISSING_PROVIDER`](#lousho_config_missing_provider), [`LOUSHO_CONFIG_MISSING_AGENT`](#lousho_config_missing_agent), [`LOUSHO_CONFIG_MISSING_INPUT`](#lousho_config_missing_input), [`LOUSHO_CONFIG_CONFLICTING_OPTIONS`](#lousho_config_conflicting_options), [`LOUSHO_CONFIG_MISSING_CHECKPOINT_STORE`](#lousho_config_missing_checkpoint_store), [`LOUSHO_CONFIG_RESOLVER_FAILED`](#lousho_config_resolver_failed) | A `createAgent()` or executor call that is missing or mixing options, or a config resolver that failed. |
-| [Providers and peers](#providers-and-peers) | [`LOUSHO_PROVIDER_SPEC_INVALID`](#lousho_provider_spec_invalid), [`LOUSHO_PROVIDER_UNKNOWN`](#lousho_provider_unknown), [`LOUSHO_PROVIDER_MISSING_API_KEY`](#lousho_provider_missing_api_key), [`LOUSHO_PROVIDER_REQUEST_FAILED`](#lousho_provider_request_failed), [`LOUSHO_PROVIDER_RATE_LIMITED`](#lousho_provider_rate_limited), [`LOUSHO_PEER_MISSING`](#lousho_peer_missing) | Resolving a model string, a missing API key or peer package, a failed or rate-limited model request. |
+| [Providers and peers](#providers-and-peers) | [`LOUSHO_PROVIDER_SPEC_INVALID`](#lousho_provider_spec_invalid), [`LOUSHO_PROVIDER_UNKNOWN`](#lousho_provider_unknown), [`LOUSHO_PROVIDER_MISSING_API_KEY`](#lousho_provider_missing_api_key), [`LOUSHO_PROVIDER_REQUEST_FAILED`](#lousho_provider_request_failed), [`LOUSHO_PROVIDER_RATE_LIMITED`](#lousho_provider_rate_limited), [`LOUSHO_PEER_MISSING`](#lousho_peer_missing), [`LOUSHO_HOSTED_TOOL_UNSUPPORTED`](#lousho_hosted_tool_unsupported) | Resolving a model string, a missing API key or peer package, a failed or rate-limited model request, a hosted tool the provider cannot run. |
 | [Agent spec files](#agent-spec-files) | [`LOUSHO_SPEC_INVALID`](#lousho_spec_invalid), [`LOUSHO_SPEC_UNKNOWN_FIELD`](#lousho_spec_unknown_field), [`LOUSHO_SPEC_UNSUPPORTED_FORMAT`](#lousho_spec_unsupported_format) | Loading an `AgentSpec` file with `loadSpec()` or `specToAgent()`. |
 | [Tools](#tools) | [`LOUSHO_TOOL_NOT_FOUND`](#lousho_tool_not_found), [`LOUSHO_TOOL_NEEDS_CREDENTIALS`](#lousho_tool_needs_credentials), [`LOUSHO_TOOL_EXECUTION_FAILED`](#lousho_tool_execution_failed), [`LOUSHO_TOOL_ARGS_INVALID`](#lousho_tool_args_invalid) | A tool the model called is unknown, needs credentials, threw, or got invalid arguments. |
-| [Approvals and sessions](#approvals-and-sessions) | [`LOUSHO_APPROVAL_STORE_MISSING`](#lousho_approval_store_missing), [`LOUSHO_APPROVAL_NOT_FOUND`](#lousho_approval_not_found), [`LOUSHO_SESSION_AWAITING_APPROVAL`](#lousho_session_awaiting_approval), [`LOUSHO_SESSION_ID_INVALID`](#lousho_session_id_invalid), [`LOUSHO_SESSION_FILE_CORRUPT`](#lousho_session_file_corrupt), [`LOUSHO_SESSION_BUSY`](#lousho_session_busy), [`LOUSHO_SESSION_TURN_PENDING`](#lousho_session_turn_pending), [`LOUSHO_SESSION_STREAM_UNSUPPORTED`](#lousho_session_stream_unsupported), [`LOUSHO_REMOTE_UNAUTHORIZED`](#lousho_remote_unauthorized), [`LOUSHO_REMOTE_REQUEST_FAILED`](#lousho_remote_request_failed), [`LOUSHO_SUBAGENT_TASK_NOT_FOUND`](#lousho_subagent_task_not_found), [`LOUSHO_SUBAGENT_TASK_BUSY`](#lousho_subagent_task_busy), [`LOUSHO_CHECKPOINT_NOT_FOUND`](#lousho_checkpoint_not_found), [`LOUSHO_AGENT_DRIFT`](#lousho_agent_drift), [`LOUSHO_RESUME_TOOL_MISSING`](#lousho_resume_tool_missing), [`LOUSHO_RUN_ALREADY_ITERATED`](#lousho_run_already_iterated) | Approvals, sessions, checkpoints and resume, remote agents and sub-agent tasks. |
+| [Approvals and sessions](#approvals-and-sessions) | [`LOUSHO_APPROVAL_STORE_MISSING`](#lousho_approval_store_missing), [`LOUSHO_APPROVAL_NOT_FOUND`](#lousho_approval_not_found), [`LOUSHO_SESSION_AWAITING_APPROVAL`](#lousho_session_awaiting_approval), [`LOUSHO_SESSION_ID_INVALID`](#lousho_session_id_invalid), [`LOUSHO_SESSION_FILE_CORRUPT`](#lousho_session_file_corrupt), [`LOUSHO_SESSION_BUSY`](#lousho_session_busy), [`LOUSHO_SESSION_TURN_PENDING`](#lousho_session_turn_pending), [`LOUSHO_SESSION_STREAM_UNSUPPORTED`](#lousho_session_stream_unsupported), [`LOUSHO_SESSION_STEP_NOT_FOUND`](#lousho_session_step_not_found), [`LOUSHO_SESSION_EXISTS`](#lousho_session_exists), [`LOUSHO_SESSION_FORK_UNSUPPORTED`](#lousho_session_fork_unsupported), [`LOUSHO_REMOTE_UNAUTHORIZED`](#lousho_remote_unauthorized), [`LOUSHO_REMOTE_REQUEST_FAILED`](#lousho_remote_request_failed), [`LOUSHO_SUBAGENT_TASK_NOT_FOUND`](#lousho_subagent_task_not_found), [`LOUSHO_SUBAGENT_TASK_BUSY`](#lousho_subagent_task_busy), [`LOUSHO_CHECKPOINT_NOT_FOUND`](#lousho_checkpoint_not_found), [`LOUSHO_AGENT_DRIFT`](#lousho_agent_drift), [`LOUSHO_RESUME_TOOL_MISSING`](#lousho_resume_tool_missing), [`LOUSHO_RUN_ALREADY_ITERATED`](#lousho_run_already_iterated) | Approvals, sessions, checkpoints and resume, remote agents and sub-agent tasks. |
 | [Schedules](#schedules) | [`LOUSHO_SCHEDULE_INVALID`](#lousho_schedule_invalid) | Defining or loading a schedule. |
 | [Channels](#channels) | [`LOUSHO_CHANNEL_INVALID`](#lousho_channel_invalid), [`LOUSHO_MEMORY_INVALID`](#lousho_memory_invalid) | Defining a channel or a memory slot. |
 | [Registry](#registry) | [`LOUSHO_REGISTRY_UNREACHABLE`](#lousho_registry_unreachable), [`LOUSHO_REGISTRY_ITEM_NOT_FOUND`](#lousho_registry_item_not_found), [`LOUSHO_REGISTRY_INVALID`](#lousho_registry_invalid), [`LOUSHO_REGISTRY_UNSAFE_PATH`](#lousho_registry_unsafe_path), [`LOUSHO_REGISTRY_FILE_EXISTS`](#lousho_registry_file_exists) | `lousho add` fetching or copying from a registry. |
@@ -60,6 +60,7 @@ Find a code by area:
 | [Storage, deployment and integrations](#storage-deployment-and-integrations) | [`LOUSHO_STORAGE_FAILED`](#lousho_storage_failed), [`LOUSHO_TRIGGER_INVALID`](#lousho_trigger_invalid), [`LOUSHO_CHANNEL_REQUEST_FAILED`](#lousho_channel_request_failed), [`LOUSHO_DEPLOY_FAILED`](#lousho_deploy_failed) | A storage backend, a trigger, a channel request or `lousho build`. |
 | [Tests and evals](#tests-and-evals) | [`LOUSHO_EVALS_INVALID`](#lousho_evals_invalid), [`LOUSHO_TEST_FAILED`](#lousho_test_failed), [`LOUSHO_CASSETTE_INVALID`](#lousho_cassette_invalid) | `defineEval()`, `mockModel` and cassettes. |
 | [General](#general) | [`LOUSHO_GENERIC_ERROR`](#lousho_generic_error), [`LOUSHO_AGENT_EXECUTION_FAILED`](#lousho_agent_execution_failed), [`LOUSHO_FLOW_EXECUTION_FAILED`](#lousho_flow_execution_failed), [`LOUSHO_VALIDATION_FAILED`](#lousho_validation_failed), [`LOUSHO_OPERATION_TIMEOUT`](#lousho_operation_timeout), [`LOUSHO_OUTPUT_INVALID`](#lousho_output_invalid), [`LOUSHO_BUDGET_EXCEEDED`](#lousho_budget_exceeded), [`LOUSHO_GUARDRAIL_TRIPPED`](#lousho_guardrail_tripped) | Run-level failures: a timeout, a budget or guardrail stop, invalid output, and the catch-all codes. |
+| [OAuth](#oauth) | [`LOUSHO_TOKEN_KEY_MISSING`](#lousho_token_key_missing), [`LOUSHO_TOKEN_DECRYPT_FAILED`](#lousho_token_decrypt_failed) | Storing or reading OAuth tokens in a file, SQLite or KV store. |
 
 ## Configuration
 
@@ -200,6 +201,22 @@ send fewer requests.
 **Example:** `SubprocessSandbox` without `dockerode`:
 `npm install dockerode@^5.0.1`.
 
+### LOUSHO_HOSTED_TOOL_UNSUPPORTED
+
+**Means:** an agent has a hosted tool (`webSearch()`, `codeInterpreter()`,
+`fileSearch()` or `hostedTool()`) that its provider cannot send: the provider
+has no hosted tools (Ollama, a custom `LLMProvider` without
+`supportsHostedTool()`), `ai` 4 is installed (hosted tools need `ai` 6 or 7), or
+the installed provider package has no such tool. The message names the
+provider, the tool and what would work.
+
+**Fix:** run the tool on a provider and package pairing that supports it (see
+[Hosted provider tools](/hosted-tools)), or leave it out of `tools` for
+this provider.
+
+**Example:** `createAgent({ model: 'ollama/llama3.2', tools: [webSearch()] })`
+rejects its first `send()`.
+
 ## Agent spec files
 
 ### LOUSHO_SPEC_INVALID
@@ -334,7 +351,7 @@ paused on an approval (`error.approvalId`), so it cannot take new input yet.
 
 ### LOUSHO_SESSION_BUSY
 
-**Means:** `session.compact()` or `session.clear()` was called while a turn of
+**Means:** `session.compact()`, `session.clear()` or `session.fork()` was called while a turn of
 that session is running or queued.
 
 **Fix:** await the turn's `send()` (or abort it), then call again.
@@ -356,6 +373,35 @@ streaming runner.
 `send()`.
 
 **Example:** `new AgentSession(run).stream('hi')`.
+
+### LOUSHO_SESSION_STEP_NOT_FOUND
+
+**Means:** `session.fork({ fromStep })` was given a step that is not an integer
+from 0 to the number of steps in `session.history()`. The error is a
+`ConfigurationError` (`field: 'fromStep'`) whose message lists the valid range.
+
+**Fix:** pick a step from `session.history()`, or `0` to keep nothing.
+
+**Example:** `session.fork({ fromStep: 9 })` on a session with three steps.
+
+### LOUSHO_SESSION_EXISTS
+
+**Means:** `session.fork({ id })` was given an id that already has a transcript
+in the session's store (or a checkpointed turn the fork would pick up), or the
+session's own id. The error is a `ConfigurationError` (`field: 'id'`).
+
+**Fix:** pick an unused id, or leave `id` out to get `<id>-fork-<n>`.
+
+**Example:** `session.fork({ fromStep: 1, id: session.id })`.
+
+### LOUSHO_SESSION_FORK_UNSUPPORTED
+
+**Means:** `fork()` was called on an `AgentSession` built by hand without the
+function that creates sibling sessions.
+
+**Fix:** get the session from `agent.session()`, which can fork.
+
+**Example:** `new AgentSession(run).fork({ fromStep: 0 })`.
 
 ### LOUSHO_REMOTE_UNAUTHORIZED
 
@@ -481,7 +527,7 @@ See [Schedules](/schedules).
 a channel (an object with `parse` and `reply`). The message names the file.
 
 **Fix:** default-export a channel made with `defineChannel()`, `httpChannel()`,
-`webhookChannel()`, `slackChannel()`, `discordChannel()`, `telegramChannel()` or `githubChannel()`. See [Channels](/channels).
+`webhookChannel()`, `slackChannel()`, `discordChannel()`, `telegramChannel()`, `githubChannel()` or `teamsChannel()`. See [Channels](/channels).
 
 **Example:** `export default { cron: 'x' }` in `channels/sms.ts`.
 
@@ -779,3 +825,36 @@ empty user list or token.
 **Fix:** change the option the message names. See [Route auth and principals](/auth).
 
 **Example:** `jwt({ secret: process.env.JWT_SECRET! })` without `audience`.
+
+## OAuth
+
+### LOUSHO_TOKEN_KEY_MISSING
+
+**Means:** a file, SQLite or KV store was asked to store an OAuth token, a
+pending sign-in or a registered client (or to read one that exists), and it has
+no token key: neither its `tokenKey` option nor the `LOUSHO_TOKEN_KEY`
+environment variable is set. Tokens are only ever stored encrypted, and there
+is no default key. Reads of records that do not exist need no key.
+
+**Fix:** generate a key once with `generateTokenKey()` (32 random bytes as
+base64), keep it as a secret, and pass it as `tokenKey` or set
+`LOUSHO_TOKEN_KEY`. On Cloudflare Workers, add it with
+`wrangler secret put LOUSHO_TOKEN_KEY`. See [Token storage](/oauth#token-storage).
+
+**Example:** `new SqliteStore('./agent.db').tokens.set('github', { owner: 'app' }, token)`
+with `LOUSHO_TOKEN_KEY` unset.
+
+### LOUSHO_TOKEN_DECRYPT_FAILED
+
+**Means:** a stored OAuth record could not be decrypted: the store's key is not
+the one it was written with, or the record was changed or copied to another
+owner. The message names the provider, never the token.
+
+**Fix:** use the key the tokens were written with. While rotating, list the old
+key after the new one (`tokenKey: [newKey, oldKey]`, or
+`LOUSHO_TOKEN_KEY="<new>,<old>"`). If the old key is lost, delete the record
+(`tokens.delete(provider, owner)`) and sign in again. See
+[Token storage](/oauth#token-storage).
+
+**Example:** a `SqliteStore` file written with one `tokenKey` and opened with
+another.

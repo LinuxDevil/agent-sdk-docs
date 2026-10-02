@@ -52,7 +52,7 @@ npm run docs:build   # writes docs/api/index.html
 | `SqliteStore` (من `/sqlite`) | الجلسات ونقاط الحفظ والموافقات في ملف SQLite واحد (انظر [الجلسات](/ar/sessions#اختيار-المخزن)). |
 | `fileStore(dir)`              | الجلسات ونقاط الحفظ والموافقات في ملفات JSON عادية تحت `dir` (انظر [الجلسات](/ar/sessions#اختيار-المخزن)). |
 | `KVStore`, `KVCheckpointStore` (من `/kv`) | مخازن فوق ارتباط Cloudflare Workers KV، لـ Worker تكتبه يدويًا (انظر [النشر](/ar/deployment)). |
-| `AgentStore`, `memoryStore()` | الخيار `createAgent({ store })`: `{ sessions?, checkpoints?, approvals? }`، ومخزن جاهز يعمل في الذاكرة (انظر [الجلسات](/ar/sessions#اختيار-المخزن)). |
+| `AgentStore`, `memoryStore()` | الخيار `createAgent({ store })`: `{ sessions?, checkpoints?, approvals?, tokens? }`، ومخزن جاهز يعمل في الذاكرة (انظر [الجلسات](/ar/sessions#اختيار-المخزن)؛ ويحفظ `tokens` رموز OAuth، انظر [OAuth](/ar/oauth)). |
 | `SessionAwaitingApprovalError` | يرميه `execute()` عندما تكون الجلسة ذات الـ `sessionId` المُمرَّر إليه متوقفة مؤقتًا بانتظار موافقة (انظر [التنفيذ المتين](/ar/durable-execution)). |
 | `SDKError`, `ERROR_CODES`    | الصنف الأساسي لأخطاء الـ SDK: `code` ثابت و`hint` ورابط `docs` (انظر [الأخطاء](/ar/errors)). |
 | `createDelegateTool()`        | تغليف وكيل ابن في صورة أداة للتفويض بين عدة وكلاء. حلّت محلها `subagents`. |

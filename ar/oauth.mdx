@@ -1,0 +1,81 @@
+---
+title: "OAuth"
+---
+{/* Generated from docs/oauth.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
+
+تحتاج الأدوات وخوادم MCP التي تستدعي واجهة API نيابةً عن شخص ما إلى رمز وصول (access token) من OAuth، وغالبًا إلى رمز تحديث (refresh token) للحصول على الرمز التالي. تتناول هذه الصفحة المكان الذي تُحفظ فيه هذه الرموز: الجزء `tokens` من `AgentStore`، مفهرسةً بالمزوّد وبمالك بيانات الاعتماد. أما تسجيل الدخول (إعادة التوجيه، ومسار رد النداء، وإيقاف التشغيل مؤقتًا إلى أن يتصل المستخدم) فيأتي في إصدار لاحق؛ والمخزن اليوم هو اللبنة الأساسية، ولا شيء يسجّل الدخول من تلقاء نفسه.
+
+## ملّاك بيانات الاعتماد
+
+لكل بيانات اعتماد مخزَّنة مزوّد (اسم مثل `github`، من 1 إلى 64 حرفًا من `A-Z` و`a-z` و`0-9` و`_` و`-`) ومالك:
+
+- **التطبيق** (`{ owner: 'app' }`): بيانات اعتماد واحدة يستخدمها الوكيل للجميع، مثل حساب خدمة أو تثبيت بوت.
+- **مستخدم** (`{ owner: 'user', principalId, issuer? }`): بيانات اعتماد واحدة لكل شخص سجّل الدخول. `principalId` هو معرّف المستخدم، و`issuer` يسمّي مزوّد الهوية الذي أصدره، فيكون `alice` من جهة إصدار و`alice` من جهة أخرى مالكَين مختلفَين. مع [مصادقة المسارات](/ar/auth) يُطابَق مبدأ الطلب (principal) عليه هكذا: `{ owner: 'user', principalId: principal.id,
+  issuer: principal.issuer }`؛ وبيانات اعتماد المستخدم تحتاج إلى ذلك المبدأ، لأنه بدونه لا يوجد مستخدم يملكها.
+
+`tokenStoreKey(provider, owner)` هو مفتاح سجل بيانات الاعتماد: `<provider>|app`، أو `<provider>|user|<issuer>|<principalId>` مع ترميز النسبة المئوية لجهة الإصدار والمعرّف (جهة الإصدار الغائبة جزء فارغ). يجعل الترميز المفتاح غير ملتبس: فمعرّف مبدأ يحتوي `|` لا يمكن أن يتعارض مع مالك آخر.
+
+```ts
+import { tokenStoreKey } from '@lousho/build-ai-agent';
+
+tokenStoreKey('github', { owner: 'app' }); // 'github|app'
+tokenStoreKey('github', { owner: 'user', principalId: 'a|b', issuer: 'https://id.example.com' });
+// 'github|user|https%3A%2F%2Fid.example.com|a%7Cb'
+```
+
+## تخزين الرموز
+
+`AgentStore.tokens` هو `OAuthTokenStore`:
+
+```ts
+import { memoryStore } from '@lousho/build-ai-agent';
+
+const { tokens } = memoryStore();
+const alice = { owner: 'user', principalId: 'alice', issuer: 'https://id.example.com' } as const;
+
+await tokens.set('github', alice, { accessToken: 'gho_...', refreshToken: 'ghr_...', tokenType: 'Bearer', expiresAt: Date.now() + 3_600_000 });
+const token = await tokens.get('github', alice); // { accessToken, refreshToken, ... } or undefined
+const connected = await tokens.list({ owner: alice }); // [{ provider: 'github', owner, expiresAt, scope, hasRefreshToken: true, updatedAt }]
+await tokens.delete('github', alice); // disconnect
+```
+
+- `get` و`set` و`delete` تقرأ بيانات اعتماد واحدة وتكتبها (بالاستبدال) وتزيلها.
+- `list({ provider?, owner? })` تُرجع بيانات وصفية فقط: المزوّد والمالك ونوع الرمز وانتهاء الصلاحية والنطاق (scope) وهل يوجد رمز تحديث مخزَّن ووقت كتابة السجل. ولا تُرجع أبدًا رمز وصول أو رمز تحديث.
+- `putPending(state, value, ttlMs)` و`takePending(state)` تحفظان عملية تسجيل دخول جارية (مُتحقِّق PKCE ومكان العودة) بين إعادة التوجيه ورد النداء. تُرجع `takePending` القيمة مرة واحدة وتحذفها؛ وبعد `ttlMs` تزول. و`state` من 16 إلى 128 حرفًا من `A-Z` و`a-z` و`0-9` و`_` و`-`؛ وأي `state` مشوَّه يُمرَّر إلى `takePending` ببساطة لا يُعثر عليه.
+- `setClient(provider, client)` و`getClient(provider)` تحفظان عميلًا مسجَّلًا لدى خادم التفويض (التسجيل الديناميكي للعميل). وقد يحتوي السجل سرًّا للعميل، لذلك يُشفَّر كما يُشفَّر الرمز.
+
+كل مخزن جاهز له `tokens`:
+
+| المخزن | مكان حفظ الرموز | مُشفَّر |
+| --- | --- | --- |
+| `memoryStore()` | كائنات عادية في ذاكرة العملية | لا: لا شيء يغادر العملية |
+| `fileStore(dir, { tokenKey })` | `<dir>/oauth/tokens/<sha256 of the key>.json`، `<dir>/oauth/pending/<state>.json` | نعم |
+| `new SqliteStore(path, { tokenKey })` | الجدولان `oauth_tokens` و`oauth_pending` | نعم |
+| `new KVStore(kv, { tokenKey })` | `<prefix>oauth/tokens/<key>`، `<prefix>oauth/pending/<state>` (مع تاريخ انتهاء) | نعم |
+
+**المفتاح.** تشفّر المخازن الدائمة كل سجل بخوارزمية AES-256-GCM بمفتاح من 32 بايت تقدّمه بصيغة base64: الخيار `tokenKey`، وإلا متغير البيئة `LOUSHO_TOKEN_KEY`. لا يوجد مفتاح افتراضي ولا يُشتق شيء من كلمة مرور. أنشئ واحدًا بـ`generateTokenKey()` أو في الصدفة (shell):
+
+```bash
+node -e "console.log(Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64'))"
+```
+
+```ts
+import { createAgent, fileStore, generateTokenKey } from '@lousho/build-ai-agent';
+
+console.log(generateTokenKey()); // store it as a secret, e.g. LOUSHO_TOKEN_KEY
+
+const agent = createAgent({ provider, store: fileStore('./.lousho', { tokenKey: process.env.LOUSHO_TOKEN_KEY }) });
+```
+
+لا يوجد `process.env` في Cloudflare Workers: أضف المفتاح سرًّا (`wrangler secret put LOUSHO_TOKEN_KEY`) ومرّر `env.LOUSHO_TOKEN_KEY` بوصفه `tokenKey`. ويفعل الـWorker الذي يولّده `lousho build --target=cloudflare-worker` ذلك عنك.
+
+- المفتاح الذي ليس 32 بايت بالضبط بصيغة base64 يسبب `ConfigurationError` عند إنشاء المخزن.
+- بلا مفتاح، يعمل الوكيل الذي لا يخزّن رمزًا قط كما كان: القراءات لا تجد شيئًا. أما أول `set` أو `setClient` أو `putPending` فيرمي [`LOUSHO_TOKEN_KEY_MISSING`](/ar/errors#lousho_token_key_missing)، وكذلك قراءة سجل موجود.
+- كل كتابة تستخدم متجه تهيئة (IV) عشوائيًا جديدًا من 12 بايت، فالرمز نفسه المكتوب مرتين يعطي نصَّين مشفَّرين مختلفَين. ويُوثَّق مفتاح السجل معه: فالنص المشفَّر المنسوخ إلى صف مالك آخر لا يُفكّ تشفيره. والصيغة المخزَّنة هي `v1.<base64 iv>.<base64 ciphertext>`.
+- السجل المكتوب بمفتاح آخر، أو الذي تغيّر على القرص، يفشل بالخطأ [`LOUSHO_TOKEN_DECRYPT_FAILED`](/ar/errors#lousho_token_decrypt_failed)، الذي يسمّي المزوّد ولا يذكر الرمز أبدًا.
+
+**تدوير المفتاح.** مرّر عدة مفاتيح، الأحدث أولًا: `tokenKey: [newKey, oldKey]`، أو `LOUSHO_TOKEN_KEY="<new>,<old>"`. تستخدم الكتابة المفتاح الأول وتجرّب القراءة كل مفتاح بالتتابع، فتنتقل الرموز إلى المفتاح الجديد كلما جُدِّدت. لا يوجد أمر يعيد تشفير كل سجل؛ فبعد أن تُسقط المفتاح القديم، لا يمكن قراءة الرموز التي ما زالت مكتوبة به، ويسجّل مستخدموها الدخول من جديد (احذف تلك السجلات).
+
+**لا شيء يسجّل الرمز.** لا تضع المخازن أبدًا رمز وصول أو رمز تحديث أو مُتحقِّق PKCE أو سر عميل في رسالة خطأ أو سطر سجل أو `cause` لخطأ، ولا تكون قيم الرموز جزءًا من أحداث الوكيل أو السجلات الحوارية أو نقاط الحفظ أو التتبّعات أو أشرطة التسجيل ما لم تُرجع أداة واحدًا منها بنفسها. والأداة التي تستخدم رمزًا ينبغي أن تُرجع جواب الـAPI لا الرمز.
+
+**الاتساق.** يأخذ SQLite عملية تسجيل دخول معلّقة في معاملة واحدة، ويحجزها مخزن الملفات بإنشاء ملف حصري، فيحصل عليها مستدعٍ واحد بالضبط. أما Workers KV فلا معاملات فيه: `takePending` تقرأ ثم تحذف، فقد يقرأ ردّا نداء في موقعَي حافة مختلفَين، ضمن تأخّر انتشار KV (حتى دقيقة تقريبًا)، الـ`state` نفسه. و`state` قيمة عشوائية من 128 بتًا لا يحملها إلا متصفح المستخدم، فإعادة استخدامها لا تمنح شيئًا لمن لا يملكها أصلًا. وتحتاج `tokens.list()` في `KVStore` إلى `list()` الخاصة بالربط (تملكها مساحة أسماء KV الحقيقية، وقد لا تملكها نسخة مزيفة مصنوعة يدويًا). أما `prune()` في `SqliteStore` فتحذف كذلك عمليات تسجيل الدخول المعلّقة المنتهية؛ ويسقطها مخزن الملفات عند بدء تسجيل الدخول التالي، وينهيها KV بنفسه.

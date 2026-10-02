@@ -1,0 +1,162 @@
+---
+title: "أدوات المزوّد المستضافة"
+---
+{/* Generated from docs/hosted-tools.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
+
+تشغّل بعض مزوّدات النماذج أدوات بنفسها داخل طلب النموذج، وأشهرها البحث على الويب ومفسّر الشيفرة والبحث في الملفات لدى OpenAI. ضعها في `tools` إلى جانب أدواتك؛ يشغّلها المزوّد، ويُبلغ التشغيل عن كل استدعاء في أحداثه، ويحتفظ به في السجل، ويحتسبه ضمن الاستهلاك.
+
+```ts
+import { createAgent, webSearch, defineTool } from '@lousho/build-ai-agent';
+import { z } from 'zod';
+
+const saveNote = defineTool({
+  name: 'save_note',
+  description: 'Save a note',
+  input: z.object({ text: z.string() }),
+  execute: async ({ text }) => ({ saved: text.length }),
+});
+
+const agent = createAgent({
+  model: 'openai/gpt-4o-mini',
+  instructions: 'Answer with sources.',
+  tools: [webSearch({ searchContextSize: 'low' }), saveNote],
+});
+
+const result = await agent.send('What changed in Node 24?');
+console.log(result.text, result.usage.hostedToolCalls); // { web_search: 1 }
+```
+
+لا ينفّذ SDK أي أداة مستضافة أبدًا. يرسلها مع كل استدعاء للنموذج في التشغيل ويُبلغ عمّا فعله المزوّد.
+
+## الدوال المساعدة
+
+| الدالة المساعدة | الاسم | الخيارات |
+| --- | --- | --- |
+| `webSearch(options?)` | `web_search` | `searchContextSize` (`'low' \| 'medium' \| 'high'`)، `userLocation` (`{ country, city, region, timezone }`)، `allowedDomains`، `blockedDomains`، `maxUses` |
+| `codeInterpreter(options?)` | `code_interpreter` | `container`: معرّف حاوية موجودة؛ وافتراضيًا ينشئ المزوّد حاوية |
+| `fileSearch({ vectorStoreIds, maxResults? })` | `file_search` | `vectorStoreIds` (واحد على الأقل؛ مخازن متجهات أنشأتها لدى المزوّد)، `maxResults` |
+| `hostedTool(name, aiSdkTool)` | `name` | أي كائن أداة مزوّد من AI SDK، يُمرَّر كما هو |
+
+تفرّق `isHostedTool(value)` بين الأداة المستضافة والأداة المحلية. اسم كل دالة مساعدة هو أيضًا الاسم الذي يستخدمه النموذج والأحداث و`usage.hostedToolCalls`. في صيغة السجل (record) لـ `tools` يجب أن يكون مفتاح الأداة المستضافة هو اسمها (`tools: { web_search: webSearch(), lookup }`). أداة مستضافة تحمل اسم أداة أخرى تُنتج الخطأ `LOUSHO_CONFIG_INVALID` عند إنشاء الوكيل.
+
+يستخدم المزوّد الخيارات التي يدعمها ويُسقط الباقي مع `console.warn` واحد. يقبل OpenAI الخيارات `searchContextSize` و`userLocation` و`allowedDomains` (من دون `maxUses` ومن دون `blockedDomains`). ويقبل Anthropic الخيارات `maxUses` و`allowedDomains` و`blockedDomains` و`userLocation` (من دون `searchContextSize`؛ وتنفيذ الشيفرة لديه بلا `container`). ويقبل OpenRouter الخيارات `maxUses` و`allowedDomains` و`blockedDomains` (تُرسل بصيغة `excluded_domains` الخاصة به) و`searchContextSize` (من دون `userLocation`).
+
+## أي مزوّد يشغّل أي أداة
+
+| الأداة | OpenAI | Anthropic | OpenRouter | Ollama | `fromAiSdk()` / مزوّدات AI SDK الأخرى |
+| --- | --- | --- | --- | --- | --- |
+| `webSearch()` | ✅ `ai` 6 + `@ai-sdk/openai` 3، `ai` 7 + `@ai-sdk/openai` 4 | ✅ `ai` 6 + `@ai-sdk/anthropic` 3، `ai` 7 + `@ai-sdk/anthropic` 4 | ✅ كل نماذج `openrouter/...`، مع أي إصدار من `ai` | ❌ | ❌ (استخدم `hostedTool()`) |
+| `codeInterpreter()` | ✅ التوليفات نفسها | ✅ التوليفات نفسها (تنفيذ الشيفرة لدى Anthropic) | ❌ | ❌ | ❌ (استخدم `hostedTool()`) |
+| `fileSearch()` | ✅ التوليفات نفسها | ❌ (لا يوفّر Anthropic بحثًا مستضافًا في الملفات) | ❌ | ❌ | ❌ (استخدم `hostedTool()`) |
+| `hostedTool()` | ✅ `ai` 6 أو 7 | ✅ `ai` 6 أو 7 | ✅ `ai` 6 أو 7 | ✅ `ai` 6 أو 7 | ✅ `ai` 6 أو 7 |
+
+تحتاج الأدوات المستضافة إلى `ai` 6 أو 7، باستثناء البحث على الويب في OpenRouter فهو يعمل مع `ai` 4 أيضًا. ومع `ai` 4 (و`@ai-sdk/openai` بإصدار 0.0.x أو 1.x) تُرفض كل أداة مستضافة أخرى. في OpenAI النموذج المستخدم هو نموذج Responses API الذي توفّره `@ai-sdk/openai` من الإصدار 2 فصاعدًا.
+
+في Anthropic تستخدم الدوال المساعدة أحدث أداة خادم مؤرَّخة تصدّرها حزمة `@ai-sdk/anthropic` المثبّتة: تستخدم `webSearch()` أحدث `tools.webSearch_*()`، وتستخدم `codeInterpreter()` أحدث `tools.codeExecution_*()` (يسمّيها Anthropic `code_execution`؛ ويُبقي SDK الاسم `code_interpreter` في الأحداث وفي `usage.hostedToolCalls` على كل المزوّدات). الحزمة التي لا تحتوي أيًّا منهما تُرفض مع ذكر التوليفة التي ستعمل. لأدوات الخادم الأخرى في Anthropic (جلب الويب مثلًا) استخدم `hostedTool('web_fetch', anthropic.tools.webFetch_20260318())`.
+
+في OpenRouter تضيف `webSearch()` أداة الخادم `openrouter:web_search` الخاصة بـ OpenRouter إلى الطلب، فيجري البحث من جهة OpenRouter لأي نموذج. يختار OpenRouter محرك البحث (بحث النموذج نفسه إن كان له بحث، وإلا Exa) ويحاسب على كل عملية بحث فوق الرموز، بالأسعار المنشورة في [صفحة أسعار OpenRouter](https://openrouter.ai/pricing)؛ وانظر [دليل البحث على الويب](https://openrouter.ai/docs/guides/features/server-tools/web-search) لمعرفة المحركات. ولأن الخادم ينفّذ البحث داخل الطلب، لا يُبلغ النموذج عن أي استدعاء أداة. ويُبلغ SDK عن استدعاء مستضاف واحد لكل خطوة بحثت فيها، يقرؤه من استجابة OpenRouter: `name: 'web_search'`، و`args` فارغة، والروابط المستشهد بها من تعليقات `url_citation` على هيئة `sources`، و`result: { requests }` حين يُبلغ OpenRouter عن `usage.server_tool_use.web_search_requests` (وإلا تكون `result` هي `{}`؛ فالاختبار الحي لم يستلم عددًا). أما الاستعلام الذي بحث عنه النموذج فلا يُبلغ عنه.
+
+التوليفة غير المدعومة ترفض التشغيل قبل أول استدعاء للنموذج مع الخطأ [`LOUSHO_HOSTED_TOOL_UNSUPPORTED`](/ar/errors#lousho_hosted_tool_unsupported)، ويذكر المزوّد والأداة وما الذي سيعمل.
+
+يعلن `LLMProvider` المخصّص ما يستطيع إرساله عبر `supportsHostedTool(type)` (قيمة `type` هي `'web_search'` أو `'code_interpreter'` أو `'file_search'` أو `'custom'` لـ `hostedTool()`) ويستلم الأدوات في `GenerateOptions.hostedTools`. المزوّد الذي لا يملك هذه الدالة لا يدعم أيًّا منها. وتسأل `withRetry()` و`withFallback()` المزوّد المغلَّف (الأول).
+
+## أي أداة مزوّد من AI SDK: hostedTool()
+
+ترسل `hostedTool(name, tool)` كائن أداة مزوّد بنيته بحزمة المزوّد نفسها، من دون تغيير، على `ai` 6 أو 7. وتعمل مع المزوّدات المدمجة ومع أي نموذج AI SDK مغلَّف بـ [`fromAiSdk()`](/ar/providers#أي-نموذج-من-ai-sdk-fromaisdk):
+
+```ts
+import { createAgent, fromAiSdk, hostedTool } from '@lousho/build-ai-agent';
+import { openai } from '@ai-sdk/openai';
+
+const agent = createAgent({
+  provider: fromAiSdk(openai('gpt-4o-mini')),
+  tools: [hostedTool('image_generation', openai.tools.imageGeneration())],
+});
+```
+
+استخدم الاسم الذي توثّقه حزمة المزوّد لأداتها.
+
+## الأحداث
+
+يُبلغ عن الاستدعاء المستضاف كما يُبلغ عن استدعاء الأداة، مع `executedBy: 'provider'` في `tool.start` و`tool.done` و`tool.error`:
+
+```ts
+import { createAgent, webSearch } from '@lousho/build-ai-agent';
+
+const agent = createAgent({ model: 'openai/gpt-4o-mini', tools: [webSearch()] });
+
+for await (const event of agent.stream('Latest TypeScript release?')) {
+  if (event.type === 'tool.start' && event.executedBy === 'provider') console.log('provider runs', event.toolName, event.args);
+  if (event.type === 'tool.done' && event.executedBy === 'provider') console.log('provider result', event.result);
+  if (event.type === 'text.delta') process.stdout.write(event.text);
+}
+```
+
+في استدعاء النموذج المبثوث تصل الأحداث حين يُبلغ المزوّد عن الاستدعاء؛ أما في الاستدعاء من دون بث فتأتي بعد الاستدعاء، بترتيب الاستدعاءات، وقبل نصه. نتيجة `tool.done.result` محدودة بـ 20,000 حرف من JSON (النتيجة الأطول تصبح نص JSON مقطوعًا ينتهي بـ `... [truncated N characters]`)؛ وفي `tool.error` تكون `error.name` هي `'HostedToolError'` مع رسالة المزوّد. ويضع بثّ واجهة AI SDK (`toUIMessageStream()`) العلامة `providerExecuted: true` على أجزاء الأدوات هذه.
+
+في التتبّع (traces) يحمل المقطع `chat` لاستدعاء النموذج السمة `lousho.hosted_tool_calls` (أسماء الأدوات التي شغّلها المزوّد فيه)؛ ولا يوجد مقطع `execute_tool` لها، لأن SDK لم ينفّذ شيئًا.
+
+## السجل وإعادة التشغيل
+
+تحصل رسالة المساعد في الخطوة على `metadata.hostedToolCalls`: لكل استدعاء `id` و`name` و`args` و`result` (محدودة كما سبق) و`isError` و`sources` من الروابط التي استشهد بها المزوّد بعده. ستجدها في `result.messages`.
+
+لا يُعاد إلى النموذج في الاستدعاءات اللاحقة إلا نص المساعد، ولا تُعاد كتل أدوات المزوّد أبدًا. وهذا يعمل مع كل مزوّد ونموذج؛ والثمن أن الاستشهادات من الدورات السابقة لا تُعاد إلى النموذج.
+
+## الاستهلاك والتكلفة
+
+تحصي `result.usage.hostedToolCalls` (وكذلك `usage.hostedToolCalls` في `run.done`) الاستدعاءات لكل اسم أداة، مثل `{ web_search: 2 }`؛ وتُضاف استدعاءات الوكيل الفرعي إلى استدعاءات الوكيل الرئيسي. أما الرموز التي تضيفها الأداة المستضافة (نتائج البحث التي يقرؤها النموذج، ومخرجات الشيفرة) فهي ضمن أعداد الرموز التي يُبلغ عنها المزوّد.
+
+تغطي `costUsd` الرموز فقط. أما رسوم الاستدعاء للأدوات المستضافة (عملية بحث على الويب أو جلسة مفسّر شيفرة) فيحاسب عليها المزوّد و**لا** تُضمَّن؛ راجع أسعار المزوّد واستخدم الأعداد أعلاه.
+
+## الموافقات والصلاحيات
+
+لا يستطيع SDK أن يضبط ما لا ينفّذه. تعمل الأداة المستضافة داخل طلب المزوّد، فلا ترى أي قاعدة صلاحيات ولا حاجز حماية للأدوات ولا `needsApproval` ولا خطّاف `preToolCall` / `postToolCall` ولا `onToolCall` استدعاءها، و**لا يمكن إيقاف أداة مستضافة مؤقتًا لطلب موافقة**. إذا كان يجب ألا يبحث التشغيل أو ينفّذ شيفرة من دون إنسان، فاترك الأداة خارج `tools`، أو اختر الأدوات لكل تشغيل بدالة:
+
+```ts
+import { createAgent, webSearch } from '@lousho/build-ai-agent';
+
+const agent = createAgent({
+  model: 'openai/gpt-4o-mini',
+  tools: ({ metadata }) => (metadata?.allowSearch ? [webSearch()] : []),
+});
+
+await agent.send('Summarize this page.', { metadata: { allowSearch: true } });
+```
+
+لا تستطيع [أوضاع الصلاحيات](/ar/permission-modes) رفض استدعاء مستضاف أيضًا، لذلك تحدّد الأدوات المستضافة التي تُرسل مع كل استدعاء للنموذج:
+
+| الوضع | `webSearch()` و`fileSearch()` | `codeInterpreter()` و`hostedTool()` |
+| --- | --- | --- |
+| `'default'` | تُرسل | تُرسل |
+| `'plan'` | تُرسل (فهي تقرأ فقط) | **لا تُرسل**: لا يراها النموذج |
+| `'acceptEdits'` | تُرسل | تُرسل |
+| `'dontAsk'` | تُرسل (الاستدعاء المستضاف لا يسأل أبدًا) | تُرسل |
+
+يشغّل مفسّر الشيفرة شيفرة، و`hostedTool()` أداة لا يعرف SDK عنها شيئًا، لذا يعامل وضع plan كليهما كأداتين لهما آثار جانبية. يُقرأ الوضع قبل كل استدعاء للنموذج، فأي تبديل (`session.setPermissionMode()` أو وضع على هيئة دالة) يسري من الاستدعاء التالي. ولا يُكتب إدخال `permission.decision` لأداة مستضافة تُركت خارج الطلب: فلم يحدث أي استدعاء.
+
+لا ترث الوكلاء الفرعيون الأدوات المستضافة للوكيل الرئيسي؛ أعطِ كل وكيل فرعي أدواته الخاصة في `tools`. والتشغيل المستأنف من نقطة حفظ أو موافقة يرسل الأدوات المستضافة نفسها؛ أما الوكيل المستأنِف بمجموعة مختلفة فيُبلغ عن [انحراف الوكيل](/ar/durable-execution) (agent drift).
+
+## الاختبار
+
+يقبل `mockModel` استدعاءات مستضافة في الدورة ويسجّل `hostedTools` في كل طلب، فيعمل وكيل ذو أدوات مستضافة من دون اتصال:
+
+```ts
+import { createAgent, webSearch } from '@lousho/build-ai-agent';
+import { mockModel } from '@lousho/build-ai-agent/testing';
+
+const model = mockModel([
+  {
+    text: 'Node 24 ships npm 11.',
+    hostedToolCalls: [{ name: 'web_search', args: { query: 'node 24' }, result: { hits: 3 }, sources: [{ url: 'https://nodejs.org' }] }],
+  },
+]);
+const agent = createAgent({ provider: model, tools: [webSearch()] });
+const result = await agent.send('What changed in Node 24?');
+
+console.log(model.calls[0]?.hostedTools?.[0]?.name); // 'web_search'
+console.log(result.usage.hostedToolCalls); // { web_search: 1 }
+```
+
+## غير مغطّى بعد
+
+لا توجد دوال مساعدة لتوليد الصور واستخدام الحاسوب وMCP المستضاف والصدفة (shell) المستضافة؛ مرّر أداة حزمة المزوّد عبر `hostedTool()` حيث تعمل. وإعادة عرض كتل أدوات المزوّد للإبقاء على الاستشهادات عبر الدورات غير مدعومة.

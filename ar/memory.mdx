@@ -96,12 +96,14 @@ await agent.send('Hi again!', { metadata: { userId: 'u-42' } });
 | `inMemoryMemory({ maxItems? })` | هذه العملية؛ ويُفقد عند إعادة التشغيل. للاختبارات والعروض التوضيحية. |
 | `fileMemory({ dir, maxItems? })` | ملف JSON لكل مفتاح نطاق في `dir` (المفتاح مرمَّز بترميز URI)، ويُكتب كتابة ذرّية. |
 | `sqliteMemory(store, { maxItems? })` (من `/sqlite`) | جدول `memory_items` في ملف `SqliteStore` الخاص بالوكيل، مصفوفة JSON لكل مفتاح نطاق. |
+| `inMemoryVectorMemory({ embedder, maxItems?, minScore? })` | هذه العملية؛ يسترجع بحسب المعنى. راجع [الاسترجاع الدلالي](#الاسترجاع-الدلالي). |
+| `sqliteVectorMemory(store, { embedder, maxItems?, minScore? })` (من `/sqlite`) | جدول `memory_vectors` في ملف `SqliteStore` الخاص بالوكيل؛ يسترجع بحسب المعنى. |
 
-تحتفظ جميعها بما لا يزيد على `maxItems` عنصرًا لكل مفتاح نطاق (الافتراضي 1000؛ وإضافة عنصر زائد تحذف الأقدم) وتطابق `query` بالكلمات المفتاحية: يطابق العنصر إذا احتوى على إحدى كلمات الاستعلام المؤلفة من ثلاثة أحرف أو أكثر، دون تمييز بين الأحرف الكبيرة والصغيرة.
+تحتفظ الثلاثة الأولى بما لا يزيد على `maxItems` عنصرًا لكل مفتاح نطاق (الافتراضي 1000؛ وإضافة عنصر زائد تحذف الأقدم) وتطابق `query` بالكلمات المفتاحية: يطابق العنصر إذا احتوى على إحدى كلمات الاستعلام المؤلفة من ثلاثة أحرف أو أكثر، دون تمييز بين الأحرف الكبيرة والصغيرة.
 
 ### SQLite
 
-مرّر `SqliteStore` نفسه إلى الوكيل وإلى المزوّد، فتتشارك الجلسات ونقاط الحفظ والذاكرة ملف قاعدة بيانات واحدًا. الملف الموجود مسبقًا يُضاف إليه الجدول عند فتحه. أبقِ المخزن مفتوحًا ما دام الوكيل يعمل.
+مرّر `SqliteStore` نفسه إلى الوكيل وإلى المزوّد، فتتشارك الجلسات ونقاط الحفظ والذاكرة ملف قاعدة بيانات واحدًا. الملف الموجود مسبقًا يُضاف إليه الجدول عند فتحه. أبقِ المخزن مفتوحًا ما دام الوكيل يعمل. وللاسترجاع بحسب المعنى بدل الكلمات المفتاحية استخدم `sqliteVectorMemory()`: راجع [الاسترجاع الدلالي](#الاسترجاع-الدلالي).
 
 ```ts
 import { createAgent, defineMemory } from '@lousho/build-ai-agent';
@@ -112,7 +114,7 @@ const notes = defineMemory({ name: 'notes', scope: 'global', provider: sqliteMem
 const agent = createAgent({ model: 'openai/gpt-4o-mini', store, memory: [notes] });
 ```
 
-للبحث الدلالي أو لمخزن مستضاف، طبّق الواجهة `MemoryProvider`:
+لمخزن مستضاف أو لترتيبك الخاص، طبّق الواجهة `MemoryProvider`:
 
 ```ts
 import type { MemoryItem, MemoryProvider } from '@lousho/build-ai-agent';
@@ -157,3 +159,81 @@ console.log((await store.list('global')).map((item) => item.text)); // ['Lives i
 
 - الاسترجاع وأدوات الذاكرة تنطبق على تشغيلات الوكيل نفسه، لا على وكلائه الفرعيين. وعندما يواصل `agent.approvals.resolve()` تشغيلًا بعد توقف بانتظار موافقة، تبقى الكتلة المسترجَعة في الموجّه لكن أدوات الذاكرة لا تُعرَض في ما بقي من ذلك التشغيل.
 - مجلد `memory/` في مجلد الوكيل جزء من الوكيل: راجع [مجلدات الوكلاء](/ar/agent-directories#الذاكرة).
+
+## الاسترجاع الدلالي
+
+لا تجد مزوّدات الكلمات المفتاحية أعلاه عنصرًا إلا إذا شارك الاستعلام كلمةً. أما مزوّد المتجهات (vector) فيجده بحسب المعنى: يحوّل كل عنصر وكل استعلام إلى متجه بنموذج تضمين (embedding)، ويرتّب العناصر بحسب تشابه جيب التمام (cosine)، فيجد السؤال "what does the user like to eat?" العنصر "Sam is vegetarian".
+
+**المُضمِّن (embedder)** (`EmbeddingProvider`) يحوّل النصوص إلى متجهات. وتغلّف `aiSdkEmbedder(model)` أي نموذج تضمين في AI SDK، عبر `embedMany` من الحزمة `ai` المثبّتة (الإصدار 4 أو 6 أو 7؛ ابنِ النموذج بحزمة المزوّد المقترنة بإصدار `ai` الرئيسي لديك، كما في نماذج اللغة). ولا تضيف أي اعتمادية: فـ `ai` اعتمادية نظيرة أصلًا، وحزمة المزوّد من عندك.
+
+```ts
+import { createAgent, defineMemory, aiSdkEmbedder, inMemoryVectorMemory } from '@lousho/build-ai-agent';
+import { createOpenAI } from '@ai-sdk/openai';
+
+const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+const facts = defineMemory({
+  name: 'facts',
+  scope: 'global',
+  provider: inMemoryVectorMemory({
+    embedder: aiSdkEmbedder(openai.embedding('text-embedding-3-small')),
+    minScore: 0.3,
+  }),
+  recall: { query: 'last-input' },
+});
+const agent = createAgent({ model: 'openai/gpt-4o-mini', memory: [facts] });
+```
+
+يرتّب مزوّدان بحسب المعنى، بالخيارات نفسها:
+
+- `inMemoryVectorMemory({ embedder, maxItems?, minScore? })` يحتفظ بالعناصر في هذه
+  العملية.
+- `sqliteVectorMemory(store, { embedder, maxItems?, minScore? })` (من
+  `@lousho/build-ai-agent/sqlite`) يحتفظ بها في ملف SQLite الخاص بالوكيل، في جدول
+  `memory_vectors` يُضاف إلى الملف الموجود عند فتحه. وتصمد المتجهات بعد إعادة التشغيل.
+
+مع وجود استعلام، تضمّنه `list()` وتقيّم عناصر مفتاح النطاق ذاك، وتُسقط
+ما دون `minScore` (تشابه جيب التمام، والافتراضي `0.2`)، وترتّب بحسب الدرجة
+(الأحدث أولًا عند التعادل) وتعيد `limit` منها. وتحمل كل عنصر معاد درجته
+في `metadata.score`. ومن دون استعلام، أو مع استعلام فارغ، تسرد الأحدث
+أولًا، كما يفعل كل مزوّد. ويصبح وصف الأداة `recall_<name>` عندئذٍ: "Search
+the memory by meaning, most relevant first."
+
+وللاسترجاع بحسب المعنى عند بداية التشغيل، اضبط `recall: { query: 'last-input' }`
+على الخانة: فتكون آخر رسالة للمستخدم في التشغيل هي الاستعلام، فتحوي كتلة `<memory>`
+العناصر الأقرب إليها بدل الأحدث. ومن دونها تحوي الكتلة أحدث `maxItems` عنصرًا
+ولا يرتّب إلا الأداة `recall_<name>`.
+
+لا تُقارن العناصر إلا داخل مفتاح نطاقها، ولا تُقارن إلا إذا أنتجها المُضمِّن نفسه
+(بحسب `id` الخاص به). ويُخزَّن المعرّف مع كل متجه: فبعد تغيير النموذج أو المعرّف تُتخطى
+العناصر القديمة عند الترتيب (وتظهر في السرد من دون استعلام) إلى أن تستدعي
+`await provider.reindex()`، فتعيد تضمينها على دفعات وتعيد عدد ما غيّرته. وتعالج
+`reindex(scopeKey)` مفتاح نطاق واحدًا فقط.
+
+الدالة `hashEmbedder()` من `@lousho/build-ai-agent/testing` مُضمِّن حتمي يعمل
+دون اتصال للاختبارات: حقيبة مُجزَّأة من جذوع الكلمات، فالنصوص التي تتشارك كلمات متقاربة.
+وهي ليست نموذجًا دلاليًا ولا تعرف أن "vegetarian"
+و"eat" مترابطتان.
+
+```ts
+import { inMemoryVectorMemory } from '@lousho/build-ai-agent';
+import { hashEmbedder } from '@lousho/build-ai-agent/testing';
+
+const memory = inMemoryVectorMemory({ embedder: hashEmbedder() });
+await memory.add('global', { text: 'Sam is vegetarian' });
+await memory.add('global', { text: 'The office is in Oslo' });
+
+const [best] = await memory.list('global', { query: 'vegetarian food' });
+console.log(best.text, best.metadata?.score); // Sam is vegetarian, a score of about 0.5
+```
+
+التكاليف والحدود:
+
+- تُجري كل `add` استدعاء تضمين واحدًا وكل استعلام كذلك، فكتابات الذاكرة
+  والاسترجاع تكلّف استدعاءات نموذج وتزيد زمن الاستجابة. واستدعاء التضمين الفاشل
+  لا يخزّن شيئًا؛ وتبلّغ الأداة `remember_<name>` النموذجَ بالخطأ.
+- التقييم بالقوة الغاشمة في JavaScript على عناصر مفتاح نطاق واحد، من دون فهرس متجهات.
+  ضع في حسبانك `maxItems` (الافتراضي 5000 لكل مفتاح نطاق؛ وإضافة عنصر زائد تحذف
+  الأقدم): آلاف العناصر لكل مفتاح مقبولة، ومئات الآلاف لا.
+- لا تدعم `fileMemory()` و`sqliteMemory()` ومخزن Cloudflare KV المتجهات.
+  اكتب `MemoryProvider` خاصًا بك لقاعدة بيانات متجهات.

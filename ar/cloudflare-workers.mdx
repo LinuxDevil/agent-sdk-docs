@@ -165,7 +165,7 @@ curl -N https://<your-worker>.workers.dev/chat \
 
 ## الجلسات ونقاط الحفظ والموافقات
 
-`KVStore(kvBinding, { prefix?, ttl?, historyLimit? })` هو `AgentStore` الذي
+`KVStore(kvBinding, { prefix?, ttl?, historyLimit?, tokenKey? })` هو `AgentStore` الذي
 يبنيه الـ Worker المولَّد من الارتباط. أما الـ Worker المكتوب يدويًا فيستورده من
 المسار الفرعي `/kv` الذي لا يحتوي أي استيراد `node:*` في أي موضع من رسمه البياني،
 مع تعريف الارتباط بالنوع `KVBinding` (جزء `get`/`put`/`delete` من
@@ -198,6 +198,7 @@ export default {
 | `sessions/<id>` | سجل المحادثة بصيغة JSON (بايتات الصور والملفات على هيئة `{ "$bytes": "<base64>" }`، كما في `FileSessionStore`). |
 | `checkpoints/<id>` | الكائن `Checkpoint` لتشغيل متين أو دورة جلسة (`KVCheckpointStore`، وسجله التاريخي تحت `checkpoints/<id>#history`). |
 | `approvals/<id>` | موافقة متوقفة واللقطة التي تستأنفها (تُحذف عند البتّ فيها). |
+| `oauth/tokens/<key>` و`oauth/pending/<state>` | رموز OAuth وعمليات تسجيل الدخول المعلّقة، مشفّرة بالمفتاح `tokenKey` (السر `LOUSHO_TOKEN_KEY` في Worker المولَّد)؛ انظر [OAuth](/ar/oauth#تخزين-الرموز). |
 
 يجعل `ttl: { sessions?, checkpoints?, approvals? }` (بالثواني، ويقبل KV ستين ثانية فأكثر)
 كل نوع من السجلات ينتهي بعد هذه المدة من آخر كتابة؛ وافتراضيًا

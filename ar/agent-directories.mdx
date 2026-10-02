@@ -83,7 +83,7 @@ export default defineTool({
 
 ### القنوات
 
-كل ملف في `channels/` يصدّر تصديرًا افتراضيًا [قناة](/ar/channels) منشأة بـ `defineChannel()` أو بإحدى دوال المصنع المضمَّنة (`webhookChannel()` و`httpChannel()` و`slackChannel()` و`discordChannel()` و`telegramChannel()` و`githubChannel()`). اسم القناة هو الاسم الذي تحدّده هي، وإلا فاسم الملف. الملف الذي لا يصدّر قناة يفشل بالخطأ `LOUSHO_CHANNEL_INVALID` مع ذكر اسم الملف. تُرجعها `resolveAgentDir()` في `channels` (وأسماءها في `manifest.channels`)؛ أما `loadAgentDir()` فلا تركّبها. خادم Node (`createDeployedServer(agent, { channels })`) يركّبها تحت `/channels` إلى جانب مسارات المحادثة؛ ومع خادمك الخاص استخدم `mountChannels()`:
+كل ملف في `channels/` يصدّر تصديرًا افتراضيًا [قناة](/ar/channels) منشأة بـ `defineChannel()` أو بإحدى دوال المصنع المضمَّنة (`webhookChannel()` و`httpChannel()` و`slackChannel()` و`discordChannel()` و`telegramChannel()` و`githubChannel()` و`teamsChannel()`). اسم القناة هو الاسم الذي تحدّده هي، وإلا فاسم الملف. الملف الذي لا يصدّر قناة يفشل بالخطأ `LOUSHO_CHANNEL_INVALID` مع ذكر اسم الملف. تُرجعها `resolveAgentDir()` في `channels` (وأسماءها في `manifest.channels`)؛ أما `loadAgentDir()` فلا تركّبها. خادم Node (`createDeployedServer(agent, { channels })`) يركّبها تحت `/channels` إلى جانب مسارات المحادثة؛ ومع خادمك الخاص استخدم `mountChannels()`:
 
 ```ts
 import { createServer } from 'node:http';
