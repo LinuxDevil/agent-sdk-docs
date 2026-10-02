@@ -1,8 +1,146 @@
 ---
-title: "Troubleshooting"
+title: "استكشاف الأخطاء وإصلاحها"
 ---
+{/* Generated from docs/troubleshooting.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-{/* pending-translation */}
-<Note>
-هذه الصفحة لم تُترجَم إلى العربية بعد. اقرأ [النسخة الإنجليزية](/troubleshooting).
-</Note>
+تبدأ هذه الصفحة مما تراه، وتدلّك على السبب والحل والصفحة التي تشرح الأمر. شغّل أولًا `npx lousho doctor` ([ما الذي يفحصه](/ar/installation#استكشاف-الأخطاء-وإصلاحها-lousho-doctor))، ثم، إن كان لديك رمز خطأ (`LOUSHO_...`)، ابحث عنه في [الأخطاء](/ar/errors).
+
+## الإعداد
+
+### الرسالة "No model configured"
+
+- **السبب:** لم تحصل `createAgent()` على `model` أو `provider`، ولم تجد شيئًا في البيئة (`LOUSHO_CONFIG_MISSING_PROVIDER`).
+- **الحل:** مرّر `model: 'openai/gpt-4o-mini'` (أي `<provider>/<model>`)، أو اضبط `LOUSHO_MODEL` أو مفتاح مزوّد مثل `OPENAI_API_KEY`.
+- **للمزيد:** [المزوّدون](/ar/providers)، [الخطأ](/ar/errors#lousho_config_missing_provider).
+
+### الرسالة "The API key is not set"
+
+- **السبب:** متغير مفتاح المزوّد (`OPENAI_API_KEY` أو `ANTHROPIC_API_KEY` أو `OPENROUTER_API_KEY`) غير موجود في بيئة العملية التي تشغّل الوكيل (`LOUSHO_PROVIDER_MISSING_API_KEY`).
+- **الحل:** اضبطه، أو مرّر نسخة مزوّد مضبوطة. يطبع `npx lousho doctor` الكلمة `set` أو `not set` لكل مفتاح، ولا يطبع القيمة أبدًا.
+- **للمزيد:** [الخطأ](/ar/errors#lousho_provider_missing_api_key).
+
+### الرسالة "Cannot find package `@ai-sdk/openai`" أو "install the optional peer"
+
+- **السبب:** كل مزوّد تدعمه حزمة اختيارية تُحمَّل عند أول استخدام، بالإصدار الرئيسي المقابل لإصدار `ai` الرئيسي لديك (`LOUSHO_PEER_MISSING`). ويغطي الخطأ نفسه الاعتماديات النظيرة الاختيارية الأخرى، مثل `dockerode` و`@modelcontextprotocol/sdk`.
+- **الحل:** نفّذ أمر `npm install` الوارد في الرسالة (وهو أيضًا في `error.installCommand`)، أو ابحث عن إصدار `ai` الرئيسي لديك في جدول المقابلة.
+- **للمزيد:** [حزم المزوّدين](/ar/installation#حزم-المزوّدين)، [الاعتماديات النظيرة الاختيارية](/ar/installation#الحزم-النظيرة-الاختيارية)، [الخطأ](/ar/errors#lousho_peer_missing).
+
+### الرسالة "`ai` 5 is installed"
+
+- **السبب:** الإصدار 5 من `ai` غير مدعوم. تقبل الحزمة `ai` بالمدى `^4.3.19` أو `^6.0.0` أو `^7.0.0`.
+- **الحل:** ثبّت أحد هذه الإصدارات الرئيسية مع صفّ حزمة المزوّد المقابل له.
+- **للمزيد:** [تثبيت الحزمة](/ar/installation#تثبيت-الحزمة).
+
+### الرسالة "Top-level await is only available in ES modules"
+
+- **السبب:** يستخدم البدء السريع `await` على المستوى الأعلى، فيجب أن يكون الملف وحدة ES.
+- **الحل:** سمِّ الملف بالامتداد `.mts`، أو اضبط `"type": "module"` في `package.json`.
+- **للمزيد:** [البدء السريع في README](https://github.com/LinuxDevil/agent-sdk/blob/main/README.md#quickstart).
+
+### إصدار Node قديم جدًا
+
+- **السبب:** تحتاج الحزمة إلى Node.js 22.19 أو أحدث (`engines.node`).
+- **الحل:** حدّث Node. يقارن `npx lousho doctor` إصدارك بالمتطلب.
+- **للمزيد:** [المتطلبات](/ar/installation#المتطلبات).
+
+### تعارض إصداري Ollama وzod
+
+- **السبب:** تعلن `ollama-ai-provider-v2` (حزمة Ollama لـ `ai` 6 و7) أن zod 4 اعتمادية نظيرة، ولا يحقق zod 3 ذلك.
+- **الحل:** استخدم zod 4 مع `ai` 6 أو 7، أو استخدم `ai@^4.3.19` مع `ollama-ai-provider@^1.2.0`.
+- **للمزيد:** [حزم المزوّدين](/ar/installation#حزم-المزوّدين).
+
+## تشغيلات تنتهي دون إجابة
+
+### عادت `send()` لكن `text` فارغ
+
+- **السبب:** التشغيل الذي يتوقف مبكرًا يكتمل ولا يرمي خطأ. ويبيّن `result.finishReason` السبب. هذه هي الحالات التي تترك `text` فارغًا أو ناقصًا:
+
+  - `'awaiting-approval'`: استدعاء أداة يحتاج إلى إنسان. بُتّ فيه (الفقرة التالية). [الموافقات](/ar/approvals).
+  - `'max-steps'`: نفدت ميزانية `maxSteps` (الافتراضي 10) بينما كان النموذج لا يزال يريد المتابعة. ارفع `maxSteps` أو بسّط المهمة. [أسباب الانتهاء](/ar/runs#أسباب-الانتهاء).
+  - `'budget-exceeded'`: تجاوز التشغيل ميزانية في `limits` مثل `maxTokens` أو `maxCostUsd`؛ ويبيّن `result.budget` أيّها. ارفع الحد. [الميزانيات](/ar/configuration#الميزانيات).
+  - `'guardrail'`: حجب حاجز حماية للمدخلات أو المخرجات أو الأدوات التشغيل؛ ويبيّن `result.guardrail` أيّها. [حواجز الحماية](/ar/guardrails#حواجز-حماية-المدخلات-والمخرجات).
+  - `'output-invalid'`: لم يطابق الرد مخطط `output` حتى بعد خطوة الإصلاح. [المخرجات المنظَّمة](/ar/structured-output).
+
+- **الحل:** افحص `result.finishReason` قبل قراءة `result.text`.
+
+### يبدو التشغيل عالقًا عند أداة
+
+- **السبب:** هناك موافقة معلّقة. تنتهي `send()` الموقوفة بـ `finishReason: 'awaiting-approval'` وبـ `approvalId`؛ ولا يعمل شيء حتى يقرر أحد.
+- **الحل:** اعرض الاستدعاءات المعلّقة بـ `agent.approvals.list()`، ثم `agent.approvals.resolve({ id, approved })`.
+- **للمزيد:** [وكلاء `createAgent()`](/ar/approvals#وكلاء-createagent).
+
+### `LOUSHO_SESSION_AWAITING_APPROVAL` أو `LOUSHO_SESSION_BUSY`
+
+- **السبب:** الجلسة الموقوفة عند موافقة لا تقبل مدخلات جديدة (`LOUSHO_SESSION_AWAITING_APPROVAL`)؛ أو استُدعيت `session.compact()` أو `session.clear()` أثناء تشغيل دورة أو وجودها في الطابور (`LOUSHO_SESSION_BUSY`).
+- **الحل:** بُتّ في الموافقة ثم أرسل مجددًا؛ أو انتظر `send()` الخاصة بالدورة (أو ألغِها)، ثم استدعِ مرة أخرى.
+- **للمزيد:** [بانتظار الموافقة](/ar/errors#lousho_session_awaiting_approval)، [مشغولة](/ar/errors#lousho_session_busy).
+
+## الأدوات
+
+### لا يستدعي النموذج أداتي أبدًا
+
+- **السبب:** يقرر النموذج انطلاقًا من `description` الأداة ومخطط مدخلاتها، فالوصف الغامض أو الحقول غير الواضحة لا تترك له ما يستند إليه. ويجب أن يطابق `name` النمط `^[a-zA-Z0-9_-]{1,64}$` (من 1 إلى 64 حرفًا من الحروف والأرقام و`_` و`-`).
+- **الحل:** قل في `description` ما تفعله الأداة ومتى تُستخدم، واستخدم `.describe()` لكل حقل مدخل.
+- **للمزيد:** [خيارات `defineTool()`](/ar/tools#خيارات-definetool).
+
+### أداتي ترمي خطأ ويستمر التشغيل
+
+- **السبب:** هذا بالتصميم. الأداة التي ترمي خطأ تعطي النموذج نتيجة خطأ (`{ error, toolName, message, kind }`) ويستمر التشغيل ليتمكن النموذج من التصرف.
+- **الحل:** إذا كان يجب أن يوقف الخطأ التشغيل، فارمِ خطأ يمتد من `PropagatingToolError`؛ فهذا يرفض التشغيل بدلًا من ذلك.
+- **للمزيد:** [أخطاء الأدوات](/ar/tools#الأخطاء).
+
+### `LOUSHO_TOOL_ARGS_INVALID`
+
+- **السبب:** أرسل النموذج وسيطات لا تطابق مخطط مدخلات الأداة. وداخل التشغيل يستعيد المشكلات نتيجةً ويستطيع إعادة المحاولة، لذا نادرًا ما ينتهي التشغيل بسببه.
+- **الحل:** إذا ظل النموذج يخطئ في حقل ما، فاجعل نص `.describe()` الخاص به أوضح. وإذا استدعيت الأداة بنفسك، فصحّح الوسيطات المذكورة في الرسالة.
+- **للمزيد:** [الخطأ](/ar/errors#lousho_tool_args_invalid).
+
+## المزوّدون والنماذج
+
+### حدود المعدل والاستدعاءات غير المستقرة
+
+- **السبب:** خفّض المزوّد سرعة الاستدعاء (`LOUSHO_PROVIDER_RATE_LIMITED`) أو فشل فشلًا عابرًا.
+- **الحل:** تعيد `createAgent()` محاولة الاستدعاء الفاشل مرتين أصلًا؛ ارفع العدد بـ `retry: { maxRetries: 3 }`، واضبط `fallbackModels` للانتقال إلى النموذج التالي إذا استمر فشل الاستدعاء.
+- **للمزيد:** [إعادة المحاولة والنماذج البديلة](/ar/providers#إعادة-المحاولة-والنماذج-الاحتياطية)، [الخطأ](/ar/errors#lousho_provider_rate_limited).
+
+### لا يقرأ النموذج ملفاتي
+
+- **السبب:** لا ترسل المزوّدات المضمّنة أجزاء الملفات، في أي إصدار رئيسي من `ai`. يُرسَل جزء الملف ملاحظة نصية (`[file report.pdf (application/pdf) not sent]`) ويحذّر المزوّد مرة واحدة. أما الصور فتُرسَل.
+- **الحل:** ضع نص الملف في الرسالة، أو استخدم صنفًا فرعيًا من المزوّد يقبل نموذجه الملفات.
+- **للمزيد:** [المدخلات متعددة الوسائط](/ar/providers#الإدخال-متعدد-الوسائط).
+
+### لا أرى استدلال النموذج
+
+- **السبب:** يُبلَّغ عن الاستدلال منفصلًا عن الإجابة، على شكل أحداث `reasoning.*` في `agent.stream()` وبوصفه `result.reasoning`؛ وليس في `result.text`. ولا تُرسَل الخيارات إلا إلى عائلات النماذج المعروفة بقبولها، ولا يرسل `reasoning: 'none'` شيئًا.
+- **الحل:** اقرأ `result.reasoning` أو أحداث `reasoning.delta`؛ ولنموذج خارج العائلات المعروفة، مرّر `{ effort, force: true }`.
+- **للمزيد:** [الاستدلال](/ar/reasoning).
+
+## البيئة المعزولة وMCP والنشر
+
+### بيئة Docker المعزولة: "egress is unsupported"
+
+- **السبب:** `SubprocessSandbox` مع `network: { allow }` و`broker` تحتاج أن يكون الوسيط (broker) المنفذ الوحيد للحاوية إلى الخارج. ولا يستطيع Docker Desktop ولا Docker بلا صلاحيات الجذر ولا خدمة على جهاز آخر ولا محرك أقدم من 25.0.5 ذلك، فلا تبدأ أي حاوية (`LOUSHO_SANDBOX_EGRESS_UNSUPPORTED`). ويُرفض هذا عن قصد بدلًا من منح خروج مفتوح.
+- **الحل:** شغّل الوكيل على مضيف Linux يعمل عليه Docker Engine 25.0.5 أو أحدث، أو استخدم `network: 'none'`.
+- **للمزيد:** [الصدفة المعزولة](/ar/workspace-tools#واجهة-أوامر-معزولة-sandboxshell)، [الخطأ](/ar/errors#lousho_sandbox_egress_unsupported).
+
+### لا تظهر أدوات خادم MCP
+
+- **السبب:** تتصل الخوادم عند `await agent.ready()` أو عند أول `send()` / `stream()`، والخادم الذي لا يستطيع الاتصال يُفشل ذلك الاستدعاء. وتُسمّى كل أداة `<server>__<tool>` (مثل `docs__search`)، فابحث عن هذا الاسم لا عن اسم الخادم نفسه.
+- **الحل:** `await agent.ready()` لترى خطأ الاتصال. ومع `connectMcp()`، افحص `status()` الذي يربط كل خادم بـ `'idle'` أو `'connected'` أو `'failed'`؛ ويستبعد `onError: 'skip'` الخادم الفاشل ويحذّر عبر `logger`. ويحتاج MCP إلى الاعتمادية النظيرة الاختيارية `@modelcontextprotocol/sdk`.
+- **للمزيد:** [استخدام خوادم MCP في وكيل](/ar/mcp#استخدام-خوادم-mcp-في-وكيل).
+
+### يرفض بناء Worker المزوّد أو الأداة
+
+- **السبب:** يدعم الهدف `cloudflare-worker` المزوّدين `mock` و`openai` و`anthropic` و`openrouter`، والأدوات `current-date` و`day-name` و`http` (تصل `http` إلى المضيفين المدرجين في الربط `LOUSHO_HTTP_ALLOW` فقط). أما `ollama` والأداة `web-fetch` فغير مدعومين هناك، ويفشل `lousho build` برسالة خطأ تسمّي ما رفضه.
+- **الحل:** استخدم مزوّدًا أو أداة أخرى، أو ابنِ للهدف `node-server` أو `docker`.
+- **للمزيد:** [Cloudflare Workers](/ar/cloudflare-workers#المزوّدون-والأدوات).
+
+## طلب المساعدة
+
+افتح مسألة (issue) على [https://github.com/LinuxDevil/agent-sdk/issues](https://github.com/LinuxDevil/agent-sdk/issues). أرفق:
+
+- مخرجات `npx lousho doctor --json`،
+- رمز الخطأ (`LOUSHO_...`) والرسالة كاملة،
+- إصدار الحزمة (`npm ls @lousho/build-ai-agent`) وإصدار `ai` لديك.
+
+لا تلصق مفتاح API أبدًا.

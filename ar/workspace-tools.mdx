@@ -1,29 +1,29 @@
 ---
 title: "أدوات مساحة العمل"
 ---
-
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/workspace-tools).
-</Warning>
-
 {/* Generated from docs/workspace-tools.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-تمنح أدوات مساحة العمل الوكيلَ نظام ملفات وواجهة أوامر (shell)، فتستطيع بناء وكلاء برمجة على غرار Claude Code. لا تستخدم الأدوات `node:fs` ولا `node:child_process` مباشرة، بل تستدعي واجهتين صغيرتين هما `FsProvider` و`ShellProvider`، فتعمل الأدوات نفسها على مجلد محلي، أو على شجرة ملفات في الذاكرة أثناء الاختبارات، أو على حاوية Docker، أو على بيئة معزولة (sandbox) بعيدة مثل E2B أو Daytona أو Cloudflare.
+تمنح أدوات مساحة العمل الوكيلَ نظام ملفات وواجهة أوامر (shell)، فتستطيع بناء وكلاء برمجة على غرار Claude Code. لا تستخدم الأدوات `node:fs` ولا `node:child_process` مباشرة، بل تستدعي واجهتين صغيرتين هما `FsProvider` و`ShellProvider`، فتعمل الأدوات نفسها على مجلد محلي، أو على شجرة ملفات في الذاكرة أثناء الاختبارات، أو على حاوية Docker، أو على بيئة معزولة (sandbox) بعيدة مثل E2B أو Daytona أو Cloudflare. للاطلاع على شرح تطبيقي، راجع [ابنِ وكيل برمجة](/ar/build-a-coding-agent).
 
 ```ts
-import { AgentExecutor, ToolRegistry, NodeWorkspace, createFsTools, createShellTool } from '@lousho/build-ai-agent';
+import { createAgent, NodeWorkspace, createFsTools, createShellTool } from '@lousho/build-ai-agent';
 
-const workspace = new NodeWorkspace({ root: '.' }); // every path is confined to this directory
-const registry = new ToolRegistry();
-registry.registerMany([...createFsTools(workspace), createShellTool(workspace)]);
+const workspace = new NodeWorkspace({ root: './project' }); // every path is confined to this directory
+const agent = createAgent({
+  instructions: 'You are a careful coding assistant. Run the tests after every change.',
+  provider,
+  tools: [...createFsTools(workspace), createShellTool(workspace)],
+});
 
 // The shell tool needs approval by default, so the run pauses before any command runs.
-const paused = await AgentExecutor.execute({ agent, input, provider, toolRegistry: registry, approvalStore });
-// paused.finishReason === 'awaiting-approval' -> resumeAfterApproval(...) once a human approves
+const paused = await agent.send('Fix the failing test in src/math.test.ts');
+if (paused.finishReason === 'awaiting-approval') {
+  // A human decides, then the command runs (or is rejected) and the run continues.
+  const result = await agent.approvals.resolve({ id: paused.approvalId!, approved: true });
+}
 ```
 
-الوكيل المنشأ بـ `createAgent()` يتوقف مؤقتًا بالطريقة نفسها: يعيد `send()` نتيجة فيها `finishReason: 'awaiting-approval'`، ثم ينفّذ `agent.approvals.resolve()` الأمر (أو يرفضه) ويتابع (راجع [الموافقات](/ar/approvals)). لتسمح بتنفيذ بعض الأوامر من دون سؤال، مرّر `needsApproval: false` مع قائمة `allow`، أو مرّر في `needsApproval` دالة شرطية تعيد `false` للأوامر التي تثق بها.
+تنتهي `send()` بـ`finishReason: 'awaiting-approval'`، ثم تنفّذ `agent.approvals.resolve()` الأمر (أو ترفضه) وتتابع (راجع [الموافقات](/ar/approvals)). لتسمح بتنفيذ بعض الأوامر من دون سؤال، مرّر `needsApproval: false` مع قائمة `allow`، أو مرّر في `needsApproval` دالة شرطية تعيد `false` للأوامر التي تثق بها.
 
 ```ts
 import { createAgent, NodeWorkspace, createFsTools, createShellTool } from '@lousho/build-ai-agent';
@@ -38,6 +38,22 @@ const agent = createAgent({
   ],
 });
 const result = await agent.send('Fix the failing test in src/math.test.ts');
+```
+
+### متقدم: واجهة المنفِّذ
+
+تشغّل `createAgent()` الصنف `AgentExecutor` من تحتها (راجع [واجهة المنفِّذ](/ar/executor-api)). وإن أردت التحكم في الربط بنفسك، فسجّل الأدوات في `ToolRegistry` واستدعِ المنفِّذ؛ فالتوقف المؤقت هو نفسه، و`resumeAfterApproval(...)` هي ما تستدعيه `agent.approvals.resolve()` متى وافق إنسان:
+
+```ts
+import { AgentExecutor, ToolRegistry, NodeWorkspace, createFsTools, createShellTool } from '@lousho/build-ai-agent';
+
+const workspace = new NodeWorkspace({ root: '.' }); // every path is confined to this directory
+const registry = new ToolRegistry();
+registry.registerMany([...createFsTools(workspace), createShellTool(workspace)]);
+
+// The shell tool needs approval by default, so the run pauses before any command runs.
+const paused = await AgentExecutor.execute({ agent, input, provider, toolRegistry: registry, approvalStore });
+// paused.finishReason === 'awaiting-approval' -> resumeAfterApproval(...) once a human approves
 ```
 
 ## الأدوات
@@ -62,6 +78,7 @@ const result = await agent.send('Fix the failing test in src/math.test.ts');
 | `maxResults`      | 200                         | أقصى عدد مسارات أو مطابقات أو مدخلات تعيده `glob` و`grep` و`list_dir`. |
 | `maxFilesScanned` | 20,000                      | أقصى عدد ملفات تزوره عملية مسح لـ `glob` أو `grep`. |
 | `ignore`          | `['.git', 'node_modules']`  | أسماء المجلدات التي تتخطاها `glob` و`grep`. |
+| `checkpoints`     | لا شيء                      | كائن `WorkspaceCheckpoints`: ينسخ احتياطيًا كل ملف تغيّره `write_file` و`edit_file`، فيمكن التراجع عن التغييرات (انظر أدناه). |
 
 يعيد `createShellTool(shell, options?)` أداة واحدة هي `shell`، تأخذ `command` و`timeout_ms` اختياريًا، وتعيد `{ exitCode, stdout, stderr }`. حين يُقتَل الأمر، تتضمن النتيجة أيضًا `timedOut: true` أو `aborted: true` مع `note` تبيّن السبب.
 
@@ -87,6 +104,43 @@ const shell = createShellTool(new NodeWorkspace({ root: '.' }), {
 ```
 
 إلغاء التشغيل (`agent.send(input, { signal })` أو `AgentExecutor.execute({ signal })`) يقتل الأمر الجاري مع كل العمليات التي بدأها: مجموعة العمليات في Linux وmacOS، و`taskkill /T` في Windows.
+
+للتراجع عما فعله الوكيل بالملفات، مرّر `WorkspaceCheckpoints` إلى `createFsTools(fs, { checkpoints })`. فقبل أن تغيّر `write_file` أو `edit_file` ملفًا، يُسجَّل محتواه القديم (وبتات صلاحياته، إذا كان المزوّد يملك `getMode` و`chmod`، كما في `NodeWorkspace`) تحت جلسة التشغيل ودورته. والدورة هي الفهرس، بدءًا من 0، لرسالة المستخدم التي يجيب عنها استدعاء الأداة: أول `session.send()` هو الدورة 0، والتالي هو الدورة 1. تعيد `checkpoints.list({ sessionId })` الدورات التي حدثت فيها تغييرات ومسارات ما غيّرته كل دورة. وتعيد `checkpoints.rewind(toTurn, { sessionId })` كل ملف تغيّر في الدورة `toTurn` أو بعدها إلى حاله قبل `toTurn`: الملف الذي أنشأه الوكيل يُحذف، والذي عدّله أو كتب فوقه يستعيد محتواه. ومع `dryRun: true` لا تغيّر شيئًا وتعيد التقرير نفسه.
+
+```ts
+import { createAgent, createFsTools, MemoryWorkspace, WorkspaceCheckpoints } from '@lousho/build-ai-agent';
+import { mockModel } from '@lousho/build-ai-agent/testing';
+
+const workspace = new MemoryWorkspace({ files: { 'notes.md': '# Notes\n' } });
+const checkpoints = new WorkspaceCheckpoints(workspace); // backups in memory; FileWorkspaceCheckpointStore keeps them on disk
+const agent = createAgent({
+  instructions: 'You edit files in the workspace.',
+  provider: mockModel([
+    { toolCalls: [{ name: 'edit_file', args: { path: 'notes.md', old_string: '# Notes', new_string: '# Plan' } }] },
+    'Renamed the heading.',
+    { toolCalls: [{ name: 'write_file', args: { path: 'todo.md', content: '- ship it\n' } }] },
+    'Added a to-do list.',
+  ]),
+  tools: createFsTools(workspace, { checkpoints }),
+});
+
+const session = agent.session();
+await session.send('Rename the heading to Plan'); // turn 0
+await session.send('Start a to-do list'); // turn 1
+console.log(await checkpoints.list({ sessionId: session.id }));
+// [{ turn: 0, paths: ['notes.md'] }, { turn: 1, paths: ['todo.md'] }]
+
+const preview = await checkpoints.rewind(0, { sessionId: session.id, dryRun: true });
+console.log(preview); // { dryRun: true, restored: ['notes.md'], deleted: ['todo.md'], skipped: [] }
+await checkpoints.rewind(0, { sessionId: session.id });
+console.log(workspace.snapshot()); // { 'notes.md': '# Notes\n' }
+```
+
+الملف الذي لم يعد محتواه هو آخر ما كتبه الوكيل فيه قد غيّره شيء آخر (أنت، أو محرّر، أو أداة `shell`)، فيتركه التراجع كما هو ويبلّغ عنه في `skipped` بالقيمة `'changed-since'`؛ ومرّر `force: true` لاستعادته مع ذلك. يُفحص كل مسار قبل أن يُكتب أي شيء، وتمرّ الاستعادات عبر المزوّد نفسه، فيُبقيها `NodeWorkspace` داخل الجذر، بما في ذلك الروابط الرمزية. ثم ينسى التراجع الفعلي النسخ الاحتياطية للدورات التي تراجع عنها، بما فيها نسخ الملفات المتخطّاة، فلا يفعل تراجع ثانٍ شيئًا: فاطّلع على التشغيل التجريبي أولًا. أما المجلدات التي أنشأها الوكيل فتبقى (فارغة) بعد حذف ملفاتها. ولا تتراجع المحادثة نفسها؛ ولتفريعها هي أيضًا، فرِّع التشغيل (راجع [التفريع وإعادة التشغيل](/ar/durable-execution#التفريع-وإعادة-التشغيل)).
+
+ما لا يُتتبَّع: التغييرات التي تجريها أداة `shell`، والملفات التي يكتبها وكيل فرعي بأدوات ملفات خاصة به (إلا إذا أخذ كائن `WorkspaceCheckpoints` نفسه، فتُسجَّل عندئذ تحت معرّف جلسته هو)، والملفات الأكبر من `maxFileBytes` (الافتراضي 1,000,000 بايت): يُبلَّغ عنها بالقيمة `'too-large'` ولا تُحذف أبدًا. وبلا جلسة، يكون كل `agent.send()` هو الدورة 0 من الجلسة `'default'`، فاستخدم `agent.session()` لتتراجع بحسب الدورة. وتُعدّ الدورات في السجل الذي يراه النموذج، فبعد أن يزيل ضغط السياق رسائل مستخدم قديمة يتغيّر ترقيم الدورات اللاحقة.
+
+النسخ الاحتياطية لا تنمو بلا حد. تُحفظ فقط أحدث `maxTurns` دورات من كل جلسة (الافتراضي 20؛ و`rewind()` إلى دورة أقدم يرمي خطأً)؛ والملف الذي يتجاوز `maxFileBytes` لا يُنسخ؛ وحين تكتب دورة واحدة المسار نفسه عدة مرات، لا تحتفظ بالمحتوى القديم إلا الكتابة الأولى (وتحتفظ اللاحقة ببصمة (hash) لسجل التدقيق)؛ ويُسقط التراجع النسخ التي تراجع عنها؛ وتنسى `checkpoints.clear({ sessionId })` جلسة كاملة. يحفظ المخزن الافتراضي النسخ الاحتياطية في الذاكرة. ويكتب `new FileWorkspaceCheckpointStore(dir)` ملف JSON واحدًا لكل جلسة، كتابة ذرّية (ملف مؤقت ثم إعادة تسمية)، فيعمل التراجع بعد إعادة التشغيل؛ ونفّذ `WorkspaceCheckpointStore` لحفظها في مكان آخر. ومحتوى الملفات يبقى في المخزن فقط، ولا يظهر أبدًا في الأحداث أو في التتبّعات.
 
 ## نموذج الأمان
 
@@ -187,8 +241,8 @@ await broker.close();
 
 ما الذي يفرضه هذا، وأين:
 
-- **Docker Engine على Linux والوكيل على المضيف نفسه: مفروض.** تستطيع الحاوية الوصول إلى عنوان البوابة ولا شيء بعد الجسر. أما DNS: فالحاوية لا تحلّ أي أسماء خارجية بنفسها (Engine 25.0.5 وما بعده لا يعيد توجيه DNS من الشبكات الداخلية، CVE-2024-29018؛ والإصدارات الأقدم من Engine تُرفَض)، فتذهب الأسماء إلى البروكسي الذي يحلّها على المضيف بعد فحص قائمة السماح. الاتصالات المباشرة بعناوين IP لا مسار لها. البروتوكولات غير HTTP (SSH، و TCP الخام، و UDP) محجوبة، لأن البروكسي وحده يمكن الوصول إليه، وتُفحَص أنفاق `CONNECT` مقابل قائمة السماح كأي طلب.
-- **Docker Desktop (Windows وmacOS، و Desktop على Linux): مرفوض.** الحاويات تعمل داخل آلة افتراضية، فلا يملك المضيف عنوانًا على الشبكة الداخلية. و`host.docker.internal` لا يصل إلى المضيف إلا من الشبكات غير الداخلية، وهذه تصل إلى كل شيء آخر أيضًا. يرفض `run()` بالخطأ [`LOUSHO_SANDBOX_EGRESS_UNSUPPORTED`](/ar/errors#lousho_sandbox_egress_unsupported) ولا يشغّل أي حاوية. وكذلك الحال مع Docker بلا صلاحيات الجذر (rootless) (الجسر يقع في فضاء أسماء شبكة خاص به)، ومع خدمة Docker (daemon) على جهاز آخر (لا يستطيع الوسيط الارتباط بعنوان البوابة)، ومع شبكة مُعاد استخدامها وليست داخلية، ومع إصدار من Engine أقدم من 25.0.5.
+- **Docker Engine على Linux والوكيل على المضيف نفسه: مفروض.** تستطيع الحاوية الوصول إلى عنوان البوابة ولا شيء بعد الجسر. أما DNS: فالحاوية لا تحلّ أي أسماء خارجية بنفسها (Engine 25.0.5 وما بعده لا يعيد توجيه DNS من الشبكات الداخلية، CVE-2024-29018؛ والإصدارات الأقدم من Engine تُرفَض)، فتذهب الأسماء إلى البروكسي الذي يحلّها على المضيف بعد فحص قائمة السماح. الاتصالات المباشرة بعناوين IP لا مسار لها. البروتوكولات غير HTTP (SSH، وTCP الخام، وUDP) محجوبة، لأن البروكسي وحده يمكن الوصول إليه، وتُفحَص أنفاق `CONNECT` مقابل قائمة السماح كأي طلب. وهذا مختبَر مقابل خدمة Docker حقيقية: يعمل مسار CI الخاص بـ Docker Engine (`.github/workflows/docker.yml` و`npm run test:docker`) على مشغّل `ubuntu-latest` في GitHub (كان Docker Engine بصلاحيات الجذر بالإصدار 28.0.4 على Ubuntu 24.04 عند إضافته)، ويتحقق من أن المضيف المسموح به يجيب عبر الوسيط، وأن المضيفات الأخرى تتلقى 403، وأن تجاوز البروكسي أو الاتصال بعنوان IP خام لا مسار له، وأن الحاوية لا تحلّ أي أسماء خارجية، وأن الوسيط يضيف بيانات اعتماد لا تراها الحاوية أبدًا، وأن الحاوية الواقعة خارج الشبكة لا تستطيع استخدام مستمع البوابة، وأن `close()` والتشغيل الملغى لا يتركان شبكة ولا حاوية وراءهما، وأن الشبكة المُعاد استخدامها وغير الداخلية تُرفَض.
+- **Docker Desktop (Windows وmacOS، وDesktop على Linux): مرفوض.** الحاويات تعمل داخل آلة افتراضية، فلا يملك المضيف عنوانًا على الشبكة الداخلية. و`host.docker.internal` لا يصل إلى المضيف إلا من الشبكات غير الداخلية، وهذه تصل إلى كل شيء آخر أيضًا. يرفض `run()` بالخطأ [`LOUSHO_SANDBOX_EGRESS_UNSUPPORTED`](/ar/errors#lousho_sandbox_egress_unsupported) ولا يشغّل أي حاوية. وكذلك الحال مع Docker بلا صلاحيات الجذر (rootless) (الجسر يقع في فضاء أسماء شبكة خاص به)، ومع خدمة Docker (daemon) على جهاز آخر (لا يستطيع الوسيط الارتباط بعنوان البوابة)، ومع شبكة مُعاد استخدامها وليست داخلية، ومع إصدار من Engine أقدم من 25.0.5.
 - **خدمات أخرى على عنوان الجسر في المضيف.** الحاوية الموجودة على شبكة داخلية تستطيع الوصول إلى أي خدمة على المضيف تستمع على عنوان البوابة أو على كل العناوين (`0.0.0.0`). اربط خدمات المضيف بـ `127.0.0.1`، أو قيّد بجدار ناري الشبكة الفرعية للجسر لتصل إلى منفذ الوسيط فقط. وجدار المضيف الناري الذي يُسقط حركة البيانات القادمة من الجسر (سياسة `INPUT` صارمة) يحجب الوسيط أيضًا: عندئذ تفشل التشغيلات في الاتصال، ولا تحصل على اتصال صادر مفتوح.
 - **أوامر المضيف ما زالت غير محمية بجدار ناري.** أمر ينفّذه `NodeWorkspace` أو `NoopSandbox` يستطيع تجاهل متغيرات البروكسي؛ راجع ملاحظات وسيط بيانات الاعتماد أدناه.
 
@@ -277,7 +331,9 @@ export const remoteShell: ShellProvider = {
 };
 ```
 
-ينبغي أن يُتمّ `ShellProvider.exec` وعده بنتيجة، لا أن يرفضه، عند رمز خروج غير صفري، أو انتهاء المهلة (`timedOut: true`)، أو الإلغاء (`aborted: true`). ولا ينبغي أن يرفض إلا حين يتعذّر بدء الأمر.
+هناك دالتان اختياريتان، `getMode(path)` و`chmod(path, mode)`، تتيحان لـ`WorkspaceCheckpoints` استعادة بتات صلاحيات الملف مع محتواه؛ وبدونهما يستعيد التراجع المحتوى وحده.
+
+ينبغي أن تُنهي `ShellProvider.exec` بنتيجة، لا برفض، عند رمز خروج غير صفري، أو انتهاء المهلة (`timedOut: true`)، أو الإلغاء (`aborted: true`). ولا ينبغي أن ترفض إلا حين يتعذّر بدء الأمر.
 
 ## الاختبار باستخدام `MemoryWorkspace`
 

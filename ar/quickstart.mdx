@@ -1,16 +1,9 @@
 ---
 title: "البدء السريع"
 sidebarTitle: "البدء السريع"
+description: "تأخذك هذه الصفحة من وكيل بسطر واحد إلى الأدوات والبث والجلسات والموافقة والاختبار دون اتصال. كل مقتطف بعد الأول يعمل كما هو دون مفتاح API، على المزوّد الوهمي المضمَّن في الحزمة."
 ---
-
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/quickstart).
-</Warning>
-
 {/* Generated from docs/quick-start.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
-
-كل مقتطف TypeScript في هذه الصفحة هو وحدة ES كاملة ومستقلة (`.mts`). تُفحص أنواع المقتطفات وتُنفَّذ على نسخة من SDK محزومة محليًا بواسطة `npx tsx scripts/verify-docs-snippets.ts`، فتبقى متوافقة مع الواجهة البرمجية الفعلية. وجميعها تعمل كما هي مع المزوّد الوهمي المضمَّن في SDK، دون حاجة إلى مفتاح API، ما عدا الأول، فهو يخاطب نموذجًا حقيقيًا ولذلك تُفحص أنواعه فقط.
 
 ## ابدأ مشروعًا جديدًا
 
@@ -24,18 +17,18 @@ npm run dev              # chat with your agent in the terminal
 npm test                 # offline tests: no API key needed
 ```
 
-الأمر `npm create lousho-agent my-agent` مكافئ له، وكذلك `npx @lousho/build-ai-agent init my-agent` حين لا تكون SDK مثبّتة بعد (فالأمر `npx lousho` المجرّد لا يجد الأمر `lousho` إلا بعد وجود SDK في `node_modules` لديك). ومن دون وسائط يسأل `init` عن المجلد والمزوّد والقالب؛ وفي السكربتات مرّر `--yes` (القيم الافتراضية: القالب `minimal` والمزوّد الذي ضُبط متغير مفتاح API الخاص به، وإلا OpenAI). رايات مفيدة: `--provider openai|anthropic|openrouter|ollama`، `--template minimal|tools|yaml`، `--package-manager npm|pnpm|yarn|bun`، `--no-install`، `--no-git`، `--force` (الكتابة في مجلد غير فارغ). ويسردها `lousho init --help` كلها.
+الأمر `npm create lousho-agent my-agent` مكافئ له، وكذلك `npx @lousho/build-ai-agent init my-agent` حين لا تكون الحزمة مثبّتة بعد (فالأمر `npx lousho` المجرّد لا يجد الأمر `lousho` إلا بعد وجود الحزمة في `node_modules` لديك). ومن دون وسائط يسأل `init` عن المجلد والمزوّد والقالب؛ ويسرد `lousho init --help` كل الرايات.
 
-تفضّل إضافة SDK إلى مشروع قائم؟ ثبّتها يدويًا (راجع [التثبيت](/ar/installation)):
+تفضّل إضافة الحزمة إلى مشروع قائم؟ ثبّتها يدويًا (راجع [التثبيت](/ar/installation)):
 
 ```bash
 npm install @lousho/build-ai-agent ai@^7.0.0 zod
 npm install @ai-sdk/openai@^4.0.0 @ai-sdk/anthropic@^4.0.0
 ```
 
-هذا هو الإصدار الرئيسي الحالي من `ai`؛ ومع Ollama استخدم `ai@^4.3.19` مع `ollama-ai-provider@^1.2.0` (راجع [أزواج الحزم المتوافقة](/ar/installation#حزم-المزوّدين)).
+هذا هو الإصدار الرئيسي الحالي من `ai`؛ ومع Ollama استخدم `ai@^7.0.0` مع `ollama-ai-provider-v2@^4.0.0` وzod 4 (راجع [أزواج الحزم المتوافقة](/ar/installation#حزم-المزوّدين)).
 
-## 1. «مرحبًا بالعالم» في خمسة أسطر
+## 1. «مرحبًا بالعالم»
 
 `createAgent()` هي نقطة الدخول التي لا تحتاج إلى إعداد: تعطيها سلسلة `provider/model` وتعليمات، فتعطيك وكيلًا بواجهة `{ send }`. يُقرأ مفتاح API من متغير البيئة المتعارف عليه للمزوّد (`OPENAI_API_KEY` هنا؛ و`ANTHROPIC_API_KEY` أو `OPENROUTER_API_KEY` أو `OLLAMA_BASE_URL` للمزوّدين الآخرين).
 
@@ -49,42 +42,7 @@ console.log(text);
 
 احذف `model` لتترك القرار للبيئة: `LOUSHO_MODEL` (سلسلة `provider/model`) إن كان مضبوطًا، وإلا أول الموجود من `OPENAI_API_KEY` و`ANTHROPIC_API_KEY` و`OPENROUTER_API_KEY` و`OLLAMA_BASE_URL`. وإذا كان مفتاح ناقصًا أو كُتبت البادئة خطأً، يخبرك الخطأ بالضبط بما يجب ضبطه أو تصحيحه. `instructions` اختياري؛ ويُقبل `prompt` اسمًا بديلًا له.
 
-## 2. عندما تحتاج إلى مزوّد مخصّص
-
-مرّر كائن مزوّد بدلًا من `model` عندما يكون لديك `LLMProvider` خاص بك، أو تريد المزوّد الوهمي للاختبارات، أو تحتاج إلى إعدادات إضافية للمزوّد. وهذا المثال لا يحتاج إلى مفتاح API:
-
-```ts
-import { createAgent, createMockProvider } from '@lousho/build-ai-agent';
-
-const agent = createAgent({
-  instructions: 'You are a helpful assistant.',
-  provider: createMockProvider({ responses: ['Hello! How can I help you today?'] }),
-});
-
-const result = await agent.send('Hi there');
-console.log(result.text); // "Hello! How can I help you today?"
-```
-
-`resolveProvider('<provider>/<model>')` هي الدالة التي يستخدمها `model` داخليًا؛ استدعِها بنفسك عندما تريد كائن المزوّد، كما في هذا المقتطف الذي يستخدم OpenAI إذا كان `OPENAI_API_KEY` مضبوطًا ويرجع إلى المزوّد الوهمي في غير ذلك، وهو النمط نفسه الذي تتبعه [الأمثلة](https://github.com/LinuxDevil/agent-sdk/blob/main/examples/README.md) القابلة للتشغيل.
-
-```ts
-import { createAgent, createMockProvider, resolveProvider } from '@lousho/build-ai-agent';
-
-const provider = process.env.OPENAI_API_KEY
-  ? resolveProvider('openai/gpt-4o-mini')
-  : createMockProvider({ responses: ['Paris.'] });
-
-const agent = createAgent({
-  name: 'geography-bot',
-  prompt: 'Answer geography questions in one word.',
-  provider,
-});
-
-const result = await agent.send('What is the capital of France?');
-console.log(result.text);
-```
-
-## 3. إضافة الأدوات
+## 2. أضف أداة
 
 عرّف الأداة بـ `defineTool()`: تُستمد أنواع وسائط `execute` و`needsApproval` من مخطط zod في `input`، ويدخل الناتج مباشرة في `createAgent({ tools: [...] })`. يحاكي المزوّد الوهمي استدعاء أداة كلما ذكرت رسالة المستخدم اسم أداة، ولذلك يختبر هذا المقتطف دورة استدعاء أداة حقيقية كاملة، ذهابًا وإيابًا، دون LLM.
 
@@ -112,41 +70,153 @@ console.log(result.toolCalls.map((call) => call.function.name)); // [ 'current_d
 console.log(result.text);
 ```
 
-يجب أن تتكون الأسماء من 1 إلى 64 محرفًا من الحروف والأرقام و`_` أو `-`. وتتضمن SDK أيضًا أدوات مضمَّنة (`currentDateTool`، `dayNameTool`، `httpTool`، ...) تمرّرها في كائن مفاتيحه الأسماء: `tools: { current_date: currentDateTool }`.
+يجب أن تتكون الأسماء من 1 إلى 64 محرفًا من الحروف والأرقام و`_` أو `-`. راجع [الأدوات](/ar/tools) للاطلاع على التحقق والأخطاء والأدوات المضمَّنة.
 
-*متقدّم: `ToolRegistry`.* لمشاركة الأدوات بين الوكلاء أو لتسجيل واصفات `ToolDescriptor` خام، استخدم `registry.register(tool)` لأداة معرَّفة أو `registry.register(name, descriptor)` لواصف.
+## 3. بُثّ الإجابة
 
-## 4. تحكّم كامل: `AgentBuilder` + `AgentExecutor`
-
-`createAgent()` مغلِّف رقيق فوق `AgentBuilder` والدالة الساكنة `AgentExecutor.execute()`. استخدمهما مباشرة فقط لما لا يقبله `createAgent()`: `temperature` و`maxTokens`، و`TraceExporter` للتتبّع (`exporter` و`captureContent`). أما `createAgent()` فيقبل بالفعل `maxSteps` و`limits` و`onEvent` والموافقات و`store` (نقاط الحفظ) و`hooks` و`compaction`. `AgentExecutor` واجهة ساكنة (static)، فلا وجود لـ `new AgentExecutor()`.
+يشغّل `agent.stream()` الوكيل مثل `send()` ويُعيد `AgentRun`: مرّ عليه بحلقة للحصول على أحداث مُنمَّطة (نص النموذج فور وصوله، واستدعاءات الأدوات، وحدود الخطوات)، وانتظر `run.result` للحصول على النتيجة نفسها التي تُعيدها `send()`.
 
 ```ts
-import {
-  AgentBuilder,
-  AgentExecutor,
-  createMockProvider,
-} from '@lousho/build-ai-agent';
+import { createAgent, createMockProvider } from '@lousho/build-ai-agent';
 
-const agent = AgentBuilder.create()
-  .setName('Customer Support Agent')
-  .setPrompt('You are a helpful customer support assistant.')
-  .build();
-
-const events: string[] = [];
-const result = await AgentExecutor.execute({
-  agent,
-  input: 'My order arrived damaged.',
-  provider: createMockProvider({ responses: ["I'm sorry to hear that - what's your order number?"] }),
-  maxSteps: 5,
-  onAgentEvent: (event) => events.push(event.type),
+const agent = createAgent({
+  prompt: 'You are a helpful assistant.',
+  provider: createMockProvider({ responses: ['Streaming works word by word.'] }),
 });
 
-console.log(result.text);
-console.log(result.usage.totalTokens, result.finishReason, result.steps);
-console.log(events); // includes 'run.start' and 'run.done'
+const run = agent.stream('Tell me something.');
+for await (const event of run) {
+  if (event.type === 'text.delta') process.stdout.write(event.text);
+}
+process.stdout.write('\n');
+
+const result = await run.result;
+console.log(result.finishReason); // "stop"
 ```
 
-## 5. الوكلاء التصريحيون: ملفات المواصفات
+راجع [البث](/ar/streaming) للاطلاع على قائمة الأحداث الكاملة والإلغاء وإرسال الأحداث إلى المتصفح.
+
+## 4. تذكّر المحادثة
+
+تبدأ `agent.send()` من سجل فارغ في كل استدعاء. أما `agent.session()` فتحتفظ بالنص وتمرّره إلى النموذج في كل `send()`.
+
+```ts
+import { createAgent, createMockProvider } from '@lousho/build-ai-agent';
+
+const agent = createAgent({
+  prompt: 'You are a helpful assistant.',
+  provider: createMockProvider({ responses: ['Nice to meet you, Ali.', 'Your name is Ali.'] }),
+});
+
+const session = agent.session();
+await session.send('My name is Ali.');
+const { text } = await session.send('What is my name?');
+
+console.log(text);
+console.log(session.messages.length); // 4: two user messages and two replies
+```
+
+مرّر مخزنًا للإبقاء على الجلسات عبر إعادات التشغيل؛ راجع [الجلسات](/ar/sessions).
+
+## 5. اسأل قبل إجراء فيه خطورة
+
+اجعل الأداة `needsApproval` فيتوقف التشغيل قبل استدعائها. تنتهي `send()` بـ `finishReason: 'awaiting-approval'` وبـ `approvalId`؛ ثم يوافق كودك (أو إنسان) على الاستدعاء أو يرفضه ويتابع التشغيل. هنا يكتب `mockModel` من `@lousho/build-ai-agent/testing` دورات النموذج بدقة، فيكون استدعاء الأداة مؤكدًا.
+
+```ts
+import { createAgent, defineTool } from '@lousho/build-ai-agent';
+import { mockModel } from '@lousho/build-ai-agent/testing';
+import { z } from 'zod';
+
+const sendEmail = defineTool({
+  name: 'send_email',
+  description: 'Send an email',
+  input: z.object({ to: z.string() }),
+  needsApproval: true,
+  execute: async ({ to }) => `sent to ${to}`,
+});
+
+const agent = createAgent({
+  instructions: 'You send emails.',
+  provider: mockModel([
+    { toolCalls: [{ name: 'send_email', args: { to: 'sam@example.com' } }] },
+    { text: 'Sent.' },
+  ]),
+  tools: [sendEmail],
+});
+
+const paused = await agent.send('Email the report to sam@example.com');
+console.log(paused.finishReason); // "awaiting-approval"
+
+const result = await agent.approvals.resolve({ id: paused.approvalId!, approved: true });
+console.log(result.text); // "Sent."
+```
+
+مرّر `approved: false` (مع `note`) لرفض الاستدعاء بدلًا من ذلك. راجع [الموافقات](/ar/approvals) للاطلاع على الدوال الشرطية والمخازن والبتّ من عملية أخرى.
+
+## 6. اختبره دون اتصال
+
+الوكيل من الخطوة السابقة قابل للاختبار أصلًا: يسجّل `mockModel` كل طلب أرسله الوكيل، فتستطيع التحقق مما أُرسل إلى النموذج وكذلك من النتيجة. لا شبكة ولا مفتاح.
+
+```ts
+import { createAgent, defineTool } from '@lousho/build-ai-agent';
+import { mockModel } from '@lousho/build-ai-agent/testing';
+import { z } from 'zod';
+
+let sent: string | undefined;
+const sendEmail = defineTool({
+  name: 'send_email',
+  description: 'Send an email',
+  input: z.object({ to: z.string() }),
+  needsApproval: true,
+  execute: async ({ to }) => {
+    sent = to;
+    return `sent to ${to}`;
+  },
+});
+
+const model = mockModel([
+  { toolCalls: [{ name: 'send_email', args: { to: 'sam@example.com' } }] },
+  { text: 'Sent.' },
+]);
+const agent = createAgent({ instructions: 'You send emails.', provider: model, tools: [sendEmail] });
+
+const paused = await agent.send('Email the report to sam@example.com');
+const result = await agent.approvals.resolve({ id: paused.approvalId!, approved: true });
+
+function check(ok: boolean, message: string): void {
+  if (!ok) throw new Error(`Assertion failed: ${message}`);
+}
+check(result.text === 'Sent.', 'final answer');
+check(sent === 'sam@example.com', 'the tool ran with the approved arguments');
+check(model.calls.length === 2, 'the model was called twice');
+model.assertExhausted(); // throws if a scripted turn was never used
+console.log('ok');
+```
+
+في مشروع حقيقي، ضع التحققات نفسها في اختبار vitest أو Jest. راجع [الاختبار](/ar/testing) لتسلسلات استدعاء الأدوات ودورات الخطأ و`recordReplay`.
+
+## 7. مزوّد مخصّص
+
+`model: 'provider/model'` هو الاختصار؛ مرّر `provider` بدلًا منه عندما يكون لديك `LLMProvider` خاص بك أو تريد المزوّد الوهمي للاختبارات. و`resolveProvider('<provider>/<model>')` هي الدالة التي يستخدمها `model` داخليًا. يستخدم هذا المقتطف OpenAI إذا كان `OPENAI_API_KEY` مضبوطًا ويرجع إلى المزوّد الوهمي في غير ذلك، وهو النمط نفسه الذي تتبعه [الأمثلة](https://github.com/LinuxDevil/agent-sdk/blob/main/examples/README.md) القابلة للتشغيل.
+
+```ts
+import { createAgent, createMockProvider, resolveProvider } from '@lousho/build-ai-agent';
+
+const provider = process.env.OPENAI_API_KEY
+  ? resolveProvider('openai/gpt-4o-mini')
+  : createMockProvider({ responses: ['Paris.'] });
+
+const agent = createAgent({
+  name: 'geography-bot',
+  prompt: 'Answer geography questions in one word.',
+  provider,
+});
+
+const result = await agent.send('What is the capital of France?');
+console.log(result.text);
+```
+
+## 8. الوكلاء التصريحيون: ملفات المواصفات
 
 يمكن أيضًا وصف الوكيل على هيئة بيانات مجرّدة، أي `AgentSpec`، ثم تحويله إلى وكيل حيّ بـ `specToAgent()`. ويمكن كتابة البنية نفسها في ملف YAML أو JSON وتحميلها بـ `loadSpec()`.
 
@@ -184,9 +254,13 @@ npx lousho dev agent.yaml
 npx lousho build --target=node-server --agent=agent.yaml
 ```
 
+## متقدم: واجهة المنفّذ
+
+`createAgent()` هي نقطة الدخول الموصى بها. وهي تقوم فوق `AgentBuilder` والدالة الساكنة `AgentExecutor.execute()`، اللتين تقبلان بعض الخيارات الأدنى مستوى التي لا تقبلها `createAgent()`، مثل `temperature` و`maxTokens` ومُصدِّر التتبّع. راجع [واجهة المنفّذ](/ar/executor-api).
+
 ## الخطوات التالية
 
-- [الإعدادات](/ar/configuration) - كل حقول ملف المواصفات، ومتغيرات البيئة الخاصة بالمزوّدين، ورايات CLI.
-- [النشر](/ar/deployment) - أهداف `lousho build` (خادم Node، Docker، Cloudflare Workers).
+- [الإعداد](/ar/configuration) - كل حقول ملف المواصفات، ومتغيرات البيئة الخاصة بالمزوّدين، ورايات CLI.
+- [النشر](/ar/deployment) - أهداف `lousho build` (خادم Node وDocker وCloudflare Workers).
 - [نظرة عامة على الواجهة البرمجية](/ar/api-overview) - أهم التصديرات ومكان المرجع الكامل للواجهة البرمجية.
 - [الأمثلة](https://github.com/LinuxDevil/agent-sdk/blob/main/examples/README.md) - وكلاء نموذجيون قابلون للتشغيل.

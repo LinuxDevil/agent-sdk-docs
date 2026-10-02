@@ -1,12 +1,6 @@
 ---
 title: "الإعدادات"
 ---
-
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/configuration).
-</Warning>
-
 {/* Generated from docs/configuration.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 ## ملفات مواصفات الوكيل (`AgentSpec`)
@@ -44,6 +38,7 @@ tools:
 | الاسم          | الأداة                                               |
 | -------------- | ---------------------------------------------------- |
 | `http`         | `httpTool` - طلبات HTTP                              |
+| `web-fetch`    | `webFetchTool` - قراءة صفحة ويب عامة كنص             |
 | `current-date` | `currentDateTool` - التاريخ والوقت الحاليان (ISO، UTC) |
 | `day-name`     | `dayNameTool` - اسم يوم الأسبوع                      |
 
@@ -62,7 +57,7 @@ tools:
 | ------------------ | --------------------------------------------- | ----------- |
 | `requiresApproval` | `permissions` ([`ask`](/ar/guardrails))       | `true`: كل استدعاء أداة يتوقف مؤقتًا بانتظار الموافقة. قائمة: تتوقف تلك الأدوات فقط. |
 | `guardrails`       | `guardrails` (المدخلات والمخرجات)             | أسماء حواجز حماية مضمَّنة، أو `{ name, ...options }` (الجدول أدناه). |
-| `limits`           | `limits` ([الميزانيات](#الميزانيات))             | `maxTokens`, `maxInputTokens`, `maxOutputTokens`, `maxCostUsd`, `maxDurationMs`, `maxSteps`, `onExceeded`. |
+| `limits`           | `limits` ([الميزانيات](#الميزانيات))                | `maxTokens`, `maxInputTokens`, `maxOutputTokens`, `maxCostUsd`, `maxDurationMs`, `maxSteps`, `onExceeded`. |
 | `askQuestion`      | `askQuestion`                                 | `true` تضيف الأداة المضمَّنة `ask_question`. |
 | `compaction`       | `compaction`                                  | `true`، أو `{ thresholdPercent: 0.8 }` (كسر من نافذة السياق، أكبر من 0 وحتى 1). |
 
@@ -101,6 +96,10 @@ policy:
 | `regex`        | `pattern` (مطلوب)، `flags`، `action`، `replacement` | يحجب (أو يعيد كتابة) النصوص التي تطابق `pattern`. |
 | `deny-topics`  | `topics` (مطلوب، قائمة) | يحجب النصوص التي تذكر موضوعًا من القائمة (دون تمييز بين الأحرف الكبيرة والصغيرة). |
 | `llm-judge`    | `model` (مطلوب، `"provider/model"`)، `instruction` | يسأل نموذجًا هل النص مقبول؛ استدعاء واحد لكل فحص. |
+| `pii`          | `types` (قائمة من `email` و`phone` و`credit-card` و`iban` و`us-ssn` و`ip-address`؛ والافتراضي كلها)، `action` (الافتراضي `block`) | يحجب (أو يعيد كتابة إلى `[email]` وما شابه) البيانات الشخصية التي يعثر عليها بالأنماط. استدلالي (heuristic). |
+| `secrets`      | `action` (الافتراضي `rewrite`)، `extraPatterns` (قائمة من التعبيرات النمطية) | يعيد كتابة (أو يحجب) مفاتيح API والرموز والمفاتيح الخاصة التي يعثر عليها بالأنماط. استدلالي (heuristic). |
+| `prompt-injection` | `model` (اختياري، `"provider/model"`) | يحجب صياغات وعلامات حقن الموجّه (prompt injection) الشائعة؛ ومع `model` يسأل النموذج أيضًا. استدلالي (heuristic). |
+| `moderation`   | `model` (مطلوب، `"provider/model"`)، `categories` (الافتراضي كلها) | يسأل نموذجًا عن فئات المحتوى الضار المنطبقة؛ استدعاء واحد لكل فحص. |
 
 كل حاجز حماية يقبل أيضًا `on`: `input` أو `output` أو `tools` (وسائط استدعاء
 أداة)، أو قائمة منها. القيمة الافتراضية `[input, output]`. الاسم أو الخيار غير
@@ -122,7 +121,7 @@ mean"):
 و`headers` يخصّ HTTP وحده. تتحقق `loadSpec()` من الحقل، والمُدخل غير الصالح
 يفشل برسالة فيها اسم المُدخل، مثل
 `'mcpServers.files': AgentSpec validation failed: missing 'command' (stdio server) or 'url' (HTTP server)`.
-والحقل الاختياري `approval` (`annotations` أو `always` أو `never`) يحدد أيّ أدوات الخادم تطلب الموافقة؛ انظر [الموافقة على أدوات MCP](#الموافقة-على-أدوات-mcp-approval).
+والحقل الاختياري `approval` (`annotations` أو `always` أو `never`) يحدد أيّ أدوات الخادم تطلب الموافقة؛ انظر [الموافقة على أدوات MCP](/ar/mcp#الموافقة-على-أدوات-mcp).
 ويتحقق `lousho doctor` من أن كل `command` لخادم stdio يمكن العثور عليه.
 
 ```yaml
@@ -155,207 +154,9 @@ console.log(Object.keys(agent.mcpServers)); // ['filesystem', 'docs']
 ```
 
 تمرّر `specToAgent()` الخوادم إلى `createAgent({ mcpServers })` الموصوف في
-القسم التالي، فتحصل وكلاء `lousho dev` و`lousho mcp` على أدواتها.
+[MCP](/ar/mcp#استخدام-خوادم-mcp-في-وكيل)، فتحصل وكلاء `lousho dev` و`lousho mcp` على أدواتها.
 
-### ربط خوادم MCP (`mcpServers`، `connectMcp()`)
-
-يقبل `createAgent({ mcpServers })` الخريطة نفسها. تتصل الخوادم عند
-`await agent.ready()` أو، تلقائيًا، عند أول `send()` / `stream()`؛ وتُضاف
-أدوات كل خادم بالصيغة `<server>__<tool>` (مثل `docs__search`). الخادم الذي
-يتعذر الاتصال به يُفشل ذلك الاستدعاء، والاستدعاء التالي يحاول من جديد.
-تقطع `agent.close()` الاتصال بها (وتوقف عمليات stdio)؛ وأي استدعاء أداة لاحق
-يعيد الاتصال. ودون `mcpServers` لا تفعل `ready()` و`close()` شيئًا.
-
-```ts
-import { createAgent } from '@lousho/build-ai-agent';
-
-const agent = createAgent({
-  model: 'openai/gpt-4o-mini',
-  mcpServers: {
-    files: { command: 'npx', args: ['-y', '@modelcontextprotocol/server-filesystem', '.'] },
-    docs: { url: 'https://example.com/mcp', headers: { Authorization: 'Bearer <token>' } },
-  },
-});
-const { text } = await agent.send('List the files here.');
-await agent.close();
-```
-
-لمشاركة الخوادم بين عدة وكلاء، أو لاختيار طريقة معالجة الإخفاقات، استدعِ
-`connectMcp(servers, options?)` ومرّر `tools` الناتجة عنها بنفسك. فهي تتصل بكل
-خادم وتسرد أدواته قبل أن يُنجَز وعدها، فتكون الأدوات معروفة سلفًا.
-الخيارات:
-
-- `onError`: القيمة `'throw'` (الافتراضية) ترفض الوعد حين يتعذر الاتصال بخادم،
-  بعد إغلاق الخوادم الأخرى؛ والقيمة `'skip'` تستبعد ذلك الخادم وتحذّر عبر
-  `logger`.
-- `lazy` (الافتراضي `true`): بعد `close()` أو انقطاع الاتصال، يعيد استدعاء
-  الأداة التالي الاتصال. ومع `false` يفشل ذلك الاستدعاء بدلًا من ذلك. سرد
-  الأدوات يحتاج إلى اتصال، ولذلك لا يؤخّر `lazy` الاتصال الأول أبدًا.
-- `logger`: يتلقى تحذيرات الخوادم المتخطّاة والأدوات المتخطّاة (الافتراضي: لا
-  شيء).
-
-تُرجع `{ tools, close(), status() }`؛ و`status()` تقرن كل خادم بإحدى القيم
-`'idle'` أو `'connected'` أو `'failed'`.
-
-```ts
-import { createAgent } from '@lousho/build-ai-agent';
-import { connectMcp } from '@lousho/build-ai-agent/mcp';
-
-const mcp = await connectMcp(
-  { files: { command: 'npx', args: ['-y', '@modelcontextprotocol/server-filesystem', '.'] } },
-  { onError: 'skip', logger: console }
-);
-console.log(mcp.status()); // { files: 'connected' }
-const agent = createAgent({ model: 'openai/gpt-4o-mini', tools: mcp.tools });
-await agent.send('List the files here.');
-await mcp.close();
-```
-
-تُشغَّل خوادم stdio بـ `command` و`args`؛ ويُضاف `env` إلى البيئة الافتراضية
-(`PATH` وما شابه) ولا يحل محلها. أما خوادم HTTP فتستخدم النقل streamable HTTP
-مع `headers` في كل طلب. والحزمة `@modelcontextprotocol/sdk` اعتمادية نظيرة
-اختيارية: ثبّتها لاستخدام MCP.
-
-### الموافقة على أدوات MCP (`approval`)
-
-تصف خوادم MCP كل أداة بتوصيفات (annotations) هي `readOnlyHint`
-و`destructiveHint` و`idempotentHint` و`openWorldHint` و`title`. وهي مجرد
-تلميحات، لكن الـ SDK يتخذها أساسًا للسلوك الافتراضي في
-[الموافقات](/ar/approvals): الأداة التي لها `readOnlyHint: true` تُنفَّذ؛ والأداة
-التي لها `destructiveHint: true`، أو التي لا ترسل `destructiveHint` (الافتراضي
-في مواصفة MCP أنها مُتلِفة)، توقف التشغيل مؤقتًا إلى أن يوافق إنسان؛ و
-`destructiveHint: false` تُنفَّذ. وعليه فالأداة التي بلا توصيفات تطلب
-الموافقة. تبقى التوصيفات الخام في `descriptor.metadata.mcp.annotations`،
-ويصبح `title` هو `displayName`.
-
-اضبط `approval` في مُدخل الخادم (`mcpServers`، `createAgent`، `connectMcp()`) أو
-في `loadMcpTools(client, name, { approval })`:
-
-- `'annotations'` (الافتراضي): كما سبق.
-- `'always'` / `'never'`: اطلب الموافقة لكل الأدوات / لا تطلبها لأيٍّ منها.
-- دالة `({ name, annotations }) => boolean` تقرر لكل أداة على حدة (`name` هو
-  اسم الأداة المجرّد؛ و`annotations` تكون `{}` إذا لم يرسل الخادم شيئًا). متاحة
-  في الشيفرة فقط؛ أما ملف المواصفات فيقبل السلاسل النصية الثلاث.
-
-تُطبَّق [قواعد الصلاحيات](/ar/approvals#سياسات-الصلاحيات) أولًا، ويبقى في وسعها
-أن تقرر `allow` أو `deny` أو `ask`.
-
-```ts
-import { createAgent } from '@lousho/build-ai-agent';
-
-const agent = createAgent({
-  model: 'openai/gpt-4o-mini',
-  mcpServers: {
-    files: { command: 'npx', args: ['-y', '@modelcontextprotocol/server-filesystem', '.'] },
-    // Ask before anything except tools whose name starts with `search`.
-    docs: { url: 'https://example.com/mcp', approval: ({ name }) => !name.startsWith('search') },
-    // A server you trust: never ask.
-    scratch: { command: 'node', args: ['./scratch-server.js'], approval: 'never' },
-  },
-});
-```
-
-### أدوات MCP (Model Context Protocol)
-
-يمكن أيضًا تحميل أدوات `Client` اتصلت به بنفسك يدويًا - اتصل بـ `Client` من `@modelcontextprotocol/sdk` بنفسك وحمّل
-أدواته بـ `loadMcpTools()`، ثم مرّر الناتج إلى `createAgent()` (أو سجّله في
-`ToolRegistry`):
-
-```ts
-import { createAgent } from '@lousho/build-ai-agent';
-import { loadMcpTools } from '@lousho/build-ai-agent/mcp';
-
-const tools = await loadMcpTools(mcpClient, 'my-server');
-const agent = createAgent({ prompt: '...', provider, tools });
-```
-
-الدالة `loadMcpTools` متاحة كذلك من جذر الحزمة ومن
-`@lousho/build-ai-agent/tools`.
-
-### تقديم وكيل عبر MCP
-
-الدالة `serveMcp()` هي عكس `loadMcpTools()`: تعرض وكيلًا (ومعه، اختياريًا،
-بعض أدواته) في صورة خادم MCP، فيتمكن Claude Code و Cursor وغيرهما من عملاء MCP
-من استدعائه.
-
-```ts
-import { createAgent, defineTool } from '@lousho/build-ai-agent';
-import { serveMcp } from '@lousho/build-ai-agent/mcp';
-import { z } from 'zod';
-
-const searchDocs = defineTool({
-  name: 'search_docs',
-  description: 'Search the docs',
-  input: z.object({ query: z.string() }),
-  execute: ({ query }) => `results for ${query}`,
-});
-
-const supportAgent = createAgent({ prompt: 'You answer support questions.', provider, tools: [searchDocs] });
-
-const server = await serveMcp({
-  agent: supportAgent,            // exposed as ONE tool taking { message: string }
-  name: 'support-bot',            // server name; the tool name defaults to a sanitized version
-  description: 'Ask the support agent a question',
-  tools: [searchDocs],            // optional: also expose these tools directly
-  transport: { type: 'http', port: 3920, host: '127.0.0.1', path: '/mcp' }, // default: 'stdio'
-});
-await server.close();
-```
-
-- **بلا حالة.** كل استدعاء لأداة الوكيل محادثة جديدة.
-- **الإلغاء.** إلغاء طلب MCP يُلغي تشغيل الوكيل
-  (`agent.send(message, { signal })`).
-- **الأخطاء.** فشل الوكيل يعود في صورة نتيجة MCP فيها `isError: true`.
-- **الموافقات.** الأدوات المشروطة بموافقة لا يمكن الموافقة عليها عبر MCP.
-  التشغيل الذي يتوقف مؤقتًا بانتظار موافقة يُرجع `isError: true` مع رسالة تقول
-  ذلك. والأدوات الموسومة بـ `needsApproval` لا تُعرَض مباشرة إلا إذا مرّرت
-  `allowApprovalTools: true`؛ وإن فعلت، شغّلها العملاء **دون أي رقابة بشرية**.
-- **stdio.** لا يُكتب إلى stdout شيء سوى بروتوكول MCP؛ والتحذيرات تذهب إلى stderr.
-- **HTTP.** يرتبط بالعنوان `127.0.0.1` افتراضيًا. أضف
-  `auth: { type: 'bearer', token }` لاشتراط الترويسة `Authorization: Bearer`؛
-  والارتباط بمضيف غير محلي (non-loopback) دون `auth` يسجّل تحذيرًا.
-
-#### التوصيفات
-
-يحمل `tools/list` توصيفات MCP ليعرف العملاء ما تفعله الأداة. الأداة التي تحتاج
-إلى موافقة يُعلَن عنها بـ `readOnlyHint: false, destructiveHint: true`؛ وحدّد
-التلميحات بنفسك عبر `annotations` (تُرسل كما هي حرفيًا). الأداة التي بلا
-تلميحات لا ترسل شيئًا، فيظل وكيل Lousho الذي يستهلك هذا الخادم يسأل قبل
-تشغيلها (انظر `approval` في `connectMcp()`)؛ و`readOnlyHint: true` تُنفَّذ دون
-سؤال. والأداة التي تحتاج إلى موافقة لا يُعلَن عنها أبدًا أنها للقراءة فقط.
-الأدوات المضمَّنة `read_file` و`list_dir` و`glob` و`grep` و`todo_read`
-و`current_date` و`day_name` للقراءة فقط.
-
-```ts
-import { defineTool } from '@lousho/build-ai-agent';
-import { z } from 'zod';
-
-const lookupOrder = defineTool({
-  name: 'lookup_order',
-  description: 'Look up an order',
-  input: z.object({ id: z.string() }),
-  annotations: { readOnlyHint: true, destructiveHint: false, title: 'Look up order' },
-  execute: ({ id }) => ({ id, status: 'shipped' }),
-});
-```
-
-من سطر الأوامر، يقدّم `lousho mcp` ملف مواصفات وكيل (عبر stdio افتراضيًا):
-
-```sh
-npx lousho mcp agent.yaml
-npx lousho mcp agent.yaml --http --port 3920 --host 127.0.0.1
-```
-
-لاستخدامه من عميل MCP، أضفه إلى إعدادات MCP لدى العميل (مثل `.mcp.json` في
-Claude Code):
-
-```json
-{
-  "mcpServers": {
-    "support-bot": { "command": "npx", "args": ["lousho", "mcp", "agent.yaml"] }
-  }
-}
-```
+عملاء MCP و`connectMcp()` والموافقة على الأدوات وتقديم وكيل عبر MCP موضوعها صفحة مستقلة: [MCP (Model Context Protocol)](/ar/mcp).
 
 ## بيانات اعتماد المزوّدين
 
@@ -406,7 +207,7 @@ for await (const event of agent.stream('Hello!')) {
   كل استدعاء يبدأ بالنموذج الأساسي.
 - تُبلغ `stream()` و`session.stream()` عن كل إعادة محاولة بحدث `provider.retry`
   وعن كل انتقال بحدث `provider.fallback` (انظر
-  [البث](/ar/streaming#مخطط-الأحداث-الإصدار-1)). أما `send()` فتُرجع النتيجة
+  [البث](/ar/stream-events#مخطط-الأحداث-الإصدار-1)). أما `send()` فتُرجع النتيجة
   النهائية كما في السابق.
 
 لبناء الشيء نفسه يدويًا، أو لمزوّدين تنشئهم بنفسك، تغلّف
@@ -468,7 +269,7 @@ const agent = createAgent({ prompt: 'You are helpful.', provider });
 | `description` | ما يفعله الوكيل، في جملة واحدة. مطلوب حين يُستخدم وكيلًا فرعيًا. |
 | `maxSteps` | يُمرَّر كما هو إلى `AgentExecutor.execute()`.                       |
 | `limits`   | ميزانيات كل تشغيل: `{ maxTokens?, maxInputTokens?, maxOutputTokens?, maxCostUsd?, maxDurationMs?, maxSteps?, onExceeded? }`. بلوغ أحد الحدود ينهي التشغيل بـ `finishReason: 'budget-exceeded'`. انظر [الميزانيات](#الميزانيات). |
-| `toolConcurrency` | عدد استدعاءات الأدوات التي تعمل معًا في دورة نموذج واحدة: عدد صحيح موجب أو `'unbounded'` (الافتراضي). انظر [استدعاءات الأدوات المتوازية](/ar/api-overview#استدعاءات-الأدوات-المتوازية). |
+| `toolConcurrency` | عدد استدعاءات الأدوات التي تعمل معًا في دورة نموذج واحدة: عدد صحيح موجب أو `'unbounded'` (الافتراضي). انظر [استدعاءات الأدوات المتوازية](/ar/runs#استدعاءات-الأدوات-المتوازية). |
 | `skills`   | مهارات من `defineSkill()` / `loadSkills()`؛ انظر [المهارات](/ar/skills). |
 | `subagents`, `maxSubagentDepth` | وكلاء فرعيون مسمَّون خلف أداة `task` واحدة، وأقصى عمق لتداخلهم (الافتراضي 1)؛ انظر [الوكلاء الفرعيون](/ar/sub-agents). |
 | `store`    | مخزن `AgentStore` (`SqliteStore`، أو `memoryStore()`، أو `{ sessions?, checkpoints?, approvals? }`): المخازن الافتراضية لـ `agent.session()` وللموافقات ولتشغيلات `send(message, { sessionId })`؛ وتُكمل `agent.resume(id)` تشغيلًا انقطع. انظر [الجلسات المتينة](/ar/sessions#الجلسات-المتينة). |
@@ -478,7 +279,7 @@ const agent = createAgent({ prompt: 'You are helpful.', provider });
 | `projectInstructions` | `true` أو `{ cwd?, files? }`: ألحِق أقرب ملف `AGENTS.md` / `CLAUDE.md` بالتعليمات (معطَّل افتراضيًا؛ انظر [تعليمات المشروع](#تعليمات-المشروع)). |
 | `retry`    | خيارات `withRetry()` لاستدعاءات النموذج الفاشلة، أو `false`. الافتراضي `{ maxRetries: 2 }` لسلاسل `model` النصية؛ أما نسخة `provider` فلا تُغلَّف إلا إذا ضُبط. انظر [إعادة المحاولة والبديل الاحتياطي لدى المزوّد](#إعادة-المحاولة-والبديل-الاحتياطي-لدى-المزوّد). |
 | `fallbackModels` | سلاسل نصية بالصيغة `provider/model` تُجرَّب بالترتيب حين يظل النموذج يفشل بعد استنفاد محاولاته. |
-| `hooks`    | مصفوفة `AgentHook[]` تعمل حول كل استدعاء للنموذج وكل استدعاء أداة، بالترتيب، قبل خطّاف ضغط السياق (انظر `AgentHook` في [نظرة عامة على الواجهة](/ar/api-overview)). |
+| `hooks`    | مصفوفة `AgentHook[]` تعمل حول كل استدعاء للنموذج وكل استدعاء أداة، بالترتيب، قبل خطّاف ضغط السياق (انظر [الخطّافات](/ar/hooks)). |
 | `compaction` | `true` (احذف نتائج الأدوات القديمة عند تجاوز 90% من نافذة السياق) أو `{ strategy?, thresholdPercent?, contextWindow?, protectedTokens?, summarizer? }`؛ و`summarizer` (`'provider/model'` أو `LLMProvider`) يختار الاستراتيجية ذات المرحلتين. تُبلغ `stream()` عن `compaction.start` / `compaction.done`. انظر [ضغط السياق](/ar/compaction#ضغط-سياق-وكيل). |
 
 إذا لم يُحدَّد `model` ولا `provider`، تحدّد `createAgent()` المزوّد من البيئة:
@@ -505,7 +306,7 @@ const agent = createAgent({ prompt: 'You are helpful.', provider });
 | `maxTokens`       | رموز (tokens) الموجّه مع رموز الإكمال في التشغيل (`usage.totalTokens`). |
 | `maxInputTokens`  | رموز الموجّه (`usage.inputTokens`). |
 | `maxOutputTokens` | رموز الإكمال (`usage.outputTokens`). |
-| `maxCostUsd`      | التكلفة التقديرية بالدولار الأمريكي (`usage.costUsd`، من [جدول الأسعار](/ar/api-overview#النماذج-والرموز-والتكلفة)). لا يُفحص ما دام أحد النماذج المستخدمة مجهول التسعير (`costUsd` تساوي `undefined`). |
+| `maxCostUsd`      | التكلفة التقديرية بالدولار الأمريكي (`usage.costUsd`، من [جدول الأسعار](/ar/models-and-cost#النماذج-وجدول-الأسعار)). لا يُفحص ما دام أحد النماذج المستخدمة مجهول التسعير (`costUsd` تساوي `undefined`). |
 | `maxDurationMs`   | الزمن الفعلي المنقضي في استدعاء `execute()` / `stream()`. |
 | `maxSteps`        | خطوات النموذج. اسم بديل للخيار `maxSteps`: إذا ضُبط الاثنان غلب الأشد تقييدًا (وعند التساوي يُبلَّغ عن `'max-steps'` الخاص بالخيار)؛ وإذا ضُبط وحده حلّ محل القيمة الافتراضية 10. |
 
@@ -594,29 +395,9 @@ const agent = createAgent({
 
 ## خيارات `AgentExecutor.execute()`
 
-الصنف `AgentExecutor` ساكن (static): استدعِ `AgentExecutor.execute(options)`.
-المطلوب فقط `agent` و`input` و`provider`. الخيارات الشائعة الاستخدام:
-
-| الخيار                                  | الوصف                                                           |
-| --------------------------------------- | --------------------------------------------------------------- |
-| `agent`                                 | كائن `AgentConfig`، يُبنى عادةً بـ `AgentBuilder`.              |
-| `input`                                 | رسالة مستخدم في سلسلة نصية، أو محادثة `Message[]`.               |
-| `provider`                              | المزوّد `LLMProvider` الذي يُولَّد به.                          |
-| `toolRegistry`                          | سجل `ToolRegistry` يضم الأدوات التي تشير إليها إعدادات الوكيل.  |
-| `maxSteps`                              | الحد الأعلى لخطوات LLM/الأدوات.                                 |
-| `limits`                                | ميزانيات الرموز والتكلفة والزمن والخطوات للتشغيل؛ انظر [الميزانيات](#الميزانيات). |
-| `temperature`, `maxTokens`              | معاملات التوليد.                                                |
-| `onAgentEvent`                          | مستمع لأحداث `AgentEvent` الخاصة بالتشغيل (`run.start`، `tool.start`، `run.done`، ...)؛ انظر [البث](/ar/streaming#الاستماع-دون-المرور-على-الأحداث). |
-| `approvalStore`, `sessionId`            | موافقات إشراك الإنسان (انظر `resumeAfterApproval()`).            |
-| `checkpointStore`                       | حفظ نقاط حفظ التنفيذ واستئنافها.                                |
-| `exporter`                              | مُصدِّر `TraceExporter` لمقاطع التتبّع (spans) (وفق اصطلاحات OpenTelemetry GenAI، انظر [قابلية المراقبة](/ar/observability)). |
-| `captureContent`, `redactContent`       | تسجيل محتوى الرسائل/الأدوات في سمات المقاطع `gen_ai.*` (اختياري، opt-in) / حذف سمات المحتوى المُهمَلة. |
-| `onLLMRequest`, `onLLMResponse`, `onToolCall`, `onToolResult` | خطّافات قابلية المراقبة.              |
-
-يُنجَز وعدها بكائن `ExecutionResult`: `{ text, messages, toolCalls, usage,
-finishReason, steps, approvalId? }`.
+خيارات `AgentExecutor.execute()`، وهي نقطة الدخول الأدنى مستوى، مدرجة في [صفحة واجهة المنفِّذ](/ar/executor-api#خيارات-agentexecutor-execute).
 
 ## CLI
 
 الأوامر `lousho dev` و`lousho build` و`lousho mcp` وسائر الأوامر، مع
-راياتها (flags)، موصوفة في [CLI](/ar/cli).
+راياتها (flags)، موصوفة في [CLI](/ar/cli)؛ ويُعرض `lousho mcp` أيضًا في [MCP](/ar/mcp#من-سطر-الأوامر).

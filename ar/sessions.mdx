@@ -1,12 +1,6 @@
 ---
 title: "الجلسات"
 ---
-
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/sessions).
-</Warning>
-
 {/* Generated from docs/sessions.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 `agent.send(text)` أحادي الدورة: كل استدعاء يبدأ بسجل فارغ.
@@ -37,7 +31,7 @@ console.log(session.id, session.messages.length);
 | `compact(options?)` | يضغط سجل المحادثة الآن - انظر [ضغط سياق جلسة](/ar/compaction#ضغط-سياق-جلسة). |
 | `clear()` | يفرّغ سجل المحادثة ويحفظه فارغًا (فلا يحوي المخزن أي رسائل لهذا المعرّف). يُبقي معرّف الجلسة والمخزن والخيارات؛ ويحذف نقطة حفظ الدورة المنقطعة؛ أما خانات الذاكرة فمشتركة بين الجلسات ولا تُمسّ. يُصدر `context.cleared` إلى مستمعي `on()`. يُرفض بالخطأ `LOUSHO_SESSION_BUSY` ما دامت دورة قيد التنفيذ، وبالخطأ `LOUSHO_SESSION_AWAITING_APPROVAL` ما دامت دورة متينة تنتظر موافقة. |
 | `on(listener)` | يستمع إلى أحداث `compact()` / `clear()` (`compaction.start` و`compaction.done` و`context.cleared`)؛ ويُرجع دالة تزيل المستمع. |
-| `pending()` | في [جلسة متينة](#الجلسات-المتينة): الدورة التي لم تنتهِ (`{ status, approvalId? }`)، أو `null`. |
+| `pending()` | في [جلسة متينة](#الجلسات-المتينة): الدورة التي لم تنتهِ (`{ status, approvalId?, approvalKind? }`؛ تكون قيمة `approvalKind` هي `'question'` حين تنتظر الدورة استدعاء `ask_question`)، أو `null`. |
 | `resume({ signal })` | في جلسة متينة: يُنهي دورة منقطعة ويُنجَز بنتيجتها، أو بـ `null` حين لا توجد دورة معلّقة. |
 | `discardPending()` | في جلسة متينة: يتخلى عن دورة غير منتهية دون تنفيذها. |
 
@@ -49,7 +43,7 @@ console.log(session.id, session.messages.length);
 
 - `'wait'` (الافتراضي): ينتظر ثم يُنفَّذ دورةً مستقلة، كما سبق.
 - `'queue'`: ينضم مُدخَله إلى تلك الدورة، مثل
-  [`run.enqueue()`](/ar/streaming#المدخلات-في-قائمة-الانتظار): يُضاف بعد
+  [`run.enqueue()`](/ar/queue-and-steer#المدخلات-المصطفّة): يُضاف بعد
   نتائج أدوات الخطوة الحالية، فيراه استدعاء النموذج التالي في الدورة. يُنجَز
   الاستدعاء بنتيجة تلك الدورة (و`signal` الخاص به لا يسري على
   الدورة)، وسجل المحادثة المحفوظ عند انتهاء الدورة يحوي رسالة المستخدم
@@ -60,7 +54,7 @@ console.log(session.id, session.messages.length);
   نهاية المطاف. وإذا فشلت الدورة رُفض الاستدعاء بالخطأ نفسه؛ وفي الجلسة
   المتينة يبقى المُدخَل في نقطة حفظ الدورة ويطبّقه `resume()`.
 - `'steer'`: مثل `'queue'`، لكن المُدخَل ينضم عبر
-  [`run.steer()`](/ar/streaming#التوجيه): إذا لم يكن استدعاء النموذج في الدورة قد
+  [`run.steer()`](/ar/queue-and-steer#التوجيه): إذا لم يكن استدعاء النموذج في الدورة قد
   أصدر شيئًا بعد، أُلغي وأُعيد بالرسالة الجديدة، ولا تُنفَّذ
   استدعاءات الأدوات التي لم تبدأ في الدورة. وإلا انتظر
   النقطة الآمنة التالية، كما في `'queue'`. يُنجَز الاستدعاء بنتيجة
@@ -236,32 +230,29 @@ await again.send('What is my name?'); // "Ali"
 | المخزن | الجلسات | نقاط الحفظ | الموافقات | استخدمه حين |
 | --- | --- | --- | --- | --- |
 | في الذاكرة (`memoryStore()`) | `MemorySessionStore` | في الذاكرة | `InMemoryApprovalStore` | الاختبارات، والسكربتات، وعملية واحدة لا يُعاد تشغيلها أبدًا |
-| ملفات | `FileSessionStore(dir)` | `LocalStorageCheckpointStore` | `StorageServiceApprovalStore` | جهاز واحد، وتريد ملفات عادية يمكن فحصها |
+| ملفات (`fileStore(dir)`) | `<dir>/sessions/<id>.json` | `<dir>/checkpoints/` و`<dir>/checkpoint-history/` | `<dir>/approvals/<id>.json` | جهاز واحد، وتريد ملفات عادية يمكن فحصها |
 | SQLite | `store.sessions` | `store.checkpoints` | `store.approvals` | خادم Node: ملف واحد دائم يدعم المعاملات، تتشاركه عدة عمليات بأمان |
-| Cloudflare KV | - | `KVCheckpointStore` | - | النشر على Workers (انظر [النشر](/ar/deployment)) |
+| Cloudflare KV (`KVStore` من `@lousho/build-ai-agent/kv`) | `store.sessions` | `store.checkpoints` | `store.approvals` | النشر على Workers (انظر [النشر](/ar/deployment)) |
 
 كل واحد منها جزء من `AgentStore`: مرّرها معًا هكذا
 `createAgent({ store: { sessions, checkpoints, approvals } })`. و`memoryStore()`
-و`SqliteStore` كائنا `AgentStore` جاهزان؛ وللملفات العادية، اجمع
-مخازن الملفات:
+و`fileStore(dir)` و`SqliteStore` و`KVStore` كائنات `AgentStore` جاهزة. وللملفات
+العادية، تكتب `fileStore(dir)` ملف JSON واحدًا لكل جلسة ونقطة حفظ وموافقة
+معلّقة تحت `dir`، ويُكتب كلٌّ منها في ملف مؤقت ثم يُعاد تسميته إلى
+موضعه، دون ملفات قفل:
 
 ```ts
-import {
-  createAgent,
-  FileSessionStore,
-  LocalStorageCheckpointStore,
-  StorageServiceApprovalStore,
-  type AgentStore,
-} from '@lousho/build-ai-agent';
+import { createAgent, fileStore } from '@lousho/build-ai-agent';
 
-// `storage` is a StorageService rooted where the files should go.
-const store: AgentStore = {
-  sessions: new FileSessionStore('./.lousho/sessions'),
-  checkpoints: new LocalStorageCheckpointStore(storage),
-  approvals: new StorageServiceApprovalStore(storage),
-};
-const agent = createAgent({ provider, store });
+const agent = createAgent({ provider, store: fileStore('./.lousho') });
+// ./.lousho/sessions/user-42.json, ./.lousho/checkpoints/..., ./.lousho/approvals/...
+await agent.session({ id: 'user-42' }).send('Hello');
 ```
+
+البتّ في موافقة من `fileStore` آمن عبر العمليات (لا يحصل على السجل إلا
+مستدعٍ واحد)؛ أما عمليتان تكتبان جلسة واحدة في اللحظة نفسها فلا تنسيق بينهما،
+فتغلب الكتابة الأخيرة. وإذا كانت عدة عمليات تتشارك مخزنًا، فاستخدم
+`SqliteStore`.
 
 وأي كائن له الدوال الثلاث الخاصة بجزء ما يصلح هناك أيضًا: `SessionStore`
 على Redis، أو `CheckpointStore` يعتمد على KV في Cloudflare Workers (والـ
@@ -272,19 +263,19 @@ Worker المولَّد يستخدم `KVCheckpointStore`، انظر [النشر]
 مُعاد تصديره من نقطة الدخول الجذرية، فاستيراد SDK لا يحمّله أبدًا):
 
 ```ts
-import { createAgent, AgentExecutor } from '@lousho/build-ai-agent';
+import { createAgent } from '@lousho/build-ai-agent';
 import { SqliteStore } from '@lousho/build-ai-agent/sqlite';
 
 const store = new SqliteStore('./.lousho/agent.db'); // or ':memory:'
 const agent = createAgent({ provider, store }); // transcripts, per-step checkpoints and approvals
 await agent.session({ id: 'user-42' }).send('Hello');
 
-// With AgentExecutor directly, pass the parts:
-// AgentExecutor.execute({ ..., sessionId, checkpointStore: store.checkpoints, approvalStore: store.approvals })
-
 store.prune({ olderThanMs: 7 * 24 * 60 * 60 * 1000 }); // { sessions, checkpoints, approvals } deleted
 store.close();
 ```
+
+مع المنفّذ مباشرة، مرّر `store.checkpoints` بوصفه `checkpointStore` و
+`store.approvals` بوصفه `approvalStore`؛ انظر [واجهة المنفّذ](/ar/executor-api).
 
 - يُنشأ المجلد إن لم يكن موجودًا. والمخطط مُرقَّم الإصدار عبر
   `PRAGMA user_version` ويُرحَّل عند الفتح؛ وقاعدة البيانات التي كتبها إصدار

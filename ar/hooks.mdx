@@ -1,8 +1,269 @@
 ---
-title: "Hooks"
+title: "الخطّافات (Hooks)"
 ---
+{/* Generated from docs/hooks.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-{/* pending-translation */}
-<Note>
-هذه الصفحة لم تُترجَم إلى العربية بعد. اقرأ [النسخة الإنجليزية](/hooks).
-</Note>
+الخطّاف (hook) كائن بالشكل `{ name, preToolCall?, postToolCall?, preGenerate?, postGenerate? }` يعمل داخل حلقة الوكيل، حول كل استدعاء أداة وكل استدعاء للنموذج. استخدمه لكتابة سجل تدقيق، أو لمنع أداة، أو لحجب جزء من النتيجة أو اقتطاعها، أو لحقن سياق قبل استدعاء النموذج، أو لتعديل الطلب الذي يُرسَل إليه (ترويسة، أو `temperature`).
+
+الخطّافات شيفرة تكتبها أنت، وليست سياسة ولا قرارًا بشريًا: لقواعد السماح أو المنع أو السؤال لكل أداة، ولموافقة شخص على استدعاء، استخدم `permissions` و`needsApproval` ([الموافقات](/ar/approvals)). أما المستمعون مثل `onEvent` فيراقبون التشغيل فقط ولا يستطيعون تغييره ([البث](/ar/streaming#الاستماع-دون-المرور-على-الأحداث))؛ أما الخطّاف فيستطيع.
+
+## أول خطّاف لك
+
+مرّر الخطّافات إلى `createAgent({ hooks })`. يسجّل هذا الخطّاف كل استدعاء أداة وما أعاده:
+
+```ts
+import { createAgent, defineTool, type AgentHook } from '@lousho/build-ai-agent';
+import { mockModel } from '@lousho/build-ai-agent/testing';
+import { z } from 'zod';
+
+const auditHook: AgentHook = {
+  name: 'audit',
+  preToolCall(ctx) {
+    console.log('calling', ctx.toolName, ctx.args);
+  },
+  postToolCall(ctx, result) {
+    console.log('finished', ctx.toolName, result.error ?? 'ok');
+  },
+};
+
+const lookup = defineTool({
+  name: 'lookup',
+  description: 'Look something up',
+  input: z.object({ query: z.string() }),
+  async execute({ query }) {
+    return { answer: `result for ${query}` };
+  },
+});
+
+const agent = createAgent({
+  prompt: 'You answer questions.',
+  provider: mockModel([{ toolCalls: [{ name: 'lookup', args: { query: 'hooks' } }] }, { text: 'Done.' }]),
+  tools: [lookup],
+  hooks: [auditHook],
+});
+
+await agent.send('Look up hooks');
+```
+
+كل الدوال اختيارية: نفّذ نقاط الربط التي تحتاج إليها فقط. الخطّاف الذي لا يعيد شيئًا يكتفي بالمراقبة؛ وتعديل `ctx.args` أو `ctx.messages` أو `ctx.request` في مكانها يغيّر التشغيل أيضًا.
+
+## نقاط الربط الأربع
+
+| النقطة | متى تُنفَّذ | السياق | ما يجوز أن تعيده |
+| --- | --- | --- | --- |
+| `preToolCall(ctx)` | قبل تشغيل الأداة، وقبل قواعد الصلاحيات وحواجز حماية الأدوات وفحص الموافقة. | `ToolCallHookContext`: الحقول `toolCallId` و`toolName` و`args` (حيّة) و`toolCall`، إضافة إلى الحقول المشتركة أدناه. | لا شيء، أو `{ deny }` أو `{ result }` أو `{ input }` (انظر [نتائج الخطّافات](#نتائج-الخطّافات)). |
+| `postToolCall(ctx, result)` | بعد أن يستقر استدعاء الأداة: نجاح، أو خطأ على مستوى الأداة، أو الحاجة إلى موافقة. قيمة `result` هي `{ result, error?, requiresApproval? }`. | `ToolCallHookContext`. | لا شيء، أو `{ result }` لاستبدال ما يراه النموذج. |
+| `preGenerate(ctx)` | قبل كل استدعاء للنموذج. | `GenerateHookContext`: الحقل `request` (كائن `GenerateOptions` الحي الذي سيُرسَل) و`emit?`، إضافة إلى الحقول المشتركة. | لا شيء؛ عدّل `ctx.messages` أو `ctx.request`، أو ارمِ خطأ. |
+| `postGenerate(ctx, result)` | بعد اكتمال كل استدعاء للنموذج، ومعه `GenerateResult` الخاص به. | `GenerateHookContext`. | لا شيء؛ أو ارمِ خطأ. |
+
+الحقول المشتركة في كل سياق هي `agentId` و`agentName` و`sessionId` و`messages` (سجل المحادثة الحي) و`metadata` (حقيبة حرة الشكل) و`subagent` (تُضبط داخل الوكيل الفرعي). يوجد `ctx.emit` حين يكون للتشغيل مستمعون (`createAgent({ onEvent })` أو `onAgentEvent`) أو حين يكون مبثوثًا، ويضيف الحدثين `compaction.start` و`compaction.done` إلى أحداث التشغيل.
+
+## نتائج الخطّافات
+
+يستطيع خطّاف استدعاء الأداة أن يغيّر ما يحدث، لا أن يراقبه فقط. يجوز أن يعيد
+خطّاف `preToolCall` أيًّا مما يلي:
+
+- لا شيء: يمضي الاستدعاء دون تغيير (ولا يزال تعديل `ctx.args` في مكانها يعمل).
+- `{ deny: reason }`: لا يُنفَّذ الاستدعاء. يتلقى النموذج خطأ الأداة نفسه
+  `kind: 'denied'` الذي ينتج عن رفض `needsApproval` (انظر
+  [الموافقات](/ar/approvals#الموافقة-أو-المنع-أو-السؤال))، وترى تدفقات البث الحدث `tool.error`،
+  ويسجّل `onPermissionDecision` القيمة `decision: 'deny'` مع `hook` و`reason`.
+- `{ result: value }`: لا يُنفَّذ الاستدعاء وتكون `value` نتيجته. يحمل الحدث
+  `tool.done` ورسالة `tool` في السجل (`metadata`) القيمة
+  `replacedByHook: '<hook name>'`.
+- `{ input: args }`: يُنفَّذ الاستدعاء بالقيمة `args`. وتُتحقَّق منها مرة أخرى
+  مقابل مخطط مدخلات الأداة؛ وإن لم تطابقه صار ذلك خطأ أداة من النوع `kind: 'validation'`
+  تسمّي رسالته الخطّاف، ولا تُنفَّذ الأداة.
+
+يجوز أن يعيد خطّاف `postToolCall` القيمة `{ result: value }` لاستبدال النتيجة التي
+يراها النموذج (لحجب جزء منها أو اقتطاعها)؛ ولا شيء يحتفظ بالنتيجة الأصلية. تعمل الخطّافات
+بترتيب تسجيلها: أول `deny` أو `result` يصدر عن خطّاف يعمل قبل الاستدعاء يتخطى الخطّافات السابقة للاستدعاء التي تليه،
+وتتسلسل قيم `input` (يرى كل خطّاف قيمة سابقه في
+`ctx.args`)، ويرى كل خطّاف لاحق النتيجة التي استبدلها خطّاف أسبق. والخطّاف
+الذي يرمي خطأ يُسقِط التشغيل كما كان من قبل. ويرث الوكلاء الفرعيون خطّافات
+الوكيل الرئيسي ونتائجها.
+
+```ts
+import { createAgent, type AgentHook } from '@lousho/build-ai-agent';
+import { mockModel } from '@lousho/build-ai-agent/testing';
+
+const provider = mockModel(['Done.']);
+
+const guard: AgentHook = {
+  name: 'guard',
+  preToolCall(ctx) {
+    if (ctx.toolName === 'shell') return { deny: 'Use the workspace tools instead' };
+    if (ctx.toolName === 'search') return { input: { ...ctx.args, limit: 10 } };
+    return undefined; // continue unchanged
+  },
+  postToolCall(_ctx, result) {
+    return typeof result.result === 'string' ? { result: result.result.slice(0, 2000) } : undefined;
+  },
+};
+
+const agent = createAgent({ provider, instructions: 'You research things.', hooks: [guard] });
+```
+
+## وصفات جاهزة
+
+كل وصفة برنامج كامل. وهي تعمل على `mockModel`، فلا تحتاج أي منها إلى مفتاح API ولا إلى استدعاء نموذج حقيقي؛ والنمط نفسه يختبر خطّافاتك دون اتصال ([الاختبار](/ar/testing)). تُجهّز كل وصفة دورة نموذج تستدعي أداة، ثم إجابة نهائية.
+
+### منع أداة بالاسم
+
+```ts
+import { createAgent, defineTool, type AgentHook } from '@lousho/build-ai-agent';
+import { mockModel } from '@lousho/build-ai-agent/testing';
+import { z } from 'zod';
+
+const shell = defineTool({
+  name: 'shell',
+  description: 'Run a shell command',
+  input: z.object({ command: z.string() }),
+  async execute({ command }) {
+    return { ran: command };
+  },
+});
+
+const noShell: AgentHook = {
+  name: 'no-shell',
+  preToolCall(ctx) {
+    if (ctx.toolName === 'shell') return { deny: 'The shell is disabled here' };
+    return undefined;
+  },
+};
+
+const model = mockModel([{ toolCalls: [{ name: 'shell', args: { command: 'ls' } }] }, { text: 'I could not run it.' }]);
+const agent = createAgent({ prompt: 'You help.', provider: model, tools: [shell], hooks: [noShell] });
+
+const result = await agent.send('List the files');
+console.log(result.text);
+```
+
+### إضافة وسيط افتراضي
+
+أعد `{ input }` لتشغيل الأداة بوسائط مختلفة. وتُتحقَّق منها مرة أخرى مقابل مخطط الأداة.
+
+```ts
+import { createAgent, defineTool, type AgentHook } from '@lousho/build-ai-agent';
+import { mockModel } from '@lousho/build-ai-agent/testing';
+import { z } from 'zod';
+
+const search = defineTool({
+  name: 'search',
+  description: 'Search the docs',
+  input: z.object({ query: z.string(), limit: z.number().optional() }),
+  async execute({ query, limit }) {
+    return { query, limit };
+  },
+});
+
+const defaultLimit: AgentHook = {
+  name: 'default-limit',
+  preToolCall(ctx) {
+    if (ctx.toolName === 'search' && ctx.args.limit === undefined) {
+      return { input: { ...ctx.args, limit: 5 } };
+    }
+    return undefined;
+  },
+};
+
+const model = mockModel([{ toolCalls: [{ name: 'search', args: { query: 'hooks' } }] }, { text: 'Found it.' }]);
+const agent = createAgent({ prompt: 'You search.', provider: model, tools: [search], hooks: [defaultLimit] });
+
+await agent.send('Search for hooks');
+```
+
+### اقتطاع نتيجة أو حجب جزء منها
+
+يتلقى `postToolCall` النتيجة المستقرة، ويجوز أن يعيد `{ result }` لاستبدال ما يراه النموذج. أما الأداة نفسها فقد عملت دون تغيير.
+
+```ts
+import { createAgent, defineTool, type AgentHook } from '@lousho/build-ai-agent';
+import { mockModel } from '@lousho/build-ai-agent/testing';
+import { z } from 'zod';
+
+const readLog = defineTool({
+  name: 'read_log',
+  description: 'Read the log',
+  input: z.object({}),
+  async execute() {
+    return 'user=ada email=ada@example.com ' + 'x'.repeat(5000);
+  },
+});
+
+const redact: AgentHook = {
+  name: 'redact',
+  postToolCall(_ctx, result) {
+    if (typeof result.result !== 'string') return;
+    const masked = result.result.replace(/[\w.]+@[\w.]+/g, '[email]');
+    return { result: masked.slice(0, 1000) };
+  },
+};
+
+const model = mockModel([{ toolCalls: [{ name: 'read_log', args: {} }] }, { text: 'Read it.' }]);
+const agent = createAgent({ prompt: 'You read logs.', provider: model, tools: [readLog], hooks: [redact] });
+
+await agent.send('Read the log');
+const toolMessage = model.calls[1].messages.at(-1);
+console.log(toolMessage?.role); // 'tool': its content is the redacted text
+```
+
+### حقن سياق قبل استدعاء النموذج
+
+يرى `preGenerate` كلًّا من `ctx.messages` و`ctx.request` الحيّين. أضف رسالة إلى المصفوفة لإضافة سياق، أو غيّر أحد حقول الطلب.
+
+```ts
+import { createAgent, type AgentHook } from '@lousho/build-ai-agent';
+import { mockModel } from '@lousho/build-ai-agent/testing';
+
+const addDate: AgentHook = {
+  name: 'add-date',
+  preGenerate(ctx) {
+    ctx.messages.push({ role: 'system', content: `Today is ${new Date().toISOString().slice(0, 10)}.` });
+    ctx.request.temperature = 0;
+  },
+};
+
+const model = mockModel(['Noted.']);
+const agent = createAgent({ prompt: 'You help.', provider: model, hooks: [addDate] });
+
+await agent.send('Hello');
+console.log(model.calls.length); // 1
+```
+
+## الترتيب والتفاعل
+
+لاستدعاء أداة واحد، الترتيب هو: التحقق من الوسائط، ثم خطّافات `preToolCall`،
+ثم قواعد الصلاحيات (`permissions`)، ثم حواجز حماية الأداة، ثم `needsApproval` الخاصة بالأداة،
+ثم التوقف للموافقة، ثم التنفيذ، ثم خطّافات `postToolCall`. تعمل الخطّافات قبل كل
+قرار موافقة، فتعمل القواعد و`needsApproval` والشخص على المدخلات
+التي أنتجها الخطّاف (ويوافق الشخص عليها)؛ وتُظهرها قيمة `args` في الموافقة المعلّقة. وعند استئناف
+استدعاء موافَق عليه تعمل الخطّافات السابقة مرة أخرى: قد تظل قادرة على منعه أو
+تقديم نتيجته، لكن `{ input }` يختلف عن المدخلات الموافَق عليها يُرفض
+بخطأ أداة ولا يُنفَّذ. انظر [الموافقات](/ar/approvals) للتوقف والاستئناف.
+
+- **عدة خطّافات** تعمل بترتيب مصفوفة `hooks`، واحدًا بعد آخر: يُنتظر كل منها قبل الذي يليه، فيرى الخطّاف اللاحق ما غيّره السابق.
+- **الخطّاف الذي يرمي خطأ** يُسقِط التشغيل. الخطّافات شيفرة موثوقة: لا يتحول الخطأ إلى نتيجة أداة تُعرض على النموذج.
+- **ضغط السياق.** يشغّل `createAgent({ hooks })` خطّافاتك أولًا ثم خطّاف ضغط السياق بعدها، فيرى الضغط ما أضافته ([ضغط السياق](/ar/compaction)).
+- **الوكلاء الفرعيون** يرثون خطّافات الوكيل الرئيسي. تُضبط `ctx.subagent` حين يعمل الخطّاف داخل أحدهم، فيستطيع الخطّاف أن يعود مبكرًا ليرى التشغيل الأعلى مستوى فقط ([الخطّافات داخل الوكلاء الفرعيين](/ar/sub-agents#الخطّافات-داخل-الوكلاء-الفرعيين)).
+
+## HookRegistry
+
+يقبل `createAgent({ hooks })` مصفوفة عادية. أما الشيفرة التي تستخدم واجهة المنفّذ البرمجية ([واجهة المنفّذ البرمجية](/ar/executor-api)) فتمرّر `HookRegistry`: مجموعة مرتّبة فيها `register` و`registerMany` و`get` و`has` و`list` و`unregister` و`clear` و`size`. تسجيل خطّاف ثانٍ بالاسم `name` نفسه يستبدل الأول ويسجّل تحذيرًا.
+
+```ts
+import { HookRegistry, type AgentHook } from '@lousho/build-ai-agent/hooks';
+
+const redactPii: AgentHook = {
+  name: 'redact-pii',
+  async preToolCall(ctx) {
+    // mutate ctx.args, or throw to abort the tool call before it runs
+  },
+};
+
+const hooks = new HookRegistry();
+hooks.register(redactPii);
+console.log(hooks.list().map((hook) => hook.name)); // [ 'redact-pii' ]
+```
+
+تتوفر `HookRegistry` و`AgentHook` وأنواع السياق من جذر الحزمة ومن المسار الفرعي `@lousho/build-ai-agent/hooks`. أما الخطّافات المؤلَّفة في محرر اللوحة في Agent Forge فتُترجَم إلى `HookRegistry` وتعمل داخل بيئة معزولة (sandbox) لا في عملية المضيف: انظر [Agent Forge](/ar/agent-forge#الخطّافات).

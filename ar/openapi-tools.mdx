@@ -1,8 +1,122 @@
 ---
-title: "OpenAPI tools"
+title: "أدوات OpenAPI"
 ---
+{/* Generated from docs/openapi-tools.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-{/* pending-translation */}
-<Note>
-هذه الصفحة لم تُترجَم إلى العربية بعد. اقرأ [النسخة الإنجليزية](/openapi-tools).
-</Note>
+تنشر معظم الخدمات مستند OpenAPI ولا تقدّم خادم MCP. تحوّل `openApiTools()` هذا المستند إلى أداة مكتوبة الأنواع لكل عملية في الواجهة، فيستطيع الوكيل استدعاء الواجهة دون كتابة `defineTool()` يدويًا لكل نقطة نهاية ودون [أداة `http`](/ar/tools#الأدوات-المضمَّنة) الخام. والعمليات التي تغيّر البيانات تطلب [موافقة](/ar/approvals) افتراضيًا.
+
+الدالة `openApiTools` مصدَّرة من `@lousho/build-ai-agent` و`@lousho/build-ai-agent/tools`. ولا تحتاج إلى أي حزمة إضافية.
+
+## بداية سريعة
+
+```ts
+import { createAgent, openApiTools } from '@lousho/build-ai-agent';
+
+const tools = await openApiTools('https://api.example.com/openapi.json', {
+  include: ['getOrder', 'refundOrder'],
+  bearerToken: () => process.env.ORDERS_API_TOKEN ?? '',
+});
+
+const agent = createAgent({ model: 'openai/gpt-4o-mini', tools });
+const paused = await agent.send('Refund order 1042');
+// getOrder ran. refundOrder (a POST) is waiting for approval:
+// agent.approvals.resolve({ id: paused.approvalId!, approved: true })
+```
+
+الدالة `openApiTools()` غير متزامنة دائمًا، لأن المستند قد يكون عنوان URL. وتُرجع مصفوفة أدوات تمرّرها إلى `createAgent({ tools })` كأي أدوات أخرى.
+
+يمكن أن يكون `document` كائن OpenAPI 3.0 أو 3.1 مفسَّرًا، أو سلسلة JSON أو YAML، أو عنوان https (سلسلة أو `URL`). يجري التحليل مرة واحدة داخل `openApiTools()`؛ أما `execute` في الأداة فلا يفعل سوى بناء الطلب وإرساله.
+
+## شكل كل أداة
+
+| الجزء | القيمة |
+| ---- | ----- |
+| الاسم | `operationId`، مع استبدال المحارف خارج `A-Za-z0-9_-` بـ`_`. وإن لم يوجد `operationId` فـ`<method>_<path>` (يصبح `GET /orders/{orderId}` هو `get_orders_orderId`). ومع `prefix`: `<prefix>__<name>`. بحد أقصى 64 محرفًا. وعمليتان بالاسم نفسه ترميان `ConfigurationError` يسرد الاثنتين. |
+| الوصف | `summary` الخاص بالعملية، ثم `description` (يُقطع عند 1,000 محرف)، ثم الطريقة والمسار (`GET /orders/{orderId}`). |
+| المُدخَل | كائن فيه كل معامل مسار واستعلام وترويسة وكوكي خاصية من المستوى الأعلى (إلزامية كما يصرّح المستند)، إضافةً إلى `body` لجسم طلب `application/json`. تتبع المخططات إشارات `$ref` إلى `components`، بما فيها `parameters` و`requestBodies`. ويعمل `nullable` في OpenAPI 3.0. والمعامل الذي يشغل اسمَه معاملٌ آخر في موضع مختلف يُسمّى `<location>_<name>`. |
+| النتيجة | `{ status, statusText, body }` لكل استجابة HTTP، بما فيها حالات الخطأ، ليستطيع النموذج قراءة 404 والتصرف بناءً عليه. و`body` هو JSON مفسَّر حين تقول الاستجابة إنها JSON، وإلا نص، ويكون `null` إن كان فارغًا. |
+| الأخطاء | فشل الشبكة وانتهاء المهلة وإعادة التوجيه المرفوضة كلها أخطاء أداة. |
+
+تُتجاهل معاملات الترويسات `Accept` و`Content-Type` و`Authorization` كما تنص مواصفة OpenAPI؛ فاستخدم `bearerToken` أو `headers` لبيانات الاعتماد.
+
+## الخيارات
+
+| الخيار | الافتراضي | المعنى |
+| ------ | ------- | ------- |
+| `baseUrl` | أول مدخل في `servers` | وجهة الطلبات. يتغلّب على المستند. وبالنسبة إلى مستند جُلب من عنوان URL، فغياب `servers` يعني أصل (origin) ذلك العنوان. |
+| `include` | كل العمليات | أسماء العمليات (`operationId` أو الاسم المشتق)، أو دالة `(op) => boolean`. وتسمية عملية لا يحتويها المستند ترمي خطأً. |
+| `exclude` | لا شيء | أسماء العمليات المراد استبعادها. |
+| `approval` | `'mutating'` | `'mutating'` أو `'always'` أو `'never'` أو `(op) => boolean`. |
+| `prefix` | لا شيء | بادئة لأسماء الأدوات. |
+| `headers` | لا شيء | ترويسات تُرسل مع كل طلب، أو دالة تُستدعى لكل طلب. |
+| `bearerToken` | لا شيء | اختصار لـ`Authorization: Bearer <token>`؛ وتُستدعى الدالة لكل طلب. |
+| `providedArguments` | لا شيء | قيم يوفّرها تطبيقك؛ انظر أدناه. |
+| `timeoutMs` | `30000` | لكل طلب. |
+| `maxResponseChars` | `50000` | يُقطع جسم الاستجابة عند هذا الطول، مع ملاحظة تبيّن مقدار ما حُذف. |
+| `fetch` | `fetch` العامة | تحلّ محل `fetch` (للاختبارات والوكلاء الوسطاء). |
+
+و`op` هو `{ name, operationId?, method, path, summary?, tags }`.
+
+## الافتراضيات في الموافقة
+
+مع `approval: 'mutating'` تعمل GET وHEAD وOPTIONS، وتطلب كل طريقة أخرى موافقة. وتحمل كل أداة أيضًا تعليقات توضيحية بأسلوب MCP: `readOnlyHint: true, destructiveHint: false` على GET وHEAD وOPTIONS؛ و`readOnlyHint: false` على الباقي، مع `destructiveHint: true` لـDELETE. وأي جهة تقرأ هذه التعليقات تعامل هذه الأدوات كما تعامل أدوات MCP.
+
+```ts
+import { openApiTools } from '@lousho/build-ai-agent';
+
+declare const spec: object;
+
+// Ask for everything except two reads that are known to be harmless.
+const tools = await openApiTools(spec, {
+  approval: (op) => !['getOrder', 'listOrders'].includes(op.name),
+});
+```
+
+## القيم التي يوفّرها تطبيقك
+
+يملأ `providedArguments` المعاملات التي ينبغي ألا يختارها النموذج، مثل معرّف المستأجر (tenant). يُزال المفتاح المزوَّد من مخطط مُدخَل الأداة (فلا يراه النموذج أبدًا) ويُضاف إلى الطلب. ويمكن أن تكون القيمة دالة تُستدعى لكل طلب مع العملية ومعرّف استدعاء الأداة.
+
+```ts
+import { openApiTools } from '@lousho/build-ai-agent';
+
+declare const spec: object;
+declare const currentTenant: () => string;
+
+const tools = await openApiTools(spec, {
+  providedArguments: {
+    'X-Tenant-Id': () => currentTenant(),
+    accountId: 'acct_123',
+  },
+});
+```
+
+المفتاح هو اسم المعامل (أو `body` لجسم الطلب). والمفتاح الذي لا تملكه أي عملية محددة يرمي خطأً، فلا يؤدي خطأ مطبعي إلى كشف المعامل للنموذج بصمت.
+
+## قواعد الأمان
+
+- **عنوان الأساس (base URL) لك أنت، لا للنموذج.** يختار النموذج قيم المعاملات والجسم؛ ولا يختار المضيف أبدًا. ويجب أن يكون عنوان الأساس https. ولا يُقبل http العادي إلا لـ`localhost` و`127.0.0.1` و`[::1]`، ويُرفض أي عنوان يحمل اسم مستخدم أو كلمة مرور. وتنطبق القاعدة نفسها على عنوان المستند.
+- **تبقى بيانات الاعتماد بعيدة عمّا يراه النموذج وسجلاتك.** لا تدخل الترويسات والرموز أبدًا في مخطط مُدخَل الأداة، ولا في حدثي `tool.start` و`tool.done`، ولا في سجل المحادثة؛ بل مُدخَل النموذج نفسه والاستجابة فقط. والترويسة التي يوفّرها النموذج لمعامل ترويسة مصرَّح به لا تحلّ أبدًا محل `headers` أو `bearerToken`.
+- **تبقى إعادة التوجيه ضمن أصل عنوان الأساس.** تستخدم الطلبات إعادة توجيه يدوية: تُتبَع 3 مرات على الأكثر، وإلى أصل عنوان الأساس نفسه فقط. وإعادة التوجيه إلى أصل آخر خطأ أداة، فلا يغادر الرمز الأصل المعدّ أبدًا.
+- **تبقى قيم المسار داخل مقطعها.** تُرمَّز معاملات المسار بالترميز النسبي المئوي (لا يستطيع `../admin` الصعود خارج مقطعه)، وتُرفض القيمة التي تساوي `.` أو `..` تمامًا.
+- **لا فحص للعناوين الخاصة.** تستدعي الأدوات عنوان الأساس الذي أعددته. فإن كان بإمكان ذلك العنوان أن يُحلّ إلى عنوان داخلي لا تتحكم فيه، فضع وكيلًا وسيطًا (proxy) أمامه أو مرّر `fetch` خاصة بك. أما فحوص العناوين في أداة `http` فهي للعناوين التي يختارها النموذج.
+
+## الواجهات الكبيرة
+
+الواجهة ذات مئات العمليات تعني مئات الأدوات. أعطِ الوكيل ما يحتاج إليه فقط بـ`include` أو `exclude`، أو بشرط على `op.tags`:
+
+```ts
+import { openApiTools } from '@lousho/build-ai-agent';
+
+declare const spec: object;
+
+const tools = await openApiTools(spec, { include: (op) => op.tags.includes('orders') });
+```
+
+## الحدود
+
+- OpenAPI 3.0 و3.1 فقط. ومستند Swagger 2.0 يرمي `ConfigurationError` يطلب منك تحويله أولًا.
+- يجب أن تكون أجسام الطلبات JSON (`application/json` أو `+json`). والعملية التي ليس لها إلا جسم multipart أو نموذج أو XML تُستبعد؛ وتسميتها في `include` ترمي خطأً.
+- لا يُستخدم إلا أول مدخل في `servers`، مع متغيراته بقيمها الافتراضية. وتُتجاهل `servers` على مستوى المسار وعلى مستوى العملية.
+- يجب أن يكون كل `$ref` محليًا (`#/components/...`)؛ والإشارة إلى ملف آخر أو عنوان URL ترمي خطأً. جمّع المستند أولًا في ملف واحد.
+- لا تدفقات OAuth. ويغطي `bearerToken` و`headers` بيانات الاعتماد الثابتة وتلك المتغيرة لكل طلب.
+- تُقرأ أجسام الاستجابات نصًا، ولا تُبثّ الاستجابات.

@@ -1,8 +1,174 @@
 ---
-title: "Triggers"
+title: "المُشغِّلات"
 ---
+{/* Generated from docs/triggers.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-{/* pending-translation */}
-<Note>
-هذه الصفحة لم تُترجَم إلى العربية بعد. اقرأ [النسخة الإنجليزية](/triggers).
-</Note>
+يحوّل مهايئ المُشغِّل (trigger adapter) آلية إيقاظ واحدة إلى تشغيل للوكيل: webhook وارد، أو مؤقّت زمني، أو حدث Slack. استوردها من المسار الفرعي `@lousho/build-ai-agent/triggers`: `WebhookTriggerAdapter` و`SlackTriggerAdapter` و`CronTriggerAdapter` و`TriggerRegistry`. اربط أيًّا منها بالدالة `listen(agent, onEvent)`، حيث تشغّل `onEvent` الوكيل، واستدعِ `stop()` على المقبض المُعاد لإيقاف المهايئ.
+
+```ts
+import { createAgent, createMockProvider } from '@lousho/build-ai-agent';
+import { CronTriggerAdapter } from '@lousho/build-ai-agent/triggers';
+
+const agent = createAgent({ prompt: 'You are helpful.', provider: createMockProvider() });
+
+const cron = new CronTriggerAdapter({
+  intervalMs: 60_000,
+  input: 'Check the queue',
+  onResult: (result, error) => console.log(error ?? result?.text),
+});
+const handle = cron.listen(agent, (input) => agent.send(input));
+
+// Later, on shutdown: clear the timer (a webhook adapter closes its HTTP listener).
+await handle.stop();
+```
+
+## الاختيار بين المُشغِّلات والقنوات والجداول الزمنية
+
+| | استخدمه من أجل | نقاط الدخول |
+|---|---|---|
+| المُشغِّلات | تشغيلات لمرة واحدة بلا محادثة: webhook يدخل والنتيجة تخرج، أو مهمة cron، أو إشارة في Slack. | `WebhookTriggerAdapter` و`SlackTriggerAdapter` و`CronTriggerAdapter` |
+| [القنوات](/ar/channels) | واجهة يتحدث الناس إليها. تُربط كل محادثة بجلسة، وتعود إلى الواجهة الموافقات والأسئلة التي يتوقف الوكيل عندها. | `defineChannel()` و`mountChannels()` و`httpChannel()` و`webhookChannel()` |
+| [الجداول الزمنية](/ar/schedules) | cron لمجلدات الوكلاء وخادم node، مع دعم في الأهداف المنشورة. | `defineSchedule()` و`startSchedules()` |
+
+يوجد cron اليوم في المُشغِّلات وفي الجداول الزمنية معًا. ينبغي للمشاريع الجديدة التي تستخدم مجلدات الوكلاء أو `lousho build` أن تفضّل `defineSchedule()`؛ وهذا إرشاد لا إلزام، وتبقى `CronTriggerAdapter` تعمل. أما `WebhookTriggerAdapter` فتستخدم `webhookChannel()` في المصادقة.
+
+## واجهة TriggerAdapter
+
+```text
+interface TriggerAdapter<TChannel = unknown> {
+  type: string;
+  listen(
+    agent: RunnableAgent, // { send(message: string): Promise<ExecutionResult> }
+    onEvent: (input: string, context: TriggerContext) => Promise<ExecutionResult>
+  ): TriggerHandle; // { stop(): Promise<void> | void }
+  reply?(channel: TChannel, message: string): Promise<void>;
+}
+```
+
+تأخذ `listen` كلًّا من `agent` و`onEvent` عن قصد. فـ`agent` هو الواجهة البسيطة "موجّه يدخل ونص يخرج"، و`onEvent` هي نقطة الدخول التي يستدعيها المهايئ عند انطلاق مُشغِّله: يمرّر المستدعي البسيط `(input) => agent.send(input)`، بينما يمرّر المستدعي الذي يستخدم نقاط الحفظ أو بوابات الموافقة أو التحكم في الإلغاء دالة `onEvent` تغلّف ذلك كله.
+
+تختلف دلالات الرد من مهايئ إلى آخر. يكتب webhook النتيجةَ التي تعيدها بوصفها ردّ HTTP، فلا تكون له `reply()`. ولا ينتظر cron أي مستدعٍ، فيسلّم النتيجة إلى الخيار `onResult`. ويرسل Slack الجواب عبر `reply()`.
+
+اكتب مهايئك الخاص بإعادة مقبض من `listen`:
+
+```ts
+import { createAgent, createMockProvider } from '@lousho/build-ai-agent';
+import type { TriggerAdapter } from '@lousho/build-ai-agent/triggers';
+
+const agent = createAgent({ prompt: 'You are helpful.', provider: createMockProvider() });
+
+const everyTenSeconds: TriggerAdapter = {
+  type: 'ten-seconds',
+  listen(_agent, onEvent) {
+    const timer = setInterval(() => void onEvent('tick', { firedAt: new Date() }), 10_000);
+    return { stop: () => clearInterval(timer) };
+  },
+};
+
+const handle = everyTenSeconds.listen(agent, (input) => agent.send(input));
+handle.stop();
+```
+
+يحتفظ `TriggerRegistry` بالمهايئات بأسمائها: `register(name, adapter)` و`registerMany()` و`get()` و`has()` و`list()` و`getAll()` و`unregister()` و`clear()` و`size()`. و`globalTriggerRegistry` نسخة مشتركة.
+
+## Webhook
+
+### مصادقة Webhook
+
+تُشغِّل `WebhookTriggerAdapter` خادم HTTP. **اضبط `auth` دائمًا لأي webhook يمكن الوصول إليه من خارج جهازك**: فبدونها يستطيع كل من يصل إلى المنفذ تشغيل وكيلك (وإنفاق رموزك (tokens)). وإذا استمعت على مضيف غير loopback دون `auth`، يسجّل المهايئ تحذيرًا لمرة واحدة عبر `options.logger`.
+
+```ts
+import { createAgent, createMockProvider } from '@lousho/build-ai-agent';
+import { WebhookTriggerAdapter } from '@lousho/build-ai-agent/triggers';
+
+const agent = createAgent({ prompt: 'You are helpful.', provider: createMockProvider() });
+
+// HMAC of the RAW request body (GitHub / Shopify style): header `x-signature-256: sha256=<hex>`.
+new WebhookTriggerAdapter({
+  port: 8787,
+  auth: { type: 'hmac', secret: process.env.WEBHOOK_SECRET ?? '' },
+}).listen(agent, (input) => agent.send(input));
+
+// Replay protection: the signed payload becomes `${timestamp}.${body}` and
+// requests more than `toleranceSeconds` (default 300) old are rejected.
+new WebhookTriggerAdapter({
+  auth: {
+    type: 'hmac',
+    secret: process.env.WEBHOOK_SECRET ?? '',
+    header: 'x-signature',
+    timestampHeader: 'x-timestamp',
+    toleranceSeconds: 120,
+  },
+});
+
+// A shared bearer token (`Authorization: Bearer <token>`).
+new WebhookTriggerAdapter({ auth: { type: 'bearer', token: process.env.WEBHOOK_TOKEN ?? '' } });
+
+// Anything else: return true to accept. `rawBody` is a Buffer of the exact bytes received.
+new WebhookTriggerAdapter({
+  auth: { type: 'custom', verify: (req) => req.headers['x-api-key'] === process.env.API_KEY },
+});
+```
+
+خيارات HMAC: `header` (الافتراضي `x-signature-256`) و`algorithm` (`sha256` أو `sha1`، والافتراضي `sha256`) و`prefix` (الافتراضي `sha256=`؛ و`''` للتوقيع المجرّد) و`timestampHeader` و`toleranceSeconds`. تُقارَن التواقيع ورموز bearer في زمن ثابت. والطلب الذي تفشل مصادقته يحصل على رد عام `401 {"error":"Unauthorized"}` - فلا يذكر الرد أبدًا أي فحص فشل - ويُسجَّل السبب (دون أي سر أو توقيع) بمستوى `warn`. قدّم الـwebhooks عبر HTTPS (أنهِ TLS أمام المهايئ) كي لا تُرسل الرموز والحمولات نصًا صريحًا.
+
+## Slack
+
+### تواقيع طلبات Slack
+
+تعالج `SlackTriggerAdapter.handleRequest({ headers, rawBody })` طلبًا خامًا من Slack Events API وتعيد `{ status, body }` المطلوب إرساله. **اضبط `signingSecret` لأي نقطة وصول يمكن بلوغها من خارج جهازك**: فبدونه يستطيع كل من يصل إلى النقطة تشغيل وكيلك، وتسجّل `listen()` تحذيرًا لمرة واحدة عبر `options.logger`. ومعه يُتحقق من كل طلب [وفق توثيق Slack](https://docs.slack.dev/authentication/verifying-requests-from-slack) قبل تحليل المحتوى: HMAC-SHA256 على `v0:{X-Slack-Request-Timestamp}:{raw body}`، يُقارَن في زمن ثابت مع `X-Slack-Signature` (`v0=<hex>`)، وتُرفض الطلبات التي مضى عليها أكثر من خمس دقائق. وتحصل حالات الفشل على `401 {"error":"Unauthorized"}` عام؛ ويُسجَّل السبب (دون أي سر أو توقيع) بمستوى `warn`. ويُجاب عن مصافحة `url_verification` الموقَّعة بعد التحقق.
+
+```ts
+import { createAgent, createMockProvider } from '@lousho/build-ai-agent';
+import { SlackTriggerAdapter, verifySlackSignature } from '@lousho/build-ai-agent/triggers';
+import * as http from 'node:http';
+
+const agent = createAgent({ prompt: 'You are helpful.', provider: createMockProvider() });
+const slack = new SlackTriggerAdapter({ signingSecret: process.env.SLACK_SIGNING_SECRET });
+slack.listen(agent, (input) => agent.send(input));
+
+http
+  .createServer((req, res) => {
+    const chunks: Buffer[] = [];
+    req.on('data', (chunk: Buffer) => chunks.push(chunk));
+    req.on('end', async () => {
+      const { status, body } = await slack.handleRequest({ headers: req.headers, rawBody: Buffer.concat(chunks) });
+      res.writeHead(status, { 'Content-Type': 'application/json' }).end(JSON.stringify(body));
+    });
+  })
+  .listen(3000);
+
+// Your own handler (slash commands, interactivity)? Verify the RAW body yourself:
+const authentic = verifySlackSignature({
+  signingSecret: process.env.SLACK_SIGNING_SECRET ?? '',
+  timestamp: '1700000000', // the X-Slack-Request-Timestamp header
+  signature: 'v0=...', // the X-Slack-Signature header
+  rawBody: '{"type":"url_verification"}',
+});
+```
+
+تجيب `handleRequest` Slack بعد انتهاء الوكيل؛ وتتوقع Slack ردًّا خلال ثلاث ثوانٍ، فللوكلاء البطيئين أرسل إقرارًا أولًا ثم شغّل الوكيل في الخلفية.
+
+## Cron
+
+### جداول cron الزمنية
+
+تقبل `CronTriggerAdapter` إما `intervalMs` ثابتة أو تعبير cron حقيقيًا:
+
+```ts
+import { createAgent, createMockProvider } from '@lousho/build-ai-agent';
+import { CronTriggerAdapter } from '@lousho/build-ai-agent/triggers';
+
+const agent = createAgent({ prompt: 'You are helpful.', provider: createMockProvider() });
+
+new CronTriggerAdapter({
+  cron: '*/15 9-17 * * MON-FRI', // minute hour day-of-month month day-of-week
+  timezone: 'Europe/Paris', // IANA name; defaults to the machine's local zone
+  input: 'Check the support queue',
+  onResult: (result, error) => console.log(error ?? result?.text),
+}).listen(agent, (input) => agent.send(input));
+```
+
+الصياغة المدعومة: `*` والقوائم (`1,15`) والمدى (`1-5`) والخطوات (`*/15` و`10-40/10`) وأسماء الأشهر (`JAN`) وأسماء أيام الأسبوع (`MON`)، مع كون `0` و`7` كليهما الأحد، إضافةً إلى `@hourly` و`@daily` و`@weekly` و`@monthly`. وكما في cron التقليدي، إذا قُيِّد يوم الشهر ويوم الأسبوع معًا فإن اليوم يطابق إن طابق أحدهما. ويرمي التعبير غير الصالح `CronExpressionError` تسمّي الحقل وتعرض مثالًا صالحًا. وتُصدَّر `parseCronExpression(expr, timezone).nextRun(after)` إن احتجت إلى وقت الإطلاق التالي.
+
+عند تغيّر التوقيت الصيفي، يُتخطّى في ذلك اليوم الوقت غير الموجود (التقديم)، ويُطلَق مرة واحدة الوقت الذي يقع مرتين (التأخير)؛ وتواصل الجداول الزمنية كل ساعة الإطلاق كل ساعة. ويُعاد ضبط المؤقت بعد كل تشغيل انطلاقًا من الوقت المجدول (بلا انحراف ولا إطلاق مزدوج)، وتمسحه `stop()`.

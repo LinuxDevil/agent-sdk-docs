@@ -1,24 +1,11 @@
 ---
 title: "السجل"
 ---
-
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/registry).
-</Warning>
-
 {/* Generated from docs/registry.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-`lousho add` يثبّت أداة أو مهارة أو قناة أو جدولًا زمنيًا أو خانة ذاكرة في
-[مجلد وكيل](/ar/agent-directories) من سجل. السجل مجرد JSON
-ثابت: فهرس ومستند لكل عنصر يحمل محتويات ملفاته.
-تُنسخ الملفات إلى مشروعك شيفرةً مصدرية تملكها وتستطيع تعديلها. لا يوجد
-محمِّل إضافات في وقت التشغيل، ولا يُنفَّذ أو يُستورد أي شيء من السجل
-أثناء الإضافة.
+يثبّت `lousho add` أداة أو مهارة أو قناة أو جدولًا زمنيًا أو خانة ذاكرة في [مجلد وكيل](/ar/agent-directories) من سجل. السجل مجرد JSON ثابت: فهرس ومستند لكل عنصر يحمل محتويات ملفاته. تُنسخ الملفات إلى مشروعك شيفرةً مصدرية تملكها وتستطيع تعديلها. لا يوجد محمِّل إضافات في وقت التشغيل، ولا يُنفَّذ أو يُستورد أي شيء من السجل أثناء الإضافة.
 
-لا يوجد سجل مستضاف حتى الآن. وجّه `lousho add` إلى سجل عبر `--registry` أو
-متغير البيئة `LOUSHO_REGISTRY`؛ ودون أي منهما يفشل بالخطأ
-`LOUSHO_CONFIG_INVALID` ويبيّن كيف تمرّر سجلًا.
+لا يوجد سجل مستضاف حتى الآن. وجّه `lousho add` إلى سجل عبر `--registry` أو متغير البيئة `LOUSHO_REGISTRY`؛ ودون أي منهما يفشل بالخطأ `LOUSHO_CONFIG_INVALID` ويبيّن كيف تمرّر سجلًا.
 
 ```bash
 lousho add --list --registry ./registry/index.json
@@ -30,19 +17,17 @@ LOUSHO_REGISTRY=./registry/index.json lousho add web-search --dry-run
 | ---- | ------- |
 | `--registry <url-or-path>` | الفهرس: عنوان `http(s)` أو مسار محلي (ويُستخدم `LOUSHO_REGISTRY` عند غيابه). |
 | `--dir <agent-dir>` | مجلد الوكيل الذي يُكتب فيه (الافتراضي: المجلد الحالي؛ ويجب أن يكون موجودًا). |
-| `--yes`، `-y` | لا تطلب تأكيدًا. مطلوب حين لا يكون stdin طرفية. |
+| `--yes`، `-y` | لا تطلب تأكيدًا. مطلوب حين لا يكون stdin طرفية. لا يمنح الصلاحيات المرتفعة بمفرده (انظر `--allow`). |
+| `--allow <list>` | مع `--yes`، الصلاحيات المرتفعة التي تمنحها، مفصولة بفواصل: `exec` و`fs-write` و`network` و`env`. يُرفض العنصر الذي يطلب صلاحية لم تسمّها. |
 | `--overwrite` | استبدل الملفات الموجودة (ودونه يكون الملف الموجود خطأ `LOUSHO_REGISTRY_FILE_EXISTS`). |
 | `--dry-run` | اطبع بيان الصلاحيات والملفات، ولا تكتب شيئًا، واخرج بالرمز 0. |
 | `--list` | اطبع عناصر السجل ثم اخرج. |
 
-قبل أن يكتب أي شيء، يطبع `lousho add` بيان الصلاحيات (manifest)
-والملفات التي سيكتبها، ثم يسأل `[y/N]`.
+قبل أن يكتب أي شيء، يطبع `lousho add` بيان الصلاحيات (manifest) والملفات التي سيكتبها، ويفحص شيفرة العنصر مقابل البيان، ثم يسأل `[y/N]`. وبعد الكتابة يسجّل العنصر في `lousho-registry.json`.
 
 ## الصيغة
 
-الفهرس هو `{ items: [{ name, type, description, url | path }] }`. و`type` أحد
-القيم `tool` أو `skill` أو `channel` أو `schedule` أو `memory`. يحدّد `url` / `path` موقع
-مستند العنصر؛ والمسار النسبي يُحلّ نسبةً إلى موقع الفهرس نفسه.
+الفهرس هو `{ items: [{ name, type, description, url | path }] }`. و`type` أحد القيم `tool` أو `skill` أو `channel` أو `schedule` أو `memory`. يحدّد `url` / `path` موقع مستند العنصر؛ والمسار النسبي يُحلّ نسبةً إلى موقع الفهرس نفسه.
 
 كل مستند عنصر يكون بهذا الشكل:
 
@@ -54,7 +39,7 @@ LOUSHO_REGISTRY=./registry/index.json lousho add web-search --dry-run
   "files": [
     {
       "path": "tools/web-search.ts",
-      "content": "import { defineTool } from '@lousho/build-ai-agent';\nimport { z } from 'zod';\n\nexport default defineTool({\n  name: 'web-search',\n  description: 'Search the web',\n  inputSchema: z.object({ query: z.string() }),\n  needsApproval: true,\n  execute: async ({ query }) => {\n    const response = await fetch(`https://api.example.com/search?q=${encodeURIComponent(query)}`, {\n      headers: { authorization: `Bearer ${process.env.SEARCH_KEY}` },\n    });\n    return response.json();\n  },\n});\n"
+      "content": "import { defineTool } from '@lousho/build-ai-agent';\nimport { z } from 'zod';\n\nexport default defineTool({\n  name: 'web-search',\n  description: 'Search the web',\n  input: z.object({ query: z.string() }),\n  needsApproval: true,\n  execute: async ({ query }) => {\n    const response = await fetch(`https://api.example.com/search?q=${encodeURIComponent(query)}`, {\n      headers: { authorization: `Bearer ${process.env.SEARCH_KEY}` },\n    });\n    return response.json();\n  },\n});\n"
     }
   ],
   "permissions": {
@@ -78,15 +63,11 @@ LOUSHO_REGISTRY=./registry/index.json lousho add web-search --dry-run
 }
 ```
 
-استضف الاثنين ملفات ثابتة في أي مكان (مجلد في مستودع، أو مخزن كائنات، أو
-خادم ويب). يجب أن يطابق `name` و`type` في المستند مدخله في الفهرس،
-ويتكوّن الاسم من أحرف وأرقام و`.` و`_` و`-`. المستند الذي لا يطابق
-الصيغة يُعطي الخطأ `LOUSHO_REGISTRY_INVALID`، مع ذكر الحقول المعنية.
+استضف الاثنين ملفات ثابتة في أي مكان (مجلد في مستودع، أو مخزن كائنات، أو خادم ويب). يجب أن يطابق `name` و`type` في المستند مدخله في الفهرس، ويتكوّن الاسم من أحرف وأرقام و`.` و`_` و`-`. المستند الذي لا يطابق الصيغة يُعطي الخطأ `LOUSHO_REGISTRY_INVALID`، مع ذكر الحقول المعنية.
 
 ## بيان الصلاحيات
 
-`permissions` يصرّح بما يستطيع العنصر فعله، لتقرر قبل
-تثبيته. كله اختياري؛ وما يغيب يُعرض بالقيمة "none" / "no".
+يصرّح `permissions` بما يستطيع العنصر فعله، لتقرر قبل تثبيته. كله اختياري؛ وما يغيب يُعرض بالقيمة "none" / "no".
 
 | الحقل | المعنى |
 | ----- | ------- |
@@ -96,28 +77,27 @@ LOUSHO_REGISTRY=./registry/index.json lousho add web-search --dry-run
 | `exec` | `true` حين ينفّذ أوامر. |
 | `needsApproval` | `true` حين تطلب أدواته [موافقة](/ar/approvals) قبل أن تعمل. |
 
-البيان هو ما يقول المؤلف إن الشيفرة تفعله. الـ SDK لا يفرضه،
-وهو ليس بيئة معزولة: اقرأ الملفات التي يسردها (يعرضها `--dry-run`) كما
-تقرأ أي اعتمادية قبل تشغيلها.
+ما يفرضه `lousho add` قبل أن يكتب أي شيء:
+
+- **الشيفرة تطابق البيان.** يُفحص كل ملف JavaScript وTypeScript في العنصر، بعد حذف التعليقات، بحثًا عمّا يلجأ إليه ظاهريًا:
+  - `exec: true` عند استيراد `child_process` (بـ`node:` أو دونها) أو `execa` أو `shelljs`، أو عند استخدام `createShellTool` أو `SubprocessSandbox` من SDK؛
+  - `filesystem: "read"` (أو `"write"`) عند استيراد `fs` أو `fs/promises` أو `createFsTools` من SDK، و`"write"` عند استدعاء `writeFile` أو `appendFile` أو `createWriteStream` أو `mkdir` أو `rm` أو `rmdir` أو `unlink` أو `rename` أو `copyFile` أو `cp` (وصيغها `Sync`)؛
+  - `network` غير فارغ عند `fetch(` أو استيراد `http` أو `https` أو `net` أو `tls` أو `undici` أو `axios` أو `node-fetch` أو `ws`، ويجب أن يطابق كل `http(s)://host` في أي سلسلة نصية أحد مدخلات `network` (أما المضيف الذي يُبنى وقت التشغيل، مثل `` `https://${host}/` ``، فيحتاج إلى `network` غير فارغ ويُطبع ملاحظةً لأنه لا يمكن فحصه)؛
+  - يجب إدراج كل `process.env.NAME` و`process.env['NAME']` في `env`.
+
+  وتُرفض دائمًا `eval(` و`new Function(` و`process.env[name]` المحسوب و`process.env` المستخدم كاملًا، وأي `import()` أو `require()` لما ليس سلسلة نصية حرفية. وعدم المطابقة يعطي `LOUSHO_REGISTRY_MANIFEST_MISMATCH` مع كل ملاحظة بالشكل `<file>:<line>: <what> (<fix>)`؛ ويبلّغ عنه `--dry-run` أيضًا. أما ملفات Markdown وغيرها مما ليس شيفرة (مثل `SKILL.md` في المهارة) فلا تُفحص. ويجب أن تكون مدخلات `network` أسماء مضيفين أو أنماطًا بديلة تبدأ بـ`*.` (`api.example.com` و`*.example.com`)، ومدخلات `env` أسماء متغيرات (`SEARCH_KEY`)؛ وغير ذلك يعطي `LOUSHO_REGISTRY_INVALID`.
+- **الموافقة تغطي الصلاحيات المرتفعة.** يوسَم كل من `exec: true` و`filesystem: "write"` و`network` غير الفارغ و`env` غير الفارغ بالعلامة `[elevated: ...]` في البيان المطبوع. ويسردها السؤال التفاعلي قبل `[y/N]`. ومع `--yes` يجب تسمية كل منها في `--allow` (`--allow network,env` للمثال أعلاه)، لأن `--yes` هو الطريقة التي تشغّل بها السكربتات والوكلاء الأمر `lousho add` ولا ينبغي أن يمنح تنفيذ الأوامر بصمت.
+- **إيصال بما ثُبِّت.** بعد الكتابة يحدّث `lousho add` الملف `lousho-registry.json` في جذر مجلد الوكيل (بجانب `instructions.md`؛ ويتجاهله محمِّل الوكيل). يحتوي مدخل كل عنصر على `type` و`registry` الذي جاء منه و`installedAt` و`permissions` و`path` و`sha256` لكل ملف، لتعرف لاحقًا هل عُدّل ملف ما. ويستبدل `--overwrite` المدخل؛ ولا يكتب `--dry-run` شيئًا. والإيصال الذي ليس JSON صالحًا يوقف التثبيت قبل كتابة أي ملف.
+
+ما لا يفعله: الفحص يقرأ الشيفرة كما هي مكتوبة. وهو ليس بيئة معزولة، ولا يُفرض شيء عند تشغيل الوكيل؛ والشيفرة التي تُخفي ما تفعله (محارف الهروب في السلاسل، أو الأسماء المستعارة، أو الحمولات المشفَّرة، أو اعتمادية تؤدي العمل) قد تتجاوزه. اقرأ الملفات التي يسردها (يعرضها `--dry-run`) كما تقرأ أي اعتمادية قبل تشغيلها.
 
 ## قواعد الأمان
 
-- كل `files[].path` يجب أن يكون نسبيًا ومطبَّعًا (normalized) وبشرطات مائلة أمامية: لا
-  `..`، ولا مسار مطلق، ولا حرف قرص (`C:`)، ولا شرطات مائلة عكسية، ولا مقاطع فارغة أو
-  `.`. وبعد حلّ الروابط الرمزية (symlinks) يجب أن يبقى داخل مجلد الوكيل،
-  ولا يُكتب أبدًا عبر رابط رمزي إلى هدفه.
-- يجب أن يكون الملف داخل المجلد الذي يسمح به نوع عنصره: `tool` في `tools/`،
-  و`skill` في `skills/<name>/`، و`channel` في `channels/`، و`schedule` في
-  `schedules/`، و`memory` في `memory/`.
-- لا تُستبدل الملفات الموجودة دون `--overwrite`. تُفحص كل الملفات
-  قبل كتابة أي منها، فالعنصر المعيب لا يكتب شيئًا. وكل إخفاق من هذه يكون
-  `LOUSHO_REGISTRY_UNSAFE_PATH` أو `LOUSHO_REGISTRY_FILE_EXISTS`.
-- الحد الأقصى للملف 256 KiB وللعنصر 1 MiB؛ ولمستند السجل
-  مليونا حرف.
-- لا تُقرأ إلا عناوين `http(s)` والمسارات المحلية، بمهلة 15 ثانية لكل عملية جلب
-  (وإلا `LOUSHO_REGISTRY_UNREACHABLE`).
-- تُطبع `dependencies` في صورة سطر `npm install ...` لتنفّذه أنت.
-  الأمر لا يثبّت حزمًا أبدًا.
+- كل `files[].path` يجب أن يكون نسبيًا ومطبَّعًا (normalized) وبشرطات مائلة أمامية: لا `..`، ولا مسار مطلق، ولا حرف قرص (`C:`)، ولا شرطات مائلة عكسية، ولا مقاطع فارغة أو `.`. وبعد حلّ الروابط الرمزية (symlinks) يجب أن يبقى داخل مجلد الوكيل، ولا يُكتب أبدًا عبر رابط رمزي إلى هدفه.
+- يجب أن يكون الملف داخل المجلد الذي يسمح به نوع عنصره: `tool` في `tools/`، و`skill` في `skills/<name>/`، و`channel` في `channels/`، و`schedule` في `schedules/`، و`memory` في `memory/`.
+- لا تُستبدل الملفات الموجودة دون `--overwrite`. تُفحص كل الملفات قبل كتابة أي منها، فالعنصر المعيب لا يكتب شيئًا. وكل إخفاق من هذه يكون `LOUSHO_REGISTRY_UNSAFE_PATH` أو `LOUSHO_REGISTRY_FILE_EXISTS`.
+- الحد الأقصى للملف 256 KiB وللعنصر 1 MiB؛ ولمستند السجل مليونا حرف.
+- لا تُقرأ إلا عناوين `http(s)` والمسارات المحلية، بمهلة 15 ثانية لكل عملية جلب (وإلا `LOUSHO_REGISTRY_UNREACHABLE`).
+- تُطبع `dependencies` في صورة سطر `npm install ...` لتنفّذه أنت. الأمر لا يثبّت حزمًا أبدًا.
 
-الأخطاء مسرودة في [الأخطاء](/ar/errors#السجل). وواجهة سطر الأوامر كلها في
-[CLI](/ar/cli).
+الأخطاء مسرودة في [الأخطاء](/ar/errors#السجل). وواجهة سطر الأوامر كلها في [CLI](/ar/cli).

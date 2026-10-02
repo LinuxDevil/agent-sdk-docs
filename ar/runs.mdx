@@ -1,8 +1,78 @@
 ---
-title: "Runs: finish reasons, cancellation and parallel tools"
+title: "عمليات التشغيل: أسباب الانتهاء والإلغاء والأدوات المتوازية"
+sidebarTitle: "التشغيل والإلغاء"
+description: "كيف ينتهي التشغيل، وكيف توقفه، وكيف تعمل استدعاءات الأدوات في دورة نموذج واحدة بالتوازي."
 ---
+{/* Generated from docs/runs.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-{/* pending-translation */}
-<Note>
-هذه الصفحة لم تُترجَم إلى العربية بعد. اقرأ [النسخة الإنجليزية](/runs).
-</Note>
+## أسباب الانتهاء
+
+تبيّن `result.finishReason` سبب انتهاء التشغيل. وهي إما سبب النموذج نفسه لدورته الأخيرة (`'stop'` أو `'length'` أو `'tool_calls'` أو `'content_filter'` أو `'error'`)، أو `'awaiting-approval'` (توقف عند استدعاء أداة يحتاج إلى إنسان)، أو `'aborted'` (أُلغي بواسطة `signal`)، أو `'max-steps'`، أو `'output-invalid'` (لم يطابق الرد مخطط `output` حتى بعد خطوة الإصلاح، راجع [المخرجات المنظَّمة](/ar/structured-output))، أو `'budget-exceeded'` (تجاوز التشغيل ميزانية في `limits` مثل `maxTokens` أو `maxCostUsd`، وتحدد `result.budget` أيّها، راجع [الميزانيات](/ar/configuration#الميزانيات))، أو `'guardrail'` (حجب حاجز حماية للمدخلات أو المخرجات أو الأدوات، وتحدد `result.guardrail` أيّها، راجع [حواجز حماية المدخلات والمخرجات](/ar/guardrails#حواجز-حماية-المدخلات-والمخرجات)). تعني `'max-steps'` أن ميزانية `maxSteps` (الافتراضية 10) نفدت والنموذج ما زال يريد المتابعة، فقد يكون الرد فارغًا أو جزئيًا؛ أما التشغيل الذي ينتهي طبيعيًا ضمن الميزانية فيحتفظ بالسبب `'stop'`. وتُحسب على الميزانية الخطوات المنقولة عبر `initialSteps` أو عبر استئناف بعد موافقة، وتمثّل `result.steps` عدد الخطوات المنفَّذة. السبب نفسه موجود في الحدث `finish` وفي `run.done` ضمن [البث](/ar/streaming).
+
+```ts
+import { createAgent, createMockProvider } from '@lousho/build-ai-agent';
+const agent = createAgent({ prompt: 'You are helpful.', provider: createMockProvider(), maxSteps: 3 });
+const result = await agent.send('Research this thoroughly');
+if (result.finishReason === 'max-steps') console.warn(`Gave up after ${result.steps} steps`);
+```
+
+## الإلغاء
+
+مرّر `AbortSignal` لإيقاف التشغيل: `agent.send(input, { signal })` أو `AgentExecutor.execute({ ..., signal })` أو `resumeAfterApproval(..., { signal })`.
+
+```ts
+import { createAgent, createMockProvider } from '@lousho/build-ai-agent';
+const agent = createAgent({ prompt: 'You are helpful.', provider: createMockProvider() });
+const controller = new AbortController();
+setTimeout(() => controller.abort(), 5_000); // e.g. from a Stop button
+const result = await agent.send('Write a long report', { signal: controller.signal });
+console.log(result.finishReason); // 'aborted' if it was cancelled, else 'stop'
+```
+
+لتحديد مهلة زمنية استخدم `AbortSignal.timeout(ms)`:
+
+```ts
+import { createAgent, createMockProvider } from '@lousho/build-ai-agent';
+const agent = createAgent({ prompt: 'You are helpful.', provider: createMockProvider() });
+const result = await agent.send('Summarize this', { signal: AbortSignal.timeout(30_000) });
+```
+
+سلوك الإلغاء:
+
+- تُفحص الإشارة قبل كل استدعاء للنموذج وقبل كل استدعاء لأداة. وتُمرَّر إلى المزوّد (`GenerateOptions.signal`، وتُرسل إلى حزمة `ai` باسم `abortSignal`) وإلى كل أداة عبر `execute(args, { abortSignal })`، فيستطيع العمل الجاري أن يتوقف مبكرًا. تمرّرها الأداة المضمّنة `httpTool` إلى `fetch`، وتُلغى الوكلاء المنشأة بـ`createDelegateTool()` مع الوكيل الأب.
+- التشغيل الملغى **يكتمل** (ولا يُرفض) مع `finishReason: 'aborted'` والرسائل والخطوات المنجزة حتى تلك اللحظة. والرفض الناتج عن الإلغاء، مثل `AbortError`، لا يُعدّ فشلًا: فلا تعيد محاولته أغلفة إعادة المحاولة والبديل الاحتياطي للمزوّد، ولا يُختصر إلى خطأ مزوّد.
+- تنتهي أحداث التشغيل بـ`run.done` مع `finishReason: 'aborted'`.
+- عند استخدام `sessionId` مع `checkpointStore` تُحفظ الحالة في نقطة حفظ. وإذا استدعيت `execute()` من جديد بالقيمة نفسها لـ`sessionId` يُستأنف التشغيل من حيث توقف، ويُضاف أي `input` جديد بوصفه رسالة المستخدم التالية (راجع [التنفيذ المتين](/ar/durable-execution)). وتحصل استدعاءات الأدوات التي لم يبلغها التشغيل على نتيجة `{ error }` تفيد بأنها أُلغيت، فتبقى المحادثة صالحة بالنسبة إلى المزوّد.
+- الإشارة الملغاة مسبقًا تُنهي التشغيل فورًا دون استدعاء المزوّد.
+
+## استدعاءات الأدوات المتوازية
+
+عندما يطلب النموذج عدة أدوات في دورة واحدة تعمل معًا. وتحدد `toolConcurrency` (في `createAgent()` وفي `AgentExecutor.execute()`) الحد الأقصى لعدد ما يعمل في وقت واحد: عدد صحيح موجب، أو `'unbounded'` (الافتراضي). استخدم `1` للتنفيذ المتسلسل الصارم، مثلًا عندما تتشارك أدواتك حالةً لا يُؤمَن لمسها بالتزامن.
+
+```ts
+import { createAgent, createMockProvider, defineTool } from '@lousho/build-ai-agent';
+import { z } from 'zod';
+
+const getWeather = defineTool({
+  name: 'get_weather',
+  description: 'Current weather for a city',
+  input: z.object({ city: z.string() }),
+  execute: async ({ city }) => ({ city, tempC: 21 }),
+});
+
+const agent = createAgent({
+  prompt: 'You are a travel assistant.',
+  provider: createMockProvider(),
+  tools: [getWeather],
+  toolConcurrency: 4, // at most 4 tool calls of a turn in flight
+});
+```
+
+الضمانات، أيًّا كان الحد:
+
+- **ترتيب السجل هو ترتيب الاستدعاء.** تُضاف نتائج الأدوات بالترتيب الذي طلب به النموذج الاستدعاءات، لا بترتيب انتهائها، فيكون الطلب التالي إلى المزوّد قابلًا للتنبؤ.
+- **الأحداث.** تبدأ الاستدعاءات بترتيب الطلب. أما الحدث `tool-call` للاستدعاء و`onToolCall` والتحقق من الوسائط وخطّافات `preToolCall` وفحص `needsApproval` فتجري قبل بدئه مباشرة، استدعاءً واحدًا في كل مرة. ويُطلق الحدث `tool-result` عند انتهائه، فتصل النتائج بترتيب الانتهاء. ومع `toolConcurrency: 1` تتعاقب أحداث الاستدعاء والنتيجة تمامًا كما كانت.
+- **الموافقات.** أول استدعاء يحتاج إلى موافقة يوقف الدفعة: تعمل الاستدعاءات التي قبله (بالتزامن) وتُسجَّل نتائجها، ثم يتوقف التشغيل عند ذلك الاستدعاء (`finishReason: 'awaiting-approval'`). أما الاستدعاءات التي بعده فلا تبدأ في هذا التشغيل. وتسجّل `resumeAfterApproval()` نتيجة الاستدعاء المتوقف (أو رفضه) ثم تشغّل الاستدعاءات اللاحقة بالطريقة نفسها، فيحصل كل استدعاء في الدورة على نتيجة واحدة بالضبط - راجع [التنفيذ المتين](/ar/durable-execution#الموافقات-في-منتصف-دفعة-أدوات).
+- **الإخفاقات معزولة.** الأداة التي ترمي خطأً تحصل على نتيجة خطأ خاصة بها، وتواصل الأدوات الشقيقة عملها. أما الخطأ المنتشر (`PropagatingToolError`، كحاجز عمق التفويض، أو خطّاف يرمي خطأً) فيمنع بدء استدعاءات جديدة وينتظر استقرار الجارية، ثم يرفض التشغيل. ولا تُترك أي أداة تعمل منفصلة.
+- **الإلغاء.** الإلغاء أثناء تشغيل دفعة يُنهي التشغيل بـ`finishReason: 'aborted'`. وتحتفظ الاستدعاءات المنتهية بنتائجها، وتحصل البقية على نتيجة "أُلغي". وترى الأدوات الجارية الإلغاء عبر `abortSignal`.
+- **نقاط الحفظ.** عند استخدام `sessionId` مع `checkpointStore` تُحفظ دورة النموذج في نقطة حفظ قبل أن يبدأ أي استدعاء، ثم تُحفظ مجددًا كلما طال التسلسل المرتَّب من الاستدعاءات المنتهية (ومع `1`، بعد كل استدعاء). ولا يعيد التشغيل المستأنف تشغيل استدعاء سُجّلت نتيجته، ولا يطلب من النموذج مجددًا دورةً سبق حفظها.

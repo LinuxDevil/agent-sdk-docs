@@ -1,8 +1,114 @@
 ---
-title: "Stream events"
+title: "أحداث البث"
+sidebarTitle: "أحداث البث"
 ---
+{/* Generated from docs/stream-events.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-{/* pending-translation */}
-<Note>
-هذه الصفحة لم تُترجَم إلى العربية بعد. اقرأ [النسخة الإنجليزية](/stream-events).
-</Note>
+الأحداث التي يُصدرها `agent.stream()`، وترتيبها وإصداراتها. لمعرفة كيفية استهلاك البث، راجع [البث](/ar/streaming).
+
+## مخطط الأحداث (الإصدار 1)
+
+لكل حدث هذه الحقول:
+
+| الحقل       | النوع     | المعنى |
+| ----------- | -------- | ------- |
+| `type`      | string   | نوع الحدث (الجدول أدناه). استعمله لتضييق النوع في TypeScript. |
+| `runId`     | string   | يعرّف التشغيل. وهو نفسه في كل أحداث استدعاء `stream()` واحد. |
+| `seq`       | number   | `0` للحدث الأول، ثم `+1` لكل حدث، دون فجوات. |
+| `timestamp` | string   | وقت إصدار الحدث بصيغة ISO 8601 (`2026-10-01T09:30:00.000Z`). |
+| `v`         | `1`      | إصدار المخطط، ويُصدَّر باسم `AGENT_EVENT_SCHEMA_VERSION`. |
+| `subagent`  | كائن، اختياري | يظهر فقط في أحداث تشغيل وكيل فرعي - راجع [الوكلاء الفرعيون](/ar/streaming#الوكلاء-الفرعيون). |
+
+أنواع الأحداث وحقولها الإضافية:
+
+| `type`               | حقول إضافية | متى يصدر |
+| -------------------- | ------------ | ------- |
+| `run.start`          | `agentName: string`, `agentId?: string` | أول حدث في كل تشغيل. |
+| `step.start`         | `step: number` | تبدأ خطوة نموذج: استدعاء نموذج واحد مع استدعاءات الأدوات التي يطلبها. يبدأ عدّ `step` من 1 (والتشغيل المستأنف من نقطة حفظ يواصل العدّ). |
+| `text.delta`         | `text: string` | جزء من نص النموذج فور وصوله. |
+| `text.done`          | `text: string` | النص الكامل للخطوة: ناتج ضمّ أحداث `text.delta` الخاصة بها. فقط للخطوات التي فيها نص. |
+| `reasoning.start`    | (لا شيء) | يبدأ النموذج الاستدلال في هذه الخطوة. فقط مع [الخيار `reasoning`](/ar/reasoning) (أو مع نموذج يستدل دائمًا). تتبعه أحداث `reasoning.delta` ثم `reasoning.done`، قبل أول `text.delta` أو `tool.start` في الخطوة. |
+| `reasoning.delta`    | `text: string` | جزء من نص الاستدلال (أو من ملخّصه). لا يدخل أبدًا في `text.delta` ولا في `text` الخاص بـ `run.done`. |
+| `reasoning.done`     | `text: string`, `tokens?: number` | انتهى الاستدلال: `text` هو الاستدلال كله؛ و`tokens` إذا كان المزوّد قد أبلغ عن رموز الاستدلال حتى ذلك الحين. |
+| `tool.start`         | `toolCallId: string`, `toolName: string`, `args: Record<string, unknown>` | يبدأ استدعاء أداة. `args` هي وسائط النموذج بعد تحليلها من JSON (`{}` إذا لم تكن JSON صالحة). |
+| `tool.done`          | `toolCallId`, `toolName`, `result: unknown`, `durationMs: number` | عاد استدعاء أداة. `result` هي القيمة كما ستُرمَّز بصيغة JSON (`undefined` تصبح `null`، و`Date` تصبح سلسلة نصية). ويُحسب `durationMs` من `tool.start` الخاص به. |
+| `todo.updated`       | `todos: Todo[]`, `counts: { pending, in_progress, completed, total }`, `toolCallId: string` | استدعاء `todo_write` ناجح من [أدوات قائمة المهام](/ar/tools#أدوات-قائمة-المهام) استبدل القائمة، مباشرة بعد `tool.done` لذلك الاستدعاء. `todos` هي القائمة الجديدة كاملة (`{ id, content, status }`)، و`toolCallId` هو استدعاء `todo_write`. وحدث الوكيل الفرعي يحمل `subagent`. وتحتفظ [روابط واجهات المستخدم](/ar/react#المهام) بالقائمة وتعرضها مباشرة. |
+| `tool.error`         | `toolCallId`, `toolName`, `error: { name: string, message: string }`, `durationMs: number` | فشل استدعاء أداة: رمى خطأً، أو لم تطابق وسائطه مخططه (`name: 'ToolArgumentsValidationError'`)، أو الأداة غير موجودة. يحصل النموذج على الخطأ نتيجةً للاستدعاء ويستمر التشغيل. |
+| `approval.requested` | `approvalId: string`, `toolCallId`, `toolName`, `args: Record<string, unknown>`, `kind?: 'question'`, `question?: { text, options?, allowFreeText? }` | يحتاج استدعاء أداة إلى قرار بشري. يتوقف التشغيل عندها؛ استأنفه بـ `agent.approvals.resolve()` أو `resumeAfterApproval()` (راجع [الموافقات](/ar/approvals))، أو ابثّ الاستكمال (راجع [البث بعد موافقة](/ar/streaming#البث-بعد-الموافقة)). واستدعاء `ask_question` يحمل `kind: 'question'` و`question`؛ أجب عنه بـ `agent.approvals.answer()` (راجع [طرح سؤال على المستخدم](/ar/approvals#طرح-سؤال-على-المستخدم)). |
+| `permission.decision` | `toolCallId`, `toolName`, `decision: 'allow' \| 'deny' \| 'ask' \| 'default'`, `rule?: { index: number, reason?: string }`, `args?: Record<string, unknown>`, `at: string` | كيف حسمت [قواعد الصلاحيات](/ar/approvals#سياسات-الصلاحيات) استدعاء أداة: بعد `tool.start` الخاص به وقبل `tool.done` / `tool.error` / `approval.requested` الخاص بالاستدعاء نفسه. فقط عندما يضبط التشغيل `permissions` أو `onPermissionDecision`؛ ويُحذف `args` عند استخدام `redactContent`. |
+| `step.done`          | `step: number`, `finishReason: string`, `usage?: { promptTokens, completionTokens, totalTokens }` | تنتهي خطوة. `finishReason` هو سبب النموذج (`'stop'` و`'tool_calls'` و`'length'` ...)، أو `'awaiting-approval'` أو `'aborted'` أو `'steered'` (أُلغي استدعاء النموذج فيها بسبب `run.steer()`، راجع [التوجيه](/ar/queue-and-steer#التوجيه)) أو `'error'` عندما انتهت الخطوة بهذه الصورة (والتشغيل الذي تنفد فيه `maxSteps` وهو ما زال يريد المتابعة ينتهي بـ `run.done` بالقيمة `'max-steps'`). و`usage` هو استهلاك استدعاء النموذج في هذه الخطوة، ويغيب إذا لم يُنتج الاستدعاء استجابة. |
+| `error`              | `error: { name: string, message: string }` | خطأ. إذا أنهى التشغيل فيتبعه `run.done` مع `finishReason: 'error'`. أما خطأ المزوّد الذي أُعيدت محاولته بموجب `surfaceRetryableProviderErrors` فتتبعه خطوات أخرى بدلًا من ذلك. |
+| `provider.retry`     | `attempt: number`, `maxRetries: number`, `delayMs: number`, `error: { message: string, category?: string }`, `provider: string` | فشل استدعاء نموذج وستُعاد محاولته بعد `delayMs` (`createAgent({ retry })` أو أي مزوّد `withRetry()`). `attempt` هي المحاولة التي فشلت (1 = الأولى)؛ و`category` هي `'rate-limit'` أو `'timeout'` ...، وتغيب إذا كانت مجهولة (مثل خطأ 5xx). |
+| `provider.fallback`  | `from: string`, `to: string`, `error: { message: string }` | ما زال استدعاء نموذج يفشل بعد إعادات المحاولة، فيتولاه المزوّد التالي (`createAgent({ fallbackModels })` أو أي مزوّد `withFallback()`). `from` و`to` اسما مزوّدين. |
+| `compaction.start`   | `strategy: string`, `tokensBefore: number`, `contextWindow: number`, `thresholdTokens: number` | وجد خطّاف ضغط السياق (`createAgent({ compaction })`) أن طلب النموذج التالي فوق عتبته فبدأ ضغطه. يتبعه `compaction.done` واحد بالضبط. راجع [ضغط السياق](/ar/compaction). |
+| `compaction.done`    | `strategy: string`, `tokensBefore: number`, `tokensAfter: number`, `prunedToolCallIds: string[]`, `summary?: boolean`, `error?: { message: string }` | انتهى ضغط. يساوي `tokensAfter` قيمة `tokensBefore` إذا تعذّر ضغط أي شيء؛ وتُضبط `summary` عندما استُبدل بالدورات القديمة ملخص؛ وتُضبط `error` عندما فشلت الاستراتيجية أو رجعت إلى بديل (ويستمر التشغيل). |
+| `context.cleared`    | `sessionId: string`, `messagesCleared: number` | أفرغت `session.clear()` سجل محادثة جلسة. يُسلَّم إلى مستمعي `session.on()` لا إلى بث تشغيل. وحدثا `compaction.start` / `compaction.done` الناتجان عن `session.compact()` يصلان إلى `session.on()` أيضًا ويحملان `trigger: 'manual'`. |
+| `budget.exceeded`    | `limit: string`, `value: number`, `max: number`, `scope: 'run' \| 'session'` | بلغت [ميزانية `limits`](/ar/configuration#الميزانيات) حدّها: `limit` هو `'maxTokens'` أو `'maxInputTokens'` أو `'maxOutputTokens'` أو `'maxCostUsd'` أو `'maxDurationMs'` أو `'maxSteps'`، و`value` ما أُنفق، و`max` الحد. يتبعه `run.done` (`'budget-exceeded'`)؛ ومع `onExceeded: 'throw'` يتبعه `error` ثم `run.done` (`'error'`). |
+| `input.queued`       | `id: string`, `text: string` | قبلت `run.enqueue()` مُدخَلًا (`id` هو `EnqueueResult.id`، و`text` نص المستخدم فيه). قد يأتي في أي نقطة من التشغيل، ومنها داخل خطوة. راجع [المدخلات في قائمة الانتظار](/ar/queue-and-steer#المدخلات-المصطفّة). |
+| `input.steered`      | `id: string`, `text: string`, `mode: 'immediate' \| 'queued'` | قبلت `run.steer()` مُدخَلًا (`id` هو `SteerResult.id`). مع `mode: 'immediate'`: أُلغي استدعاء النموذج الجاري من أجله، وتنتهي خطوته بـ `step.done` بالقيمة `'steered'`؛ ومع `'queued'`: ينتظر النقطة الآمنة التالية مثل `enqueue()`. راجع [التوجيه](/ar/queue-and-steer#التوجيه). |
+| `input.applied`      | `id: string`, `step: number` | انضم المُدخَل المنتظِر (أو الموجَّه) إلى سجل المحادثة، قبيل استدعاء النموذج الخاص بالخطوة `step`: ويتبعه `step.start` لتلك الخطوة. |
+| `guardrail.tripped`  | `name: string`, `kind: 'input' \| 'output' \| 'tool'`, `reason: string`, `toolName?: string`, `info?: GuardrailTripInfo` (ما الذي أثار الحاجز: الأنواع والمواضع، وليس النص المطابق أبدًا؛ راجع [المجموعة الأساسية](/ar/guardrails#حواجز-حماية-المدخلات-والمخرجات)) | منع [حاجز حماية للمدخلات أو المخرجات أو الأدوات](/ar/guardrails#حواجز-حماية-المدخلات-والمخرجات): قبل أول استدعاء للنموذج (المدخلات)، أو قبل `text.done` الخاص بالخطوة (المخرجات)، أو بعد `tool.start` الخاص بالاستدعاء (الأدوات). يتبعه `run.done` (`'guardrail'`)؛ ومع `onTripped: 'throw'` يتبعه `error` ثم `run.done` (`'error'`). |
+| `guardrail.rewrote`  | `name`, `kind`, `reason`, `toolName?`, `info?` | أعاد حاجز حماية كتابة المُدخَل، أو نص الخطوة (قبل `text.done` الذي يحمل النص الجديد)، أو وسائط استدعاء أداة. ويستمر التشغيل. |
+| `run.done`           | `finishReason: string`, `text: string`, `usage?: { promptTokens, completionTokens, totalTokens }`, `object?: unknown` | آخر حدث في كل تشغيل، مرة واحدة بالضبط، ومنها التشغيلات الملغاة والفاشلة والمنتظِرة موافقة. يطابق `finishReason` و`text` ما في `run.result` (والقيمة `'max-steps'` عندما نفدت ميزانية `maxSteps` والنموذج ما زال يريد المتابعة)؛ والتشغيل الفاشل له `finishReason: 'error'` و`text: ''` وبلا `usage`. و`object` هو `object` المتحقَّق منه في `run.result` لوكيل له مخطط `output` (راجع [المخرجات المنظَّمة](/ar/structured-output))، ويغيب في غير ذلك. |
+
+تُحذف الحقول الاختيارية عندما لا تكون لها قيمة. وهي لا تكون `undefined` أبدًا، فيعيد `JSON.parse(JSON.stringify(event))` كائنًا مساويًا.
+
+### ضمانات الترتيب
+
+- `run.start` هو الأول و`run.done` هو الأخير، كل منهما مرة واحدة بالضبط.
+- يتبع كل `step.start` حدث `step.done` واحد بالضبط له `step` نفسها، قبل `step.start` التالي. وكل ما تفعله الخطوة يقع بينهما.
+- داخل الخطوة: `compaction.start` / `compaction.done` (إذا ضُغط الطلب، قبل استدعاء النموذج)، ثم أحداث `provider.retry` / `provider.fallback` (إذا فشل استدعاء النموذج)، ثم أحداث `text.delta`، ثم `text.done`، ثم أحداث الأدوات.
+- تعمل استدعاءات الأدوات في الخطوة الواحدة بالتوازي (راجع `toolConcurrency`): تأتي أحداث `tool.start` بترتيب استدعاءات النموذج، وأحداث `tool.done` / `tool.error` بترتيب الاكتمال. طابِقها بـ `toolCallId`.
+- يأتي `input.queued` عند استدعاء `run.enqueue()` (بعد `run.start`، حتى للمُدخَل الذي وُضع في قائمة الانتظار قبل أن ينطلق التشغيل)، فقد يقع داخل خطوة. ويأتي `input.applied` الخاص به بين `step.done` للخطوة التي كانت جارية و`step.start` التالي، الذي يحمل الخطوة `step` التي سمّاها.
+- يأتي `input.steered` عند استدعاء `run.steer()`. ومع `mode: 'immediate'` تنتهي الخطوة الجارية بعده بـ `step.done` (`'steered'`، دون أحداث نص من استدعائها الملغى)، ثم `input.applied` و`step.start` التالي.
+- حين يحتاج استدعاء إلى موافقة، تُنفَّذ الاستدعاءات التي قبله وتُبلَّغ نتائجها، ثم يأتي `approval.requested` و`step.done` (`'awaiting-approval'`) و`run.done` (`'awaiting-approval'`). والاستدعاءات التي بعده لا تبدأ أبدًا.
+- حين يمنع حاجز حماية، يأتي `guardrail.tripped` قبل النهاية مباشرة: في حاجز المدخلات بعد `run.start` مباشرة (ولا تبدأ أي خطوة)؛ وفي حاجز المخرجات أو الأدوات داخل الخطوة، ويتبعه `step.done` و`run.done` (`'guardrail'`). والمخرجات الممنوعة لا يكون لها `text.done`؛ والاستدعاءات التي بعد استدعاء أداة ممنوع لا تبدأ أبدًا.
+
+تشغيل نصي فقط:
+
+```
+run.start → step.start → text.delta × n → text.done → step.done → run.done
+```
+
+تشغيل فيه استدعاء أداة واحد:
+
+```
+run.start
+step.start(1) → tool.start → tool.done → step.done(1, 'tool_calls')
+step.start(2) → text.delta × n → text.done → step.done(2, 'stop')
+run.done('stop')
+```
+
+### TypeScript
+
+`AgentEvent` اتحاد مميَّز (discriminated union): وتضييق النوع بـ `event.type` يعطيك الحمولة. وكل نوع حدث مُصدَّر أيضًا (`TextDeltaEvent` و`ToolDoneEvent` و`RunDoneEvent` ...)، ويختار `AgentEventOf<'tool.done'>` واحدًا منها بالاسم.
+
+```ts
+import { isAgentEvent, isToolEvent, type AgentEvent } from '@lousho/build-ai-agent';
+
+function render(event: AgentEvent): string {
+  switch (event.type) {
+    case 'text.delta':
+      return event.text;
+    case 'tool.start':
+      return `\n[${event.toolName}] ${JSON.stringify(event.args)}\n`;
+    case 'tool.error':
+      return `\n[${event.toolName} failed: ${event.error.message}]\n`;
+    case 'run.done':
+      return `\n(${event.finishReason})\n`;
+    default:
+      return '';
+  }
+}
+
+// isToolEvent / isTextEvent / isStepEvent narrow to an event family:
+const toolNames = (events: AgentEvent[]) => events.filter(isToolEvent).map((e) => e.toolName);
+
+// isAgentEvent validates an event received over the wire:
+const received: unknown = JSON.parse('{"type":"run.start","runId":"r","seq":0,"timestamp":"","v":1,"agentName":"a"}');
+if (isAgentEvent(received)) console.log(render(received), toolNames([received]));
+```
+
+### الإصدارات
+
+لا يتغير `v` إلا عندما يتغير حدث قائم تغييرًا غير متوافق (حقل أُزيل أو أُعيدت تسميته أو تغيّر نوعه). ويمكن إضافة أنواع أحداث جديدة وحقول اختيارية جديدة دون تغيير `v`، فتجاهل أنواع الأحداث التي لا تعرفها.

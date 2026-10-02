@@ -1,8 +1,228 @@
 ---
 title: "MCP (Model Context Protocol)"
+sidebarTitle: "MCP"
 ---
+{/* Generated from docs/mcp.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-{/* pending-translation */}
-<Note>
-هذه الصفحة لم تُترجَم إلى العربية بعد. اقرأ [النسخة الإنجليزية](/mcp).
-</Note>
+يعمل MCP في اتجاهين. يستطيع وكيلك أن يستدعي أدوات خوادم MCP، أو يستطيع
+وكيلك أن يكون هو نفسه خادم MCP يستدعيه Claude Code وCursor وغيرهما من عملاء MCP.
+كلا الاتجاهين في المسار الفرعي `@lousho/build-ai-agent/mcp`، وحزمة
+`@modelcontextprotocol/sdk` اعتمادية نظيرة (peer dependency) اختيارية: ثبّتها لاستخدام أي من الاتجاهين.
+
+```sh
+npm install @modelcontextprotocol/sdk
+```
+
+الدوال `connectMcp` و`loadMcpTools` و`serveMcp` مُصدَّرة من
+`@lousho/build-ai-agent/mcp`؛ وتصدّرها كذلك جذر الحزمة و`@lousho/build-ai-agent/tools`.
+أما `createAgent({ mcpServers })` فلا يحتاج إلى أي استيراد من المسار الفرعي.
+
+## استخدام خوادم MCP في وكيل
+
+يقبل `createAgent({ mcpServers })` الخريطة نفسها. تتصل الخوادم عند `await agent.ready()`
+أو تلقائيًا عند أول `send()` / `stream()`؛
+وتُضاف أدوات كل خادم باسم `<server>__<tool>` (مثل `docs__search`).
+الخادم الذي يتعذر اتصاله يُفشل ذلك الاستدعاء، ويحاول الاستدعاء التالي مرة أخرى.
+يقطع `agent.close()` الاتصال بها (ويوقف عمليات stdio)؛ وأي استدعاء أداة لاحق
+يعيد الاتصال. وبلا `mcpServers` لا تفعل `ready()` ولا `close()` شيئًا.
+
+```ts
+import { createAgent } from '@lousho/build-ai-agent';
+
+const agent = createAgent({
+  model: 'openai/gpt-4o-mini',
+  mcpServers: {
+    files: { command: 'npx', args: ['-y', '@modelcontextprotocol/server-filesystem', '.'] },
+    docs: { url: 'https://example.com/mcp', headers: { Authorization: 'Bearer <token>' } },
+  },
+});
+const { text } = await agent.send('List the files here.');
+await agent.close();
+```
+
+تُشغَّل مدخلات stdio بالقيمتين `command` و`args`؛ وتُضاف `env` إلى
+البيئة الافتراضية (`PATH` وما شابهه)، فهي ليست بديلًا عنها. أما مدخلات HTTP
+فتستخدم نقل HTTP القابل للبث (streamable HTTP) وترسل الترويسات الثابتة `headers` مع كل
+طلب. والترويسات الثابتة هي المصادقة الوحيدة التي يدعمها مدخل HTTP
+حاليًا.
+
+الخريطة هي نفسها التي يعلنها ملف المواصفات؛ انظر
+[الإعدادات](/ar/configuration) (قسم `mcpServers`) لصيغة YAML.
+
+### مشاركة الخوادم عبر `connectMcp()`
+
+لمشاركة الخوادم بين عدة وكلاء، أو لاختيار طريقة معالجة الإخفاقات، استدعِ
+`connectMcp(servers, options?)` ومرّر `tools` الناتجة عنها بنفسك. تتصل بكل
+خادم وتسرد أدواته قبل أن تكتمل، فتكون الأدوات معروفة سلفًا.
+الخيارات:
+
+- `onError`: القيمة `'throw'` (الافتراضية) ترفض الوعد حين يتعذر اتصال خادم، بعد
+  إغلاق الخوادم الأخرى؛ والقيمة `'skip'` تستبعد ذلك الخادم وتحذّر عبر `logger`.
+- `lazy` (الافتراضية `true`): بعد `close()` أو انقطاع الاتصال، يعيد استدعاء
+  الأداة التالي الاتصال. أما مع `false` فيفشل ذلك الاستدعاء. وسرد الأدوات
+  يحتاج إلى اتصال، فلا تؤخّر `lazy` أول اتصال أبدًا.
+- `logger`: يتلقى تحذيرات الخوادم والأدوات المتخطّاة (الافتراضي: لا شيء).
+
+تعيد `{ tools, close(), status() }`؛ وتربط `status()` كل خادم بإحدى القيم
+`'idle'` أو `'connected'` أو `'failed'`.
+
+```ts
+import { createAgent } from '@lousho/build-ai-agent';
+import { connectMcp } from '@lousho/build-ai-agent/mcp';
+
+const mcp = await connectMcp(
+  { files: { command: 'npx', args: ['-y', '@modelcontextprotocol/server-filesystem', '.'] } },
+  { onError: 'skip', logger: console }
+);
+console.log(mcp.status()); // { files: 'connected' }
+const agent = createAgent({ model: 'openai/gpt-4o-mini', tools: mcp.tools });
+await agent.send('List the files here.');
+await mcp.close();
+```
+
+### الموافقة على أدوات MCP
+
+تصف خوادم MCP كل أداة بتوصيفات (annotations): `readOnlyHint` و
+`destructiveHint` و`idempotentHint` و`openWorldHint` و`title`. وهي
+تلميحات، لكن SDK تستخدمها قاعدةً افتراضية لـ[الموافقات](/ar/approvals):
+الأداة ذات `readOnlyHint: true` تعمل؛ والأداة ذات `destructiveHint: true`، أو
+التي لا ترسل `destructiveHint` (الافتراضي في مواصفة MCP أنها مدمِّرة)،
+توقف التشغيل حتى يوافق إنسان؛ وذات `destructiveHint: false` تعمل. وعليه فالأداة
+بلا توصيفات تطلب الموافقة. تبقى التوصيفات الخام في
+`descriptor.metadata.mcp.annotations`، ويصير `title` هو `displayName`.
+
+اضبط `approval` في مدخل الخادم (`mcpServers` أو `createAgent` أو `connectMcp()`) أو
+في `loadMcpTools(client, name, { approval })`:
+
+- `'annotations'` (الافتراضية): كما سبق.
+- `'always'` / `'never'`: اطلب الموافقة لكل الأدوات / لا تطلبها لأي منها.
+- دالة `({ name, annotations }) => boolean` تقرر لكل أداة (`name` هو
+  اسم الأداة المجرّد؛ و`annotations` هي `{}` حين لا يرسل الخادم شيئًا). في الشيفرة
+  فقط؛ أما ملف المواصفات فيقبل السلاسل الثلاث.
+
+[قواعد الصلاحيات](/ar/approvals#سياسات-الصلاحيات) تعمل أولًا، ويظل بوسعها
+`allow` أو `deny` أو `ask`.
+
+```ts
+import { createAgent } from '@lousho/build-ai-agent';
+
+const agent = createAgent({
+  model: 'openai/gpt-4o-mini',
+  mcpServers: {
+    files: { command: 'npx', args: ['-y', '@modelcontextprotocol/server-filesystem', '.'] },
+    // Ask before anything except tools whose name starts with `search`.
+    docs: { url: 'https://example.com/mcp', approval: ({ name }) => !name.startsWith('search') },
+    // A server you trust: never ask.
+    scratch: { command: 'node', args: ['./scratch-server.js'], approval: 'never' },
+  },
+});
+```
+
+### أدوات من عميل اتصلتَ به بنفسك
+
+اتصل بنفسك بـ`Client` من `@modelcontextprotocol/sdk` ثم حمّل
+أدواته بـ`loadMcpTools()`، ومرّر النتيجة إلى `createAgent()` (أو
+سجّلها في `ToolRegistry`):
+
+```ts
+import { createAgent } from '@lousho/build-ai-agent';
+import { loadMcpTools } from '@lousho/build-ai-agent/mcp';
+
+const tools = await loadMcpTools(mcpClient, 'my-server');
+const agent = createAgent({ prompt: '...', provider, tools });
+```
+
+تتوفر `loadMcpTools` أيضًا من جذر الحزمة ومن
+`@lousho/build-ai-agent/tools`.
+
+## تقديم وكيل عبر MCP
+
+تعكس `serveMcp()` عمل `loadMcpTools()`: فهي تعرض وكيلًا (واختياريًا بعض
+أدواته) على أنه خادم MCP، فيستطيع Claude Code وCursor وغيرهما من عملاء MCP
+استدعاءه.
+
+```ts
+import { createAgent, defineTool } from '@lousho/build-ai-agent';
+import { serveMcp } from '@lousho/build-ai-agent/mcp';
+import { z } from 'zod';
+
+const searchDocs = defineTool({
+  name: 'search_docs',
+  description: 'Search the docs',
+  input: z.object({ query: z.string() }),
+  execute: ({ query }) => `results for ${query}`,
+});
+
+const supportAgent = createAgent({ prompt: 'You answer support questions.', provider, tools: [searchDocs] });
+
+const server = await serveMcp({
+  agent: supportAgent,            // exposed as ONE tool taking { message: string }
+  name: 'support-bot',            // server name; the tool name defaults to a sanitized version
+  description: 'Ask the support agent a question',
+  tools: [searchDocs],            // optional: also expose these tools directly
+  transport: { type: 'http', port: 3920, host: '127.0.0.1', path: '/mcp' }, // default: 'stdio'
+});
+await server.close();
+```
+
+- **بلا حالة.** كل استدعاء لأداة الوكيل محادثة جديدة.
+- **الإلغاء.** إلغاء طلب MCP يُجهض تشغيل الوكيل
+  (`agent.send(message, { signal })`).
+- **الأخطاء.** يعود إخفاق الوكيل نتيجةَ MCP فيها `isError: true`.
+- **الموافقات.** لا يمكن الموافقة على الأدوات المشروطة بموافقة عبر MCP. التشغيل الذي
+  يتوقف للموافقة يعيد `isError: true` مع رسالة تقول ذلك. والأدوات
+  المعلَّمة بـ`needsApproval` لا تُعرض مباشرة ما لم تمرّر
+  `allowApprovalTools: true`؛ وإن فعلت، شغّلها العملاء **دون أي بوابة بشرية**.
+- **stdio.** لا يُكتب إلى stdout غير بروتوكول MCP؛ وتذهب التحذيرات إلى stderr.
+- **HTTP.** يرتبط افتراضيًا بالعنوان `127.0.0.1`. أضف `auth: { type: 'bearer', token }`
+  لاشتراط ترويسة `Authorization: Bearer`؛ والارتباط بمضيف غير loopback
+  دون `auth` يسجّل تحذيرًا.
+
+### التوصيفات
+
+تحمل `tools/list` توصيفات MCP ليعرف العملاء ما تفعله الأداة. الأداة
+التي تحتاج إلى موافقة تُعلَن بـ`readOnlyHint: false, destructiveHint: true`؛
+وحدّد التلميحات بنفسك عبر `annotations` (تُرسَل كما هي). والأداة التي بلا تلميحات لا ترسل
+شيئًا، فيظل وكيل Lousho الذي يستهلك هذا الخادم يسأل قبل تشغيلها (انظر
+`approval` في `connectMcp()`)؛ أما `readOnlyHint: true` فتعمل دون سؤال. والأداة التي
+تحتاج إلى موافقة لا تُعلَن أبدًا للقراءة فقط. الأدوات المضمّنة `read_file` و`list_dir` و
+`glob` و`grep` و`todo_read` و`current_date` و`day_name` للقراءة فقط.
+
+```ts
+import { defineTool } from '@lousho/build-ai-agent';
+import { z } from 'zod';
+
+const lookupOrder = defineTool({
+  name: 'lookup_order',
+  description: 'Look up an order',
+  input: z.object({ id: z.string() }),
+  annotations: { readOnlyHint: true, destructiveHint: false, title: 'Look up order' },
+  execute: ({ id }) => ({ id, status: 'shipped' }),
+});
+```
+
+### من سطر الأوامر
+
+يقدّم `lousho mcp` ملف مواصفات وكيل (عبر stdio افتراضيًا):
+
+```sh
+npx lousho mcp agent.yaml
+npx lousho mcp agent.yaml --http --port 3920 --host 127.0.0.1
+```
+
+لاستخدامه من عميل MCP، أضفه إلى إعدادات MCP الخاصة بالعميل (مثل
+`.mcp.json` في Claude Code):
+
+```json
+{
+  "mcpServers": {
+    "support-bot": { "command": "npx", "args": ["lousho", "mcp", "agent.yaml"] }
+  }
+}
+```
+
+## الحدود
+
+- لا يمكن الموافقة على الأدوات المشروطة بموافقة عبر MCP حين تقدّم وكيلًا: التشغيل الذي يتوقف للموافقة يعيد `isError: true`، والأدوات المعلَّمة بـ`needsApproval` لا تُعرض ما لم تُضبط `allowApprovalTools`.
+- يستخدم عملاء HTTP ترويسات ثابتة: تُرسَل `headers` مع كل طلب، ولا يوجد مسار OAuth.
+- استدعاءات `serveMcp()` بلا حالة: كل استدعاء لأداة الوكيل محادثة جديدة، ولا يقبل نقل HTTP غير `POST`.

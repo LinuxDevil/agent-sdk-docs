@@ -1,29 +1,9 @@
 ---
 title: "التنفيذ المتين"
 ---
-
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/durable-execution).
-</Warning>
-
 {/* Generated from docs/durable-execution.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-مرّر `sessionId` و`checkpointStore` إلى `AgentExecutor.execute()` فيصمد التشغيل أمام تعطّل، أو إعادة تشغيل، أو إيقاف (abort)، أو موافقة بشرية تستغرق أيامًا. لا شيء هنا يعتمد على مستضيف بعينه: أي `CheckpointStore` (`LocalStorageCheckpointStore` على Node، أو مخزن Cloudflare KV الذي يجهّزه بناء `cloudflare-worker`، أو تنفيذك الخاص المكوَّن من ثلاث دوال) وأي `ApprovalStore` يعملان بالطريقة نفسها.
-
-```ts
-import { AgentExecutor, LocalStorageCheckpointStore } from '@lousho/build-ai-agent';
-
-const checkpoints = new LocalStorageCheckpointStore(storage);
-
-// First message of a conversation.
-await AgentExecutor.execute({ agent, input: 'Book a table for 2 tonight', provider, sessionId: 'chat-42', checkpointStore: checkpoints });
-
-// Later - same process or another one - the next message of the same conversation.
-await AgentExecutor.execute({ agent, input: 'Make it 3 people', provider, sessionId: 'chat-42', checkpointStore: checkpoints });
-```
-
-مع `createAgent()`، يكفي خيار `store` واحد لتجهيز كل شيء: مرّر `sessionId` إلى `send()` (أو `stream()`) فتُحفظ للتشغيل نقاط حفظ (checkpoints) في `store.checkpoints`؛ وبعد تعطّل، تُكمله `agent.resume(sessionId)` (وتعيد `null` حين لا يوجد شيء معلّق). ولا حاجة إلى `AgentExecutor`:
+امنح `createAgent()` خيار `store` ومرّر `sessionId` إلى `send()` فيصمد التشغيل أمام تعطّل، أو إعادة تشغيل، أو إيقاف (abort)، أو موافقة بشرية تستغرق أيامًا. لا شيء هنا يعتمد على مستضيف بعينه: أي `CheckpointStore` (`memoryStore()`، أو `SqliteStore`، أو مخزن Cloudflare KV الذي يجهّزه بناء `cloudflare-worker`، أو تنفيذك الخاص المكوَّن من ثلاث دوال) وأي `ApprovalStore` يعملان بالطريقة نفسها.
 
 ```ts
 import { createAgent } from '@lousho/build-ai-agent';
@@ -31,15 +11,23 @@ import { SqliteStore } from '@lousho/build-ai-agent/sqlite';
 
 const agent = createAgent({ provider, store: new SqliteStore('./.lousho/jobs.db') });
 
-const finished = await agent.resume('job-1'); // the interrupted run, if any
-const next = await agent.send('Now write a summary', { sessionId: 'job-1' }); // continues the same run's conversation
+// First message of a conversation.
+await agent.send('Book a table for 2 tonight', { sessionId: 'chat-42' });
+
+// Later - same process or another one - the next message of the same conversation.
+await agent.send('Make it 3 people', { sessionId: 'chat-42' });
+
+// After a crash: finish the interrupted run, if there is one (`null` when nothing is pending).
+const finished = await agent.resume('chat-42');
 ```
 
-يحتفظ `store.approvals` بحالات التوقف بانتظار الموافقة، وتواصل `agent.approvals.resolve()` حفظ نقاط الحفظ للتشغيل تحت `sessionId` الخاص به. والجلسات تُحفظ لها نقاط حفظ أيضًا: `agent.session({ id })` تحفظ نقطة حفظ لكل دورة، و`agent.resume(id)` (أو `session.resume()`) تُكمل الدورة التي انقطعت، انظر [الجلسات المتينة](/ar/sessions#الجلسات-المتينة).
+يتولى خيار `store` التجهيز: يحتفظ `store.checkpoints` بنقاط حفظ (checkpoints) التشغيل، ويحتفظ `store.approvals` بحالات التوقف بانتظار الموافقة، وتواصل `agent.approvals.resolve()` حفظ نقاط الحفظ للتشغيل تحت `sessionId` الخاص به. وتقبل `stream()` أيضًا `sessionId`. والجلسات تُحفظ لها نقاط حفظ أيضًا: `agent.session({ id })` تحفظ نقطة حفظ لكل دورة، و`agent.resume(id)` (أو `session.resume()`) تُكمل الدورة التي انقطعت، انظر [الجلسات المتينة](/ar/sessions#الجلسات-المتينة).
+
+في الأسفل، تشغّل `createAgent()` الدالة `AgentExecutor.execute()` مع `sessionId` و`checkpointStore`؛ والسلوك الموصوف أدناه هو سلوك المنفِّذ، ويعرض [القسم المتقدم](#متقدم-واجهة-المنفِّذ) استدعاءات المنفِّذ.
 
 ## ما الذي يُحفظ في نقطة الحفظ، ومتى
 
-نقطة الحفظ هي سجل محادثة التشغيل كاملًا مع عدد خطواته، واستهلاكه، و`businessState`، وقيمة `status`. وتُكتب تحت `sessionId`:
+نقطة الحفظ هي سجل محادثة التشغيل كاملًا مع عدد خطواته، واستهلاكه، و`businessState`، وقيمة `status`. وتكتبها `send()` (و`stream()`) تحت `sessionId`:
 
 | اللحظة | `status` |
 | ------ | -------- |
@@ -51,55 +39,50 @@ const next = await agent.send('Now write a summary', { sessionId: 'job-1' }); //
 
 التشغيل الذي ينتهي بخطأ (خطأ من المزوّد، أو خطّاف يرمي خطأً، أو `PropagatingToolError`، أو تعطّل العملية) يحتفظ بآخر نقطة حفظ له بالحالة `'in-progress'`.
 
-## ما الذي يحدث حين تستدعي `execute()` مرة أخرى بالـ`sessionId` نفسه
+## ما الذي يحدث حين ترسل مرة أخرى بالـ`sessionId` نفسه
 
-يتوقف ذلك على قيمة `status` المخزَّنة:
+يتوقف استدعاء `send()` مرة أخرى بالـ`sessionId` نفسه (أو `execute()` على المنفِّذ) على قيمة `status` المخزَّنة:
 
-- **تشغيل غير مكتمل** (`'in-progress'`: تعطّل، أو أُوقف، أو فشلت كتابة في المخزن). يُستأنف التشغيل. إذا كانت دورة النموذج الأخيرة فيه تتضمن استدعاءات أدوات بلا نتيجة، تُنفَّذ تلك الاستدعاءات بعينها أولًا، عبر مسار الأدوات المعتاد (التحقق من المعطيات، والخطّافات، و`needsApproval`، و`toolConcurrency`)، **من دون استدعاء النموذج من جديد**. ثم تستمر الحلقة بما تبقّى من ميزانية `maxSteps`؛ ويستمر `usage` من الإجماليات المحفوظة في نقطة الحفظ (والأمر نفسه في `resumeAfterApproval()`، انطلاقًا من اللقطة).
+- **تشغيل غير مكتمل** (`'in-progress'`: تعطّل، أو أُوقف، أو فشلت كتابة في المخزن). يُستأنف التشغيل (وتفعل `agent.resume(sessionId)` الشيء نفسه دون مدخل جديد). إذا كانت دورة النموذج الأخيرة فيه تتضمن استدعاءات أدوات بلا نتيجة، تُنفَّذ تلك الاستدعاءات بعينها أولًا، عبر مسار الأدوات المعتاد (التحقق من المعطيات، والخطّافات، و`needsApproval`، و`toolConcurrency`)، **من دون استدعاء النموذج من جديد**. ثم تستمر الحلقة بما تبقّى من ميزانية `maxSteps`؛ ويستمر `usage` من الإجماليات المحفوظة في نقطة الحفظ (والأمر نفسه بعد `agent.approvals.resolve()`، انطلاقًا من اللقطة).
   - يُضاف `input` الجديد كرسالة مستخدم بعد نتائج تلك الأدوات. ولا يوضع أبدًا بين دورة استدعاء أدوات ونتائجها، فيبقى سجل المحادثة صالحًا لدى كل مزوّد. وهذا ما يتيح للمستخدم أن يقاطع تشغيلًا (بإيقافه) ويعيد توجيهه برسالة جديدة.
   - الـ`input` الذي يعيد إرسال الرسالة التي بدأ منها التشغيل (وهو التصرف الطبيعي: «أعد الطلب نفسه بعد تعطّل») يُعامَل كإعادة محاولة ولا يُضاف مرة أخرى. و`input: []` كذلك يستأنف فحسب.
 - **تشغيل منتهٍ** (`'finished'`). تستمر الجلسة كمحادثة: تبقى الرسائل المخزَّنة ويصبح `input` دورة المستخدم التالية. مرّر الرسالة أو الرسائل الجديدة فقط؛ وإذا أعدت إرسال السجل المخزَّن متبوعًا برسائل جديدة، يُتعرَّف على السجل ولا يُكرَّر. وتُحتسب `steps` و`usage` و`toolCalls` في النتيجة من الصفر للتشغيل الجديد؛ أما `messages` فهي المحادثة كاملة.
-- **متوقف بانتظار موافقة** (`'awaiting-approval'`). ترمي `execute()` الخطأ `SessionAwaitingApprovalError` (مع `sessionId` و`approvalId`) ولا تستدعي النموذج ولا أي أداة: فلا يجوز أن يتجاوز مدخل جديد قرارًا معلّقًا. احسمه أولًا بـ`resumeAfterApproval()`، مع تمرير `checkpointStore` نفسه، ثم أرسل الرسالة الجديدة.
+- **متوقف بانتظار موافقة** (`'awaiting-approval'`). ترمي `send()` الخطأ `SessionAwaitingApprovalError` (مع `sessionId` و`approvalId`) ولا تستدعي النموذج ولا أي أداة: فلا يجوز أن يتجاوز مدخل جديد قرارًا معلّقًا. احسمه أولًا بـ`agent.approvals.resolve()`، ثم أرسل الرسالة الجديدة.
 
-تُتجاهَل رسائل النظام في `input` حين يُضاف إلى جلسة مخزَّنة (فالجلسة لها موجّه النظام الخاص بها أصلًا). ولإنهاء جلسة والبدء من جديد بالمعرّف نفسه، استدعِ `checkpointStore.delete(sessionId)`.
+تُتجاهَل رسائل النظام في `input` حين يُضاف إلى جلسة مخزَّنة (فالجلسة لها موجّه النظام الخاص بها أصلًا). ولإنهاء جلسة والبدء من جديد بالمعرّف نفسه، استدعِ `store.checkpoints.delete(sessionId)`.
 
 ```ts
-import { AgentExecutor, SessionAwaitingApprovalError } from '@lousho/build-ai-agent';
+import { createAgent, memoryStore, SessionAwaitingApprovalError } from '@lousho/build-ai-agent';
+
+const agent = createAgent({ provider, store: memoryStore() });
 
 try {
-  await AgentExecutor.execute({ agent, input: 'Are you done?', provider, sessionId: 'chat-42', checkpointStore });
+  await agent.send('Are you done?', { sessionId: 'chat-42' });
 } catch (error) {
   if (error instanceof SessionAwaitingApprovalError) {
-    console.log(`Waiting on approval ${error.approvalId} - resolve it with resumeAfterApproval() first.`);
+    console.log(`Waiting on approval ${error.approvalId} - resolve it with agent.approvals.resolve() first.`);
   }
 }
 ```
 
 ## الموافقات في منتصف دفعة أدوات
 
-حين تطلب دورة نموذج واحدة عدة أدوات وتحتاج إحداها إلى موافقة، تُنفَّذ الاستدعاءات التي تسبقها وتُسجَّل، ويتوقف التشغيل عندها. وتسجّل لقطة الموافقة (snapshot) الاستدعاءات التي تليها (`remainingToolCalls`). ثم تقوم `resumeAfterApproval()` بما يلي:
+حين تطلب دورة نموذج واحدة عدة أدوات وتحتاج إحداها إلى موافقة، تُنفَّذ الاستدعاءات التي تسبقها وتُسجَّل، ويتوقف التشغيل عندها. وتسجّل لقطة الموافقة (snapshot) الاستدعاءات التي تليها (`remainingToolCalls`). ثم تقوم `agent.approvals.resolve()` (وهي `resumeAfterApproval()` على المنفِّذ) بما يلي:
 
 1. تسجّل نتيجة الاستدعاء المتوقف: نتيجة الأداة إن وُوفق عليه، أو نتيجة رفض منظَّمة `{ error, note }` إن رُفض؛
 2. تنفّذ الاستدعاءات المتبقية بمنطق الدفعة نفسه: فقد تُنفَّذ، أو تفشل في التحقق، أو توقف التشغيل مرة أخرى عند موافقة أخرى (`approvalId` جديد؛ احسمه بالطريقة نفسها، وبعدد المرات اللازم)؛
 3. تستدعي النموذج حالما يصبح لكل استدعاء في الدورة نتيجة واحدة بالضبط.
 
 ```ts
-import { AgentExecutor, resumeAfterApproval } from '@lousho/build-ai-agent';
+import { createAgent, memoryStore } from '@lousho/build-ai-agent';
 
-const paused = await AgentExecutor.execute({
-  agent, input, provider, toolRegistry, approvalStore, sessionId: 'chat-42', checkpointStore,
-});
+const agent = createAgent({ provider, store: memoryStore() });
+
+const paused = await agent.send('Email the whole team', { sessionId: 'chat-42' });
 
 if (paused.finishReason === 'awaiting-approval') {
-  // ...a human decides, possibly days later, in another process...
-  const result = await resumeAfterApproval(
-    { id: paused.approvalId!, approved: true },
-    approvalStore,
-    toolRegistry,
-    provider,
-    {},
-    checkpointStore, // clears the 'awaiting-approval' mark and keeps checkpointing
-  );
+  // ...a human decides, possibly days later, in another process (same store)...
+  const result = await agent.approvals.resolve({ id: paused.approvalId!, approved: true });
   console.log(result.finishReason); // 'stop', or 'awaiting-approval' again for the next gated call
 }
 ```
@@ -145,7 +128,8 @@ const chargeCard = defineTool({
 | `memoryStore()` | نعم | `memoryStore({ historyLimit })` |
 | `SqliteStore` | نعم (جدول `checkpoint_history`) | `new SqliteStore(path, { historyLimit })` |
 | `LocalStorageCheckpointStore` | نعم | `new LocalStorageCheckpointStore(storage, { historyLimit })` |
-| `KVCheckpointStore` / `KVStore` (Cloudflare Workers KV) | نعم (انظر أدناه) | `new KVStore(kv, { historyLimit })` |
+| `fileStore(dir)` (ملفات JSON) | نعم (`checkpoint-history/<id>.json`) | `fileStore(dir, { historyLimit })` |
+| `KVCheckpointStore` / `KVStore` (Cloudflare Workers KV، من `@lousho/build-ai-agent/kv`) | نعم (انظر أدناه) | `new KVStore(kv, { historyLimit })` |
 | `FileCheckpointStore` الخاص بـ Agent Forge | نعم | `new FileCheckpointStore(dir, { historyLimit })` |
 | `CheckpointStore` مخصَّص | فقط إذا نفّذ `history()` | - |
 
@@ -175,41 +159,28 @@ await checkpoints.delete('chat-42', { keepHistory: true });
 
 ## التفريع وإعادة التشغيل
 
-تبدأ `AgentExecutor.fork()` جلسة جديدة من خطوة في السجل التاريخي لجلسة أخرى: «ماذا لو أعادت الأداة شيئًا آخر في الخطوة 1؟» تأخذ أحدث مدخل في السجل التاريخي للخطوة `fromStep`، وتطبّق `patch`، وتحفظ الناتج نقطةَ حفظ بالحالة `'in-progress'` للجلسة الجديدة، وتعيد `{ sessionId, step, checkpoint }`. استأنف التفريعة كأي تشغيل غير مكتمل:
+تبدأ `agent.fork(sessionId, { fromStep, patch? })` جلسة جديدة من خطوة في السجل التاريخي لجلسة أخرى: «ماذا لو أعادت الأداة شيئًا آخر في الخطوة 1؟» تأخذ أحدث مدخل في السجل التاريخي للخطوة `fromStep`، وتطبّق `patch`، وتحفظ الناتج نقطةَ حفظ بالحالة `'in-progress'` للجلسة الجديدة عبر `store.checkpoints`، وتعيد `{ sessionId, step, checkpoint }`. استأنف التفريعة كأي تشغيل غير مكتمل بـ`agent.resume(fork.sessionId)`:
 
 ```ts
-import { AgentExecutor, compareTrajectories, memoryStore } from '@lousho/build-ai-agent';
+import { createAgent, compareTrajectories, memoryStore } from '@lousho/build-ai-agent';
 
-const { checkpoints } = memoryStore();
-await AgentExecutor.execute({ agent, provider, toolRegistry, input: 'Plan my trip', sessionId: 'trip', checkpointStore: checkpoints });
+const store = memoryStore();
+const assistant = createAgent({ provider, store });
+await assistant.send('Plan my trip', { sessionId: 'trip' });
 
-const fork = await AgentExecutor.fork({
-  sessionId: 'trip',
-  fromStep: 1,
-  checkpointStore: checkpoints,
-  patch: { toolResult: { toolCallId: 'call_weather', result: { forecast: 'rain' } } },
-});
+const fork = await assistant.fork('trip', { fromStep: 1, patch: { appendInput: 'It will rain, plan for that.' } });
 // fork.sessionId is 'trip.fork-1'; the 'trip' checkpoint and history are unchanged.
-await AgentExecutor.execute({ agent, provider, toolRegistry, input: [], sessionId: fork.sessionId, checkpointStore: checkpoints });
+const result = await assistant.resume(fork.sessionId);
 
-const original = await checkpoints.load('trip');
-const replayed = await checkpoints.load(fork.sessionId);
+const original = await store.checkpoints?.load('trip');
+const replayed = await store.checkpoints?.load(fork.sessionId);
 if (original && replayed) {
   const { divergedAt, a, b, drift } = compareTrajectories(original, replayed);
   console.log(divergedAt, a.length, b.length, drift); // 1, then each run's steps and the tool-call diff
 }
 ```
 
-مع `createAgent({ store })`، تفعل `agent.fork(sessionId, { fromStep, patch? })` الشيء نفسه على `store.checkpoints`، وتواصل `agent.resume(fork.sessionId)` التفريعة:
-
-```ts
-import { createAgent, memoryStore } from '@lousho/build-ai-agent';
-
-const assistant = createAgent({ provider, store: memoryStore() });
-await assistant.send('Plan my trip', { sessionId: 'trip' });
-const fork = await assistant.fork('trip', { fromStep: 1, patch: { appendInput: 'It will rain, plan for that.' } });
-const result = await assistant.resume(fork.sessionId);
-```
+`AgentExecutor.fork()` هي العملية نفسها على المنفِّذ؛ انظر [القسم المتقدم](#متقدم-واجهة-المنفِّذ).
 
 - يُطبَّق `patch` بهذا الترتيب: `messages(messages)` تعيد كتابة سجل المحادثة؛ و`businessState` يحلّ محلّ القيمة المحفوظة؛ و`toolResult: { toolCallId, result }` يستبدل نتيجة ذلك الاستدعاء في مكانها (الموضع نفسه ومعرّف الاستدعاء نفسه واسم الأداة نفسه، فيبقى سجل المحادثة صالحًا لدى كل مزوّد)، أو يسجّلها حين لا تكون للاستدعاء نتيجة بعد؛ و`appendInput` يضع رسالة مستخدم في الانتظار، تُرسل بعد أي استدعاءات أدوات ما زالت معلّقة.
 - تحتفظ التفريعة بعدد خطوات نقطة الحفظ المصدر وباستهلاكها، فينطبق عليها ما تبقّى من ميزانية `maxSteps`. نتائج الأدوات المسجَّلة لا يُعاد تنفيذها؛ واستدعاءات الأدوات التي بلا نتيجة تُنفَّذ أولًا، كما في أي استئناف (فتفريعة من مدخل بالحالة `'awaiting-approval'` تمرّ عبر `needsApproval` من جديد؛ ولا يُنقل `approvalId` القديم).
@@ -246,8 +217,91 @@ const result = await agent.resume('job-1');
 
 - نقاط الحفظ واللقطات المكتوبة قبل وجود هذه الميزة ليست لها بصمة، وتُستأنف تمامًا كما في السابق، بلا تحذير.
 - تشغيل [وكيل ديناميكي](/ar/api-overview#الإعداد-الديناميكي) يحفظ `ctx` والنموذج الذي اختاره في نقطة الحفظ (`runConfig`)، ويستخدمهما الاستئناف بعد تعطّل: النموذج المحفوظ، وأدوات وتعليمات تُحسب من جديد بالـ`ctx` المحفوظ (وكان الحساب قبل ذلك يجري بـ`input: []` وبلا `metadata`).
-- تغطي البصمة أدوات الوكيل نفسه ونموذجه وتعليماته، لا الأدوات التي تضيفها `subagents` و`skills`. والوكيل الفرعي الذي يتوقف بانتظار موافقة له بصمته الخاصة في لقطته المتداخلة، لكن الاستئناف لا يقارن إلا وكيل المستوى الأعلى.
+- تغطي البصمة أدوات الوكيل نفسه ونموذجه وتعليماته، لا الأدوات التي تضيفها `subagents` و`skills`. والوكيل الفرعي الذي يتوقف بانتظار موافقة له بصمته الخاصة في لقطته المتداخلة. وعند الاستئناف يُقارَن كل مستوى متوقف (الوكيل الرئيسي، والوكيل الفرعي، والوكيل الفرعي لذلك الوكيل الفرعي) بتعريفه الحالي من `subagents`، وفق `onAgentDrift` الخاص بالوكيل الرئيسي. ومع `'warn'` يحمل الحدث `agent.drift` الحقل `subagent`. وحين يُرفض فحص وكيل فرعي، تُعاد موافقة الوكيل الرئيسي ونقطة حفظه بالحالة `'awaiting-approval'` إلى مكانها، فيمكن إصلاح الوكيل الفرعي ثم الحسم مرة أخرى. أما [الوكيل الفرعي البعيد](/ar/sub-agents#الوكلاء-الفرعيون-عن-بُعد) فلا يُقارَن: إذ يبقى توقفه محفوظًا على الطرف البعيد.
 - التشغيل المستأنف بعد موافقة يواصل بالتعليمات التي بدأ بها (فهي في سجل محادثته)، ولذلك تسجّل نقاط حفظه اللاحقة تلك التعليمات.
+
+## متقدم: واجهة المنفِّذ
+
+بُنيت `createAgent()` فوق `AgentExecutor`، وهو يظل متاحًا حين تريد أن تتولى التجهيز بنفسك: فالمزوّد و`ToolRegistry` والمخازن واستدعاءات الاستئناف كلها صريحة (انظر [واجهة المنفِّذ](/ar/executor-api)). ويذكر كل مقتطف أدناه استدعاء `createAgent()` الذي يقابله.
+
+الدالة `AgentExecutor.execute()` مع `sessionId` و`checkpointStore` هي `agent.send(message, { sessionId })`:
+
+```ts
+import { AgentExecutor, LocalStorageCheckpointStore } from '@lousho/build-ai-agent';
+
+const checkpoints = new LocalStorageCheckpointStore(storage);
+
+// First message of a conversation.
+await AgentExecutor.execute({ agent, input: 'Book a table for 2 tonight', provider, sessionId: 'chat-42', checkpointStore: checkpoints });
+
+// Later - same process or another one - the next message of the same conversation.
+await AgentExecutor.execute({ agent, input: 'Make it 3 people', provider, sessionId: 'chat-42', checkpointStore: checkpoints });
+```
+
+وهي ترمي `SessionAwaitingApprovalError` على جلسة متوقفة، كما تفعل `send()`:
+
+```ts
+import { AgentExecutor, SessionAwaitingApprovalError, memoryStore } from '@lousho/build-ai-agent';
+
+const { checkpoints } = memoryStore();
+
+try {
+  await AgentExecutor.execute({ agent, input: 'Are you done?', provider, sessionId: 'chat-42', checkpointStore: checkpoints });
+} catch (error) {
+  if (error instanceof SessionAwaitingApprovalError) {
+    console.log(`Waiting on approval ${error.approvalId} - resolve it with resumeAfterApproval() first.`);
+  }
+}
+```
+
+و`resumeAfterApproval()` هي `agent.approvals.resolve()`:
+
+```ts
+import { AgentExecutor, resumeAfterApproval } from '@lousho/build-ai-agent';
+
+const paused = await AgentExecutor.execute({
+  agent, input, provider, toolRegistry, approvalStore, sessionId: 'chat-42', checkpointStore,
+});
+
+if (paused.finishReason === 'awaiting-approval') {
+  // ...a human decides, possibly days later, in another process...
+  const result = await resumeAfterApproval(
+    { id: paused.approvalId!, approved: true },
+    approvalStore,
+    toolRegistry,
+    provider,
+    {},
+    checkpointStore, // clears the 'awaiting-approval' mark and keeps checkpointing
+  );
+  console.log(result.finishReason); // 'stop', or 'awaiting-approval' again for the next gated call
+}
+```
+
+و`AgentExecutor.fork()` هي `agent.fork()`؛ وتنفيذ `execute()` مع `input: []` على `sessionId` الخاص بالتفريعة هو `agent.resume(fork.sessionId)`:
+
+```ts
+import { AgentExecutor, compareTrajectories, memoryStore } from '@lousho/build-ai-agent';
+
+const { checkpoints } = memoryStore();
+await AgentExecutor.execute({ agent, provider, toolRegistry, input: 'Plan my trip', sessionId: 'trip', checkpointStore: checkpoints });
+
+const fork = await AgentExecutor.fork({
+  sessionId: 'trip',
+  fromStep: 1,
+  checkpointStore: checkpoints,
+  patch: { toolResult: { toolCallId: 'call_weather', result: { forecast: 'rain' } } },
+});
+// fork.sessionId is 'trip.fork-1'; the 'trip' checkpoint and history are unchanged.
+await AgentExecutor.execute({ agent, provider, toolRegistry, input: [], sessionId: fork.sessionId, checkpointStore: checkpoints });
+
+const original = await checkpoints.load('trip');
+const replayed = await checkpoints.load(fork.sessionId);
+if (original && replayed) {
+  const { divergedAt, a, b, drift } = compareTrajectories(original, replayed);
+  console.log(divergedAt, a.length, b.length, drift); // 1, then each run's steps and the tool-call diff
+}
+```
+
 
 ## التوافق مع البيانات المخزَّنة
 
@@ -257,6 +311,6 @@ const result = await agent.resume('job-1');
 
 ## القيود
 
-- يعرّف `sessionId` محادثة منطقية واحدة؛ وتشغيل استدعاءين لـ`execute()` على المعرّف نفسه في الوقت نفسه غير مدعوم.
-- إذا استدعيت `resumeAfterApproval()` من دون `checkpointStore`، تحتفظ الجلسة بعلامة `'awaiting-approval'` وتظل استدعاءات `execute()` اللاحقة ترمي `SessionAwaitingApprovalError`؛ مرّر المخزن (أو احذف نقطة الحفظ).
+- يعرّف `sessionId` محادثة منطقية واحدة؛ وتشغيل استدعاءين لـ`send()` (أو استدعاءين لـ`execute()`) على المعرّف نفسه في الوقت نفسه غير مدعوم.
+- إذا استدعيت `resumeAfterApproval()` (المنفِّذ الذي تقوم عليه `agent.approvals.resolve()`) من دون `checkpointStore`، تحتفظ الجلسة بعلامة `'awaiting-approval'` وتظل استدعاءات `send()` (أو `execute()`) اللاحقة ترمي `SessionAwaitingApprovalError`؛ مرّر المخزن (أو احذف نقطة الحفظ). أما `agent.approvals.resolve()` فتمرّره عنك.
 - Workers KV متّسق اتساقًا نهائيًا (eventual consistency) عبر المواقع؛ انظر [النشر](/ar/deployment) لمعرفة تفاصيل هذا التحفّظ.

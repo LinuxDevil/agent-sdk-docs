@@ -1,8 +1,301 @@
 ---
 title: "Cloudflare Workers"
 ---
+{/* Generated from docs/cloudflare-workers.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-{/* pending-translation */}
-<Note>
-هذه الصفحة لم تُترجَم إلى العربية بعد. اقرأ [النسخة الإنجليزية](/cloudflare-workers).
-</Note>
+يولّد الأمر `npx lousho build --target=cloudflare-worker --agent=agent.yaml` ملف Worker بصيغة وحدة (`worker.ts`) وملف `wrangler.toml` وحزمة `dist/worker.js` يفحصها البناء بحثًا عن استيرادات `node:`. يتطلب تثبيت `tsup` و`wrangler`، ويقبل [ملف مواصفات وكيل](/ar/configuration) أو [مجلد وكيل](/ar/agent-directories) (`npx lousho build ./my-agent --target=cloudflare-worker`). يقدّم الـ Worker واجهة [HTTP API](/ar/deployment#واجهة-http) نفسها التي تقدّمها الأهداف الأخرى. هذا الهدف هو الأكثر تقييدًا بين الأهداف الثلاثة، لذلك نبدأ بحدوده.
+
+## ما الذي يعمل وما الذي لا يعمل
+
+
+| الميزة | Cloudflare Worker | `node-server` / `docker` |
+| ------- | ----------------- | ------------------------ |
+| ملفات مواصفات الوكيل | نعم | نعم |
+| [مجلدات الوكيل](/ar/agent-directories) | نعم: الإعدادات و`instructions.md` و`tools/` و`skills/`؛ ولا تُدعم `subagents/` ولا `schedules/` ولا `channels/` ولا `memory/` ولا `projectInstructions` | نعم، كلها |
+| المزوّدون | `mock` و`openai` و`anthropic` و`openrouter` | `mock` و`openai` و`anthropic` و`ollama` و`openrouter` |
+| الأدوات المضمّنة | `current-date` و`day-name` و`http` (أسماء المضيفين المدرجة فقط، من الربط `LOUSHO_HTTP_ALLOW`) | جميعها، بما فيها `http` و`web-fetch` |
+| الأدوات المكتوبة بـ TypeScript | نعم، في مجلد وكيل: بلا وحدات Node المدمجة، ومن `@lousho/build-ai-agent` الأسماء المدرجة تحت [مجلدات الوكيل على Worker](#البناء-والنشر) فقط | نعم، في مجلد وكيل |
+| تنفيذ الأدوات في بيئة معزولة | لا (يستبدل البناء البيئة المعزولة بطبقة بديلة تفشل عند استخدامها) | نعم |
+| خوادم MCP عبر stdio | لا (لا يمكن بدء العملية الفرعية؛ والطبقة البديلة تفشل عند استخدامها) | نعم |
+| خوادم MCP عبر HTTP | لم يُتحقَّق منه | نعم |
+| الجلسات ونقاط الحفظ والموافقات | مساحة أسماء KV واحدة، `AGENT_CHECKPOINTS` (اتساقها نهائي) | الذاكرة أو الملفات أو SQLite |
+| الجداول الزمنية | مُشغِّلات cron فقط، بتوقيت UTC، من خمسة حقول، بدقة دقيقة واحدة | تعبيرات cron كاملة، مع منطقة زمنية |
+| الحزمة | يفحص `lousho build` وحدات Node المدمجة ويبلغ عن حجم الحزمة | لا تُفحص |
+| [مصادقة المسارات](/ar/auth) | رمز `LOUSHO_API_TOKEN` من نوع Bearer فقط | الرمز، أو قائمة مرتّبة (`jwt()` و`oidc()` و`basic()` وغيرها) من ملف `auth.ts` في مجلد الوكيل |
+
+يرفض `lousho build` أي مواصفات يكون مزوّدها أو أداتها خارج عمود Worker، وأي مجلد وكيل فيه مجلد أو إعداد يخلو منه عمود Worker، ويُصدر الخطأ `LOUSHO_DEPLOY_FAILED` الذي يسمّي العنصر المرفوض ويقترح `--target=node-server` أو `--target=docker`.
+
+### المزوّدون والأدوات
+
+أسباب الصفوف الخاصة بالمزوّدين والأدوات:
+
+- المزوّدون: `mock` و`openai` و`anthropic` و`openrouter`. المزوّدون الحقيقيون مبنيون على
+  الدالتين `generateText`/`streamText` من حزمة Vercel `ai` SDK
+  مع `@ai-sdk/openai`/`@ai-sdk/anthropic` (و`openrouter` هو
+  `@ai-sdk/openai` موجَّه إلى `https://openrouter.ai/api/v1`)، وهي
+  تنفيذات تعتمد على `fetch()` ومعايير الويب فقط دون أي استيراد `node:*`،
+  فتُجمَّع وتعمل على Workers بسلاسة؛ ويتحقق فحص التسرّب في البناء من
+  كل حزمة. المزوّد `ollama` **غير مدعوم** هنا: فنقطته الافتراضية محلية
+  `http://localhost:11434` ولا يستطيع الـ Worker الوصول إليها؛ استخدم
+  `node-server` أو `docker` معه؛
+- الأدوات: `current-date` و`day-name` و`http`. الأداة `web-fetch` **غير
+  مدعومة**. على Node ترفض `http` و`web-fetch` الوجهات الخاصة
+  بإجراء استعلام DNS خاص بهما (`node:dns` داخل `Agent` من `undici`)
+  يفحص كل عنوان يُحلَّ إليه المضيف ويتصل بالعنوان الذي فحصه،
+  فلا يستطيع هجوم DNS rebinding تجاوز الفحص. أما الـ Worker فلا يملك
+  أيًّا من ذلك: إذ يحلّ `fetch()` الأسماء داخل شبكة Cloudflare
+  ولا يتيح أي نقطة وصول لرؤية العنوان أو تثبيته. وما يستطيع الـ Worker فحصه هو
+  عنوان URL (البروتوكول، واسم المضيف، والمضيف بصيغة عنوان IP)؛ أما ما لا يستطيع
+  ضمانه فهو العنوان الذي يتصل به اسم المضيف، فالاسم الذي يُحلَّ إلى
+  عنوان داخلي لن يُكتشف. لذلك فإن `http` في الـ Worker (باسم الأداة
+  `http_request` ومدخلاتها نفسها كما على Node) أداة مختلفة: فهي
+  لا تصل إلا إلى أسماء المضيفين التي تدرجها. وفي أول عنوان URL وعند كل
+  إعادة توجيه ترفض:
+  - أي بروتوكول غير `http:` و`https:`؛
+  - مضيفًا بصيغة عنوان IP (`http://10.0.0.1/` و`http://[::1]/`)، حتى لو كان
+    مدرجًا: لا يوجد فحص للعناوين، لذا لا يُسمح إلا بالأسماء؛
+  - مضيفًا لا يطابق الربط `LOUSHO_HTTP_ALLOW`، وهو قائمة مفصولة بفواصل
+    من أسماء المضيفين (`api.github.com`) وبدائل `*.` العامة
+    (`*.example.com`، وهي تطابق النطاقات الفرعية فقط ولا تطابق `example.com`).
+    إذا كان الربط غير مضبوط أو فارغًا رُفض كل طلب (الإغلاق عند الفشل)؛ والإدخال الذي
+    ليس اسم مضيف يُفشل كل طلب بخطأ يسمّيه.
+
+  وبذلك لا يستطيع النموذج اختيار مضيف عشوائي ولا مضيف يستغل DNS rebinding،
+  لأن الأسماء التي أدرجتها وحدها تمرّ؛ والاسم المدرج موثوق أينما
+  حُلَّ، فلا تُدرج إلا مضيفين تتحكم بهم أو تثق بهم. يُتحقَّق من TLS دائمًا
+  (لا يوجد خيار `validateSSL`) وتعمل الأداة دون بيئة معزولة. أما أداة
+  من كتابتك تستدعي `fetch()` داخل Worker فلا تحصل من الـ SDK على أي حماية
+  من SSRF.
+
+## البناء والنشر
+
+يولّد البناء Worker بصيغة وحدة (`export default { fetch }`) ويجمّعه كوحدة ES
+لمنصة المتصفح؛ ويفشل البناء إذا انتهى أي استيراد `node:` داخل
+`dist/worker.js`. يشير `wrangler.toml` بالحقل `main` إلى `dist/worker.js`
+مع `no_bundle = true`، فيُرفع بالضبط الملف الذي جرى التحقق منه. يُبنى ويعمل
+مع `ai` v4 (التثبيت الافتراضي) أو `ai` v7 (مع
+`@ai-sdk/openai`/`@ai-sdk/anthropic` v4) دون أي علَم
+توافق (أي دون `nodejs_compat`):
+
+```bash
+cd .lousho/build/cloudflare-worker
+npx wrangler dev       # local workerd runtime
+npx wrangler deploy    # requires a Cloudflare account (`wrangler login`)
+```
+
+تُقرأ مفاتيح API الخاصة بالمزوّدين من ارتباطات Worker المسمّاة `<TYPE>_API_KEY` (مثل
+`wrangler secret put OPENAI_API_KEY` أو `wrangler secret put ANTHROPIC_API_KEY` أو
+`wrangler secret put OPENROUTER_API_KEY`). ويجب تثبيت الحزم النظيرة (`@ai-sdk/openai` لكل من
+`openai` و`openrouter`، و`@ai-sdk/anthropic` لـ `anthropic`، و`ai`) إلى جانب
+`@lousho/build-ai-agent` كي يجمّعها `lousho build`.
+
+**مجلدات الوكيل على Worker.** لا يملك الـ Worker نظام ملفات ولا يستطيع استيراد
+ملف بمساره وقت التشغيل، لذلك يقرأ البناء
+[مجلد الوكيل](/ar/agent-directories) على Node ويكتب `agent.module.ts`:
+استيرادًا ثابتًا لكل ملف `tools/*.ts` (ولإعدادات `agent.ts` / `agent.js`
+إن وُجدت)، مع نسخ `instructions.md` وإعدادات JSON/YAML والمهارات
+بصيغة JSON. ويبني الـ Worker الوكيل بالقواعد نفسها المتبعة في `resolveAgentDir()`
+(مفاتيح الإعدادات، وصادرات الأدوات، وأسماء الأدوات المكررة):
+
+```bash
+npx lousho build ./my-agent --target=cloudflare-worker
+cd .lousho/build/cloudflare-worker && npx wrangler deploy
+```
+
+- يجب أن يسمّي `model` في الإعدادات مزوّدًا من الجدول أعلاه (`"model": "openai/gpt-4o-mini"`)،
+  مع مفتاحه في الربط `OPENAI_API_KEY`؛ أو أن يضبط `agent.ts` الخاصية `provider` على نسخة.
+  لا توجد بيئة يُختار منها نموذج افتراضي، لذلك يُرفض المجلد الذي يخلو من الأمرين.
+- يفحص `lousho build` إعدادات JSON/YAML؛ أما إعدادات `agent.ts` فتُفحص عند بدء
+  الـ Worker، فيُبلغ `wrangler deploy` عن المشكلة.
+- تُرفض `subagents/` و`schedules/` و`channels/` و`memory/` و`projectInstructions`،
+  مع تسمية المجلد أو المفتاح. استخدم `node-server` أو `docker` لها.
+- تُجمَّع ملفات الأدوات من مواضعها، فتُحلّ استيراداتها النسبية و
+  `node_modules` الخاصة بها كما في التطوير. والأداة التي تستورد وحدة Node مدمجة تُفشل
+  فحص التسرّب في البناء، الذي يسمّي الملف.
+- داخل أداة أو `agent.ts`، تكون `@lousho/build-ai-agent` مجموعة جزئية من الحزمة آمنة للـ Worker:
+  `defineTool` و`isDefinedTool` و`always` و`never` و`once` و`defineSkill` و`createMockProvider` و
+  `MockLLMProvider` و`OpenAIProvider` و`AnthropicProvider` و`OpenRouterProvider` و`fromAiSdk` و
+  `LLMProviderRegistry` و`textOf` و`SDKError` و`ConfigurationError` و`ToolExecutionError` و
+  `ValidationError`. ويُفشل استيراد أي اسم آخر البناء مع عرض هذه القائمة؛ أما استيرادات
+  الأنواع فقط فتعمل لكل نوع.
+
+ما الذي تصل إليه الأداة على Worker: يعمل ملف الأداة داخل عزل (isolate) الـ Worker، لا في
+بيئة معزولة، وبالصلاحيات نفسها التي يملكها بقية الـ Worker. يمكنه استدعاء `fetch()` لأي مضيف
+(إذ يقيّد `LOUSHO_HTTP_ALLOW` أداة `http` المضمّنة فقط، لا شيفرتك)، ويشارك
+ذاكرة العزل مع كل جلسة يخدمها العزل (وبدون
+`AGENT_CHECKPOINTS` يشمل ذلك جلساتها). لا يمرّر الـ SDK إلى الأداة الكائن
+`env` الخاص بالـ Worker (مفاتيح API الخاصة بالمزوّدين و`LOUSHO_API_TOKEN` ومساحة أسماء KV)،
+ولا يحلّ البناء استيرادات `cloudflare:`، فيفشل البناء عند
+`import { env } from 'cloudflare:workers'`؛ لكن الشيفرة داخل عزل واحد ليست حدًّا أمنيًا. لا تنشر إلا شيفرة
+أدوات تثق بها لتصل إلى هذه الارتباطات.
+
+## الارتباطات
+
+يقدّم الـ Worker [HTTP API](/ar/deployment#واجهة-http): `GET /health`، و`POST /chat`
+مبثوثًا بصيغة SSE (`ReadableStream`)، و`GET /chat/:sessionId`، ونقطة نهاية
+الموافقات، وجسم `{ "message" }` المُهمَل. ارتباطاته:
+
+| الارتباط | النوع | وظيفته |
+| ------- | ---- | ------------ |
+| `LOUSHO_API_TOKEN` | سرّ (`npx wrangler secret put LOUSHO_API_TOKEN`) | يجعل كل مسار عدا `/health` يشترط `Authorization: Bearer <token>` (مقارنة بزمن ثابت، وإلا يُعاد `401` بصيغة JSON). بدونه يكون الـ Worker مفتوحًا لكل من يعرف عنوانه، لذلك **اضبطه قبل النشر**. |
+| `AGENT_CHECKPOINTS` | مساحة أسماء KV | تحفظ الجلسات ونقاط الحفظ والموافقات المتوقفة في مساحة أسماء واحدة، على هيئة `KVStore` (أدناه). بدونها تعيش في ذاكرة عزل واحد تعيد Cloudflare تدويره متى شاءت: يصلح لتجربة النشر، لا للإنتاج. |
+| `LOUSHO_HTTP_ALLOW` | متغيّر (`[vars]` في `wrangler.toml`) | أسماء المضيفين التي يجوز لأداة `http` الوصول إليها، مفصولة بفواصل: `api.github.com`، أو `*.example.com` للنطاقات الفرعية فقط. إذا كان غير مضبوط أو فارغًا رُفض كل طلب `http`. راجع [المزوّدون والأدوات](#المزوّدون-والأدوات). |
+
+يُولَّد `wrangler.toml` وكتلة `[[kv_namespaces]]` الخاصة بـ
+`AGENT_CHECKPOINTS` معلَّقة (مُحوَّلة إلى تعليق)، مع أوامر إنشاء مساحة الأسماء
+(`npx wrangler kv namespace create AGENT_CHECKPOINTS`، إضافةً إلى صيغة
+`--preview`) ومكان لصق المعرّفات الناتجة. أزل التعليق عنها واملأ المعرّفات.
+وإذا أدرجت المواصفات `http` فسيحتوي الملف أيضًا على كتلة `[vars]` معلَّقة من أجل
+`LOUSHO_HTTP_ALLOW`؛ أزل التعليق عنها وأدرج مضيفيك:
+
+```toml
+[vars]
+LOUSHO_HTTP_ALLOW = "api.github.com,*.example.com"
+```
+
+```bash
+cd .lousho/build/cloudflare-worker
+npx wrangler secret put LOUSHO_API_TOKEN
+npx wrangler secret put OPENAI_API_KEY
+npx wrangler deploy
+curl -N https://<your-worker>.workers.dev/chat \
+  -H "Authorization: Bearer $LOUSHO_API_TOKEN" -H 'Content-Type: application/json' \
+  -d '{ "sessionId": "alice", "input": "Hello" }'
+```
+
+## الجلسات ونقاط الحفظ والموافقات
+
+`KVStore(kvBinding, { prefix?, ttl?, historyLimit? })` هو `AgentStore` الذي
+يبنيه الـ Worker المولَّد من الارتباط. أما الـ Worker المكتوب يدويًا فيستورده من
+المسار الفرعي `/kv` الذي لا يحتوي أي استيراد `node:*` في أي موضع من رسمه البياني،
+مع تعريف الارتباط بالنوع `KVBinding` (جزء `get`/`put`/`delete` من
+`KVNamespace` في Cloudflare، فلا حاجة إلى `@cloudflare/workers-types`):
+
+```ts
+import { createAgent } from '@lousho/build-ai-agent';
+import { KVStore, type KVBinding } from '@lousho/build-ai-agent/kv';
+
+interface Env {
+  AGENT_KV: KVBinding;
+}
+
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const agent = createAgent({ provider, store: new KVStore(env.AGENT_KV) });
+    const { sessionId, input } = (await request.json()) as { sessionId: string; input: string };
+    const { text } = await agent.session({ id: sessionId }).send(input);
+    return Response.json({ text });
+  },
+};
+```
+
+يصدّر `/kv` أيضًا `KVCheckpointStore` (لنقاط الحفظ فقط) و
+`CHECKPOINT_KV_BINDING` (`'AGENT_CHECKPOINTS'`، وهو اسم الارتباط الذي يقرؤه الـ Worker
+المولَّد). مفاتيح `KVStore`، وقبل كل منها `prefix` اختياري:
+
+| المفتاح | القيمة |
+| --- | ----- |
+| `sessions/<id>` | سجل المحادثة بصيغة JSON (بايتات الصور والملفات على هيئة `{ "$bytes": "<base64>" }`، كما في `FileSessionStore`). |
+| `checkpoints/<id>` | الكائن `Checkpoint` لتشغيل متين أو دورة جلسة (`KVCheckpointStore`، وسجله التاريخي تحت `checkpoints/<id>#history`). |
+| `approvals/<id>` | موافقة متوقفة واللقطة التي تستأنفها (تُحذف عند البتّ فيها). |
+
+يجعل `ttl: { sessions?, checkpoints?, approvals? }` (بالثواني، ويقبل KV ستين ثانية فأكثر)
+كل نوع من السجلات ينتهي بعد هذه المدة من آخر كتابة؛ وافتراضيًا
+تبقى السجلات حتى تُحذف.
+
+يمكن البتّ في موافقة أوقفت دورة في طلب ما، بطلب لاحق
+على عزل آخر: فالجلسة التي لها نقطة حفظ تسمّي موافقتها المعلّقة، وتتابعها
+نقطة نهاية الموافقات من KV. وأحداث هذه المتابعة تتخطى `tool.done`
+لاستدعاء الأداة الذي بُتّ فيه؛ ويحمل `run.done` فيها النص النهائي.
+
+يحتفظ `POST /chat { "message", "sessionId"? }` المُهمَل بسلوكه السابق
+على Workers: فمع `sessionId` تُحفظ نقطة حفظ للتشغيل في
+`checkpoints/<sessionId>` بعد كل نتيجة أداة، ويستعيدها طلب لاحق
+يعيد استخدام `sessionId` (بعد عطل أو إعادة تدوير للعزل).
+
+## التشغيلات المجدولة
+
+تتحول مُشغِّلات cron في المواصفات (`triggers: [{ type: 'cron', cron: '0 9 * * MON', input: '...' }]`)
+إلى `[triggers] crons = [...]` في `wrangler.toml`، ويصدّر الـ Worker المولَّد
+معالجًا `scheduled()` يشغّلها بوصفها دورات للوكيل (الجلسة
+`schedule:<name>`، راجع [الجداول الزمنية](/ar/schedules#على-cloudflare-workers)). تقيّم Cloudflare
+التعبيرات بتوقيت **UTC** وبدقة دقيقة واحدة؛ ويرفض
+البناء `timezone` أو حقل الثواني أو الاختصار `@daily` أو يوم الأسبوع
+الرقمي (`LOUSHO_SCHEDULE_INVALID`).
+
+وفي Worker تكتبه بنفسك، اربط وكيلًا معرَّفًا في الشيفرة عبر
+`handleScheduled(agent, schedules, controller, ctx)` (وهي مُصدَّرة أيضًا من
+`@lousho/build-ai-agent/deploy-runtime-worker`). تشغّل الجداول التي
+يساوي `cron` فيها `controller.cron` داخل `ctx.waitUntil()` ولا ترمي أي استثناء؛
+وعليك أنت إدراج التعبيرات نفسها تحت `[triggers] crons`:
+
+```ts
+import { createAgent, createMockProvider, defineSchedule, handleScheduled } from '@lousho/build-ai-agent';
+import type { ScheduledContext, ScheduledController } from '@lousho/build-ai-agent';
+
+const agent = createAgent({ instructions: 'You write reports.', provider: createMockProvider() });
+const schedules = [defineSchedule({ name: 'weekly', cron: '0 9 * * MON', prompt: 'Summarise last week.' })];
+
+export default {
+  scheduled: (controller: ScheduledController, _env: unknown, ctx: ScheduledContext) =>
+    handleScheduled(agent, schedules, controller, ctx),
+};
+```
+
+## الاتساق
+
+عمر الطلب في Worker أقصر من أن يلائم `CheckpointStore` في الذاكرة أو
+المعتمد على نظام الملفات (راجع
+[الإعدادات](/ar/configuration) / `src/execution/checkpoint.ts` لمعرفة
+ما هو `CheckpointStore` ولماذا يحتاج التشغيل إليه كي ينجو من عطل أو
+من توقف عند بوابة موافقة). و`AGENT_CHECKPOINTS` هو ذلك المخزن، مدعومًا بـ KV
+(`KVCheckpointStore`)، ويكفي الارتباط الواحد أعلاه لتفعيله.
+
+**لماذا KV لا D1 ولا Durable Objects:** إن `Checkpoint` كتلة JSON واحدة مفتاحها
+`sessionId`، تُقرأ وتُكتب كاملة، وهذا بالضبط الشكل الذي صُمّم له Workers KV،
+دون أي بنية تحتية إضافية سوى ارتباط بمساحة أسماء. أما D1
+فستوفّر قدرة استعلام علائقية لا يحتاجها هذا المخزن؛ وأما Durable Object
+فستوفّر اتساقًا صارمًا لكل جلسة على حساب إعداد
+صنف DO وترحيله ودفع كلفة كائن ذي حالة لكل جلسة. فإذا كان
+حملك يحتاج فعلًا إلى اتساق صارم للقراءة بعد الكتابة عبر
+مواقع الحافة (راجع التحفظ أدناه)، فإن `CheckpointStore` المدعوم بـ Durable Object
+هو مسار الترقية الطبيعي، وذلك بتنفيذ واجهة `CheckpointStore` نفسها
+(`save`/`load`/`delete`) فوق مساحة أسماء Durable Object
+بدل مساحة أسماء KV.
+
+**الاتساق النهائي، فاقرأ هذا قبل الاعتماد عليه في مسارات عمل
+الموافقات:** إن Workers KV مخزن *نهائي الاتساق*. تكون عملية `put()`
+مرئية فورًا لموقع الحافة الذي كتبها، لكنها قد تستغرق حتى
+نحو 60 ثانية لتنتشر إلى بقية مواقع حافة Cloudflare عالميًا. وعمليًا
+يعني هذا: إذا كُتبت نقطة حفظ جلسة في موقع حافة ووصل بعدها بقليل طلب
+لاحق للجلسة *نفسها* إلى موقع حافة *مختلف*، فقد يرى ذلك الطلب
+بيانات قديمة (نقطة حفظ أقدم، أو لا شيء) لا ما كُتب للتو.
+ويتجلى ذلك أكثر عند التوقفات المرتبطة بالموافقة، إذ يكون التوقف
+والاستئناف الذي تطلقه موافقة الإنسان لاحقًا طلبين منفصلين بطبيعتهما
+قد يصلان إلى موقعين مختلفين. لا يَعِد هذا الـ SDK، ولا يستطيع أن يَعِد، في ظل
+ضمانات KV، باتساق صارم للقراءة بعد الكتابة هنا.
+فإن كان مسار الموافقة لديك لا يحتمل هذه النافذة، فوجّه طلبات الجلسة الواحدة
+إلى موقع Cloudflare واحد بنفسك (مثلًا عبر توجيه الطلبات القائم على
+Durable Object) أو استخدم مخزنًا قوي الاتساق
+بدلًا من `AGENT_CHECKPOINTS`/KV. وينطبق الأمر نفسه على الجلسات: فطلبان من
+الجلسة نفسها في اللحظة نفسها قد يكتب أحدهما فوق دورة الآخر، لأن
+القراءة ثم التعديل ثم الكتابة في KV ليست ذرّية.
+
+## حجم الحزمة ووحدات Node المدمجة
+
+المخازن المدعومة بـ KV (`KVStore` و`KVCheckpointStore` و`CHECKPOINT_KV_BINDING`،
+المصدَّرة من `@lousho/build-ai-agent/kv`) لا تحتوي أي إشارة إلى `node:*` في
+أي موضع من رسم اعتمادياتها. يشغّل الـ Worker المواصفات بوصفها وكيل `createAgent()`،
+ويوجّه البناء استيراداته الخاصة بـ Node فقط (تعليمات المشروع، ومخزن الجلسات في الملفات، وتصحيحات
+حواجز الحماية، وMCP عبر stdio) إلى طبقة بديلة تفشل عند استخدامها
+(`src/deploy/shims/node.worker.ts`). ثم تُفحص حزمة `dist/worker.js` المبنية
+بحثًا عن معرّفات `node:` ومعرّفات وحدات Node المدمجة المجرّدة ضمن `lousho build`،
+ويفشل البناء إن وُجد أي منها؛ وحين يكون أحدها قد استُورد (من أداة في مجلد وكيل مثلًا) يسمّي الخطأ الملف المستورِد. هناك استثناء واحد: فـ `ai` v7 و
+`@ai-sdk/provider-utils` v5 يبحثان عن `node:module` و`node:dns` و
+`node:diagnostics_channel` و`node:async_hooks` وقت التشغيل عبر
+`process.getBuiltinModule()`، ولا يفعلان ذلك إلا عند اكتشاف Node، ويعودان إلى
+`fetch()` (أو يتخطيان تتبّع القياس) في غيره. وتُقبل هذه المعرّفات الأربعة
+وسيطًا لاستدعاء كهذا ولا تُقبل في أي موضع آخر. والحزمة أكبر من Worker
+بدورة واحدة (نحو 1.7 MB خامًا و340 KB مضغوطة بـ gzip لوكيل `mock` على `ai` v4؛ ونحو 3.4 MB
+خامًا و630 KB مضغوطة على `ai` v7): يبلغ `lousho build` عن
+حجمها، وتقارنه `describe()` بحد حجم السكربت في Cloudflare.
