@@ -1,0 +1,101 @@
+---
+title: "Next.js وأطر العمل الأخرى المبنية على Fetch API"
+sidebarTitle: "Next.js وأطر Fetch"
+---
+{/* Generated from docs/nextjs.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
+
+`createRouteHandler(agent, options?)` يقدّم وكيلًا من ملف مسار في أي
+إطار عمل تأخذ معالجاته كائن `Request` من معايير الويب وتُعيد `Response`:
+Next.js App Router، و SvelteKit، و Remix / React Router، و Hono، و Bun.serve. وهو
+غلاف رقيق فوق واجهة الجلسات نفسها التي يستخدمها `lousho dev` والخادم المنشور
+(docs/deployment.md)، فتعمل معه واجهات الربط (bindings) الخاصة بـ React و Vue و Svelte
+دون تغيير. ولا يستورد أي إطار عمل ولا أي وحدة `node:*`.
+
+## Next.js App Router
+
+```ts
+// app/api/agent/[[...path]]/route.ts
+import { createAgent, createRouteHandler } from '@lousho/build-ai-agent';
+
+const agent = createAgent({ model: 'openai/gpt-4o-mini', instructions: 'You are helpful.' });
+
+export const { GET, POST } = createRouteHandler(agent, {
+  basePath: '/api/agent',
+  auth: process.env.AGENT_TOKEN,
+  uiMessageStream: true,
+});
+```
+
+**المسار الذي ليس له `auth` عام**: كل من يستطيع الوصول إليه يستطيع تشغيل وكيلك
+وإنفاق ميزانية نموذجك. مرّر رمز bearer، أو دالة تتحقق من
+جلستك أو ملف تعريف الارتباط (cookie) الخاص بتطبيقك:
+
+```ts
+import { createAgent, createRouteHandler } from '@lousho/build-ai-agent';
+
+declare function isSignedIn(request: Request): Promise<boolean>;
+
+export const { GET, POST } = createRouteHandler(createAgent({ model: 'openai/gpt-4o-mini' }), {
+  auth: (request) => isSignedIn(request),
+});
+```
+
+## المسارات
+
+كل المسارات تقع تحت `basePath` (الافتراضي `/api/agent`؛ وتُقبل الشرطة المائلة
+في آخره، والطلب خارج المسار الأساسي يُعيد 404).
+
+| المسار | ما يفعله |
+| --- | --- |
+| `POST <basePath>` | `{ input, sessionId? }`: الدورة مبثوثةً عبر SSE. هذا ما يرسله `useLoushoAgent({ url })`؛ ودون `sessionId` تكون كل دورة جلسة جديدة |
+| `POST <basePath>/approvals/:id` | `{ approved, note? }` أو `{ answer }`: التتمة مبثوثةً (`approvalsUrl` في `useLoushoAgent`) |
+| `POST <basePath>/chat` | `{ sessionId, input }`: واجهة الجلسات في الخادم المنشور |
+| `GET <basePath>/chat/:sessionId` | سجل محادثة الجلسة والموافقات المعلّقة |
+| `POST <basePath>/chat/:sessionId/approvals/:id` | حسم موافقة في جلسة |
+| `POST <basePath>/ui` | مع `uiMessageStream: true`: نقطة النهاية التي يستخدمها `useChat` من AI SDK |
+| `GET <basePath>/health` | `ok`، ولا يخضع لـ `auth` أبدًا |
+
+تُحفظ الجلسات في `store` الخاص بالوكيل (`createAgent({ store })`)، فأعطِ
+الوكيل مخزنًا يبقى بعد انتهاء الاستدعاء في البيئات عديمة الخادم (serverless) حين تستخدم الجلسات.
+
+## العميل: `useLoushoAgent`
+
+```tsx
+'use client';
+import { useLoushoAgent } from '@lousho/build-ai-agent/react';
+
+export function Chat() {
+  const agent = useLoushoAgent({ url: '/api/agent', headers: { Authorization: `Bearer ${token}` } }, { approvalsUrl: '/api/agent/approvals' });
+  // agent.messages, agent.send(text), agent.approve() ...
+}
+```
+
+## العميل: `useChat`
+
+مع `uiMessageStream: true`، وجّه `useChat` إلى المسار `ui`. المعرّف `id` الخاص بالمحادثة
+يسمّي الجلسة، فلا يُرسل إلى الوكيل إلا أحدث رسالة للمستخدم
+(docs/ai-sdk-ui.md).
+
+```tsx
+import { useChat } from '@ai-sdk/react';
+import { DefaultChatTransport } from 'ai';
+
+const { messages, sendMessage } = useChat({ transport: new DefaultChatTransport({ api: '/api/agent/ui' }) });
+```
+
+## أطر العمل الأخرى
+
+المعالج نفسه، مركَّبًا حيث يريده إطار العمل:
+
+```ts
+import { createAgent, createRouteHandler } from '@lousho/build-ai-agent';
+
+const { handler } = createRouteHandler(createAgent({ model: 'openai/gpt-4o-mini' }), { basePath: '/agent', auth: 'secret' });
+
+// SvelteKit: src/routes/agent/[...path]/+server.ts
+export const GET = ({ request }: { request: Request }) => handler(request);
+export const POST = ({ request }: { request: Request }) => handler(request);
+
+// Hono: app.all('/agent/*', (c) => handler(c.req.raw))
+// Bun.serve: fetch: handler
+```

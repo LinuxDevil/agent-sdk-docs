@@ -1,0 +1,340 @@
+---
+title: "القنوات"
+---
+{/* Generated from docs/channels.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
+
+**القناة** (channel) تربط الوكيل بواجهة واحدة: واجهة JSON برمجية، أو webhook، أو
+تطبيق محادثة. وهي تحدد كيف يُتحقق من هوية الطلب الوارد، وإلى أي محادثة ينتمي،
+وكيف يعود رد الوكيل (أو الموافقة التي توقّف عندها) إلى تلك الواجهة. تقدّم
+`mountChannels()` قنواتك كلها خلف معالج واحد من الشكل `(req, res)`، وتعالج كل
+طلب بالطريقة نفسها:
+
+```text
+POST <basePath>/<name>  ->  verify  ->  parse  ->  session turn  ->  reply (or onApproval)
+```
+
+القنوات ميزة جديدة (LOU-P7). وما زالت [محوّلات المُشغِّلات](/ar/api-overview#المُشغِّلات)
+تعمل: صار `WebhookTriggerAdapter` يستخدم `webhookChannel()` في المصادقة
+والتحليل. وتضيف القنوات ما تفتقر إليه المُشغِّلات: كل محادثة على الواجهة هي
+[جلسة](/ar/sessions)، والموافقات والأسئلة تعود إلى الواجهة نفسها.
+
+## البدء السريع
+
+`httpChannel()` هي القناة المرجعية: تستقبل `{ sessionKey, input }` وتُخرج JSON.
+
+```ts
+import * as http from 'node:http';
+import { createAgent, createMockProvider, httpChannel, mountChannels } from '@lousho/build-ai-agent';
+
+const agent = createAgent({ instructions: 'You are helpful.', provider: createMockProvider() });
+const channels = mountChannels(agent, [httpChannel()]);
+
+const server = http.createServer((req, res) => {
+  void channels(req, res).then((handled) => {
+    if (!handled) res.writeHead(404).end();
+  });
+});
+server.listen(3000);
+```
+
+```bash
+curl -s localhost:3000/channels/http -d '{"sessionKey":"user-42","input":"Hi, I am Ali"}'
+# {"sessionId":"http_user-42-...","text":"...","finishReason":"stop"}
+```
+
+يُرجع المعالج `true` إذا خدم الطلب، و`false` (دون أن يكتب شيئًا) لأي مسار
+آخر، مثل مسارات `/chat` في `lousho dev`، فيمكنك تركيبه إلى جانب مساراتك الخاصة.
+
+## العقد
+
+`defineChannel({ ... })` تتحقق من الاسم وتُرجع التعريف:
+
+| الحقل | الوصف |
+| ----- | ----------- |
+| `name` | جزء المسار: `POST <basePath>/<name>`. أحرف وأرقام و`_` و`-`. |
+| `verify(req)` | اختياري. يتحقق من هوية الطلب (توقيع أو رمز وصول). أرجِع `true`/`false` أو `{ ok, reason? }`؛ القيمة `false` تردّ بـ `401 {"error":"Unauthorized"}` قبل تحليل أي شيء أو تشغيله. |
+| `parse(req, respond, ctx)` | الرسالة: `{ sessionKey, input, metadata?, replyTo, event? }`؛ أو `{ decision: { id, approved?, note?, answer? } }` للبتّ في توقف مؤقت توقفت عنده دورة هذه القناة (نقرة زر)؛ أو `null` للإقرار باستلام الطلب دون تشغيل دورة (رسالة من البوت نفسه، أو إعادة محاولة). استدعِ `respond(status, body)` للرد قبل تشغيل الدورة (واجهة مهلتها قصيرة، أو مصافحة). |
+| `reply(ctx)` | يسلّم الرد: `ctx.text`، إضافةً إلى `inbound` و`sessionId` و`result` و`events` و`approval`، و`respond(status, body)` ما دام الطلب مفتوحًا. |
+| `onApproval(ctx)` | اختياري. يعرض التوقف المؤقت (أزرار، نموذج). الافتراضي: `reply` مع نص الطلب في `ctx.text` وطلب الموافقة في `ctx.approval`. |
+| `onError(error, { channel, stage, sessionId? })` | اختياري. يستقبل الإخفاقات التي تقع بعد الإقرار باستلام الطلب (رد تعذّر تسليمه، أو دورة فاشلة، أو إخفاق في متابعة التشغيل بعد موافقة). الافتراضي: `mountChannels({ onError })`، وإلا `console.error` مع القناة والمرحلة ومعرّف الجلسة ورمز خطأ SDK (ولا يُطبع أي رمز وصول إطلاقًا). والدورة الفاشلة تُبلغ المستخدم أيضًا في المحادثة بالعبارة "Sorry, that request failed." (قدر المستطاع). |
+| `stream` | اختياري. القيمة `true` تستدعي `reply` مع `partial: true` والنص المكتوب حتى اللحظة أثناء كتابة النموذج، ثم مرة أخيرة بالنص النهائي. |
+| `sessionId(inbound)` | اختياري. الجلسة التي تنتمي إليها الرسالة. الافتراضي: `` `${name}:${sessionKey}` ``. |
+
+يتيح `ctx` (`ChannelContext`) لـ `parse` أن يسأل المضيف بدل الاحتفاظ بحالة: `ctx.approval(id)` (الاستدعاء المعلّق)، و`ctx.sessionId(key)` و`ctx.hasSession(key)` (أي أن جلسة لهذا المفتاح محفوظة في `store`). يمكن أن يحمل `{ decision }` الحقل `inbound` (المحادثة كما تسمّيها النقرة نفسها، فيبقى التوقف المؤقت قائمًا بعد إعادة التشغيل) والحقل `approver` (مَن اتخذ القرار؛ يُمرَّر إلى `mountChannels({ onDecision })` لسجل التدقيق لديك).
+
+`req` هو `ChannelRequest` مستقل عن أي إطار عمل: `method` و`url` و`headers`
+(بأسماء بأحرف صغيرة) و`rawBody` (البايتات كما وصلت: تحقق من التواقيع عليها هي،
+لا على JSON أُعيدت سَلسَلته) و`text` و`native` (طلب المضيف الأصلي).
+
+الرد الذي لا يستدعي `respond` يتبعه `200 {"ok":true}`؛ فالواجهة التي تسلّم
+الردود خارج الطلب (بالنشر عبر واجهة برمجية لتطبيق محادثة) يكفيها الإقرار
+باستلام الطلب. والخطأ الذي يرميه `parse` يُردّ عليه بـ 400 إن كان
+`SyntaxError` (JSON غير صالح) وبـ 500 فيما عدا ذلك؛ والجسم الذي يتجاوز 1MB يُردّ عليه بـ 413.
+
+```ts
+import { createAgent, defineChannel, mountChannels } from '@lousho/build-ai-agent';
+
+const agent = createAgent({ instructions: 'You answer text messages.', provider });
+
+interface SmsEvent {
+  from: string;
+  body: string;
+}
+
+const sms = defineChannel<SmsEvent>({
+  name: 'sms',
+  async verify(req) {
+    return req.headers['x-api-key'] === process.env.SMS_API_KEY;
+  },
+  async parse(req) {
+    const event = JSON.parse(req.text) as SmsEvent;
+    return { sessionKey: event.from, input: event.body, replyTo: event.from, event };
+  },
+  async reply({ inbound, text }) {
+    console.log(`SMS to ${inbound.event?.from}: ${text}`); // call your SMS API here
+  },
+});
+
+const handler = mountChannels(agent, [sms], { basePath: '/hooks' }); // POST /hooks/sms
+```
+
+## الجلسات
+
+الرسائل التي تحمل `sessionKey` نفسه على القناة نفسها تتشارك جلسة واحدة، فيرى
+الوكيل ما سبق من تبادلات؛ ودورات الجلسة الواحدة تُنفَّذ واحدة تلو الأخرى.
+معرّفات الجلسات لا تقبل إلا `A-Za-z0-9_-`، فالمعرّف الذي يحوي محارف أخرى
+(والافتراضي `` `${name}:${sessionKey}` `` يحوي `:` دائمًا) تُستبدل بها
+`_` ويُلحق به تجزئة (hash) للمعرّف الأصلي: `sms:+1555` يصبح `sms__1555-<hash>`.
+أرجِع معرّفًا صالحًا من `sessionId()` ليُستخدم كما هو.
+
+تُحفظ سجلات المحادثات في `mountChannels(agent, channels, { store })`: وهو
+`SessionStore` أو `{ sessions, checkpoints }` مثل `SqliteStore` (مرّر
+المخزن نفسه الذي أعطيته لـ `createAgent({ store })`). ومن دون `store` يحتفظ
+بها المعالج في الذاكرة.
+
+## الموافقات والأسئلة
+
+حين تتوقف دورة مؤقتًا عند أداة تتطلب موافقة، أو عند استدعاء
+[`ask_question`](/ar/approvals)، يستدعي المعالج `onApproval` (والافتراضي هو
+`reply` مع نص طلب مثل `Approve send_email {"to":"sam@example.com"}?
+(approval id: ...)`). ويُتخذ القرار بإحدى طريقتين؛ وتعود متابعة التشغيل عبر
+`reply` الخاص بالقناة نفسها (أو `onApproval` من جديد إن توقفت مرة أخرى):
+
+- `handler.resolveApproval({ id, approved, note? })` أو
+  `handler.resolveApproval({ id, answer })` من شيفرتك، مثلًا من دالة رد
+  النداء لزر في الواجهة.
+- `POST <basePath>/<name>/approvals/<id>` مع `{ approved, note? }` أو
+  `{ answer }`. يُنفَّذ `verify` الخاص بالقناة أولًا؛ والمعرّف الذي لم تتوقف
+  عنده القناة يُردّ عليه بـ 404.
+
+```ts
+import { createAgent, defineChannel, mountChannels } from '@lousho/build-ai-agent';
+
+const agent = createAgent({ instructions: 'You are helpful.', provider, askQuestion: true });
+
+const chat = defineChannel({
+  name: 'chat',
+  async parse(req) {
+    const { room, text } = JSON.parse(req.text) as { room: string; text: string };
+    return { sessionKey: room, input: text, replyTo: room };
+  },
+  async reply({ inbound, text }) {
+    console.log(`to room ${String(inbound.replyTo)}: ${text}`);
+  },
+  async onApproval({ approval }) {
+    console.log(`[Approve] [Reject] buttons for ${approval.toolName}, id ${approval.id}`);
+  },
+});
+
+const channels = mountChannels(agent, [chat]);
+// Later, from the button's callback:
+await channels.resolveApproval({ id: 'the-approval-id', approved: true });
+```
+
+## القنوات المضمّنة
+
+| القناة | الطلب | الاستجابة |
+| ------- | ------- | -------- |
+| `httpChannel({ name?, verify? })` | JSON بالشكل `{ sessionKey, input }` (و`input` نص أو أجزاء محتوى)؛ وأي شيء آخر يُردّ عليه بـ 400 | `200 { sessionId, text, finishReason }`؛ وعند التوقف المؤقت يُضاف `approval` ويكون `text` هو نص الطلب |
+| `webhookChannel({ secret?, auth?, name? })` | النص `input` في جسم JSON، أو الجسم كله؛ جلسة لمرة واحدة ما لم يحوِ الجسم `sessionKey` | `200` مع `ExecutionResult` الخاص بالدورة، كما يردّ `WebhookTriggerAdapter` |
+| `slackChannel({ signingSecret, botToken, name?, fetch?, approvers?, onError? })` | طلبات Events API والتفاعلات (interactivity) من Slack (انظر [Slack](#slack)) | `200` فورًا؛ وتُنشر الردود في سلسلة الرسائل على Slack |
+| `discordChannel({ publicKey, applicationId, botToken?, name?, fetch?, approvers?, onError? })` | تفاعلات الأوامر المائلة (slash commands) والأزرار في Discord (انظر [Discord](#discord)) | إقرار مؤجَّل فورًا؛ ثم يعدّل الردُّ الاستجابةَ الأصلية |
+
+`webhookChannel({ secret })` تتحقق من توقيع HMAC-SHA256 للجسم الخام في
+`x-signature-256: sha256=<hex>`؛ ويقبل `auth` أي
+[مصادقة webhook](/ar/api-overview#مصادقة-webhook) (خيارات HMAC مع
+الحماية من إعادة الإرسال، أو رمز bearer، أو مصادقة مخصصة). والفحوص والرد 401
+العام هي نفسها التي يستخدمها `WebhookTriggerAdapter`.
+
+```ts
+import { createAgent, httpChannel, mountChannels, webhookChannel } from '@lousho/build-ai-agent';
+
+const agent = createAgent({ instructions: 'You are helpful.', provider });
+
+const handler = mountChannels(agent, [
+  httpChannel({ verify: async (req) => req.headers.authorization === `Bearer ${process.env.API_TOKEN}` }),
+  webhookChannel({ secret: process.env.WEBHOOK_SECRET ?? '' }),
+]);
+```
+
+## في مجلد الوكيل
+
+يمكن لـ [مجلد الوكيل](/ar/agent-directories#القنوات) أن يضع قنواته في
+`channels/*.ts`، قناة واحدة مُصدَّرة افتراضيًا (default export) في كل ملف
+(وتُسمّى باسم الملف ما لم تحدد القناة اسمًا). تُرجعها `resolveAgentDir()` في
+`channels`، ويركّبها خادم node عبر `createDeployedServer(agent, { channels })`.
+
+## من يحق له الموافقة (Slack وDiscord)
+
+تقبل القناتان الخيار `approvers`: قائمة بمعرّفات المستخدمين على المنصة، أو دالة
+`(user: { id, name?, roles? }, { toolName, input, sessionId }) => boolean | Promise<boolean>`
+(يملأ Discord الحقل `roles` بمعرّفات أدوار العضو). نقرة أي شخص آخر لا تحسم
+الموافقة: تصله رسالة مؤقتة لا يراها غيره تفيد بأنه "غير مسموح له"، وتبقى
+الموافقة معلّقة.
+
+**ملاحظة أمنية.** من دون `approvers`، لا يحق الموافقة إلا للمستخدم الذي بدأ
+الدورة (كاتب الرسالة على Slack، ومستخدم الأمر على Discord). قبل
+LOU-P5.2 كان ذلك متاحًا لكل من يرى الرسالة؛ والقيمة `approvers: () => true`
+تعيد ذلك السلوك، ولا ينبغي أن تفعل ذلك إلا في قناة خاصة. و`approvers`
+بصيغة الدالة يرفض احتياطًا (fail closed) حين لا تعرف العملية الاستدعاء المعلّق
+(بعد إعادة التشغيل)؛ فاستخدم صيغة القائمة أو السلوك الافتراضي للموافقات التي
+يجب أن تبقى صالحة بعدها. أما إجابات `ask_question` فغير مقيَّدة: الرسالة التالية (Slack)
+أو أمر `/ask` التالي (Discord) في المحادثة هو الإجابة. وهوية من اتخذ القرار تُمرَّر إلى
+`mountChannels(agent, channels, { onDecision({ approver, decision, sessionId, channel }) {} })`.
+
+الإخفاقات التي تقع بعد الإقرار بالاستلام تذهب إلى `onError` (خيار في القناة،
+أو في `mountChannels`)؛ انظر العقد أعلاه.
+
+## Slack
+
+`slackChannel({ signingSecret, botToken, name?, fetch? })` تربط تطبيق Slack.
+كل سلسلة رسائل (thread) في Slack هي جلسة واحدة: الإشارة إلى البوت تبدأ جلسة
+سلسلتها (أو تتابعها)، ومفتاحها الفريق والقناة وقيمة `ts` لرسالة السلسلة الأولى؛
+والرسائل اللاحقة في سلسلة لها جلسة من قبل تتابعها دون
+إشارة (يُسأل مخزن الجلسات عن ذلك، فيبقى هذا السلوك قائمًا بعد إعادة التشغيل). والرسالة المباشرة
+إلى البوت تبدأ جلسة مفتاحها قناة الرسائل المباشرة. تُنشر الردود في السلسلة عبر `chat.postMessage` (بـ
+`fetch` وحدها، دون Slack SDK؛ مرّر `fetch` لحقن بديل عنها في الاختبارات).
+
+- يُتحقق من توقيع كل طلب (HMAC-SHA256 بصيغة `v0` عبر Web Crypto، مع
+  نافذة حماية من إعادة الإرسال مدتها خمس دقائق)؛ والإخفاق يُردّ عليه بـ 401.
+- يُردّ على الطلب فورًا (`200`، أو تحدي `url_verification`)
+  وتُنفَّذ الدورة بعد الاستجابة، ضمن حد الثواني الثلاث الذي يفرضه
+  Slack.
+- إعادات المحاولة (`X-Slack-Retry-Num`)، ورسائل البوتات (ومنها رسائل البوت نفسه)،
+  ونسخة `message` المكررة من الإشارة: يُقرّ باستلامها كلها وتُتجاوز، فلا تُنفَّذ
+  أي دورة مرتين.
+- تُنشر موافقة الأداة في السلسلة مع زرَّي **Approve** و**Deny**؛
+  والنقرة تستأنف الجلسة وتُنشر متابعة التشغيل في
+  السلسلة. تُستبدل بالرسالة التي نُقر زرها النتيجةُ ("Approved by @user")،
+  فتختفي أزرارها. وتحمل النقرة قناتها وسلسلتها والمستخدم الذي
+  يحق له القرار، فتعمل بعد إعادة التشغيل. أما `ask_question` فيُنشر نصًا، والرسالة التالية في
+  السلسلة هي الإجابة.
+
+أعدّ التطبيق في [api.slack.com/apps](https://api.slack.com/apps):
+
+1. **OAuth & Permissions**: نطاقات رمز البوت `app_mentions:read` و`chat:write`،
+   و`channels:history` (مع `groups:history` للقنوات الخاصة) لرسائل
+   المتابعة دون إشارة، و`im:history` للرسائل المباشرة. ثبّت التطبيق وانسخ رمز البوت
+   (`xoxb-...`).
+2. **Event Subscriptions**: عنوان الطلب (Request URL) هو `https://<host>/channels/slack`؛ وأحداث
+   البوت `app_mention` و`message.channels` (و`message.groups` للقنوات
+   الخاصة)، و`message.im` للرسائل المباشرة (وفعّل أيضًا **Messages Tab**
+   في App Home ليتمكن المستخدمون من مراسلة البوت).
+3. **Interactivity & Shortcuts**: عنوان الطلب (Request URL) هو `https://<host>/channels/slack`
+   (المسار نفسه).
+4. **Basic Information**: انسخ سر التوقيع (signing secret).
+
+```ts
+import * as http from 'node:http';
+import { createAgent, mountChannels, slackChannel } from '@lousho/build-ai-agent';
+
+const agent = createAgent({ instructions: 'You are a helpful Slack bot.', provider });
+
+const channels = mountChannels(agent, [
+  slackChannel({
+    signingSecret: process.env.SLACK_SIGNING_SECRET ?? '',
+    botToken: process.env.SLACK_BOT_TOKEN ?? '',
+  }),
+]);
+
+http.createServer((req, res) => {
+  void channels(req, res).then((handled) => handled || res.writeHead(404).end());
+}).listen(3000);
+```
+
+معرفة السلاسل النشطة مصدرها `store` الذي تمرّره إلى `mountChannels()`.
+والموافقات المعلّقة تُحسم من النقرة نفسها. ولا يعيش في ذاكرة المعالج إلا
+`ask_question` المعلّق (أي: أيُّ سلسلة تنتظر إجابة): إعادة
+التشغيل تُنسيه إياه، فتكون الرسالة التالية دورة جديدة. وبعد إعادة التشغيل
+تُنشر متابعة التشغيل، لكنها لا تُضاف إلى سجل محادثة الجلسة، لأن نسخة الوكيل
+الجديدة ليست لديها جلسة مرتبطة بالموافقة.
+
+## Discord
+
+`discordChannel({ publicKey, applicationId, botToken?, name?, fetch? })`
+تربط تطبيق Discord عبر نقطة HTTP Interactions (دون اتصال gateway
+ودون مكتبة Discord؛ Web Crypto و`fetch` فقط، فتعمل أيضًا على
+Workers). الأمر المتوقع هو `/ask prompt:<text>`: خيار نصي واحد،
+والخيار `prompt` (أو أول خيار نصي) هو الرسالة.
+
+- يُتحقق في كل طلب من `X-Signature-Ed25519` / `X-Signature-Timestamp`
+  على `timestamp + body`؛ والتوقيع المفقود أو الخاطئ يُردّ عليه بـ 401، كما يشترط
+  Discord. ويُردّ على `PING` بـ `PONG`.
+- يُقرّ باستلام الأمر فورًا باستجابة مؤجَّلة (ضمن حد الثواني الثلاث الذي يفرضه
+  Discord)؛ ثم يعدّل الردُّ الاستجابةَ الأصلية
+  (`PATCH /webhooks/{applicationId}/{token}/messages/@original`). والنص الذي يتجاوز
+  2000 محرف يُكمَل في رسائل متابعة.
+- الأوامر في القناة نفسها تتشارك جلسة واحدة، مفتاحها الخادم (guild) والقناة
+  (والسلسلة، إن كانت في سلسلة).
+- تُنشر موافقة الأداة مع زرَّي **Approve** و**Deny** (ولا يحق النقر عليهما إلا
+  لـ `approvers`، وهو افتراضيًا مستخدم الأمر)؛ والنقرة
+  تستأنف الجلسة وتأتي متابعة التشغيل في رسالة متابعة. وتحمل النقرة
+  المحادثة، فتعمل بعد إعادة التشغيل. أما
+  `ask_question` فيُنشر نصًا، وأمر `/ask` التالي في تلك القناة هو
+  الإجابة.
+- رموز التفاعل (interaction tokens) تبقى صالحة 15 دقيقة، فالرد (أو النقرة) بعد ذلك
+  يفشل. و`botToken` محجوز لاستدعاءات REST الخاصة بالبوت؛ والردود لا تحتاج إلا إلى
+  رمز التفاعل.
+
+أعدّ التطبيق في
+[discord.com/developers/applications](https://discord.com/developers/applications):
+
+1. **General Information**: انسخ معرّف التطبيق والمفتاح العام.
+2. **Interactions Endpoint URL**: `https://<host>/channels/discord` (يرسل Discord
+   طلب `PING` موقَّعًا عند الحفظ).
+3. **Installation**: يكفي النطاق `applications.commands` (أضف `bot`
+   فقط إن أردت أيضًا وجود مستخدم البوت في الخادم).
+4. سجّل الأمر مرة واحدة (أمر الخادم (guild) يظهر فورًا؛ واستخدم
+   `/applications/{id}/commands` لأمر عام):
+
+```sh
+curl -X POST "https://discord.com/api/v10/applications/$APP_ID/guilds/$GUILD_ID/commands"   -H "Authorization: Bot $BOT_TOKEN" -H "Content-Type: application/json"   -d '{"name":"ask","description":"Ask the agent","options":[{"type":3,"name":"prompt","description":"Your message","required":true}]}'
+```
+
+```ts
+import * as http from 'node:http';
+import { createAgent, discordChannel, mountChannels } from '@lousho/build-ai-agent';
+
+const agent = createAgent({ instructions: 'You are a helpful Discord bot.', provider });
+
+const channels = mountChannels(agent, [
+  discordChannel({
+    publicKey: process.env.DISCORD_PUBLIC_KEY ?? '',
+    applicationId: process.env.DISCORD_APPLICATION_ID ?? '',
+  }),
+]);
+
+http.createServer((req, res) => {
+  void channels(req, res).then((handled) => handled || res.writeHead(404).end());
+}).listen(3000);
+```
+
+لا يعيش في ذاكرة المعالج إلا `ask_question` المعلّق (وإعادة التشغيل
+تُنسيه إياه)؛ أما الموافقات المعلّقة فتُحسم من نقرة الزر ومن مخزن
+الموافقات. وكما في Slack، متابعة التشغيل بعد إعادة التشغيل لا تُضاف إلى
+سجل محادثة الجلسة.
+
+ملفات `channels/*.ts` في [مجلد الوكيل](/ar/agent-directories) تُحمَّل
+قنواتٍ هي أيضًا، ويركّبها خادم node. وما زال `SlackTriggerAdapter` و`verifySlackSignature()`
+(انظر [المُشغِّلات](/ar/api-overview#المُشغِّلات)) يعملان للردود لمرة واحدة
+عبر webhook وارد.

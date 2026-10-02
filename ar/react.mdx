@@ -1,0 +1,168 @@
+---
+title: "React"
+---
+{/* Generated from docs/react.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
+
+يضع `useLoushoAgent()` وكيلًا خلف واجهة محادثة. فهو يشغّل دورة، ويقرأ [بث الأحداث ذا الأنواع المحدّدة](/ar/streaming) فور وصوله، ويحوّله إلى حالة جاهزة للعرض: رسائل بنصوصها واستدعاءات أدواتها، وقيمة `status` لحقل كتابة الرسائل، واستدعاء الأداة الذي ينتظر الموافقة إن وُجد.
+
+يوجد الخطّاف (hook) في المسار الفرعي `@lousho/build-ai-agent/react`. و`react` (18 أو 19) اعتمادية نظيرة اختيارية: ثبّتها في التطبيق الذي يستخدم الخطّاف.
+
+```tsx
+import { useLoushoAgent } from '@lousho/build-ai-agent/react';
+
+export function Chat() {
+  const agent = useLoushoAgent({ url: '/api/agent' });
+
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        const input = new FormData(event.currentTarget).get('message');
+        if (typeof input === 'string' && input.trim()) void agent.send(input);
+        event.currentTarget.reset();
+      }}
+    >
+      {agent.messages.map((message) => (
+        <article key={message.id}>
+          <header>{message.role}</header>
+          <p>{message.text}</p>
+          {message.toolCalls.map((call) => (
+            <code key={call.id}>{call.name}: {call.status}</code>
+          ))}
+        </article>
+      ))}
+      {agent.pendingApproval && (
+        <p>
+          Run {agent.pendingApproval.toolName}?
+          <button type="button" onClick={() => void agent.approve()}>Approve</button>
+          <button type="button" onClick={() => void agent.reject('Not now')}>Reject</button>
+        </p>
+      )}
+      <input name="message" disabled={agent.status === 'streaming'} />
+      {agent.status === 'streaming' && <button type="button" onClick={agent.stop}>Stop</button>}
+    </form>
+  );
+}
+```
+
+## المصادر
+
+يحدّد الوسيط الأول أين يعمل الوكيل.
+
+| المصدر | ما يفعله الخطّاف |
+| ------ | ------------------ |
+| `{ url, headers?, fetch? }` | **عن بُعد.** ترسل `send(input)` الكائن `{ "input": "..." }` بطلب POST بصيغة JSON إلى `url` وتقرأ جسم الاستجابة على أنه بث أحداث: SSE (أسطر `data: {...}`) أو JSON مفصول بأسطر جديدة، حدث واحد في كل سطر. والخادم الوارد أدناه يكتب ذلك بالضبط. |
+| `{ agent }` | **داخل العملية.** تستدعي `send(input)` الدالة `agent.stream(input)`. كل دورة تشغيل جديد بلا سجل سابق، مثل `agent.send()`. |
+| `{ agent, sessionId }` | **داخل العملية، متعدد الدورات.** ينشئ الخطّاف `agent.session({ id: sessionId })` مرة واحدة ويبث كل دورة بـ `session.stream()`، فترى الدورات المحادثة حتى تلك اللحظة. |
+
+وضع «داخل العملية» مخصّص لكود React الذي يعمل حيث يستطيع الوكيل أن يعمل (Electron، React Native، الاختبارات). أما في المتصفح فاستخدم الوضع البعيد: مكان مفاتيح API الخاصة بالنماذج هو الخادم.
+
+## الحالة المُرجَعة
+
+| الحقل | ما هو |
+| ----- | ---------- |
+| `messages` | `UIMessage[]`: `{ id, role: 'user' \| 'assistant', text, toolCalls }`. كل استدعاء لـ `send()` يضيف رسالة مستخدم ورسالة مساعد تمتلئ مع وصول `text.delta` وأحداث الأدوات. |
+| `toolCalls[i]` | `{ id, name, args, status, result?, error? }`، وقيمة `status` هي `'running'` أو `'awaiting-approval'` أو `'done'` أو `'error'` أو `'rejected'`. |
+| `status` | `'idle'` أو `'streaming'` أو `'awaiting-approval'` أو `'error'`. |
+| `pendingApproval` | `{ id, toolCallId, toolName, args }` لاستدعاء الأداة الذي توقف عنده التشغيل، وإلا `null`. ولاستدعاء `ask_question` يتضمن أيضًا `kind: 'question'` و`question: { text, options?, allowFreeText? }`. |
+| `error` | `{ name, message }` لآخر حدث `error` أو لطلب فاشل، وإلا `null`. |
+| `usage` | استهلاك الرموز (tokens) في آخر تشغيل مكتمل (من `run.done`)، وإلا `null`. |
+| `lastEvent` | آخر حدث استُلم، لكل ما لا تغطّيه هذه الحالة المشتقّة. |
+| `send(input)` | تبدأ دورة. وإذا كانت دورة أخرى ما زالت جارية فإنها تُلغى أولًا. `input` سلسلة نصية أو أجزاء محتوى أو `Message[]` (أي `AgentInput`)؛ وتعرض فقاعة المستخدم النص مع علامة `[image]` / `[file]` لكل جزء آخر (الوضع البعيد يرسله بطلب POST على هيئة `{ "input": ... }`). |
+| `stop()` | تلغي الدورة الجارية عبر `AbortSignal` الخاصة بها؛ وتعود `status` إلى `'idle'`. |
+| `approve(note?)`, `reject(note?)` | تحسمان `pendingApproval` (انظر أدناه). |
+| `answer(text)` | تجيب عن سؤال (`pendingApproval.kind === 'question'`)؛ وهي مماثلة لـ `approve(text)`. أما `reject()` فترفض الإجابة عنه. |
+
+إزالة المكوّن (unmount) تلغي الدورة الجارية. وأحداث تشغيل [وكيل فرعي](/ar/sub-agents) (وهي تحمل `subagent`) لا تغيّر `messages`؛ اقرأها من `lastEvent` إن أردت عرضها.
+
+## الموافقات
+
+عند استدعاء أداة تحمل `needsApproval`، يتوقف التشغيل بالحدث `approval.requested`. تصبح قيمة `status` هي `'awaiting-approval'` ويحمل `pendingApproval` الاستدعاء. بعد ذلك:
+
+- **داخل العملية**، تستدعي `approve(note?)` و`reject(note?)` الدالة `agent.approvals.resolve({ id, approved, note })` (راجع [الموافقات](/ar/approvals)). يُلحَق نص التشغيل المتواصل برسالة المساعد وتعود `status` إلى `'idle'`، أو إلى `'awaiting-approval'` إذا توقف التشغيل مجددًا.
+- **عن بُعد**، مرّر `{ approvalsUrl }` وسيطًا ثانيًا. يرسل الخطّاف `{ "approved": true, "note": "..." }` بطلب POST إلى `${approvalsUrl}/${approvalId}` ويعرض تتمة التشغيل مباشرة من بث SSE الذي تجيب به واجهة الجلسات البرمجية (الأحداث نفسها التي في دورة محادثة؛ والتوقف الثاني يصل على هيئة `approval.requested`). والخادم الذي يجيب بدلًا من ذلك بـ JSON من نوع `ApprovalOutcome` (كالخادم الوارد أدناه) يبقى يعمل.
+- **عن بُعد دون `approvalsUrl`**، لا تفعل `approve()` و`reject()` شيئًا. اعرض `pendingApproval` واحسمه عبر واجهتك البرمجية الخاصة، ثم أرسل الدورة التالية بـ `send()`.
+
+الوكيل المنشأ بـ `askQuestion: true` يستطيع أن يطرح سؤالًا على المستخدم (راجع [طرح سؤال على المستخدم](/ar/approvals#طرح-سؤال-على-المستخدم)). يصل التوقف بالطريقة نفسها، مع `pendingApproval.kind === 'question'`: اعرض `pendingApproval.question.text` و`options` الخاصة به، واستدعِ `answer(text)`.
+
+## جانب الخادم
+
+نقطة نهاية Node للوضع البعيد، مع مسار الموافقات:
+
+```ts
+import { createServer, type IncomingMessage } from 'node:http';
+import { createAgent } from '@lousho/build-ai-agent';
+import type { ApprovalOutcome } from '@lousho/build-ai-agent/react';
+
+const agent = createAgent({ model: 'openai/gpt-4o-mini' });
+
+async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
+  let body = '';
+  for await (const chunk of req) body += chunk;
+  return body ? JSON.parse(body) : {};
+}
+
+createServer(async (req, res) => {
+  const body = await readJson(req);
+  const approval = /^\/api\/approvals\/(.+)$/.exec(req.url ?? '');
+
+  if (approval) {
+    const id = decodeURIComponent(approval[1]);
+    const note = typeof body.note === 'string' ? body.note : undefined;
+    const result = await agent.approvals.resolve({ id, approved: body.approved === true, note });
+    const next = (await agent.approvals.list()).find((pending) => pending.id === result.approvalId);
+    const outcome: ApprovalOutcome = { text: result.text, finishReason: result.finishReason, usage: result.usage, approval: next };
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(outcome));
+    return;
+  }
+
+  const controller = new AbortController();
+  res.on('close', () => controller.abort()); // the hook's stop() or unmount closes the request
+  res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' });
+  for await (const event of agent.stream(String(body.input), { signal: controller.signal })) {
+    res.write(`data: ${JSON.stringify(event)}\n\n`);
+  }
+  res.end();
+}).listen(3000);
+```
+
+ثم يستخدم العميل `useLoushoAgent({ url: '/api/agent' }, { approvalsUrl: '/api/approvals' })`. ولمحادثة متعددة الدورات، احتفظ على الخادم بـ `agent.session({ id })` لكل محادثة واستدعِ `session.stream()` بدلًا من `agent.stream()`.
+
+## داخل العملية
+
+يقبل الخطّاف الوكيل نفسه أيضًا. وهذا استدعاؤه من خطّاف مخصّص:
+
+```ts
+import { createAgent } from '@lousho/build-ai-agent';
+import { useLoushoAgent } from '@lousho/build-ai-agent/react';
+
+const agent = createAgent({ model: 'openai/gpt-4o-mini' });
+
+export function useSupportChat() {
+  const chat = useLoushoAgent({ agent, sessionId: 'support' });
+  const lastReply = chat.messages.filter((m) => m.role === 'assistant').at(-1)?.text ?? '';
+  return { ...chat, lastReply, busy: chat.status === 'streaming' };
+}
+```
+
+## من دون React
+
+الخطّاف مغلِّف رقيق. منطق الحالة هو `reduceAgentEvents(state, event)`، وهو مختزِل (reducer) نقي يعمل على أحداث `AgentEvent` وبضعة إجراءات محلية (`ui.send`، `ui.decide`، `ui.resumed`، `ui.stopped`، `ui.error`)، أما `parseEventStream(response)` فتقرأ الأحداث من استجابة fetch. كلاهما مصدَّر من المسار الفرعي نفسه، لبناء ربط مخصّص أو عميل لا يستخدم React:
+
+```ts
+import { initialAgentUIState, parseEventStream, reduceAgentEvents } from '@lousho/build-ai-agent/react';
+
+let state = reduceAgentEvents(initialAgentUIState, { type: 'ui.send', input: 'Weather in Paris?' });
+const response = await fetch('http://localhost:3000/api/agent', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ input: 'Weather in Paris?' }),
+});
+for await (const event of parseEventStream(response)) {
+  state = reduceAgentEvents(state, event);
+}
+console.log(state.status, state.messages.at(-1)?.text, state.usage?.totalTokens);
+```
+
+تتخطى `parseEventStream()` الأسطر الفارغة وتعليقات SSE وحقول `event:`/`id:` وأي سطر ليس حدثًا معروفًا، ولذلك تقرأ صيغتَي التأطير كلتيهما. والخروج من حلقتها يلغي جسم الاستجابة.

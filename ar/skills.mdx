@@ -1,0 +1,109 @@
+---
+title: "المهارات"
+---
+{/* Generated from docs/skills.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
+
+المهارة قطعة تعليمات لها اسم (مستند markdown) يحمّلها النموذج
+**عند حاجته إليها فقط**. هذا هو الإفصاح التدريجي (progressive disclosure): بدل
+لصق كل دليل إجراءات في موجّه النظام، تسرد المهارات بالاسم مع
+وصف من سطر واحد، والنموذج يجلب النص الكامل عند الطلب.
+
+كيف يعمل ذلك حين يكون للوكيل مهارات:
+
+1. يُضاف إلى موجّه النظام قسم موجز بعنوان **Available skills**: سطر واحد لكل
+   مهارة (`- name: description`) وجملة واحدة تطلب من النموذج استدعاء
+   `load_skill` قبل تنفيذ مهمة تغطيها مهارة.
+2. تُسجَّل الأداة `load_skill` (مدخلها `{ name }`) تلقائيًا. وهي
+   تُعيد المحتوى الكامل للمهارة نتيجةً للأداة.
+3. نصوص المهارات **ليست** في الموجّه إلى أن تُحمَّل. فالوكيل الذي له عشرون
+   مهارة طويلة يدفع نحو سطر واحد لكل مهارة في كل طلب، ولا يدفع تكلفة
+   النص الكامل إلا في التشغيلات التي تستخدمه.
+
+الاسم غير المعروف يُنتج خطأ أداة يسرد أسماء المهارات الصالحة، فيستطيع النموذج
+تصحيح نفسه.
+
+## المهارات في الشيفرة
+
+```ts
+import { createAgent, defineSkill } from '@lousho/build-ai-agent';
+
+const agent = createAgent({
+  prompt: 'You are a release engineer.',
+  provider,
+  skills: [
+    defineSkill({
+      name: 'changelog',
+      description: 'How to write a changelog entry',
+      content: '# Changelog entries\n\nUse the imperative mood and link the PR.',
+    }),
+  ],
+});
+```
+
+`defineSkill({ name, description, content })` تتحقق من مدخلاتها. يجب أن يطابق `name`
+النمط `^[a-z0-9][a-z0-9-_]{0,63}$`؛ ويجب ألا يكون `description` و`content`
+فارغين. والأخطاء تبيّن موضع الخلل وطريقة إصلاحه.
+
+واجهة المنفّذ الكاملة تقبل الخيار نفسه:
+
+```ts
+import { AgentExecutor, defineSkill } from '@lousho/build-ai-agent';
+
+const result = await AgentExecutor.execute({
+  agent,
+  input: 'Write the changelog for 1.2.0',
+  provider,
+  skills: [defineSkill({ name: 'changelog', description: 'Changelog style', content: '...' })],
+});
+```
+
+إذا كنت قد سجّلت أداة باسم `load_skill`، فإن تمرير `skills` يرمي خطأ:
+أعد تسمية أداتك أو احذف الخيار.
+
+## المهارات من القرص
+
+`loadSkills(dir)` تقرأ ملفات المهارات، فيستطيع غير المطوّرين تعديلها دون
+لمس الشيفرة. تُدعم بنيتان ويمكن الجمع بينهما في مجلد واحد:
+
+```
+skills/
+  changelog/SKILL.md      # <name>/SKILL.md  (Anthropic / open-harness convention)
+  code-review.md          # <name>.md        (eve convention)
+```
+
+يبدأ كل ملف بترويسة YAML (frontmatter)؛ والباقي هو محتوى المهارة:
+
+```markdown
+---
+description: How to write a changelog entry
+---
+
+# Changelog entries
+
+Use the imperative mood and link the PR.
+```
+
+- `description` مطلوب.
+- `name` اختياري وقيمته الافتراضية اسم المجلد (في بنية `SKILL.md`) أو
+  اسم الملف دون `.md`.
+- المجلدات التي ليس فيها `SKILL.md` تُتجاهل.
+- تُعاد المهارات مرتبة بالاسم، فتكون الموجّهات حتمية.
+- الأخطاء تذكر الملف والمشكلة: وصف مفقود، أو YAML غير صالح،
+  أو اسم غير صالح، أو مجلد تتعذر قراءته، أو مهارتان بالاسم نفسه
+  (ويُسرد المساران كلاهما).
+
+```ts
+import { createAgent, loadSkills } from '@lousho/build-ai-agent';
+
+const agent = createAgent({
+  prompt: 'You are a release engineer.',
+  provider,
+  skills: [...(await loadSkills('./skills'))],
+});
+```
+
+## اختبار المهارات
+
+استخدم [`mockModel`](/ar/testing) للتحقق من أن النموذج يرى الأوصاف دون
+النصوص الكاملة إلى أن يحمّل مهارة: موجّه النظام في الطلب الأول يسرد المهارات،
+والطلب الذي يلي استدعاء `load_skill` يحتوي النص الكامل في نتيجة الأداة.

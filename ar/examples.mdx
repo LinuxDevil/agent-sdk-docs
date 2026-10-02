@@ -1,0 +1,37 @@
+---
+title: "أمثلة"
+description: "أمثلة قابلة للتشغيل من مستودع الـ SDK. معظمها يستخدم المزوّد الوهمي المضمَّن، فلا يحتاج إلى مفتاح API."
+---
+
+توجد الأمثلة في المجلد [`examples/`](https://github.com/LinuxDevil/agent-sdk/tree/main/examples) من مستودع الـ SDK. انسخ المستودع، وثبّت الاعتماديات، ثم شغّل أي مثال بالأمر المبيَّن أمامه:
+
+```bash
+git clone https://github.com/LinuxDevil/agent-sdk.git
+cd agent-sdk
+npm install
+```
+
+## المثال الأبرز
+
+<Card title="ops-pipeline" icon="siren" href="https://github.com/LinuxDevil/agent-sdk/tree/main/examples/ops-pipeline" horizontal>
+  يصل تنبيه من نظام المراقبة إلى وكيل مراقبة، فيفوّض مهمة الإصلاح بعد بوابة موافقة بشرية. زر "Fix it" في Slack يستأنف التشغيل المتوقف مؤقتًا، ثم يكتب وكيل الإصلاح رقعة (patch)، وتفحص حواجز الحماية الرقعة قبل فتح طلب سحب (pull request) على GitHub. يعمل افتراضيًا على خدمات وهمية: `npm run pipeline:demo`.
+</Card>
+
+## نقاط انطلاق
+
+| المثال | ما يوضّحه | تشغيله |
+| ------- | ------------- | ------ |
+| [agent-dir](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/agent-dir) | وكيل معرَّف في صورة مجلد (`instructions.md` و`tools/` و`skills/` و`agent.json`) ويُحمَّل بالدالة `loadAgentDir()` | `npm run example:agent-dir` |
+| [support-bot](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/support-bot) | وكيل دعم عملاء في أبسط صورة | `npm run example:support-bot` |
+| [research-assistant](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/research-assistant) | وكيل بحث يستخدم الأداة المضمَّنة `http` | `npm run example:research-assistant` |
+| [doc-qa](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/doc-qa) | الإجابة عن الأسئلة ضمن حدود مستند واحد | `npm run example:doc-qa` |
+| [workflow-router](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/workflow-router) | تصنيف الطلب ضمن مجموعة ثابتة من الفئات | `npm run example:workflow-router` |
+| [slack-notifier](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/slack-notifier) | تحويل وصف خام لحدث إلى إشعار قصير على Slack | `npm run example:slack-notifier` |
+| [tracing](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/tracing) | تشغيل موصول بمصدِّرات تتبّع إلى الطرفية (console) وإلى OpenTelemetry | `npm run example:tracing:console` |
+| [openrouter](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/openrouter) | `OpenRouterProvider`: التوليد، والبث، واستدعاء الأدوات، وعرض قائمة النماذج. يحتاج إلى `OPENROUTER_API_KEY` | `npm run example:openrouter` |
+
+## أدلة ذات صلة
+
+- [مجلدات الوكيل](/ar/agent-directories) تشرح البنية التي يستخدمها المثال `agent-dir`.
+- [الموافقات](/ar/approvals) و[حواجز الحماية](/ar/guardrails) تغطيان البوابتين في `ops-pipeline`.
+- [التتبّع](/ar/observability) يسرد مقاطع التتبّع (spans) والخصائص التي يطبعها المثال `tracing`.

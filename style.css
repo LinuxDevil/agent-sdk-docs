@@ -1,0 +1,29 @@
+/* Arabic pages read right to left. Mintlify sets lang="ar" on <html> for pages under /ar
+   but leaves the direction left to right, so set it here for the reading areas. */
+html[lang='ar'] #content-area,
+html[lang='ar'] #sidebar-content,
+html[lang='ar'] #table-of-contents,
+html[lang='ar'] #pagination {
+  direction: rtl;
+  text-align: right;
+}
+
+/* Code is always left to right, also inside an Arabic sentence. */
+html[lang='ar'] pre,
+html[lang='ar'] code,
+html[lang='ar'] .code-block,
+html[lang='ar'] .mermaid,
+html[lang='ar'] svg {
+  direction: ltr;
+  text-align: left;
+}
+
+html[lang='ar'] :not(pre) > code {
+  unicode-bidi: isolate;
+}
+
+/* An Arabic face with matching weights; Latin text keeps the site font. */
+html[lang='ar'] body {
+  font-family: Inter, 'IBM Plex Sans Arabic', 'Noto Sans Arabic', 'Segoe UI', Tahoma, sans-serif;
+  line-height: 1.8;
+}

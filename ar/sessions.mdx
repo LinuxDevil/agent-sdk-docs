@@ -1,0 +1,299 @@
+---
+title: "الجلسات"
+---
+{/* Generated from docs/sessions.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
+
+`agent.send(text)` أحادي الدورة: كل استدعاء يبدأ بسجل فارغ.
+أما **الجلسة** (session) فمحادثة متعددة الدورات: تحتفظ بسجل المحادثة (transcript) وتمرّره
+إلى النموذج عند كل `send()`.
+
+```ts
+import { createAgent } from '@lousho/build-ai-agent';
+
+const chat = createAgent({ instructions: 'Be brief.', provider });
+
+const session = chat.session(); // in memory, new generated id
+await session.send('My name is Ali.');
+const { text } = await session.send('What is my name?'); // sees the first exchange
+
+console.log(session.id, session.messages.length);
+```
+
+## كائن الجلسة
+
+| العضو | الوصف |
+| ------ | ----------- |
+| `id` | معرّف الجلسة: يُولَّد تلقائيًا (UUID) ما لم تمرّر واحدًا. |
+| `send(input, { signal })` | يرسل رسالة مستخدم مع المحادثة كلها حتى اللحظة، ويُنجَز بـ `ExecutionResult` المعتاد. |
+| `stream(input, { signal })` | مثل `send()`، لكنه يُرجع `AgentRun` يبث الدورة أحداثًا محددة الأنواع - انظر [بث دورة في جلسة](#بث-دورة-في-جلسة). |
+| `messages` | لقطة للقراءة فقط من سجل المحادثة (رسائل المستخدم والمساعد والأدوات؛ دون موجّه النظام). تعديل اللقطة لا يغيّر الجلسة. |
+| `load()` | يقرأ سجل المحادثة المحفوظ من المخزن. يفعل `send()` ذلك عنك؛ استدعِه لعرض السجل قبل أول `send()` في جلسة مستأنفة. |
+| `compact(options?)` | يضغط سجل المحادثة الآن - انظر [ضغط سياق جلسة](/ar/compaction#ضغط-سياق-جلسة). |
+| `clear()` | يفرّغ سجل المحادثة ويحفظه فارغًا (فلا يحوي المخزن أي رسائل لهذا المعرّف). يُبقي معرّف الجلسة والمخزن والخيارات؛ ويحذف نقطة حفظ الدورة المنقطعة؛ أما خانات الذاكرة فمشتركة بين الجلسات ولا تُمسّ. يُصدر `context.cleared` إلى مستمعي `on()`. يُرفض بالخطأ `LOUSHO_SESSION_BUSY` ما دامت دورة قيد التنفيذ، وبالخطأ `LOUSHO_SESSION_AWAITING_APPROVAL` ما دامت دورة متينة تنتظر موافقة. |
+| `on(listener)` | يستمع إلى أحداث `compact()` / `clear()` (`compaction.start` و`compaction.done` و`context.cleared`)؛ ويُرجع دالة تزيل المستمع. |
+| `pending()` | في [جلسة متينة](#الجلسات-المتينة): الدورة التي لم تنتهِ (`{ status, approvalId? }`)، أو `null`. |
+| `resume({ signal })` | في جلسة متينة: يُنهي دورة منقطعة ويُنجَز بنتيجتها، أو بـ `null` حين لا توجد دورة معلّقة. |
+| `discardPending()` | في جلسة متينة: يتخلى عن دورة غير منتهية دون تنفيذها. |
+
+استدعاءات `send()` المتزامنة على جلسة واحدة توضع في طابور وتُنفَّذ واحدًا تلو الآخر
+بترتيب استدعائها، فلا تتداخل الرسائل في سجل المحادثة أبدًا.
+
+`agent.session({ id, turnPolicy })` يحدد ما يفعله `send()` أو `stream()`
+حين تكون دورة قيد التنفيذ أو تنتظر البدء:
+
+- `'wait'` (الافتراضي): ينتظر ثم يُنفَّذ دورةً مستقلة، كما سبق.
+- `'queue'`: ينضم مُدخَله إلى تلك الدورة، مثل
+  [`run.enqueue()`](/ar/streaming#المدخلات-في-قائمة-الانتظار): يُضاف بعد
+  نتائج أدوات الخطوة الحالية، فيراه استدعاء النموذج التالي في الدورة. يُنجَز
+  الاستدعاء بنتيجة تلك الدورة (و`signal` الخاص به لا يسري على
+  الدورة)، وسجل المحادثة المحفوظ عند انتهاء الدورة يحوي رسالة المستخدم
+  المضافة إلى الطابور في ترتيبها. و`stream()` المنضم لا يُخرج إلا `run.done` الخاص بالدورة؛
+  أما أحداث الدورة، ومنها `input.queued` و`input.applied`، فتُبث على
+  التشغيل الذي بدأها. وإذا انتهت الدورة قبل أن تأخذ المُدخَل
+  (اكتملت، أو توقفت مؤقتًا، أو أُلغيت)، نُفِّذ الاستدعاء دورةً تالية في
+  نهاية المطاف. وإذا فشلت الدورة رُفض الاستدعاء بالخطأ نفسه؛ وفي الجلسة
+  المتينة يبقى المُدخَل في نقطة حفظ الدورة ويطبّقه `resume()`.
+- `'steer'`: مثل `'queue'`، لكن المُدخَل ينضم عبر
+  [`run.steer()`](/ar/streaming#التوجيه): إذا لم يكن استدعاء النموذج في الدورة قد
+  أصدر شيئًا بعد، أُلغي وأُعيد بالرسالة الجديدة، ولا تُنفَّذ
+  استدعاءات الأدوات التي لم تبدأ في الدورة. وإلا انتظر
+  النقطة الآمنة التالية، كما في `'queue'`. يُنجَز الاستدعاء بنتيجة
+  الدورة، وتسري البدائل نفسها.
+
+```ts
+import { createAgent } from '@lousho/build-ai-agent';
+
+const agent = createAgent({ model: 'openai/gpt-4o-mini' });
+const session = agent.session({ id: 'user-42', turnPolicy: 'queue' });
+
+const first = session.send('Find flights to Rome.');
+const second = session.send('Only direct ones, please.'); // joins the first turn
+console.log((await second) === (await first)); // true: one turn, one result
+```
+
+يقبل `send()` و`stream()` نصًا، أو أجزاء محتوى (`[{ type: 'text', ... }, { type: 'image', ... }]`، وهي رسالة مستخدم واحدة)، أو `Message[]`؛ وتحتفظ المخازن بالأجزاء، انظر [المدخلات متعددة الوسائط](/ar/providers#الإدخال-متعدد-الوسائط).
+
+`send()` الذي يرمي خطأً (خطأ من المزوّد، أو أداة ترمي
+`PropagatingToolError`) أو يُلغى عبر `signal` يترك سجل المحادثة
+كما كان تمامًا قبل ذلك الاستدعاء. و`send()` المُلغى يُنجَز بـ
+`finishReason: 'aborted'`، كما يفعل `agent.send()`. ولا يحوي سجل المحادثة المخزَّن أبدًا
+دورة للمساعد فيها استدعاءات أدوات دون نتائج الأدوات المقابلة لها.
+
+`send()` الذي يتوقف مؤقتًا عند أداة `needsApproval` يُنجَز بـ
+`finishReason: 'awaiting-approval'`. ثم يتابع `agent.approvals.resolve({ id, approved })`
+التشغيل بوصفه الدورة التالية في الجلسة، فينضم استدعاء الأداة ونتيجته
+والإجابة النهائية إلى سجل المحادثة (انظر
+[الموافقات](/ar/approvals)).
+
+`agent.session({ id, limits })` يضبط ميزانيات تشمل دورات الجلسة كلها
+(مثل `{ maxCostUsd: 1 }`)، وتُحسب من الاستهلاك المحفوظ مع
+سجل المحادثة؛ أما `createAgent({ limits })` فيقيّد كل دورة على حدة. انظر
+[الميزانيات](/ar/configuration#الميزانيات).
+
+## بث دورة في جلسة
+
+`session.stream(input, { signal })` هو `agent.stream()` لكن لمحادثة:
+يُرجع `AgentRun` نفسه (أحداث محددة الأنواع مع وعد `result`، انظر
+[البث](/ar/streaming))، غير أن الدورة ترى سجل المحادثة حتى اللحظة وتنضم
+إليه.
+
+```ts
+import { createAgent } from '@lousho/build-ai-agent';
+
+const chat = createAgent({ instructions: 'Be brief.', provider });
+const session = chat.session();
+
+for await (const event of session.stream('My name is Ali.')) {
+  if (event.type === 'text.delta') process.stdout.write(event.text);
+}
+// The turn is already saved: this call sees it.
+const { text } = await session.send('What is my name?');
+```
+
+- يبني قائمة الرسائل نفسها التي يبنيها `send()`، ويصطف خلف الاستدعاءات السابقة
+  على الجلسة (يمكن الجمع بين `send()` و`stream()`).
+- حين ينتهي التشغيل، تُحفظ رسالة المستخدم الجديدة ومخرجات التشغيل
+  تمامًا كما يحفظها `send()`، وبعد ذلك فقط يُسلَّم `run.done`. فحين
+  تنتهي حلقة `for await`، أو يُنجَز `run.result`، يكون سجل المحادثة
+  مكتملًا. وتحمل الأحداث `runId` الخاص بالمقبض المُرجَع.
+- التشغيل المُلغى (عبر `signal`، أو بالخروج من الحلقة مبكرًا) أو الفاشل
+  يترك سجل المحادثة كما كان قبل الاستدعاء، مثل `send()`. والتشغيل الذي
+  كان قد انتهى فعلًا عند مغادرة الحلقة يُحفظ. والتشغيل الفاشل يُنهي
+  البث بـ `error` ثم `run.done` (`finishReason: 'error'`)، ويُرفض
+  `run.result`. ويشمل ذلك مخزنًا يفشل في التحميل أو الحفظ: وعندها
+  لا يكون للدورة `run.start`.
+- التشغيل الذي يتوقف مؤقتًا عند أداة `needsApproval` ينتهي بـ `approval.requested`
+  ثم `run.done` (`'awaiting-approval'`)، تمامًا كما يُنجَز `send()`، ويحوي
+  سجل المحادثة الدورة حتى موضع التوقف. و`agent.approvals.resolve()`
+  يتابعه بوصفه الدورة التالية في الجلسة. ودالة `approve` لا تسري
+  على البث، كما في `agent.stream()`.
+
+الجلسات طبقة رقيقة: الجلسة تملك سجل المحادثة وتسلّمه إلى
+المنفّذ في كل دورة. ومن دون مخزن نقاط حفظ، لا تُحفظ الدورة إلا حين
+تنتهي، فانهيار العملية في منتصف دورة يضيّعها؛ انظر القسم التالي.
+
+## الجلسات المتينة
+
+أعطِ الوكيل `store` فيه نقاط حفظ (checkpoints)، فتُسجَّل لكل دورة في الجلسة
+نقطة حفظ بعد كل استجابة من النموذج وكل نتيجة أداة، باستخدام
+آلية [التنفيذ المتين](/ar/durable-execution). والدورة التي قطعها
+انهيار، أو فشل في كتابة نقطة حفظ، أو `PropagatingToolError`، يمكن عندئذ
+إتمامها لاحقًا، في عملية أخرى:
+
+```ts
+import { createAgent } from '@lousho/build-ai-agent';
+import { SqliteStore } from '@lousho/build-ai-agent/sqlite';
+
+const agent = createAgent({ provider, store: new SqliteStore('./.lousho/agent.db') });
+
+// After a restart: finish the turn that was running, if any.
+const finished = await agent.resume('user-42'); // ExecutionResult, or null when nothing was pending
+console.log(finished?.text, await agent.session({ id: 'user-42' }).pending()); // pending() is null now
+```
+
+- `createAgent({ store })` يقبل أي `AgentStore`
+  (`{ sessions?, checkpoints?, approvals? }`، انظر [اختيار المخزن](#اختيار-المخزن)):
+  `agent.session({ id })` يحفظ سجل محادثته في `store.sessions`
+  ونقاط حفظه في `store.checkpoints`، ويحفظ `store.approvals` توقفات
+  الموافقة. و`store` الخاص بالجلسة (وهو `SessionStore`، أو
+  كائن `{ sessions, checkpoints }`) و`checkpointStore` يغلبان مخزن
+  الوكيل، جزءًا جزءًا.
+- `agent.resume(id)` هو `agent.session({ id }).resume()`، إلا أنه يُنهي أولًا
+  تشغيلًا بدأ بـ `agent.send(message, { sessionId: id })` (انظر
+  [التنفيذ المتين](/ar/durable-execution)).
+- كل دورة تُنفَّذ بـ `sessionId: '<session id>.turn-<n>'` (و`n` هو طول
+  سجل المحادثة لحظة بدء الدورة)، فتجد العملية الجديدة
+  الدورة المنقطعة دون أي تتبّع إضافي. والدورة المنتهية تنضم إلى
+  سجل المحادثة، تمامًا كما في `send()` العادي، وتُحذف نقطة حفظها.
+- `resume()` يتابع الدورة عبر مسار الاستئناف في المنفّذ
+  (`input: []`): استدعاءات الأدوات التي سُجّلت نتائجها لا تُنفَّذ من جديد،
+  واستجابة النموذج المسجّلة لا تُطلب من جديد. أما الأداة التي كانت قيد التنفيذ
+  حين ماتت العملية فتُنفَّذ من جديد (مرة واحدة على الأقل، انظر
+  [التنفيذ المتين](/ar/durable-execution#الأدوات-تُنفَّذ-مرة-واحدة-على-الأقل-اجعل-الآثار-الجانبية-آمنة-عند-التكرار)).
+- `send()` و`stream()` يستأنفان الدورة المعلّقة أولًا، ثم يرسلان الرسالة
+  الجديدة، فيرى النموذج الدورة بعد إتمامها (وأحداث الدورة المستأنفة
+  لا تُبث). استخدم `pending()` للتحقق أولًا، أو `discardPending()` للتخلي عن
+  الدورة غير المنتهية.
+- الدورة التي تتوقف مؤقتًا عند أداة `needsApproval` تبقى في نقطة حفظها، لا في
+  سجل المحادثة، إلى أن تنتهي. وما دامت تنتظر، يرمي `resume()` و`send()`
+  و`stream()` الخطأ `SessionAwaitingApprovalError` (ومعه `approvalId`)،
+  ويتابع `agent.approvals.resolve({ id, approved })` الدورة في هذه
+  الجلسة. بعد إعادة التشغيل، افتح الجلسة واستدعِ `resume()` (أو `send()`)
+  مرة واحدة قبل البتّ، ليعرف الوكيل إلى أي جلسة تنتمي
+  الموافقة؛ وأعطِ الوكيلين كليهما `store` الدائم نفسه (أو `approvalStore`).
+- الدورة المُلغاة يُتخلى عنها (وتُحذف نقطة حفظها)، كما هو الحال من دون
+  مخزن نقاط حفظ. و`clear()` يحذف الدورة المعلّقة أيضًا.
+
+## المخازن
+
+`SessionStore` يحفظ سجلات المحادثات بين الاستدعاءات:
+
+```ts
+import type { Message } from '@lousho/build-ai-agent';
+
+interface SessionStore {
+  load(id: string): Promise<Message[] | undefined>;
+  save(id: string, messages: readonly Message[]): Promise<void>;
+  delete(id: string): Promise<void>;
+}
+```
+
+- `MemorySessionStore` (الافتراضي، مخزن جديد لكل جلسة) يعيش ما عاشت
+  العملية. شارك نسخة واحدة بين الجلسات لتجدها بمعرّفاتها.
+- `FileSessionStore(dir)` يكتب ملف JSON واحدًا لكل جلسة (`<dir>/<id>.json`)،
+  كتابةً ذرّية (ملف مؤقت ثم إعادة تسمية)، وينشئ `dir` عند أول حفظ.
+
+```ts
+import { createAgent, FileSessionStore } from '@lousho/build-ai-agent';
+
+const agent = createAgent({ provider });
+const store = new FileSessionStore('./.lousho/sessions');
+
+const first = agent.session({ id: 'user-42', store });
+await first.send('My name is Ali.');
+
+// Later, even in another process or another createAgent() instance:
+const again = agent.session({ id: 'user-42', store });
+await again.send('What is my name?'); // "Ali"
+```
+
+يجب أن تطابق معرّفات الجلسات `^[A-Za-z0-9_-]{1,128}$` (فهي تصير أسماء ملفات، ولذلك
+يُرفض `../x` و`a/b` بخطأ يوضّح السبب). نفّذ
+`SessionStore` بنفسك لحفظ سجلات المحادثات في قاعدة بيانات أو في Redis.
+
+## اختيار المخزن
+
+للجلسات ولنقاط حفظ التنفيذ المتين وللموافقات واجهة مخزن
+لكلٍّ منها (`SessionStore` و`CheckpointStore` و`ApprovalStore`). اختر
+التنفيذ المناسب بحسب المكان الذي تعمل فيه العملية:
+
+| المخزن | الجلسات | نقاط الحفظ | الموافقات | استخدمه حين |
+| --- | --- | --- | --- | --- |
+| في الذاكرة (`memoryStore()`) | `MemorySessionStore` | في الذاكرة | `InMemoryApprovalStore` | الاختبارات، والسكربتات، وعملية واحدة لا يُعاد تشغيلها أبدًا |
+| ملفات | `FileSessionStore(dir)` | `LocalStorageCheckpointStore` | `StorageServiceApprovalStore` | جهاز واحد، وتريد ملفات عادية يمكن فحصها |
+| SQLite | `store.sessions` | `store.checkpoints` | `store.approvals` | خادم Node: ملف واحد دائم يدعم المعاملات، تتشاركه عدة عمليات بأمان |
+| Cloudflare KV | - | `KVCheckpointStore` | - | النشر على Workers (انظر [النشر](/ar/deployment)) |
+
+كل واحد منها جزء من `AgentStore`: مرّرها معًا هكذا
+`createAgent({ store: { sessions, checkpoints, approvals } })`. و`memoryStore()`
+و`SqliteStore` كائنا `AgentStore` جاهزان؛ وللملفات العادية، اجمع
+مخازن الملفات:
+
+```ts
+import {
+  createAgent,
+  FileSessionStore,
+  LocalStorageCheckpointStore,
+  StorageServiceApprovalStore,
+  type AgentStore,
+} from '@lousho/build-ai-agent';
+
+// `storage` is a StorageService rooted where the files should go.
+const store: AgentStore = {
+  sessions: new FileSessionStore('./.lousho/sessions'),
+  checkpoints: new LocalStorageCheckpointStore(storage),
+  approvals: new StorageServiceApprovalStore(storage),
+};
+const agent = createAgent({ provider, store });
+```
+
+وأي كائن له الدوال الثلاث الخاصة بجزء ما يصلح هناك أيضًا: `SessionStore`
+على Redis، أو `CheckpointStore` يعتمد على KV في Cloudflare Workers (والـ
+Worker المولَّد يستخدم `KVCheckpointStore`، انظر [النشر](/ar/deployment)).
+
+`SqliteStore` يحفظ الثلاثة في ملف قاعدة بيانات واحد، باستخدام
+`node:sqlite` المضمّن في Node (دون اعتمادية أصلية (native)؛ يتطلب Node 22.13 أو أحدث، وهو غير
+مُعاد تصديره من نقطة الدخول الجذرية، فاستيراد SDK لا يحمّله أبدًا):
+
+```ts
+import { createAgent, AgentExecutor } from '@lousho/build-ai-agent';
+import { SqliteStore } from '@lousho/build-ai-agent/sqlite';
+
+const store = new SqliteStore('./.lousho/agent.db'); // or ':memory:'
+const agent = createAgent({ provider, store }); // transcripts, per-step checkpoints and approvals
+await agent.session({ id: 'user-42' }).send('Hello');
+
+// With AgentExecutor directly, pass the parts:
+// AgentExecutor.execute({ ..., sessionId, checkpointStore: store.checkpoints, approvalStore: store.approvals })
+
+store.prune({ olderThanMs: 7 * 24 * 60 * 60 * 1000 }); // { sessions, checkpoints, approvals } deleted
+store.close();
+```
+
+- يُنشأ المجلد إن لم يكن موجودًا. والمخطط مُرقَّم الإصدار عبر
+  `PRAGMA user_version` ويُرحَّل عند الفتح؛ وقاعدة البيانات التي كتبها إصدار
+  أحدث تُرفض.
+- وضع WAL ومهلة انشغال (busy timeout) مدتها 5 ثوانٍ يتيحان لعمليتين تشارك الملف. ولا يبتّ
+  في الموافقة إلا واحدة منهما.
+- نقاط الحفظ ولقطات الموافقة تُخزَّن JSON معتمًا لا يُفسَّر محتواه، فالحقول الجديدة
+  تُكتب وتُقرأ دون تغيير.
+- `prune()` يزيل الجلسات ونقاط الحفظ التي لم تُحدَّث خلال `olderThanMs`،
+  والموافقات التي بُتّ فيها قبل تلك المدة؛ أما الموافقات التي لم يُبتّ فيها فتبقى.
+- الملف الذي ليس قاعدة بيانات SQLite يفشل بخطأ يذكر المسار؛
+  واستخدام المخزن بعد `close()` يرمي خطأً واضحًا.
+
+## تعليمات المشروع
+
+ليست جزءًا من الجلسات، لكنها تُطلب معها كثيرًا: انظر "تعليمات المشروع" في
+[الإعدادات](/ar/configuration) لتعطي الوكيل ملف
+`AGENTS.md` الخاص بمستودعك.

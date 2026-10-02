@@ -1,0 +1,574 @@
+---
+title: "البث"
+---
+{/* Generated from docs/streaming.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
+
+تشغّل `agent.stream()` الوكيل تمامًا كما تفعل `agent.send()`، وتُبلغ عن التشغيل
+في صورة بثّ من الأحداث محدَّدة الأنواع: نص النموذج فور وصوله، وكل استدعاء أداة،
+وحدود الخطوات، وطلبات الموافقة، ثم الحدث الختامي `run.done`. كل حدث كائن JSON
+عادي، فيمكنك تمريره إلى المتصفح عبر Server-Sent Events أو WebSocket دون أي
+تحويل.
+
+```ts
+import { createAgent } from '@lousho/build-ai-agent';
+
+const agent = createAgent({ model: 'openai/gpt-4o-mini' });
+
+for await (const event of agent.stream('Weather in Paris?')) {
+  if (event.type === 'text.delta') process.stdout.write(event.text);
+}
+```
+
+الواجهة الكاملة (full API) فيها الدالة نفسها: تقبل `AgentExecutor.stream(options)`
+الخيارات نفسها التي تقبلها `AgentExecutor.execute()` (مخزن الموافقات، نقاط الحفظ،
+الخطّافات، التتبّع، `toolConcurrency`، ...).
+
+هذه الأحداث، أي الاتحاد `AgentEvent`، هي نظام الأحداث الوحيد في الـ SDK: البث،
+و[خيارات المستمع](#الاستماع-دون-المرور-على-الأحداث)، و`session.on()`، وخطّافات واجهة
+المستخدم، ومسارات الخادم، و ACP والقنوات كلها تنقل هذه الأحداث نفسها.
+
+## المقبض `AgentRun`
+
+تُرجع `stream()` كائنًا من النوع `AgentRun`:
+
+```ts
+interface AgentRun extends AsyncIterable<AgentEvent> {
+  readonly runId: string;                   // the runId on every event
+  readonly result: Promise<ExecutionResult>; // what send() / execute() would return
+  enqueue(input: AgentInput): EnqueueResult; // add user input to the running run
+  steer(input: AgentInput): SteerResult;     // redirect the running run to new input
+}
+```
+
+- **يبدأ التشغيل فورًا.** لست مضطرًا إلى المرور على الأحداث: يكفي
+  `await run.result` وحده ليمضي التشغيل حتى نهايته.
+- **`result`** وعد يُنجَز (resolve) بالقيمة `ExecutionResult` نفسها التي تُرجعها
+  `send()`، ويُرفَض (reject) بالخطأ نفسه الذي كانت `send()` سترفض به. التشغيل
+  المُلغى يُنجَز بـ `finishReason: 'aborted'`؛ والتشغيل المتوقف مؤقتًا بانتظار
+  موافقة يُنجَز بـ `finishReason: 'awaiting-approval'` مع `approvalId`. وترك
+  `result` دون `await` لا يسبّب أبدًا رفضًا غير معالَج (unhandled rejection).
+- **الخروج المبكر من حلقة `for await` يُلغي التشغيل** (عبر المسار نفسه الذي
+  يسلكه `signal`، انظر [الإلغاء](#الإلغاء)). وعندها يُنجَز `result` بـ
+  `finishReason: 'aborted'`.
+- **لا ضغط عكسي (backpressure)، ولا يُسقَط شيء.** التشغيل لا ينتظر المستهلك
+  أبدًا. تُخزَّن الأحداث مؤقتًا إلى أن تقرأها، فالمستهلك البطيء يرى كل حدث
+  وبالترتيب. والمرور على الأحداث بعد انتهاء التشغيل يعطيك أحداثه كلها أيضًا.
+- **`enqueue(input)`** تضيف مدخلات المستخدم إلى التشغيل وهو يعمل: تنضم إلى سجل
+  المحادثة قبل استدعاء النموذج التالي. انظر
+  [المدخلات في قائمة الانتظار](#المدخلات-في-قائمة-الانتظار).
+- **`steer(input)`** تعيد توجيه التشغيل: استدعاء النموذج الذي لم يُنتج شيئًا بعدُ
+  يُلغى ويُعاد مع المدخلات الجديدة. انظر [التوجيه](#التوجيه).
+- **مستهلك واحد.** لا يمكن المرور على `AgentRun` إلا مرة واحدة؛ وحلقة
+  `for await` ثانية ترمي خطأً. لتوزيع الأحداث على أكثر من جهة، اجمعها بنفسك.
+- الخيارات غير الصالحة (غياب `provider` أو `agent` أو `input`، أو قيمة
+  `toolConcurrency` خاطئة) تجعل `stream()` ترمي الخطأ بشكل متزامن.
+
+```ts
+import { createAgent } from '@lousho/build-ai-agent';
+
+const agent = createAgent({ model: 'openai/gpt-4o-mini' });
+
+const run = agent.stream('Summarize the report', { signal: AbortSignal.timeout(30_000) });
+const result = await run.result; // no iteration needed
+console.log(result.finishReason, result.text);
+```
+
+## الاستماع دون المرور على الأحداث
+
+لمراقبة كل تشغيل دون المرور على بثّه، أعطِ الوكيل مستمعًا:
+`createAgent({ onEvent })`، أو `onAgentEvent` ضمن خيارات
+`AgentExecutor.execute()` / `stream()` / `resumeAfterApproval()`. يُستدعى
+المستمع بشكل متزامن مع كل `AgentEvent` لحظة وقوعه، في `send()` كما في
+`stream()`، وفي دورات الجلسات وفي التشغيلات المستأنَفة بعد موافقة. ويتلقى
+الأحداث نفسها وبالترتيب نفسه كما لو مررت على البث، مع فارق واحد: `send()` /
+`execute()` تولّدان كل خطوة نموذج دفعة واحدة، فيأتي نص الخطوة في `text.delta`
+واحد (كما يحدث في `stream()` مع مزوّد لا يدعم البث). وتصل أحداث الوكلاء
+الفرعيين موسومة بالحقل `subagent`.
+
+```ts
+import { createAgent } from '@lousho/build-ai-agent';
+
+const agent = createAgent({
+  model: 'openai/gpt-4o-mini',
+  onEvent: (event) => {
+    if (event.type === 'tool.start') console.log('calling', event.toolName, event.args);
+    if (event.type === 'run.done') console.log('done:', event.finishReason, event.usage?.totalTokens);
+  },
+});
+
+await agent.send('Weather in Paris?');
+```
+
+### الانتقال من `onEvent` / `ExecutionEvent`
+
+الخيار `ExecuteOptions.onEvent` مع `ExecutionEvent` هو دالة رد النداء القديمة
+للأحداث في الـ SDK. وهو مُهمَل: ما زال يعمل (ويسجّل تحذير `console.warn` مرة
+واحدة)، وأحداثه تُشتق الآن من أحداث `AgentEvent` الخاصة بالتشغيل، وسيُزال في
+إصدار رئيسي قادم. استبدل به `onAgentEvent` (أو `createAgent({ onEvent })`، وهو
+يستقبل أحداث `AgentEvent` أصلًا):
+
+| `ExecutionEvent` (`onEvent`) | `AgentEvent` (`onAgentEvent`) |
+| --- | --- |
+| `start` (`agentId`, `agentName`) | `run.start` (`agentId`, `agentName`) |
+| `text-delta` (لا يصدر أبدًا) | `text.delta` (`text`) |
+| `text-complete` (`text`, `stepUsage`) | `text.done` (`text`)؛ واستهلاك الخطوة موجود في `step.done` (`usage`) |
+| `tool-call` (`toolCall`) | `tool.start` (`toolCallId`, `toolName`، و`args` بعد تحليلها) |
+| `tool-result` (`toolResult`) | `tool.done` (`result`, `durationMs`, `replacedByHook`)، أو `tool.error` (`error.name`, `error.message`) |
+| `error` (`error: Error`) | `error` (`error: { name, message }`) |
+| `abort` (`abortReason`, `usage`) | `run.done` مع `finishReason: 'aborted'` (والسبب هو `reason` الخاص بإشارتك) |
+| `finish` (`finishReason`, `usage: RunUsage`) | `run.done` (`finishReason`, `text`, `usage`, `object`)؛ وقيمة `RunUsage` الكاملة موجودة في `result.usage` |
+| حدثا `start` / `finish` لوكيل فرعي (مع `subagent`) | حدثا `tool.start` / `tool.done` لدى الوكيل الرئيسي للاستدعاء الذي بدأه |
+| `timestamp: Date` | `timestamp`: سلسلة نصية بصيغة ISO-8601؛ إضافةً إلى `runId` و`seq` و`v` |
+
+ويُبلغ `AgentEvent` كذلك عمّا لم يكن `ExecutionEvent` يُبلغ عنه قط: حدود
+الخطوات، وطلبات الموافقة، وقرارات الصلاحيات، والميزانيات، وحواجز الحماية،
+والمدخلات المنتظِرة والموجَّهة، وضغط السياق، والاستدلال، وإعادة المحاولة لدى
+المزوّد، وانحراف الوكيل (انظر [المخطط](#مخطط-الأحداث-الإصدار-1)).
+
+## بث دورة في جلسة
+
+تبثّ `session.stream(input, { signal })` دورة واحدة من
+[جلسة](/ar/sessions) متعددة الدورات وتُرجع المقبض `AgentRun` نفسه. يرى التشغيل
+المحادثة حتى تلك اللحظة، وعند انتهائه تُحفظ دورته في مخزن الجلسة، تمامًا كما
+تحفظها `session.send()`. ويُسلَّم `run.done` بعد الحفظ، فيكون سجل المحادثة
+مكتملًا حين تنتهي الحلقة. أما التشغيل المُلغى أو الفاشل، أو الذي تتوقف عن
+قراءته مبكرًا، فلا يُحفظ.
+
+```ts
+import { createAgent } from '@lousho/build-ai-agent';
+
+const agent = createAgent({ model: 'openai/gpt-4o-mini' });
+const session = agent.session({ id: 'user-42' });
+
+for await (const event of session.stream('My name is Ali.')) {
+  if (event.type === 'text.delta') process.stdout.write(event.text);
+}
+const again = session.stream('What is my name?'); // streams with the first turn in its history
+console.log((await again.result).text);
+```
+
+## البث بعد الموافقة
+
+التشغيل الذي توقف مؤقتًا بانتظار [موافقة](/ar/approvals) يمكن أن يُكمَل في صورة
+بث أيضًا. تأخذ `streamResumeAfterApproval()` وسائط `resumeAfterApproval()`
+وتُرجع `AgentRun` قيمة `result` فيه هي ما تُرجعه `resumeAfterApproval()`.
+أحداثه هي `run.start`، ثم `tool.start` و`tool.done` للاستدعاء الذي حُسم أمره
+(و`tool.error` في حالة الرفض)، ثم أحداث التتمّة تمامًا كما في تشغيل جديد، حتى
+`run.done`؛ وأي توقف مؤقت آخر ينهيه بـ `approval.requested`. يعمل الإلغاء
+و`enqueue()` و`steer()` كما في أي تشغيل، ويمكن أن تأتي الموافقة من عملية
+(process) أخرى، لأن كل شيء يُقرأ من مخزن الموافقات. مع الوكلاء المنشأين بـ
+`createAgent()` استخدم `agent.approvals.streamResolve()` أو `streamAnswer()`.
+وإذا كان النموذج يُختار لكل تشغيل (`model` على هيئة دالة) فالنموذج المستخدَم هو
+الذي استخدمه التشغيل المتوقف.
+
+```ts
+import { AgentExecutor, streamResumeAfterApproval } from '@lousho/build-ai-agent';
+
+const paused = await AgentExecutor.execute({ agent, input, provider, toolRegistry, approvalStore });
+const run = streamResumeAfterApproval({ id: paused.approvalId!, approved: true }, approvalStore, toolRegistry, provider);
+for await (const event of run) {
+  if (event.type === 'tool.done') console.log(`${event.toolName} ran`);
+  if (event.type === 'text.delta') process.stdout.write(event.text);
+}
+```
+
+## مخطط الأحداث (الإصدار 1)
+
+لكل حدث الحقول التالية:
+
+| الحقل       | النوع    | المعنى |
+| ----------- | -------- | ------- |
+| `type`      | string   | نوع الحدث (الجدول أدناه). ضيِّق النوع (narrowing) بناءً عليه في TypeScript. |
+| `runId`     | string   | يعرّف التشغيل. وهو نفسه في كل أحداث استدعاء `stream()` واحد. |
+| `seq`       | number   | `0` لأول حدث، ثم `+1` لكل حدث، بلا فجوات. |
+| `timestamp` | string   | وقت صدور الحدث، بصيغة ISO 8601 (`2026-10-01T09:30:00.000Z`). |
+| `v`         | `1`      | إصدار المخطط، ويُصدَّر باسم `AGENT_EVENT_SCHEMA_VERSION`. |
+| `subagent`  | object، اختياري | يَرِد فقط في أحداث تشغيل وكيل فرعي - انظر [الوكلاء الفرعيون](#الوكلاء-الفرعيون). |
+
+أنواع الأحداث وحقولها الإضافية:
+
+| `type`               | الحقول الإضافية | متى يصدر |
+| -------------------- | ------------ | ------- |
+| `run.start`          | `agentName: string`, `agentId?: string` | أول حدث في كل تشغيل. |
+| `step.start`         | `step: number` | تبدأ خطوة نموذج: استدعاء واحد للنموذج مع استدعاءات الأدوات التي يطلبها. يبدأ عدّ `step` من 1 (والتشغيل المستأنَف من نقطة حفظ يواصل العدّ). |
+| `text.delta`         | `text: string` | جزء من نص النموذج، فور وصوله. |
+| `text.done`          | `text: string` | النص الكامل للخطوة: حاصل ضمّ أحداث `text.delta` الخاصة بها. يصدر فقط للخطوات التي فيها نص. |
+| `reasoning.start`    | (لا شيء) | يبدأ النموذج الاستدلال في هذه الخطوة. يصدر فقط مع [الخيار `reasoning`](/ar/reasoning) (أو مع نموذج يستدل دائمًا). تليه أحداث `reasoning.delta` ثم `reasoning.done`، قبل أول `text.delta` أو `tool.start` في الخطوة. |
+| `reasoning.delta`    | `text: string` | جزء من نص الاستدلال (أو من ملخّصه). لا يكون أبدًا جزءًا من `text.delta` ولا من `text` في `run.done`. |
+| `reasoning.done`     | `text: string`, `tokens?: number` | انتهى الاستدلال: `text` هو نصه كاملًا؛ ويَرِد `tokens` إذا كان المزوّد قد أبلغ عن رموز (tokens) الاستدلال حتى تلك اللحظة. |
+| `tool.start`         | `toolCallId: string`, `toolName: string`, `args: Record<string, unknown>` | يبدأ استدعاء أداة. `args` هي وسائط النموذج بعد تحليلها من JSON (وتكون `{}` إذا لم تكن JSON صالحًا). |
+| `tool.done`          | `toolCallId`, `toolName`, `result: unknown`, `durationMs: number` | عاد استدعاء الأداة بنتيجة. `result` هي القيمة كما كانت ستُرمَّز بصيغة JSON (`undefined` تصبح `null`، و`Date` يصبح سلسلة نصية). يُحسب `durationMs` من لحظة `tool.start` الخاص به. |
+| `tool.error`         | `toolCallId`, `toolName`, `error: { name: string, message: string }`, `durationMs: number` | فشل استدعاء أداة: رمى استثناءً، أو لم تطابق وسائطه مخططه (`name: 'ToolArgumentsValidationError'`)، أو أن الأداة غير موجودة. يتلقى النموذج الخطأ بوصفه نتيجة الاستدعاء ويستمر التشغيل. |
+| `approval.requested` | `approvalId: string`, `toolCallId`, `toolName`, `args: Record<string, unknown>`, `kind?: 'question'`, `question?: { text, options?, allowFreeText? }` | استدعاء أداة يحتاج إلى قرار بشري. يتوقف التشغيل عندها؛ استأنفه بـ `agent.approvals.resolve()` أو `resumeAfterApproval()` (انظر [الموافقات](/ar/approvals))، أو ابثّ تتمّته (انظر [البث بعد الموافقة](#البث-بعد-الموافقة)). استدعاء `ask_question` يحمل `kind: 'question'` وحقل `question` الخاص به؛ أجب عنه بـ `agent.approvals.answer()` (انظر [طرح سؤال على المستخدم](/ar/approvals#طرح-سؤال-على-المستخدم)). |
+| `permission.decision` | `toolCallId`, `toolName`, `decision: 'allow' \| 'deny' \| 'ask' \| 'default'`, `rule?: { index: number, reason?: string }`, `args?: Record<string, unknown>`, `at: string` | كيف حسمت [قواعد الصلاحيات](/ar/approvals#سياسات-الصلاحيات) أمر استدعاء الأداة: يأتي بعد `tool.start` الخاص به، وقبل `tool.done` / `tool.error` / `approval.requested` الخاص بالاستدعاء نفسه. يصدر فقط حين يضبط التشغيل `permissions` أو `onPermissionDecision`؛ ويُحذف `args` عند تفعيل `redactContent`. |
+| `step.done`          | `step: number`, `finishReason: string`, `usage?: { promptTokens, completionTokens, totalTokens }` | تنتهي خطوة. `finishReason` هو سبب الانتهاء الذي أعلنه النموذج (`'stop'`، `'tool_calls'`، `'length'`، ...)، أو `'awaiting-approval'` أو `'aborted'` أو `'steered'` (أُلغي استدعاء النموذج فيها بواسطة `run.steer()`، انظر [التوجيه](#التوجيه)) أو `'error'` إذا انتهت الخطوة على ذلك النحو (والتشغيل الذي يستنفد `maxSteps` وهو ما زال يريد المتابعة ينتهي بـ `run.done` بالقيمة `'max-steps'`). `usage` هو استهلاك استدعاء النموذج في هذه الخطوة، ويغيب إذا لم يُنتج الاستدعاء أي رد. |
+| `error`              | `error: { name: string, message: string }` | خطأ. إذا أنهى التشغيلَ تبعه `run.done` مع `finishReason: 'error'`. أما خطأ المزوّد الذي تُعاد محاولته في ظل `surfaceRetryableProviderErrors` فتتبعه خطوات أخرى. |
+| `provider.retry`     | `attempt: number`, `maxRetries: number`, `delayMs: number`, `error: { message: string, category?: string }`, `provider: string` | فشل استدعاء نموذج وستُعاد محاولته بعد `delayMs` (عبر `createAgent({ retry })` أو أي مزوّد `withRetry()`). `attempt` هو رقم المحاولة التي فشلت (1 = الأولى)؛ و`category` يكون `'rate-limit'` أو `'timeout'` أو غيرهما، ويغيب إذا كان الصنف مجهولًا (خطأ 5xx مثلًا). |
+| `provider.fallback`  | `from: string`, `to: string`, `error: { message: string }` | ظل استدعاء نموذج يفشل بعد استنفاد محاولاته فتولّى المزوّد التالي المهمة (عبر `createAgent({ fallbackModels })` أو أي مزوّد `withFallback()`). `from` و`to` اسما مزوّدَين. |
+| `compaction.start`   | `strategy: string`, `tokensBefore: number`, `contextWindow: number`, `thresholdTokens: number` | وجد خطّاف ضغط السياق (`createAgent({ compaction })`) أن طلب النموذج التالي يتجاوز عتبته فبدأ ضغطه. يتبعه حدث `compaction.done` واحد بالضبط. انظر [ضغط السياق](/ar/compaction). |
+| `compaction.done`    | `strategy: string`, `tokensBefore: number`, `tokensAfter: number`, `prunedToolCallIds: string[]`, `summary?: boolean`, `error?: { message: string }` | انتهت عملية ضغط السياق. `tokensAfter` يساوي `tokensBefore` إذا لم يكن هناك ما يمكن ضغطه؛ ويُضبط `summary` إذا حلّ ملخّصٌ محلّ الدورات القديمة؛ ويُضبط `error` إذا فشلت الاستراتيجية أو لجأت إلى بديل احتياطي (ويستمر التشغيل). |
+| `context.cleared`    | `sessionId: string`, `messagesCleared: number` | أفرغت `session.clear()` سجل محادثة الجلسة. يُسلَّم إلى مستمعي `session.on()` لا إلى بث التشغيل. كذلك تصل أحداث `compaction.start` / `compaction.done` الناتجة عن `session.compact()` إلى `session.on()` وتحمل `trigger: 'manual'`. |
+| `budget.exceeded`    | `limit: string`, `value: number`, `max: number`, `scope: 'run' \| 'session'` | تجاوز التشغيل إحدى [ميزانيات `limits`](/ar/configuration#الميزانيات): `limit` هو `'maxTokens'` أو `'maxInputTokens'` أو `'maxOutputTokens'` أو `'maxCostUsd'` أو `'maxDurationMs'` أو `'maxSteps'`، و`value` ما أُنفق، و`max` الحد. يتبعه `run.done` (`'budget-exceeded'`)؛ ومع `onExceeded: 'throw'` يتبعه `error` ثم `run.done` (`'error'`). |
+| `input.queued`       | `id: string`, `text: string` | استلمت `run.enqueue()` مُدخلًا (`id` هو `EnqueueResult.id`، و`text` نص المستخدم فيه). قد يأتي في أي لحظة من التشغيل، حتى داخل خطوة. انظر [المدخلات في قائمة الانتظار](#المدخلات-في-قائمة-الانتظار). |
+| `input.steered`      | `id: string`, `text: string`, `mode: 'immediate' \| 'queued'` | استلمت `run.steer()` مُدخلًا (`id` هو `SteerResult.id`). `mode: 'immediate'`: أُلغي استدعاء النموذج الجاري من أجله، وتنتهي خطوته بـ `step.done` بالقيمة `'steered'`؛ `'queued'`: ينتظر النقطة الآمنة التالية مثل `enqueue()`. انظر [التوجيه](#التوجيه). |
+| `input.applied`      | `id: string`, `step: number` | انضم المُدخل المنتظِر (أو الموجَّه) إلى سجل المحادثة، قبيل استدعاء النموذج في الخطوة `step` مباشرة: ويتبعه `step.start` لتلك الخطوة. |
+| `guardrail.tripped`  | `name: string`, `kind: 'input' \| 'output' \| 'tool'`, `reason: string`, `toolName?: string` | حَجَب [حاجز حماية للمدخلات أو المخرجات أو الأدوات](/ar/guardrails#حواجز-حماية-المدخلات-والمخرجات) شيئًا: قبل أول استدعاء للنموذج (المدخلات)، أو قبل `text.done` الخاص بالخطوة (المخرجات)، أو بعد `tool.start` الخاص بالاستدعاء (الأدوات). يتبعه `run.done` (`'guardrail'`)؛ ومع `onTripped: 'throw'` يتبعه `error` ثم `run.done` (`'error'`). |
+| `guardrail.rewrote`  | `name`, `kind`, `reason`, `toolName?` | أعاد حاجز حماية كتابة المدخلات، أو نص الخطوة (قبل `text.done` الخاص بها، وهو يحمل النص الجديد)، أو وسائط استدعاء أداة. يستمر التشغيل. |
+| `run.done`           | `finishReason: string`, `text: string`, `usage?: { promptTokens, completionTokens, totalTokens }`, `object?: unknown` | آخر حدث في كل تشغيل، ويصدر مرة واحدة بالضبط، حتى في التشغيلات المُلغاة والفاشلة والمنتظِرة للموافقة. `finishReason` و`text` يطابقان `run.result` (`'max-steps'` إذا استُنفدت ميزانية `maxSteps` والنموذج ما زال يريد المتابعة)؛ والتشغيل الفاشل له `finishReason: 'error'` و`text: ''` وبلا `usage`. `object` هو الكائن `object` المتحقَّق منه في `run.result` لوكيل له مخطط `output` (انظر [المخرجات المنظَّمة](/ar/structured-output))، ويغيب في غير ذلك. |
+
+الحقول الاختيارية تُحذف حين لا تكون لها قيمة. ولا تكون أبدًا `undefined`،
+ولذلك تُرجع `JSON.parse(JSON.stringify(event))` كائنًا مساويًا.
+
+### ضمانات الترتيب
+
+- `run.start` هو الأول و`run.done` هو الأخير، وكلٌّ منهما يصدر مرة واحدة بالضبط.
+- كل `step.start` يتبعه `step.done` واحد بالضبط يحمل قيمة `step` نفسها، قبل
+  `step.start` التالي. وكل ما تفعله الخطوة يقع بين الاثنين.
+- داخل الخطوة: `compaction.start` / `compaction.done` (إذا ضُغط الطلب، قبل
+  استدعاء النموذج)، ثم أحداث `provider.retry` / `provider.fallback` (إذا فشل
+  استدعاء النموذج)، ثم أحداث `text.delta`، ثم `text.done`، ثم أحداث الأدوات.
+- استدعاءات الأدوات في الخطوة الواحدة تعمل بالتوازي (انظر `toolConcurrency`):
+  تأتي أحداث `tool.start` بترتيب استدعاء النموذج لها، وأحداث `tool.done` /
+  `tool.error` بترتيب اكتمالها. طابِق بينها بواسطة `toolCallId`.
+- يأتي `input.queued` عند استدعاء `run.enqueue()` (بعد `run.start`، حتى
+  للمدخلات التي أُدرجت قبل أن ينطلق التشغيل)، ولذلك قد يقع داخل خطوة. أما
+  `input.applied` الخاص به فيأتي بين `step.done` للخطوة التي كانت تعمل
+  و`step.start` التالي، وهذا الأخير يحمل قيمة `step` التي يذكرها.
+- يأتي `input.steered` عند استدعاء `run.steer()`. مع `mode: 'immediate'` تنتهي
+  الخطوة الجارية بعده بـ `step.done` (`'steered'`، دون أحداث نص من استدعائها
+  المُلغى)، ثم `input.applied` ثم `step.start` التالي.
+- حين يحتاج استدعاء إلى موافقة، تُنفَّذ الاستدعاءات التي تسبقه وتُبلغ عن
+  نتائجها، ثم يتبعها `approval.requested` و`step.done` (`'awaiting-approval'`)
+  و`run.done` (`'awaiting-approval'`). أما الاستدعاءات التي تليه فلا تبدأ أبدًا.
+- حين يحجب حاجز حماية، يأتي `guardrail.tripped` قبيل النهاية: في حاجز المدخلات
+  يأتي بعد `run.start` مباشرة (ولا تبدأ أي خطوة)؛ وفي حاجز المخرجات أو الأدوات
+  يأتي داخل الخطوة، ويتبعه `step.done` ثم `run.done` (`'guardrail'`). المخرجات
+  المحجوبة لا يكون لها `text.done`؛ والاستدعاءات التي تلي استدعاء أداة محجوبًا
+  لا تبدأ أبدًا.
+
+تشغيل نصّي فقط:
+
+```
+run.start → step.start → text.delta × n → text.done → step.done → run.done
+```
+
+تشغيل فيه استدعاء أداة واحد:
+
+```
+run.start
+step.start(1) → tool.start → tool.done → step.done(1, 'tool_calls')
+step.start(2) → text.delta × n → text.done → step.done(2, 'stop')
+run.done('stop')
+```
+
+### TypeScript
+
+النوع `AgentEvent` اتحاد مميَّز (discriminated union): تضييق النوع بناءً على
+`event.type` يعطيك حمولة الحدث. وكل نوع حدث مُصدَّر كذلك (`TextDeltaEvent`،
+`ToolDoneEvent`، `RunDoneEvent`، ...)، و`AgentEventOf<'tool.done'>` ينتقي
+واحدًا منها بالاسم.
+
+```ts
+import { isAgentEvent, isToolEvent, type AgentEvent } from '@lousho/build-ai-agent';
+
+function render(event: AgentEvent): string {
+  switch (event.type) {
+    case 'text.delta':
+      return event.text;
+    case 'tool.start':
+      return `\n[${event.toolName}] ${JSON.stringify(event.args)}\n`;
+    case 'tool.error':
+      return `\n[${event.toolName} failed: ${event.error.message}]\n`;
+    case 'run.done':
+      return `\n(${event.finishReason})\n`;
+    default:
+      return '';
+  }
+}
+
+// isToolEvent / isTextEvent / isStepEvent narrow to an event family:
+const toolNames = (events: AgentEvent[]) => events.filter(isToolEvent).map((e) => e.toolName);
+
+// isAgentEvent validates an event received over the wire:
+const received: unknown = JSON.parse('{"type":"run.start","runId":"r","seq":0,"timestamp":"","v":1,"agentName":"a"}');
+if (isAgentEvent(received)) console.log(render(received), toolNames([received]));
+```
+
+### إدارة الإصدارات
+
+لا تتغير `v` إلا حين يتغير حدث موجود تغييرًا غير متوافق (حقل حُذف أو أُعيدت
+تسميته أو تغيّر نوعه). أما أنواع الأحداث الجديدة والحقول الاختيارية الجديدة
+فيمكن أن تُضاف دون تغيير `v`، فتجاهَل أنواع الأحداث التي لا تعرفها.
+
+## الوكلاء الفرعيون
+
+حين يفوّض الوكيل العمل عبر الأداة `task` أو أداة منشأة بـ
+`createDelegateTool()` (انظر [الوكلاء الفرعيون](/ar/sub-agents))، يُبَث تشغيل
+الوكيل الفرعي داخل البث نفسه: تظهر خطواته وأحداث `text.delta` و`text.done`
+وأحداث الأدوات والأخطاء الخاصة به بين `tool.start` و`tool.done` (أو
+`tool.error`) لدى الوكيل الرئيسي لذلك الاستدعاء، وكلٌّ منها يحمل الحقل
+`subagent`:
+
+```json
+{ "name": "researcher", "depth": 1, "toolCallId": "call_1", "description": "find sources" }
+```
+
+الحقل `toolCallId` هو استدعاء الأداة لدى الوكيل الرئيسي الذي بدأ الوكيل
+الفرعي؛ والوكيل الفرعي لوكيل فرعي يحمل `depth: 2` ويحمل الوكيلَ الذي يحتويه في
+`parent`. الأحداث التي ليس فيها `subagent` تخص التشغيل في المستوى الأعلى:
+ضمانات الترتيب أعلاه تسري عليها، وتسري على حدة على خطوات كل وكيل فرعي (وأحداث
+عدة وكلاء فرعيين يعملون بالتوازي تتداخل). `run.start` و`run.done` يخصّان
+التشغيل في المستوى الأعلى وحده، فيظلان يصدران مرة واحدة بالضبط. والوكيل الفرعي
+الذي يتوقف مؤقتًا بانتظار موافقة يُبلَغ عنه مرة واحدة، عبر `approval.requested`
+في المستوى الأعلى (وهو يحمل استدعاء الوكيل الفرعي).
+
+```ts
+import { createAgent } from '@lousho/build-ai-agent';
+
+const researcher = createAgent({ provider, instructions: 'You research.', description: 'Finds sources' });
+const lead = createAgent({ provider, instructions: 'You coordinate.', subagents: { researcher } });
+
+for await (const event of lead.stream('Write about bicycles')) {
+  const who = event.subagent ? `[${event.subagent.name}] ` : '';
+  if (event.type === 'text.delta') process.stdout.write(who + event.text);
+}
+```
+
+## بث الرموز والمزوّدون
+
+حين ينفّذ المزوّد الدالة `stream()` (وهذا حال كل المزوّدين المضمَّنين
+و`mockModel`)، تُبَث كل خطوة نموذج وتصل أحداث `text.delta` أثناء إنتاج النموذج
+للنص. وتُجمَّع استدعاءات الأدوات من البث. وحين لا يملك المزوّد `stream()`، أو
+تُرجع دالته `supportsStreaming(model)` القيمة `false`، ترجع الخطوة إلى
+`generate()` ويصل نصها في `text.delta` واحد يتبعه `text.done`.
+
+البث لا يغيّر إلا طريقة الحصول على خطوة نموذج واحدة. الخطّافات، والتحقق من
+الوسائط، والموافقات، واستدعاءات الأدوات المتوازية، ونقاط الحفظ، والإلغاء،
+ومقاطع التتبّع (spans)، وسائر دوال رد النداء في `execute()` تتصرف تمامًا كما في
+`send()`. أما `send()` و`execute()` نفساهما فما زالتا تستخدمان `generate()`.
+
+ينبغي أن تُخرج الدالة `stream()` في المزوّد المخصَّص قطعًا من النوع
+`text-delta` ثم قطعة `finish` ختامية فيها `finishReason` و`usage`. يمكن إخراج
+استدعاءات الأدوات في قطع `tool-call`، أو إنجازها عبر الوعد `toolCalls` في
+`StreamResult`. وقطعة `error` تُفشل الخطوة.
+
+## الإلغاء
+
+مرّر `signal` لإيقاف التشغيل من الخارج، أو اخرج من الحلقة. كلاهما ينهي التشغيل
+بالطريقة نفسها التي ينتهي بها `send()` مُلغى: تُفحص الإشارة بين قطع البث، وقبل
+كل استدعاء للنموذج وكل استدعاء أداة، وتصل إلى المزوّد وإلى الأدوات. ينتهي البث
+بـ `step.done` (`'aborted'`، إن كانت هناك خطوة تعمل) ثم `run.done`
+(`'aborted'`)، ويُنجَز `result` بـ `finishReason: 'aborted'`.
+
+```ts
+import { createAgent } from '@lousho/build-ai-agent';
+
+const agent = createAgent({ model: 'openai/gpt-4o-mini' });
+const run = agent.stream('Write a long story');
+
+let chars = 0;
+for await (const event of run) {
+  if (event.type === 'text.delta') chars += event.text.length;
+  if (chars > 500) break; // aborts the run
+}
+console.log((await run.result).finishReason); // 'aborted'
+```
+
+## المدخلات في قائمة الانتظار
+
+تضيف `run.enqueue(input)` مدخلات المستخدم (سلسلة نصية، أو أجزاء محتوى، أو
+`Message[]`) إلى تشغيل ما زال جاريًا، كرسالة متابعة يكتبها المستخدم أثناء عمل
+الوكيل مثلًا. لا يتوقف التشغيل: تنضم المدخلات إلى سجل المحادثة عند النقطة
+الآمنة التالية - بعد نتائج أدوات الخطوة الحالية، وليس أبدًا بين دورة استدعاء
+أدوات ونتائجها - ويراها استدعاء النموذج التالي كما لو أن المستخدم كتبها.
+والمدخلات التي تُدرج في قائمة الانتظار أثناء كتابة النموذج لرده النهائي تحصل
+على خطوة إضافية، فيجيب النموذج عنها في التشغيل نفسه.
+
+```ts
+import { createAgent } from '@lousho/build-ai-agent';
+
+const agent = createAgent({ model: 'openai/gpt-4o-mini' });
+const run = agent.stream('Plan a weekend in Rome.');
+
+const queued = run.enqueue('Keep it under 500 EUR.');
+for await (const event of run) {
+  if (event.type === 'input.applied') console.log(`applied before step ${event.step}`);
+}
+if (queued.applied === false || !(await queued.applied)) {
+  // The run ended without it: send it as a new turn (e.g. session.send()).
+}
+```
+
+تُرجع `enqueue()` الكائن `{ id, applied }`. يَرِد `id` في حدثَي `input.queued`
+و`input.applied`. وتكون `applied` مساوية `false` إذا كان التشغيل قد انتهى
+بالفعل: لم يُستلم المُدخل، فأرسِله بنفسك في دورة جديدة (`session.send()`). وفي
+غير ذلك تكون وعدًا يُنجَز بـ `true` حالما يدخل المُدخل سجل المحادثة، أو بـ
+`false` إذا توقف التشغيل قبل استدعاء النموذج التالي (أُلغي، أو توقف مؤقتًا
+بانتظار موافقة، أو استنفد `maxSteps` أو الميزانية، أو فشل)؛ وعندها يُترك
+المُدخل لك أيضًا.
+
+- المدخلات المتعددة التي تُدرج قبل استدعاء النموذج نفسه تُطبَّق معًا، بترتيب
+  إدراجها.
+- مع نقاط الحفظ (`sessionId` أو جلسة متينة)، يُحفظ المُدخل الذي ما زال ينتظر في
+  آخر نقطة حفظ التشغيل فورًا، وهو الموضع نفسه الذي تُحفظ فيه المدخلات المنتظِرة
+  خلف استدعاءات أدوات لم يُجَب عنها (انظر
+  [التنفيذ المتين](/ar/durable-execution)). فلا يضيع عند انهيار أو عند تشغيل
+  يفشل: تطبّقه `agent.resume()` (مع أن `applied` لتشغيل فشل داخل العملية نفسها
+  يُنجَز بـ `false`). أما التشغيل الذي ينتهي أو يتوقف مؤقتًا أو يُلغى فلا
+  يحتفظ به.
+- دون بث، مرّر `InputQueue` في `ExecuteOptions.inputQueue` واستدعِ دالتها
+  `push()`: وهي القائمة نفسها التي تقف خلف `run.enqueue()`. كل قائمة تخدم
+  تشغيلًا واحدًا.
+- في الجلسات، يجعل `agent.session({ turnPolicy: 'queue' })` أي `send()` أو
+  `stream()` يُستدعى أثناء عمل دورة (أو أثناء انتظارها أن تبدأ) ينضم إلى تلك
+  الدورة بهذه الطريقة. انظر [الجلسات](/ar/sessions#كائن-الجلسة).
+
+المدخلات في قائمة الانتظار تنتظر الخطوة الجارية. ولإعادة توجيه التشغيل في
+الحال، وجّهه (القسم التالي).
+
+```ts
+import { AgentExecutor, InputQueue } from '@lousho/build-ai-agent';
+
+const inputQueue = new InputQueue();
+const pending = AgentExecutor.execute({ agent, provider, input: 'Plan my trip.', inputQueue });
+inputQueue.push('Also book a hotel.');
+const result = await pending;
+```
+
+## التوجيه
+
+تعيد `run.steer(input)` توجيه تشغيل جارٍ إلى مدخلات مستخدم جديدة، كأن يغيّر
+المستخدم رأيه والوكيل ما زال يفكر:
+
+- إذا كان هناك استدعاء نموذج جارٍ لم يُصدر نصًا ولا استدعاءات أدوات بعدُ،
+  فإنه يُلغى (بإشارة خاصة به لا بإشارة التشغيل: فالتشغيل يستمر)، ويُهمَل ناتجه
+  الجزئي، ويُلحَق `input` كرسالة مستخدم ويُستدعى النموذج من جديد. تكون
+  `applied` مساوية `'immediate'`، وتنتهي خطوة الاستدعاء المُلغى بـ `step.done`
+  بالقيمة `'steered'`. والمزوّد الذي يتجاهل إشارة الإلغاء لا يُنتظَر؛ ويُهمَل
+  رده المتأخر.
+- إذا كان النموذج قد أصدر نصًا (أو استدعاءات أدوات) بالفعل، ينتظر `input`
+  النقطة الآمنة التالية مثل [`enqueue()`](#المدخلات-في-قائمة-الانتظار): وتكون `applied`
+  مساوية `'queued'`.
+- استدعاءات الأدوات الجارية تكتمل وتُحفظ نتائجها؛ أما استدعاءات تلك الدورة
+  التي لم تبدأ بعدُ فلا تُنفَّذ وتحصل على النتيجة المعتادة «أُلغي قبل تشغيله»
+  ("cancelled before it ran"). ثم يُطبَّق المُدخل.
+- تكون `applied` مساوية `false` إذا كان التشغيل قد انتهى: أرسل المُدخل في دورة
+  جديدة.
+
+```ts
+import { createAgent } from '@lousho/build-ai-agent';
+
+const agent = createAgent({ model: 'openai/gpt-4o-mini' });
+const run = agent.stream('Plan a weekend in Rome.');
+
+const steered = run.steer('Actually, make it Paris.');
+console.log(steered.applied); // 'immediate', 'queued' or false
+for await (const event of run) {
+  if (event.type === 'input.steered') console.log(`steered (${event.mode})`);
+}
+console.log(await steered.joined); // true once the input is in the transcript
+```
+
+تُرجع `steer()` الكائن `{ id, applied, joined }`: يَرِد `id` في حدثَي
+`input.steered` و`input.applied`، و`joined` وعد يخبرك هل وصل المُدخل إلى سجل
+المحادثة (مثل `applied` في `enqueue()`). يُحتسب الاستدعاء المُلغى خطوةً من
+`maxSteps`. ومع نقاط الحفظ، يُحفظ المُدخل في آخر نقطة الحفظ حالما يُستلم وقبل
+أن يُستدعى النموذج من جديد، فلا يضيع إذا وقع انهيار أثناء إعادة التوجيه؛ أما
+الدورة الجزئية المُهمَلة فلا تُحفظ في نقطة حفظ أبدًا. دون بث، استدعِ `steer()`
+على `ExecuteOptions.inputQueue` الخاصة بالتشغيل. وفي الجلسات، يجعل
+`agent.session({ turnPolicy: 'steer' })` أي `send()` أو `stream()` يُستدعى أثناء
+عمل دورة يوجّه تلك الدورة (انظر
+[الجلسات](/ar/sessions#كائن-الجلسة)).
+
+## مثال: الطرفية
+
+```ts
+import { createAgent, defineTool } from '@lousho/build-ai-agent';
+import { z } from 'zod';
+
+const getWeather = defineTool({
+  name: 'get_weather',
+  description: 'Current weather for a city',
+  input: z.object({ city: z.string() }),
+  execute: async ({ city }) => ({ city, tempC: 21 }),
+});
+
+const agent = createAgent({ model: 'openai/gpt-4o-mini', tools: [getWeather] });
+
+for await (const event of agent.stream('Weather in Paris?')) {
+  switch (event.type) {
+    case 'text.delta':
+      process.stdout.write(event.text);
+      break;
+    case 'tool.start':
+      console.log(`\n→ ${event.toolName}(${JSON.stringify(event.args)})`);
+      break;
+    case 'tool.done':
+      console.log(`← ${event.toolName} in ${event.durationMs}ms`);
+      break;
+    case 'run.done':
+      console.log(`\n[${event.finishReason}, ${event.usage?.totalTokens ?? 0} tokens]`);
+      break;
+  }
+}
+```
+
+## مثال: Server-Sent Events
+
+الأحداث قابلة للتحويل إلى JSON، فنقطة نهاية SSE ليست أكثر من `res.write` واحد
+لكل حدث. ألغِ التشغيل حين ينقطع اتصال العميل.
+
+```ts
+import { createServer } from 'node:http';
+import { createAgent } from '@lousho/build-ai-agent';
+
+const agent = createAgent({ model: 'openai/gpt-4o-mini' });
+
+createServer(async (req, res) => {
+  const question = new URL(req.url ?? '/', 'http://localhost').searchParams.get('q') ?? 'Hello!';
+  const controller = new AbortController();
+  res.on('close', () => controller.abort());
+
+  res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' });
+  for await (const event of agent.stream(question, { signal: controller.signal })) {
+    res.write(`data: ${JSON.stringify(event)}\n\n`);
+  }
+  res.end();
+}).listen(3000);
+```
+
+في المتصفح:
+
+```ts
+const source = new EventSource('/chat?q=Weather%20in%20Paris%3F');
+source.onmessage = (message) => {
+  const event = JSON.parse(message.data);
+  if (event.type === 'text.delta') output.textContent += event.text;
+  if (event.type === 'run.done') source.close();
+};
+```
+
+لواجهة محادثة بـ React فوق نقطة نهاية من هذا النوع، انظر [React](/ar/react):
+يرسل `useLoushoAgent()` المدخلات بطلب POST ويقرأ أسطر `data:` نفسها.
+
+يقدّم `lousho dev` هذه الصيغة بجلسة لكل تبويب في المتصفح: الطلب `POST /chat`
+مع `{ sessionId, input }` يبثّ `agent.session({ id }).stream(input)` في أسطر
+`data:` تنتهي بـ `event: done`، وتُحسم الموافقات عبر
+`POST /chat/:sessionId/approvals/:id` (انظر [CLI](/ar/cli#lousho-dev)).
+
+## مثال: الواجهة الكاملة
+
+تقبل `AgentExecutor.stream()` كل خيارات `execute()`. وهنا أداة تحتاج إلى موافقة
+تنهي البث بـ `approval.requested`:
+
+```ts
+import { AgentExecutor } from '@lousho/build-ai-agent';
+
+const run = AgentExecutor.stream({ agent, input, provider, toolRegistry, approvalStore });
+for await (const event of run) {
+  if (event.type === 'approval.requested') {
+    console.log(`Approve ${event.toolName}(${JSON.stringify(event.args)})? id=${event.approvalId}`);
+  }
+}
+const paused = await run.result; // paused.finishReason === 'awaiting-approval'
+```

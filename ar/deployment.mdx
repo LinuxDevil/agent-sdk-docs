@@ -1,0 +1,179 @@
+---
+title: "النشر"
+---
+{/* Generated from docs/deployment.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
+
+يحوّل `lousho build` ملف مواصفات الوكيل (انظر [الإعدادات](/ar/configuration)) إلى ناتج بناء قابل للنشر على منصة مستهدفة واحدة:
+
+```bash
+npx lousho build --target=<target> --agent=agent.yaml [--out=<dir>]
+```
+
+يشغّل مهايئ (adapter) الهدف عبر ثلاث خطوات: **الهيكلة (scaffold)** (كتابة نقطة الدخول وملفات المنصة في `--out`، والافتراضي `.lousho/build/<target>`)، و**البناء (build)** (التحزيم بـ`tsup`)، و**الوصف (describe)** (طباعة أمر تشغيل الناتج أو نشره). يجب أن يكون `tsup` مثبّتًا (`npm install --save-dev tsup`).
+
+| الهدف               | المخرجات                                                 | الأمر المطبوع                                                          |
+| ------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `node-server`       | `server.ts`, `agent.config.js`, `package.json`, `dist/server.js` | `node dist/server.js`                                                  |
+| `docker`            | كل ما يكتبه `node-server`، إضافةً إلى `Dockerfile`       | `docker build -t lousho-agent . && docker run -p 3000:3000 lousho-agent` |
+| `cloudflare-worker` | `worker.ts`, `agent.config.js`, `wrangler.toml`, `dist/worker.js` | `wrangler deploy`                                                      |
+
+كل هدف يجيب عن `GET /health` (`200 ok`) ويقدّم [واجهة HTTP](#واجهة-http) الكاملة أدناه: الجلسات، وبث SSE، والموافقات، والمصادقة برمز الوصول (bearer token).
+
+## مجلدات الوكيل
+
+يقبل `node-server` و`docker` أيضًا [مجلد وكيل](/ar/agent-directories) بدل ملف المواصفات (يمكن أن يُمرَّر المسار وسيطًا موضعيًا أو عبر `--agent`):
+
+```bash
+npx lousho build ./my-agent --target=node-server
+node .lousho/build/node-server/dist/server.js
+```
+
+يستدعي `server.ts` المولَّد `resolveAgentDir()` على `dist/agent` ثم `createDeployedServer(agent, { schedules, channels })`، فتبدأ العملية [الجداول الزمنية](/ar/schedules) الخاصة بالمجلد حين تبدأ الاستماع، وتركّب [قنواته](/ar/channels) تحت `/channels` (وهي تتحقق من طلباتها بنفسها؛ أما مسارات المحادثة فتبقى محمية برمز الوصول)، وتكتب في السجل `schedules: ...; channels: ...`. تُحزَّم ملفات الشيفرة في المجلد مسبقًا في خطوة tsup ضمن البناء إلى `dist/agent/**.js` (بناء ESM واحد يتشارك نسخة واحدة من SDK، فالاستيراد `from '@lousho/build-ai-agent'` في أداة ما يشير إلى SDK نفسها التي يشغّلها الخادم)، ويُنسخ باقي المجلد؛ ولا شيء يحتاج إلى محمِّل TypeScript وقت التشغيل. ويصبح `dist/` عندئذ ESM (وهذا ما يصرّح به `dist/package.json`). وتنسخه صورة Docker كما في السابق. البيئة المعزولة الاختيارية `dockerode` لا تُحزَّم (فهي تُحمَّل عند الحاجة فقط)، فالمجلد الذي يستخدم `SubprocessSandbox` يجب أن يثبّتها حيث يعمل. أما هدف Cloudflare Worker فما زال يقبل ملفات المواصفات فقط.
+
+## واجهة HTTP
+
+كل هدف يقدّم بروتوكول `/chat` نفسه الذي يقدّمه `lousho dev` ([واجهة سطر الأوامر](/ar/cli#lousho-dev))، ومن الشيفرة نفسها (`src/server/fetchRoutes.ts` المبنية على Fetch مباشرة، ويستدعيها خادم Node والـWorker معًا)، فالصفحة أو السكربت المكتوب للعمل مع خادم التطوير يعمل مع الخادم المنشور.
+
+| نقطة النهاية | ما تفعله |
+| -------- | ------------ |
+| `GET /health` | `200 ok`. لا تحتاج إلى مصادقة أبدًا: وجِّه إليها موازِنات الحمل وفحوص سلامة الحاويات. |
+| `POST /chat` `{ "sessionId", "input" }` | تشغّل دورة من الجلسة `sessionId` (من 1 إلى 128 محرفًا من `A-Za-z0-9_-`؛ المعرّف الجديد يبدأ محادثة، والمعروف يواصلها) وتبثّها بصيغة SSE: سطر `data: <AgentEvent JSON>` لكل حدث ([البث](/ar/streaming))، ثم `event: done`. و`input` سلسلة نصية أو مصفوفة من أجزاء المحتوى. |
+| `GET /chat/:sessionId` | سجل محادثة الجلسة: `{ sessionId, messages, pending }`. |
+| `POST /chat/:sessionId/approvals/:id` `{ "approved", "note"? }` أو `{ "answer" }` | تبتّ في موافقة أداة معلّقة، أو تجيب عن `ask_question`، وتبثّ الدورة المتواصلة مباشرةً بصيغة SSE، بالتأطير وأنواع الأحداث نفسها التي في `POST /chat` (`tool.start` / `tool.done` أو `tool.error` للاستدعاء المبتوت فيه، وأجزاء النص المتتابعة، و`approval.requested` إن توقفت مرة أخرى، و`run.done`)، من `agent.approvals.streamResolve()` / `streamAnswer()`. تعيد `404` حين لا يكون `id` معلّقًا. |
+| `POST /chat` `{ "message" }` | صيغة قديمة: دورة واحدة بلا سجل محادثة ولا بث؛ تعيد `ExecutionResult` الخاص بالوكيل بصيغة JSON، مع الترويسة `Deprecation: true`. |
+
+الأجسام التي تتجاوز 1MB تحصل على `413`، و JSON غير الصالح يحصل على `400`.
+
+```bash
+curl -N http://127.0.0.1:3000/chat \
+  -H 'Authorization: Bearer '"$LOUSHO_API_TOKEN" -H 'Content-Type: application/json' \
+  -d '{ "sessionId": "alice", "input": "Hello" }'
+```
+
+### المصادقة
+
+عيّن `LOUSHO_API_TOKEN` (وعلى هدف Worker، كسرّ: `npx wrangler secret put LOUSHO_API_TOKEN`) فيشترط كل مسار عدا `/health` الترويسة `Authorization: Bearer <token>`؛ وأي شيء آخر يحصل على `401` مع خطأ بصيغة JSON (يُقارَن الرمز في زمن ثابت). ومن دونه يكون الخادم مفتوحًا: لا بأس بذلك على `127.0.0.1`، لكن **اعتبر الرمز إلزاميًا لكل ما ليس على localhost** (يسجّل الخادم تحذيرًا حين يستمع على واجهة شبكة أخرى بلا رمز، وصورة `docker` تستمع على جميع الواجهات). أنهِ اتصال TLS أمام الخادم، لأن رمز الوصول ينتقل نصًا صريحًا عبر HTTP غير المشفَّر. مرّر الرمز وقت التشغيل (`docker run -e LOUSHO_API_TOKEN=...`).
+
+برمجيًا، يضمّن `adapter.scaffold(agentPath, outDir, { auth: { token } })` رمزًا داخل خادم `node-server` أو `docker` المبني، يُستخدم حين لا يكون المتغير معيّنًا. الأولوية للمتغير، والرمز المضمَّن مقروء في `dist/server.js`، ففضِّل المتغير. أما Worker فيقرأ الرمز من ارتباطه (binding) `LOUSHO_API_TOKEN` فقط.
+
+### الجلسات والمخزن
+
+يحدّد `LOUSHO_STORE` مكان حفظ الجلسات ونقاط الحفظ (checkpoints) والموافقات:
+
+| القيمة | المخزن |
+| ----- | ----- |
+| `memory` (الافتراضي) | `memoryStore()`: يزول عند إعادة تشغيل العملية، ولا يُشارَك بين النسخ العاملة. |
+| `sqlite:<path>` | ملف [`SqliteStore`](/ar/sessions) (يُنشأ مع مجلده): تبقى الجلسات بعد إعادة التشغيل. يحتاج إلى Node 22 (`node:sqlite`)؛ وصورة `docker` تستخدم `node:22-slim`. اربط مجلد الملف كوحدة تخزين (volume). |
+
+SQLite ملف واحد على قرص واحد، فشغّل نسخة واحدة فقط لكل ملف قاعدة بيانات.
+
+## `node-server`
+
+الملف `dist/server.js` حزمة واحدة مكتفية بذاتها (تتضمن SDK واعتمادياتها)، فيعمل بلا `npm install`:
+
+```bash
+cd .lousho/build/node-server
+node dist/server.js                   # http://127.0.0.1:3000
+node dist/server.js --port=8080 --host=0.0.0.0
+```
+
+مثل `lousho dev`، يرتبط الخادم بـ`127.0.0.1` ما لم تختر صراحةً واجهة أخرى بـ`--host=<h>` (أو `HOST=<h>`)؛ والمنفذ يأتي من `--port` أو `PORT`، وإلا فالافتراضي `3000`. وإشارتا SIGINT/SIGTERM تغلقان الوكيل قبل الخروج. تُقرأ بيانات اعتماد المزوّد من متغيرات البيئة نفسها المستخدمة في كل مكان آخر (`OPENAI_API_KEY`، ...).
+
+## `docker`
+
+يعيد استخدام هيكل `node-server` وحزمته ويضيف `Dockerfile` مبنيًا على `node:22-slim` ينسخ `dist/` ويشغّل `node dist/server.js` على المنفذ 3000. تعيّن الصورة `HOST=0.0.0.0`، إذ يجب أن يستمع الخادم داخل الحاوية على جميع الواجهات ليصل إليه `docker run -p`. مرّر بيانات اعتماد المزوّد وقت التشغيل:
+
+```bash
+cd .lousho/build/docker
+docker build -t lousho-agent .
+docker run -p 3000:3000 -e OPENAI_API_KEY=... lousho-agent
+```
+
+## `cloudflare-worker`
+
+يولّد Worker بصيغة الوحدة (`export default { fetch }`) ويحزّمه كوحدة ES لمنصة المتصفح؛ ويفشل البناء إذا انتهى أي استيراد `node:` إلى `dist/worker.js`. يشير `wrangler.toml` بـ`main` إلى `dist/worker.js` مع `no_bundle = true`، فتُرفع الحزمة المتحقَّق منها بعينها. وهو يُبنى ويعمل مع `ai` v4 (التثبيت الافتراضي) أو `ai` v7 (مع `@ai-sdk/openai`/`@ai-sdk/anthropic` v4) مثبّتة، بلا أي راية توافق (بلا `nodejs_compat`):
+
+```bash
+cd .lousho/build/cloudflare-worker
+npx wrangler dev       # local workerd runtime
+npx wrangler deploy    # requires a Cloudflare account (`wrangler login`)
+```
+
+لا تتوفر في Workers وحدات Node.js المدمجة، ولذلك يدعم هذا الهدف حاليًا:
+
+- المزوّدون: `mock` و`openai` و`anthropic`. المزوّدان `openai`/`anthropic` مبنيان على `generateText`/`streamText` من Vercel `ai` SDK مع `@ai-sdk/openai`/`@ai-sdk/anthropic`، وهي تنفيذات خالصة تعتمد على `fetch()` ومعايير الويب، بلا أي استيراد `node:*` في أي موضع من شجرة اعتمادياتها، فتُحزَّم وتعمل على Workers بلا مشكلات. أما `ollama` و`openrouter` **فغير** مدعومين هنا: `ollama` يستخدم افتراضيًا نقطة نهاية محلية `http://localhost:11434` لا يستطيع Worker الوصول إليها، و`openrouter` لم يخضع بعد لتدقيق توافق مع Workers؛ استخدم `node-server` أو `docker` لهما؛
+- الأدوات: `current-date` و`day-name`. الأداة `http` **غير** مدعومة: فحمايتها من SSRF تستعلم عن عناوين اسم المضيف عبر `node:dns` وتفحص *كل* عنوان ناتج مقابل قائمة حظر قبل الاتصال (لسدّ ثغرة DNS rebinding)، ثم، في حالة `validateSSL: false`، تثبّت إعداد TLS ذاك لكل طلب عبر `Agent` مخصَّص من `undici`. والدالة `fetch()` الأصلية في Workers لا توفّر وسيلة مكافئة للاستعلام عن اسم المضيف مسبقًا وتثبيت الاتصال على عنوان IP المتحقَّق منه، فنسخة Workers من هذه الأداة لو بُنيت على `fetch()` العادية لأسقطت تلك الحماية بصمت، لا أن تفقد وظيفة مريحة فحسب؛ ولذلك تُركت غير مدعومة بدل أن تُطرح أضعف تحت الاسم نفسه.
+
+يرفض `lousho build` ملف المواصفات الذي يستخدم أي شيء آخر، بخطأ يسمّي المزوّد أو الأداة غير المدعومة. تُقرأ مفاتيح API للمزوّدين من ارتباطات Worker المسماة `<TYPE>_API_KEY` (مثل `wrangler secret put OPENAI_API_KEY`، `wrangler secret put ANTHROPIC_API_KEY`)، ويجب أن تكون الحزم النظيرة الخاصة بـ`openai`/`anthropic` (`@ai-sdk/openai`/`@ai-sdk/anthropic`، `ai`) مثبّتة إلى جانب `@lousho/build-ai-agent` ليتمكن `lousho build` من تحزيمها.
+
+### الارتباطات والجلسات وواجهة API على Workers
+
+يقدّم Worker [واجهة HTTP](#واجهة-http) المذكورة أعلاه: `GET /health`، و`POST /chat` مبثوثة بصيغة SSE (`ReadableStream`)، و`GET /chat/:sessionId`، ونقطة نهاية الموافقات، وجسم الطلب المُهمَل `{ "message" }`. وله ارتباطان:
+
+| الارتباط | النوع | ما يفعله |
+| ------- | ---- | ------------ |
+| `LOUSHO_API_TOKEN` | سرّ (`npx wrangler secret put LOUSHO_API_TOKEN`) | يجعل كل مسار عدا `/health` يشترط `Authorization: Bearer <token>` (مقارنة في زمن ثابت، وإلا `401` بصيغة JSON). ومن دونه يكون Worker مفتوحًا لكل من يملك عنوانه (URL)، **فعيّنه قبل أن تنشر**. |
+| `AGENT_CHECKPOINTS` | فضاء أسماء KV | يحفظ الجلسات ونقاط الحفظ والموافقات المتوقفة، في فضاء أسماء واحد، بوصفه `KVStore` (أدناه). ومن دونه تعيش في ذاكرة isolate واحد يعيد Cloudflare تدويره متى شاء: يصلح ذلك لتجربة النشر، لا للإنتاج. |
+
+يُولَّد `wrangler.toml` وفيه كتلة `[[kv_namespaces]]` الخاصة بـ`AGENT_CHECKPOINTS` معطّلة بتعليق، مع أوامر إنشاء فضاء الأسماء (`npx wrangler kv namespace create AGENT_CHECKPOINTS`، ونسخة أخرى بـ`--preview`) وموضع لصق المعرّفات الناتجة. أزل التعليق عنها واملأ المعرّفات.
+
+```bash
+cd .lousho/build/cloudflare-worker
+npx wrangler secret put LOUSHO_API_TOKEN
+npx wrangler secret put OPENAI_API_KEY
+npx wrangler deploy
+curl -N https://<your-worker>.workers.dev/chat \
+  -H "Authorization: Bearer $LOUSHO_API_TOKEN" -H 'Content-Type: application/json' \
+  -d '{ "sessionId": "alice", "input": "Hello" }'
+```
+
+`KVStore(kvBinding, { prefix?, ttl? })` (`src/deploy/kvStore.ts`) هو `AgentStore` الذي يبنيه Worker من الارتباط؛ استخدمه بنفسك بـ`createAgent({ store: new KVStore(env.AGENT_CHECKPOINTS) })` في Worker تكتبه أنت. المفاتيح، مع `prefix` اختياري قبل كل منها:
+
+| المفتاح | القيمة |
+| --- | ----- |
+| `sessions/<id>` | سجل المحادثة بصيغة JSON (بايتات الصور والملفات بالشكل `{ "$bytes": "<base64>" }`، كما في `FileSessionStore`). |
+| `checkpoints/<id>` | الـ`Checkpoint` الخاص بتشغيل متين أو بدورة جلسة (`KVCheckpointStore`، مع سجله التاريخي تحت `checkpoints/<id>#history`). |
+| `approvals/<id>` | موافقة متوقفة واللقطة التي تستأنفها (تُحذف عند البتّ فيها). |
+
+الخيار `ttl: { sessions?, checkpoints?, approvals? }` (بالثواني، ويقبل KV 60 فأكثر) يجعل كل نوع من القيود تنتهي صلاحيته بعد تلك المدة من آخر كتابة له؛ وافتراضيًا تبقى القيود حتى تُحذف.
+
+الموافقة التي توقف دورة في طلبٍ ما يمكن أن يبتّ فيها طلب لاحق على isolate آخر: فالجلسة المحفوظة بنقطة حفظ تسمّي موافقتها المعلّقة، ونقطة نهاية الموافقات تواصلها من KV. وأحداث تلك التتمة لا تتضمن `tool.done` الخاص باستدعاء الأداة المبتوت فيه؛ ويحمل `run.done` فيها النص النهائي.
+
+الصيغة المُهمَلة `POST /chat { "message", "sessionId"? }` تحتفظ بسلوكها السابق على Workers: مع `sessionId` تُحفظ للتشغيل نقطة حفظ في `checkpoints/<sessionId>` بعد كل نتيجة أداة، ويستعيدها طلب لاحق يعيد استخدام `sessionId` (بعد تعطّل أو إعادة تدوير isolate).
+
+### الاعتماديات النظيرة الاختيارية في بناءي node و docker
+
+يحزّم `dist/server.js` الـSDK لكنه يُبقي اعتمادياتها النظيرة الاختيارية (مدخلات `peerDependenciesMeta` في package.json الخاص بها: حزم المزوّدين، و`dockerode`، و MCP SDK، و`prompts`، ...) خارج الحزمة، فلا يحتاج أي بناء إلى اعتمادية لا تستخدمها. ثبّت، حيث يعمل الخادم، الاعتماديات النظيرة التي يحتاج إليها وكيله فقط (مثل `@ai-sdk/openai` لوكيل OpenAI)؛ ومسار الشيفرة الذي يحتاج إلى اعتمادية مفقودة يرمي خطأ SDK ذا الرمز الخاص بالاعتمادية النظيرة المفقودة. ومشغِّلات cron في ملف المواصفات تعمل على هدفي node-server و docker كما تعمل على Workers ([الجداول الزمنية](/ar/schedules#على-خادم-node)).
+
+### مشغِّلات cron و`handleScheduled`
+
+مشغِّلات cron في ملف المواصفات (`triggers: [{ type: 'cron', cron: '0 9 * * MON', input: '...' }]`) تصبح `[triggers] crons = [...]` في `wrangler.toml`، ويصدّر Worker المولَّد معالِج `scheduled()` يشغّلها كدورات للوكيل (الجلسة `schedule:<name>`، انظر [الجداول الزمنية](/ar/schedules#على-cloudflare-workers)). يقيّم Cloudflare التعابير بتوقيت **UTC** وبدقة دقيقة واحدة؛ ويرفض البناء `timezone`، أو حقل الثواني، أو اختصارًا مثل `@daily`، أو يومًا من الأسبوع بصيغة رقمية (`LOUSHO_SCHEDULE_INVALID`).
+
+في Worker تكتبه بنفسك، اربط وكيلًا معرَّفًا في الشيفرة باستخدام `handleScheduled(agent, schedules, controller, ctx)` (وهي مصدَّرة أيضًا من `@lousho/build-ai-agent/deploy-runtime-worker`). تشغّل هذه الدالة الجداول الزمنية التي يساوي `cron` فيها `controller.cron` داخل `ctx.waitUntil()` ولا ترمي خطأً أبدًا؛ وأدرج التعابير نفسها تحت `[triggers] crons` بنفسك:
+
+```ts
+import { createAgent, createMockProvider, defineSchedule, handleScheduled } from '@lousho/build-ai-agent';
+import type { ScheduledContext, ScheduledController } from '@lousho/build-ai-agent';
+
+const agent = createAgent({ instructions: 'You write reports.', provider: createMockProvider() });
+const schedules = [defineSchedule({ name: 'weekly', cron: '0 9 * * MON', prompt: 'Summarise last week.' })];
+
+export default {
+  scheduled: (controller: ScheduledController, _env: unknown, ctx: ScheduledContext) =>
+    handleScheduled(agent, schedules, controller, ctx),
+};
+```
+
+### التنفيذ المتين (التوقف/الاستئناف) على Workers
+
+عمر الطلب في Worker أقصر من أن يناسبه `CheckpointStore` يعمل في الذاكرة أو على نظام الملفات (انظر [الإعدادات](/ar/configuration) / `src/execution/checkpoint.ts` لمعرفة ما هو `CheckpointStore` ولماذا يحتاج إليه التشغيل ليصمد أمام تعطّل أو توقف عند بوابة موافقة). `AGENT_CHECKPOINTS` هو ذلك المخزن، مبنيًا على KV (`KVCheckpointStore`)، والارتباط الواحد المذكور أعلاه هو كل ما يلزم لتفعيله.
+
+**لماذا KV، لا D1 ولا Durable Objects:** الـ`Checkpoint` كتلة JSON واحدة مفتاحها `sessionId`، تُقرأ وتُكتب كاملة؛ وهذا بالضبط الشكل الذي صُمّم له Workers KV، بلا أي بنية تحتية إضافية سوى ارتباط فضاء أسماء. D1 كان سيوفّر قدرة استعلام علائقية لا يحتاج إليها هذا المخزن أبدًا؛ و Durable Object كان سيوفّر اتساقًا صارمًا لكل جلسة مقابل تجهيز صنف DO وترحيله (migration) ودفع تكلفة كائن ذي حالة لكل جلسة. إذا كان حمل عملك يحتاج فعلًا إلى اتساق صارم من نوع القراءة بعد الكتابة (read-after-write) عبر المواقع الطرفية (انظر التحفّظ أدناه)، فإن `CheckpointStore` مبنيًا على Durable Object هو مسار الترقية الطبيعي: تنفيذ واجهة `CheckpointStore` نفسها (`save`/`load`/`delete`) على فضاء أسماء Durable Object بدل فضاء أسماء KV.
+
+**الاتساق النهائي، اقرأ هذا قبل الاعتماد عليه في سير عمل الموافقات:** Workers KV مخزن *متّسق اتساقًا نهائيًا* (eventually consistent). عملية `put()` تظهر فورًا للموقع الطرفي الذي كتبها، لكن انتشارها إلى مواقع Cloudflare الطرفية الأخرى حول العالم قد يستغرق حتى نحو 60 ثانية. عمليًا يعني ذلك: إذا كُتبت نقطة حفظ جلسة في موقع طرفي ووصل بعد قليل طلب لاحق للـ`sessionId` *نفسه* إلى موقع طرفي *آخر*، فقد يرى ذلك الطلب بيانات قديمة (نقطة حفظ أقدم، أو لا شيء) بدل ما كُتب للتو. وأكثر ما يهم ذلك في التوقفات عند بوابة الموافقة، حيث يكون التوقف والاستئناف اللاحق الذي تطلقه موافقة الإنسان طلبين منفصلين بطبيعتهما قد يصلان إلى موقعين مختلفين. هذه الـSDK لا تَعِد، ولا تستطيع أن تَعِد بالنظر إلى ضمانات KV، باتساق صارم من نوع القراءة بعد الكتابة هنا. إذا كان سير عمل الموافقات لديك لا يحتمل تلك النافذة الزمنية، فوجِّه طلبات الجلسة الواحدة إلى موقع Cloudflare واحد بنفسك (مثلًا عبر توجيه الطلبات المبني على Durable Object) أو استخدم مخزنًا قويّ الاتساق بدل `AGENT_CHECKPOINTS`/KV. والأمر نفسه ينطبق على الجلسات: طلبان لجلسة واحدة في اللحظة نفسها قد يكتب أحدهما فوق دورة الآخر، لأن عملية «قراءة ثم تعديل ثم كتابة» في KV ليست ذرّية.
+
+المخازن المبنية على KV (`KVStore` و`KVCheckpointStore` و`CHECKPOINT_KV_BINDING`، في `src/deploy/kvStore.ts` و`src/deploy/kvCheckpointStore.ts` و`src/deploy/checkpointBinding.ts`) لا تتضمن أي إشارة إلى `node:*` في أي موضع من شجرة اعتمادياتها. يشغّل Worker ملف المواصفات كوكيل `createAgent()`، ويوجّه البناءُ استيراداته الخاصة بـNode وحدها (تعليمات المشروع، ومخزن الجلسات المبني على الملفات، ورقع حواجز الحماية، و MCP عبر stdio) إلى بديل (shim) يفشل عند استخدامه (`src/deploy/shims/node.worker.ts`). ثم تُفحص حزمة `dist/worker.js` المبنية بحثًا عن محدِّدات `node:` ومحدِّدات وحدات Node المدمجة المجرّدة ضمن `lousho build`، ويفشل البناء إذا وُجد أي منها. استثناء واحد: `ai` v7 و`@ai-sdk/provider-utils` v5 تبحثان عن `node:module` و`node:dns` و`node:diagnostics_channel` و`node:async_hooks` وقت التشغيل بـ`process.getBuiltinModule()`، فقط حين تكتشفان Node، وتعودان إلى `fetch()` (أو تتخطيان تتبّع القياس عن بُعد) في غير ذلك. وتُقبل هذه المعرّفات الأربعة وسيطًا لمثل هذا الاستدعاء ولا تُقبل في أي موضع آخر. الحزمة أكبر من Worker ذي الدورة الواحدة (نحو 1.7 MB خام و340 KB بضغط gzip لوكيل `mock` على `ai` v4؛ ونحو 3.4 MB خام و630 KB بضغط gzip على `ai` v7): يعرض `lousho build` حجمها، ويقارنه `describe()` بحد حجم السكربت لدى Cloudflare.
+
+## الأهداف المخصَّصة
+
+الأهداف كائنات `DeploymentAdapter` (`scaffold`، `build`، `describe`) تُسجَّل بالاسم عبر `registerAdapter()`؛ وكلاهما مصدَّر من جذر الحزمة.
