@@ -50,6 +50,8 @@ How the pieces fit:
 | `InMemoryApprovalStore`       | Process-local `ApprovalStore`; the default store of `createAgent()` agents. |
 | `StorageServiceApprovalStore`, `LocalStorageCheckpointStore` | File-backed approval and checkpoint stores over a `StorageService` (see [Approvals](/approvals), [Durable execution](/durable-execution)). |
 | `SqliteStore` (from `/sqlite`) | Sessions, checkpoints and approvals in one SQLite file (see [Sessions](/sessions#choosing-a-store)). |
+| `fileStore(dir)`              | Sessions, checkpoints and approvals as plain JSON files under `dir` (see [Sessions](/sessions#choosing-a-store)). |
+| `KVStore`, `KVCheckpointStore` (from `/kv`) | Stores on a Cloudflare Workers KV binding, for a hand-written Worker (see [Deployment](/deployment)). |
 | `AgentStore`, `memoryStore()` | The `createAgent({ store })` option: `{ sessions?, checkpoints?, approvals? }`, and an in-memory one (see [Sessions](/sessions#choosing-a-store)). |
 | `SessionAwaitingApprovalError` | Thrown by `execute()` when its `sessionId` is paused on an approval (see [Durable execution](/durable-execution)). |
 | `SDKError`, `ERROR_CODES`    | Base class of the SDK's errors: a stable `code`, a `hint` and a `docs` link (see [Errors](/errors)). |
@@ -313,6 +315,9 @@ Token estimates, the model price table, and the usage and cost of a run: see [Mo
 - `WebhookTriggerAdapter`, `SlackTriggerAdapter`, `CronTriggerAdapter` and `TriggerRegistry`
   (`@lousho/build-ai-agent/triggers`) - wake an agent from a webhook, a Slack
   message or a schedule; see [Triggers](/triggers).
+- `jwt()`, `oidc()`, `basic()`, `apiToken()`, `anonymous()` and `routeAuth()`
+  (`@lousho/build-ai-agent/auth`) - route auth as an ordered list; the caller
+  it accepts reaches the run as `principal`; see [Route auth and principals](/auth).
 - `defineEval()`, scorers such as `exactMatch`, `toolCallOrder` and `budget`, checks such
   as `includes` and `atLeast`, and `llmJudge()` - agent evals run under vitest
   or `lousho eval`; see [Evals](/evals).
