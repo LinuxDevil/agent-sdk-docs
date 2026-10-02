@@ -7,7 +7,8 @@
     "dev": "mint dev",
     "sync": "node scripts/sync-sdk-docs.mjs",
     "check": "mint broken-links",
-    "check:translations": "node scripts/check-translations.mjs"
+    "check:translations": "node scripts/check-translations.mjs",
+    "test": "node --test scripts/sync-pr-body.test.mjs"
   },
   "devDependencies": {
     "mint": "^4.2.0"

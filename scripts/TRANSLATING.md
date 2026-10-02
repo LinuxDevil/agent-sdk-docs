@@ -96,4 +96,4 @@ node scripts/check-translations.mjs               # code blocks, front matter, s
 node scripts/check-translations.mjs --record      # store the English hashes the translation matches
 ```
 
-`check-translations.mjs` reports a page as **stale** when its English source changed after the translation was recorded. The changelog is not translated.
+`check-translations.mjs` reports a page as **stale** when its English source changed after the translation was recorded. The changelog is not translated. The daily sync pull request (`sync/sdk-docs`) lists the stale pages as `ar/<slug>.mdx`; translate them on that branch and run `--record` afterwards.

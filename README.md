@@ -15,6 +15,8 @@ The script (`scripts/sync-sdk-docs.mjs`) adds front matter, rewrites links betwe
 
 The script also rewrites links to headings: the SDK docs use GitHub's heading slugs, and Mintlify renders different ids (`scripts/anchors.mjs`).
 
+A scheduled workflow (`.github/workflows/sync-sdk-docs.yml`) does this for you: every day at 05:00 UTC, on a manual run (`workflow_dispatch`) and on a `sdk-docs-changed` repository dispatch, it checks out the SDK `main`, runs the sync and, when anything changed, opens or updates one pull request from the branch `sync/sdk-docs` (rebuilt from `main` on every run, never deleted). The pull request lists the changed pages, the sync's warnings and the stale Arabic pages, and is a draft when a page is unmapped or missing from the navigation. Merging is manual: a merge to `main` is a deploy. The workflow needs "Allow GitHub Actions to create and approve pull requests" enabled in the repository settings; the optional secret `DOCS_SYNC_TOKEN` makes `check.yml` run on that pull request.
+
 Three pages are written by hand and are never overwritten: `introduction.mdx`, `coding-agents.mdx` and `examples.mdx`. Navigation, colours and the logo are in `docs.json`.
 
 ## Arabic
@@ -43,6 +45,7 @@ npm run dev        # http://localhost:3000
 ```bash
 npm run check      # broken links
 npx mint validate  # strict build validation
+npm test           # tests for the sync pull request body
 ```
 
 Both run in CI on every pull request.

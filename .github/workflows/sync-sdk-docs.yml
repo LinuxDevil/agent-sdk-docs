@@ -1,0 +1,114 @@
+name: Sync SDK docs
+
+# Runs the sync from the SDK's docs and opens (or updates) one pull request on the
+# fixed branch sync/sdk-docs. Merging stays manual: a merge to main deploys the site.
+
+on:
+  schedule:
+    - cron: '0 5 * * *'
+  workflow_dispatch:
+  repository_dispatch:
+    types: [sdk-docs-changed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: sync-sdk-docs
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      # DOCS_SYNC_TOKEN (optional) lets check.yml run on the sync pull request;
+      # the default token does not trigger other workflows.
+      GH_TOKEN: ${{ secrets.DOCS_SYNC_TOKEN || github.token }}
+      USING_DEFAULT_TOKEN: ${{ secrets.DOCS_SYNC_TOKEN == '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.DOCS_SYNC_TOKEN || github.token }}
+
+      - uses: actions/checkout@v4
+        with:
+          repository: LinuxDevil/agent-sdk
+          ref: main
+          path: sdk
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Sync the pages from the SDK docs
+        id: sync
+        run: |
+          set +e
+          node scripts/sync-sdk-docs.mjs sdk > "$RUNNER_TEMP/sync.txt" 2>&1
+          echo "exit=$?" >> "$GITHUB_OUTPUT"
+          cat "$RUNNER_TEMP/sync.txt"
+          node scripts/check-translations.mjs > "$RUNNER_TEMP/translations.txt" 2>&1
+          cat "$RUNNER_TEMP/translations.txt"
+          exit 0
+
+      - name: Detect changes
+        id: changes
+        run: |
+          echo sdk/ >> .git/info/exclude
+          if [ -z "$(git status --porcelain --untracked-files=all)" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No changes: the site already matches the SDK docs."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit to sync/sdk-docs and open or update the pull request
+        if: steps.changes.outputs.changed == 'true'
+        env:
+          SYNC_EXIT: ${{ steps.sync.outputs.exit }}
+        run: |
+          set -euo pipefail
+          SDK_SHA="$(git -C sdk rev-parse HEAD)"
+          SHORT_SHA="$(git -C sdk rev-parse --short=7 HEAD)"
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          # Rebuild the fixed branch from origin/main. The checkout is already at origin/main,
+          # so the working tree (the sync output) carries over to the new branch.
+          git checkout -B sync/sdk-docs origin/main
+          git add -A
+          git diff --cached --name-only > "$RUNNER_TEMP/changed.txt"
+          git commit --quiet -m "Sync with SDK docs at ${SHORT_SHA}"
+          git push --force-with-lease origin sync/sdk-docs
+
+          ARGS=(--sdk-sha "$SDK_SHA" --sync-out "$RUNNER_TEMP/sync.txt" --sync-exit "$SYNC_EXIT"
+                --trans-out "$RUNNER_TEMP/translations.txt" --changed "$RUNNER_TEMP/changed.txt"
+                --body-out "$RUNNER_TEMP/body.md" --title-out "$RUNNER_TEMP/title.txt"
+                --draft-out "$RUNNER_TEMP/draft.txt")
+          if [ "$USING_DEFAULT_TOKEN" = "true" ]; then ARGS+=(--default-token); fi
+          node scripts/sync-pr-body.mjs "${ARGS[@]}"
+          TITLE="$(cat "$RUNNER_TEMP/title.txt")"
+
+          EXISTING="$(gh pr list --head sync/sdk-docs --base main --state open --json number --jq '.[0].number // empty')"
+          if [ -n "$EXISTING" ]; then
+            gh pr edit "$EXISTING" --title "$TITLE" --body-file "$RUNNER_TEMP/body.md"
+            if [ "$(cat "$RUNNER_TEMP/draft.txt")" = "true" ]; then
+              gh pr ready "$EXISTING" --undo || true
+            else
+              gh pr ready "$EXISTING" || true
+            fi
+            echo "Updated pull request #$EXISTING"
+          else
+            CREATE=(--base main --head sync/sdk-docs --title "$TITLE" --body-file "$RUNNER_TEMP/body.md")
+            if [ "$(cat "$RUNNER_TEMP/draft.txt")" = "true" ]; then CREATE+=(--draft); fi
+            if ! gh pr create "${CREATE[@]}" 2> "$RUNNER_TEMP/pr-error.txt"; then
+              cat "$RUNNER_TEMP/pr-error.txt"
+              if grep -qi 'not permitted to create or approve pull requests' "$RUNNER_TEMP/pr-error.txt"; then
+                echo "::error::GitHub Actions may not create pull requests in this repository. Enable Settings > Actions > General > Allow GitHub Actions to create and approve pull requests."
+              fi
+              exit 1
+            fi
+          fi
