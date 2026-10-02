@@ -8,7 +8,7 @@ sidebarTitle: "Next.js وأطر Fetch"
 إطار عمل تأخذ معالجاته كائن `Request` من معايير الويب وتُعيد `Response`:
 Next.js App Router، و SvelteKit، و Remix / React Router، و Hono، و Bun.serve. وهو
 غلاف رقيق فوق واجهة الجلسات نفسها التي يستخدمها `lousho dev` والخادم المنشور
-(docs/deployment.md)، فتعمل معه واجهات الربط (bindings) الخاصة بـ React و Vue و Svelte
+([النشر](/ar/deployment))، فتعمل معه واجهات الربط (bindings) الخاصة بـ React و Vue و Svelte
 دون تغيير. ولا يستورد أي إطار عمل ولا أي وحدة `node:*`.
 
 ## Next.js App Router
@@ -74,7 +74,7 @@ export function Chat() {
 
 مع `uiMessageStream: true`، وجّه `useChat` إلى المسار `ui`. المعرّف `id` الخاص بالمحادثة
 يسمّي الجلسة، فلا يُرسل إلى الوكيل إلا أحدث رسالة للمستخدم
-(docs/ai-sdk-ui.md).
+([واجهة AI SDK](/ar/ai-sdk-ui)).
 
 ```tsx
 import { useChat } from '@ai-sdk/react';

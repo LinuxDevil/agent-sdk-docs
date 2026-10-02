@@ -91,7 +91,7 @@ console.log(answer.text);
 ```
 
 - **الصور** تصل إلى النموذج ضمن رسائل `user` مع كل المزوّدين المدمجين (مع Anthropic وOllama تنزّل حزمة `ai` الصورة من عنوانها أولًا). اختر نموذجًا يدعم الرؤية: Ollama يتجاهل الصور مع نموذج نصي فقط، وOpenRouter يرفضها معه.
-- **الملفات** لا تستطيع الحزم النظيرة لحزمة `ai` لدى المزوّدين المدمجين (`@ai-sdk/openai` / `@ai-sdk/anthropic` 0.0.x، و`ollama-ai-provider`) إرسالها: يُرسَل جزء الملف كملاحظة نصية (`[file report.pdf (application/pdf) not sent]`) ويحذّر المزوّد مرة واحدة. الصنف الفرعي من مزوّد يقبل نموذجه الملفات يضبط `protected readonly acceptsFileParts = true` ليرسلها كأجزاء ملفات بصيغة `ai` v4.
+- **الملفات** لا يرسلها المزوّدون المدمجون، على أي إصدار رئيسي من `ai`: يُرسَل جزء الملف كملاحظة نصية (`[file report.pdf (application/pdf) not sent]`) ويحذّر المزوّد مرة واحدة. الصنف الفرعي من مزوّد يقبل نموذجه الملفات يضبط `protected readonly acceptsFileParts = true` ليرسلها كأجزاء ملفات بصيغة `ai` v4.
 - رسائل `system` و`assistant` و`tool` تُرسَل بأجزائها النصية.
 - كل ما يقرأ نص الرسائل يستخدم `textOf()`: `estimateTokens()` (يُحتسب كل جزء صورة أو ملف 1,000 رمز ثابتة)، وضغط السياق، وأشرطة تسجيل `recordReplay()` (التي تخزّن النص وبصمة كل صورة أو ملف، أو عنوانه) و`mockModel()`. يحفظ `FileSessionStore` البايتات بترميز base64 (`{ "$bytes": "..." }`) ويعيد تحميلها على هيئة `Uint8Array`؛ ويفعل `SqliteStore` (للجلسات ونقاط الحفظ) الشيء نفسه.
 
@@ -115,9 +115,9 @@ console.log(answer.text);
 | `ai` | `generate()` | `stream()` | ملاحظات |
 | ---- | ------------ | ---------- | ----- |
 | v4 (`^4.3.19`) | نعم | نعم | كل ما في هذه الوثائق. |
-| v6 (`^6.0.0`), v7 (`^7.0.0`) | نعم، عبر طبقة توافق (LOU-D26) | نعم، عبر الطبقة نفسها (LOU-D27) | Ollama يحتاج إلى تثبيت zod 4 (أدناه). |
+| v6 (`^6.0.0`), v7 (`^7.0.0`) | نعم، عبر طبقة توافق | نعم، عبر الطبقة نفسها | Ollama يحتاج إلى تثبيت zod 4 (أدناه). |
 
-نطاقات الاعتماديات النظيرة تقبل الإصدارات الرئيسية الثلاثة (LOU-D28d). قرِن كلًّا منها بحزم المزوّدين المناسبة له:
+نطاقات الاعتماديات النظيرة تقبل الإصدارات الرئيسية الثلاثة. قرِن كلًّا منها بحزم المزوّدين المناسبة له:
 
 | `ai` | `@ai-sdk/openai`, `@ai-sdk/anthropic` | حزمة Ollama |
 | ---- | ------------------------------------- | -------------- |
@@ -125,7 +125,7 @@ console.log(answer.text);
 | `^6.0.0` | `^3.0.0` | `ollama-ai-provider-v2@^3.0.0` |
 | `^7.0.0` | `^4.0.0` | `ollama-ai-provider-v2@^4.0.0` |
 
-تلميح التثبيت لحزمة مزوّد ناقصة و`lousho doctor` يذكران الإصدار المناسب لنسخة `ai` المثبَّتة لديك، وينبّه `lousho doctor` إلى الزوج غير المتوافق (مثلًا `ai` 7 مع `@ai-sdk/openai` 1.x). يحمّل `OllamaProvider` الحزمة `ollama-ai-provider` على `ai` 4 والحزمة `ollama-ai-provider-v2` على `ai` 6/7؛ وحزمة v2 تعتمد اعتمادًا نظيرًا على zod 4، وهو ما تقبله الـ SDK منذ LOU-D29، فثبّت zod 4 معها (مشاريع zod 3 تستخدم Ollama مع `ai` 4). ينشئ `lousho init` هيكل المشروع بـ `ai@^7.0.0` مع `@ai-sdk/*@^4.0.0` لـ OpenAI وAnthropic وOpenRouter، وبـ `ai@^4.3.19` لـ Ollama.
+تلميح التثبيت لحزمة مزوّد ناقصة و`lousho doctor` يذكران الإصدار المناسب لنسخة `ai` المثبَّتة لديك، وينبّه `lousho doctor` إلى الزوج غير المتوافق (مثلًا `ai` 7 مع `@ai-sdk/openai` 1.x). يحمّل `OllamaProvider` الحزمة `ollama-ai-provider` على `ai` 4 والحزمة `ollama-ai-provider-v2` على `ai` 6/7؛ وحزمة v2 تعتمد اعتمادًا نظيرًا على zod 4، وهو ما تقبله الـ SDK، فثبّت zod 4 معها (مشاريع zod 3 تستخدم Ollama مع `ai` 4). ينشئ `lousho init` هيكل المشروع بـ `ai@^7.0.0` مع `@ai-sdk/*@^4.0.0` لـ OpenAI وAnthropic وOpenRouter، وبـ `ai@^4.3.19` لـ Ollama.
 
 يستخدم OpenRouter الحزمة `@ai-sdk/openai` موجَّهة إلى عنوان OpenRouter الأساسي. ابتداءً من `@ai-sdk/openai` 2، يستهدف الاستدعاء الافتراضي `openai(modelId)` واجهة Responses API، التي لا ينفّذها OpenRouter، ولذلك يطلب `OpenRouterProvider` نموذج Chat Completions (`provider.chat(modelId)`) على كل إصدار رئيسي؛ وهو يعمل على `ai` 4 و6 و7 مع الاقتران المذكور أعلاه.
 
@@ -136,7 +136,7 @@ console.log(answer.text);
 - تتحوّل الرسائل إلى كائنات `ModelMessage`: وسائط استدعاء الأداة تصبح `input` الخاص به، ونتيجة الأداة تصبح `output` (`json` أو `text`، و`error-json` أو `error-text` حين تفشل الأداة)، و`mimeType` في جزء الصورة أو الملف يصبح `mediaType`. تبقى رسائل النظام في مواضعها (`allowSystemInMessages`).
 - يُرسَل `maxTokens` باسم `maxOutputTokens`، والخطوة الواحدة بالشكل `stopWhen: stepCountIs(1)`، والأدوات باسم `inputSchema` (مخطط zod كما هو، ومخطط JSON Schema عبر `jsonSchema()`) دون `execute`، و`responseFormat` على هيئة `output` بوضع JSON لا يمسّ نص الرد.
 - يأتي الاستهلاك من `inputTokens` / `outputTokens` / `totalTokens`، مع `cachedInputTokens` من `inputTokenDetails.cacheReadTokens` و`reasoningTokens` من `outputTokenDetails.reasoningTokens`.
-- يقرأ `stream()` المجرى `fullStream` الخاص بـ AI SDK على أي من الإصدارين الرئيسيين ويحوّله إلى القطع (chunks) نفسها: `text-delta` (في v6/v7 الحقل `text`، وفي v4 الحقل `textDelta`)، و`tool-call` (الاستدعاء الكامل الذي يرسله v6/v7 بعد `tool-input-start`/`-delta`/`-end`، أو استدعاء يُجمَّع من ذلك الإدخال حين لا يرسل النموذج استدعاءً كاملًا)، و`finish` مع سبب الانتهاء الذي تعطيه AI SDK والاستهلاك المذكور أعلاه (في v6/v7 الحقل `totalUsage`). جزء `error` يجعل المجرى يُرفض بخطئه، على v4 أيضًا (كان v4 ينهي مجرى كهذا بسبب الانتهاء `error`)، وجزء `abort` يرفضه بسبب الإشارة. تغيّرات الاستدلال الجزئية (deltas) لا يُبلَّغ عنها بعد (لا يوجد نوع قطعة للاستدلال حتى LOU-V13).
+- يقرأ `stream()` المجرى `fullStream` الخاص بـ AI SDK على أي من الإصدارين الرئيسيين ويحوّله إلى القطع (chunks) نفسها: `text-delta` (في v6/v7 الحقل `text`، وفي v4 الحقل `textDelta`)، و`tool-call` (الاستدعاء الكامل الذي يرسله v6/v7 بعد `tool-input-start`/`-delta`/`-end`، أو استدعاء يُجمَّع من ذلك الإدخال حين لا يرسل النموذج استدعاءً كاملًا)، و`finish` مع سبب الانتهاء الذي تعطيه AI SDK والاستهلاك المذكور أعلاه (في v6/v7 الحقل `totalUsage`). جزء `error` يجعل المجرى يُرفض بخطئه، على v4 أيضًا (كان v4 ينهي مجرى كهذا بسبب الانتهاء `error`)، وجزء `abort` يرفضه بسبب الإشارة. تغيّرات الاستدلال الجزئية (deltas) يُبلَّغ عنها قطعًا من النوع `reasoning-delta` وتظهر أحداثًا `reasoning.*` (انظر [الاستدلال](/ar/reasoning)).
 
 على v6/v7 يجب أن يأتي النموذج من حزمة مزوّد خاصة بذلك الإصدار الرئيسي (الجدول أعلاه)؛ فحزم `0.0.x`/`1.x` تنتج نماذج يرفضها `ai` v7. تُرسَل أجزاء الصور كأجزاء `image`، وهي ما يقبله `ai` v7 مع تحذير إهمال لكل جزء (`globalThis.AI_SDK_LOG_WARNINGS = false` يوقف تحذيرات `ai`). الإصدار `ai` v5 غير مدعوم.
 

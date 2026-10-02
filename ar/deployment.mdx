@@ -127,7 +127,7 @@ curl -N https://<your-worker>.workers.dev/chat \
   -d '{ "sessionId": "alice", "input": "Hello" }'
 ```
 
-`KVStore(kvBinding, { prefix?, ttl? })` (`src/deploy/kvStore.ts`) هو `AgentStore` الذي يبنيه Worker من الارتباط؛ استخدمه بنفسك بـ`createAgent({ store: new KVStore(env.AGENT_CHECKPOINTS) })` في Worker تكتبه أنت. المفاتيح، مع `prefix` اختياري قبل كل منها:
+`KVStore(kvBinding, { prefix?, ttl? })` (`src/deploy/kvStore.ts`) هو `AgentStore` الذي يبنيه Worker المُولَّد من الارتباط. وهو غير مُصدَّر من أي مدخل في الحزمة، ولذلك فاستيراده في Worker تكتبه بنفسك غير مدعوم بعد. مفاتيحه، مع `prefix` اختياري قبل كل منها:
 
 | المفتاح | القيمة |
 | --- | ----- |
