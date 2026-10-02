@@ -481,7 +481,7 @@ See [Schedules](/schedules).
 a channel (an object with `parse` and `reply`). The message names the file.
 
 **Fix:** default-export a channel made with `defineChannel()`, `httpChannel()`,
-`webhookChannel()` or `slackChannel()`. See [Channels](/channels).
+`webhookChannel()`, `slackChannel()`, `discordChannel()`, `telegramChannel()` or `githubChannel()`. See [Channels](/channels).
 
 **Example:** `export default { cron: 'x' }` in `channels/sms.ts`.
 
@@ -544,6 +544,22 @@ See [Registry](/registry#safety-rules).
 **Fix:** pass `--overwrite`, or move your file away first.
 
 **Example:** `lousho add web-search` twice.
+
+### LOUSHO_REGISTRY_MANIFEST_MISMATCH
+
+**Means:** an item's code reaches for something its permission manifest does not
+declare: it imports `child_process` without `exec: true`, writes files without
+`filesystem: "write"`, calls `fetch()` or names a URL host that is not in `network`,
+reads an environment variable that is not in `env`, or uses `eval`, `new Function`,
+a computed `process.env[...]` or a dynamic `import()` / `require()`, which are never
+allowed. The message lists every finding as `<file>:<line>: <what> (<fix>)`. Nothing
+was written. `--dry-run` reports it too.
+
+**Fix:** do not install the item; tell whoever hosts the registry. Its author fixes
+the code or declares the permission. See [Registry](/registry#permission-manifest).
+
+**Example:** a tool item whose file imports `node:child_process` while its manifest
+leaves `exec` out.
 
 ## Sandbox
 
@@ -620,12 +636,12 @@ unknown type, or a Slack trigger that cannot verify requests.
 
 ### LOUSHO_CHANNEL_REQUEST_FAILED
 
-**Means:** a call to a chat platform's API (Slack, Discord) failed; the message
+**Means:** a call to a chat platform's API (Slack, Discord, Telegram, GitHub) failed; the message
 names the call and the HTTP status or the platform's error.
 
 **Fix:** check the bot token and its permissions, and the platform status. See [Channels](/channels).
 
-**Example:** Slack `chat.postMessage` answering `channel_not_found`.
+**Example:** Slack `chat.postMessage` answering `channel_not_found`, Telegram `sendMessage` answering 400 for an unknown chat, or GitHub `POST /repos/{owner}/{repo}/issues/{number}/comments` answering 403 for a token without write access.
 
 ### LOUSHO_DEPLOY_FAILED
 
@@ -746,3 +762,20 @@ See [Budgets](/configuration#budgets).
 `onTripped: 'throw'`. See [Input and output guardrails](/guardrails#input-and-output-guardrails).
 
 **Example:** `createAgent({ provider, guardrails: { input: [maxLengthGuardrail({ maxChars: 10 })], onTripped: 'throw' } })` sent a longer message.
+
+## Auth
+
+### LOUSHO_AUTH_CONFIG_INVALID
+
+**Means:** a route auth helper from `@lousho/build-ai-agent/auth` (`jwt()`,
+`oidc()`, `basic()`, `apiToken()`) got options it cannot verify with, and
+refused them when it was created, not at the first request. The message names
+the option: no key source or two of them, an HMAC `secret` shorter than 32
+bytes, an algorithm that does not fit the key (`secret` with `RS256`, a public
+key with `HS256`), no `audience` (and no `allowAnyAudience: true`), a
+`clockToleranceSec` above 300, a key-set or issuer URL that is not https, an
+empty user list or token.
+
+**Fix:** change the option the message names. See [Route auth and principals](/auth).
+
+**Example:** `jwt({ secret: process.env.JWT_SECRET! })` without `audience`.

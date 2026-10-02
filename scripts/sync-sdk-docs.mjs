@@ -55,6 +55,8 @@ const PAGES = {
   'docs/observability.md': 'observability',
   'docs/cli.md': 'cli',
   'docs/deployment.md': 'deployment',
+  'docs/cloudflare-workers.md': 'cloudflare-workers',
+  'docs/auth.md': 'auth',
   'docs/registry.md': 'registry',
   'docs/agent-forge.md': 'agent-forge',
   'docs/api-overview.md': 'api-overview',

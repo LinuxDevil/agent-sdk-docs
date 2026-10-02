@@ -78,7 +78,8 @@ If the sub-agent does not finish - it throws, runs out of `maxSteps`, or is
 aborted - the lead gets an error result (`isError: true`) that says why, for
 example `Sub-agent 'researcher' used all 10 of its steps (maxSteps) without
 giving a final answer.` An unknown agent name is also an error result listing
-the valid names. Sub-agent token usage is added to the lead's `result.usage`.
+the valid names. Sub-agent token usage is added to the lead's `result.usage`,
+a [remote sub-agent](#remote-sub-agents)'s too.
 
 Errors at setup time are thrown with a fix: a sub-agent without a
 `description`, a value that is not a `createAgent()` agent, or a tool of your
@@ -127,7 +128,10 @@ Where the conversations live:
   `withSubagentOptions(subagents, { sessions })`.
 - Otherwise (no session store, or a lead run without a `sessionId`) a task
   lives in memory for that one `execute()` / `send()` call: a run that pauses
-  for approval and is resumed starts with none.
+  for approval and is resumed starts with none. A sub-agent that the approval
+  itself resumes still answers the lead (as the `task` or `agent_await`
+  result), but it cannot be continued by `taskId` afterwards; use a session
+  store for that.
 
 Only tasks that finished (`stop`, `length` or `max-steps`) are saved, so a
 task that failed or was cancelled cannot be continued. Errors reach the lead
@@ -226,15 +230,56 @@ on `result` before your `onRunEnd` sees it.
 Limits:
 
 - A lead run that pauses for approval (`finishReason: 'awaiting-approval'`)
-  ends there: its background tasks are cancelled (or awaited) like at any
-  other end, and the resumed run starts with none. The resumed run is a
-  separate run with no link to the paused one's tasks (it may even run in
-  another process), so they cannot be kept alive across the pause.
+  ends there: its background tasks still queued or running are cancelled (or
+  awaited) like at any other end, and the resumed run starts with none. The
+  resumed run is a separate run with no link to the paused one's tasks (it
+  may even run in another process), so they cannot be kept alive across the
+  pause.
 - A background sub-agent that needs approval stops with
   `status: 'awaiting-approval'` (with the child's `approvalId` and
-  `toolName`); its call does not run, and it cannot be resumed through the
-  approval store. Run that task synchronously (`background: false`) when it
-  may need approval.
+  `toolName`); its call does not run yet. It continues only when the lead
+  waits for it with `agent_await` (the `task` and `agent_status` tool
+  descriptions tell the model so). Then the **lead pauses** on that approval,
+  like for a synchronous sub-agent: the lead's result has
+  `finishReason: 'awaiting-approval'`, the pending approval names the child's
+  call with `subagentPath: ['<agent>']`, and it is listed by
+  `agent.approvals.list()`. `approvals.resolve()` (or `resume()` after a
+  restart, with a durable store) runs or rejects the child's call, lets the
+  child finish, and the continued lead gets the child's answer as the
+  `agent_await` result (`status: 'done'` with `result`, or `'failed'`). The
+  child's usage is added to the lead's, and its conversation is saved under
+  its `taskId` like any task's, so `task({ taskId })` can continue it.
+- If the child pauses again, the lead pauses again with the next approval. If
+  one `agent_await` call waits on several tasks that are all paused, the lead
+  pauses on them one after another, then that call returns every answer at
+  once.
+- A task that is still `awaiting-approval` when the lead ends without having
+  awaited it is reported in `result.backgroundTasks` with that status and
+  cannot be resumed: the model chose not to wait for it.
+
+```ts
+import { createAgent, defineTool } from '@lousho/build-ai-agent';
+import { z } from 'zod';
+
+const shell = defineTool({
+  name: 'shell',
+  description: 'Runs a shell command',
+  input: z.object({ cmd: z.string() }),
+  needsApproval: true,
+  execute: async ({ cmd }) => `ran ${cmd}`,
+});
+const coder = createAgent({ provider, instructions: 'You code.', tools: [shell], description: 'Fixes code' });
+const lead = createAgent({ provider, instructions: 'You lead.', subagents: { coder } });
+
+// The lead starts `coder` with task({ background: true }), then calls agent_await on it.
+const paused = await lead.send('Fix the failing test in the background, then report.');
+if (paused.finishReason === 'awaiting-approval' && paused.approvalId) {
+  const [pending] = await lead.approvals.list(); // { toolName: 'shell', args: { cmd: ... }, subagentPath: ['coder'] }
+  console.log(pending?.toolName, pending?.args);
+  const result = await lead.approvals.resolve({ id: paused.approvalId, approved: true });
+  console.log(result.text); // agent_await returned the coder's answer to the lead
+}
+```
 
 ## Dynamic catalogs
 
@@ -300,6 +345,19 @@ stream, or a remote run that ends in an error) reach the lead as the
 structured tool error with the code `LOUSHO_REMOTE_REQUEST_FAILED` (`LOUSHO_REMOTE_UNAUTHORIZED` for a 401); the token is
 never part of an error or an event.
 
+The remote run's token usage, as the remote agent reports it on its `run.done`
+event, is added to the lead's `result.usage`: to the totals, to
+`usage.delegated`, and to `byModel['remote:<name>']` (`<name>` is the key in
+`subagents`). The remote sends no per-model breakdown, so that one entry holds
+its totals and the remote's own `costUsd` estimate; when the remote sends no
+cost, the lead's `costUsd` becomes `undefined`. The lead trusts these numbers:
+it cannot check them. A deployment from before this change sends no usage, and
+then nothing is added. A remote run that pauses for an approval adds what it
+spent up to the pause, and the continuation adds only what it spent after it.
+The usage arrives when the remote run ends, so the lead's `limits` see it only
+after the `task` call returns. A hand-written `RemoteSubagent` gets the
+per-turn usage through the `onUsage` option of its `run()`.
+
 ### Remote approvals
 
 If the remote run pauses for an approval, the lead run pauses on it exactly as
@@ -361,7 +419,7 @@ inherits:
 | Event listeners (`onAgentEvent`, `createAgent({ onEvent })`) and `stream()` | Yes | The sub-agent's events are forwarded with a `subagent` field. |
 | `toolConcurrency` | Yes, unless the sub-agent sets its own | |
 | `sandbox` | Yes | |
-| Token usage | Rolls up | Added to the lead's `result.usage` (totals, `byModel`, and `usage.delegated`). |
+| Token usage | Rolls up | Added to the lead's `result.usage` (totals, `byModel`, and `usage.delegated`); a remote sub-agent's under `byModel['remote:<name>']`. |
 | `maxSubagentDepth` | The remaining budget | See [Depth](#depth). |
 | `onLLMRequest`, `onToolCall` and the other single-run callbacks | No | They describe one run; use hooks or an event listener to observe sub-agents. |
 | `sessionId` / `checkpointStore` | No | A sub-agent is not checkpointed on its own. If the process dies while a sub-agent runs, the resumed lead runs that `task` call again. |
@@ -454,9 +512,18 @@ Guarantees and limits:
   run, so it can ask again after the approval.
 - A `task` call's pre/post tool hooks fire again on resume, like the hooks of
   any approved tool.
+- A sub-agent whose definition changed since the pause (instructions, model
+  or tools) is handled by the lead's `onAgentDrift`, like the lead itself:
+  `'error'` rejects the resume and leaves the approval pending, `'warn'` (the
+  default) warns and emits `agent.drift` with `subagent` set. A sub-agent that
+  no longer has the approved call's tool always rejects with
+  `LOUSHO_RESUME_TOOL_MISSING`. See
+  [Resuming with a changed agent](/durable-execution#resuming-with-a-changed-agent).
 - Token usage keeps adding up across the pause: the sub-agent's usage before
   the pause is in the paused result, and what it spends after the resume is
   added to the resumed lead's `result.usage`.
+- A background sub-agent's approval pauses the lead when the lead awaits it
+  with `agent_await`; see [Background sub-agents](#when-the-lead-run-ends).
 
 #### Advanced: the executor API
 

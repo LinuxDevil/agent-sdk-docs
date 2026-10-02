@@ -98,6 +98,7 @@
                   "svelte",
                   "ai-sdk-ui",
                   "nextjs",
+                  "auth",
                   "channels",
                   "schedules",
                   "triggers",
@@ -117,6 +118,7 @@
                 "pages": [
                   "cli",
                   "deployment",
+                  "cloudflare-workers",
                   "registry",
                   "agent-forge"
                 ]
@@ -224,6 +226,7 @@
                   "ar/svelte",
                   "ar/ai-sdk-ui",
                   "ar/nextjs",
+                  "ar/auth",
                   "ar/channels",
                   "ar/schedules",
                   "ar/triggers",
@@ -243,6 +246,7 @@
                 "pages": [
                   "ar/cli",
                   "ar/deployment",
+                  "ar/cloudflare-workers",
                   "ar/registry",
                   "ar/agent-forge"
                 ]
