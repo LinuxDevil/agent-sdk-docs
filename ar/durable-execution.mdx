@@ -1,6 +1,12 @@
 ---
 title: "التنفيذ المتين"
 ---
+
+{/* pending-translation */}
+<Warning>
+لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/durable-execution).
+</Warning>
+
 {/* Generated from docs/durable-execution.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 مرّر `sessionId` و`checkpointStore` إلى `AgentExecutor.execute()` فيصمد التشغيل أمام تعطّل، أو إعادة تشغيل، أو إيقاف (abort)، أو موافقة بشرية تستغرق أيامًا. لا شيء هنا يعتمد على مستضيف بعينه: أي `CheckpointStore` (`LocalStorageCheckpointStore` على Node، أو مخزن Cloudflare KV الذي يجهّزه بناء `cloudflare-worker`، أو تنفيذك الخاص المكوَّن من ثلاث دوال) وأي `ApprovalStore` يعملان بالطريقة نفسها.

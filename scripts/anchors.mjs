@@ -1,5 +1,5 @@
 // Heading anchors. The SDK docs link to headings with GitHub's slugs; Mintlify builds its
-// ids differently (it keeps "/" and "+", turns "." into "-", and does not collapse
+// ids differently (it keeps "/" and "+", turns "." into "-" (but drops one before a space, so "5. Step" is "5-step"), and does not collapse
 // spaces), and Arabic pages have Arabic ids. These helpers translate between them.
 
 /** The h2-h4 headings of an MDX page, in order, as plain text. */
@@ -44,6 +44,7 @@ export function githubSlug(text) {
 export function mintSlug(text) {
   return text
     .toLowerCase()
+    .replace(/\.(?=\s)/g, '')
     .replace(/\./g, '-')
     .replace(/[^\p{L}\p{N}\p{M}\s_/+،؟-]/gu, '')
     .replace(/\s/g, '-');

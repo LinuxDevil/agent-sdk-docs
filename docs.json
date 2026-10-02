@@ -47,6 +47,7 @@
                   "introduction",
                   "quickstart",
                   "installation",
+                  "troubleshooting",
                   "coding-agents"
                 ]
               },
@@ -54,13 +55,20 @@
                 "group": "Build an agent",
                 "pages": [
                   "tools",
+                  "openapi-tools",
                   "approvals",
+                  "hooks",
                   "sessions",
+                  "runs",
                   "memory",
                   "structured-output",
                   "streaming",
+                  "stream-events",
+                  "queue-and-steer",
                   "reasoning",
-                  "providers"
+                  "providers",
+                  "models-and-cost",
+                  "build-a-coding-agent"
                 ]
               },
               {
@@ -68,6 +76,7 @@
                 "pages": [
                   "sub-agents",
                   "skills",
+                  "mcp",
                   "agent-directories",
                   "flows"
                 ]
@@ -91,6 +100,7 @@
                   "nextjs",
                   "channels",
                   "schedules",
+                  "triggers",
                   "acp"
                 ]
               },
@@ -133,6 +143,8 @@
                 "group": "Reference",
                 "pages": [
                   "api-overview",
+                  "executor-api",
+                  "migrating-to-create-agent",
                   "configuration",
                   "errors",
                   "utilities"
@@ -161,6 +173,7 @@
                   "ar/introduction",
                   "ar/quickstart",
                   "ar/installation",
+                  "ar/troubleshooting",
                   "ar/coding-agents"
                 ]
               },
@@ -168,13 +181,20 @@
                 "group": "بناء وكيل",
                 "pages": [
                   "ar/tools",
+                  "ar/openapi-tools",
                   "ar/approvals",
+                  "ar/hooks",
                   "ar/sessions",
+                  "ar/runs",
                   "ar/memory",
                   "ar/structured-output",
                   "ar/streaming",
+                  "ar/stream-events",
+                  "ar/queue-and-steer",
                   "ar/reasoning",
-                  "ar/providers"
+                  "ar/providers",
+                  "ar/models-and-cost",
+                  "ar/build-a-coding-agent"
                 ]
               },
               {
@@ -182,6 +202,7 @@
                 "pages": [
                   "ar/sub-agents",
                   "ar/skills",
+                  "ar/mcp",
                   "ar/agent-directories",
                   "ar/flows"
                 ]
@@ -205,6 +226,7 @@
                   "ar/nextjs",
                   "ar/channels",
                   "ar/schedules",
+                  "ar/triggers",
                   "ar/acp"
                 ]
               },
@@ -247,6 +269,8 @@
                 "group": "المرجع",
                 "pages": [
                   "ar/api-overview",
+                  "ar/executor-api",
+                  "ar/migrating-to-create-agent",
                   "ar/configuration",
                   "ar/errors",
                   "ar/utilities"
