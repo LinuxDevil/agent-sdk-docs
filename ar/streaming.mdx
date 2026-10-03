@@ -121,12 +121,13 @@ await agent.send('Weather in Paris?');
 | `abort` (`abortReason`, `usage`) | `run.done` مع `finishReason: 'aborted'` (والسبب هو `reason` الخاص بإشارتك) |
 | `finish` (`finishReason`, `usage: RunUsage`) | `run.done` (`finishReason`, `text`, `usage`, `object`)؛ وقيمة `RunUsage` الكاملة موجودة في `result.usage` |
 | حدثا `start` / `finish` لوكيل فرعي (مع `subagent`) | حدثا `tool.start` / `tool.done` لدى الوكيل الرئيسي للاستدعاء الذي بدأه |
+| (لا شيء: كان التشغيل وكيلًا واحدًا) | `handoff` (`from` و`to` و`toolCallId`): سلّم التشغيل المحادثة إلى وكيل آخر ([التسليم](/ar/handoffs)) |
 | `timestamp: Date` | `timestamp`: سلسلة نصية بصيغة ISO-8601؛ إضافةً إلى `runId` و`seq` و`v` |
 
 ويُبلغ `AgentEvent` كذلك عمّا لم يكن `ExecutionEvent` يُبلغ عنه قط: حدود
 الخطوات، وطلبات الموافقة، وقرارات الصلاحيات، والميزانيات، وحواجز الحماية،
 والمدخلات المنتظِرة والموجَّهة، وضغط السياق، والاستدلال، وإعادة المحاولة لدى
-المزوّد، وانحراف الوكيل (انظر [المخطط](/ar/stream-events#مخطط-الأحداث-الإصدار-1)).
+المزوّد، وانحراف الوكيل، وعمليات التسليم (انظر [المخطط](/ar/stream-events#مخطط-الأحداث-الإصدار-1)).
 
 ## بث دورة في جلسة
 
@@ -157,7 +158,7 @@ console.log((await again.result).text);
 `AgentRun` قيمة `result` فيه هي ما تُرجعه `agent.approvals.resolve()`. أحداثه هي
 `run.start`، ثم `tool.start` و`tool.done` للاستدعاء الذي حُسم أمره
 (و`tool.error` في حالة الرفض)، ثم أحداث التتمّة تمامًا كما في تشغيل جديد، حتى
-`run.done`؛ وأي توقف مؤقت آخر ينهيه بـ `approval.requested`. يعمل الإلغاء
+`run.done`؛ وأي توقف مؤقت آخر ينهيه بـ `approval.requested` (مع `kind: 'sign-in'` ورابط `signIn` حين تنتظر أداةٌ [تسجيل دخول OAuth](/ar/oauth#ما-يراه-المستخدم)). يعمل الإلغاء
 و`enqueue()` و`steer()` كما في أي تشغيل، ويمكن أن تأتي الموافقة من عملية
 (process) أخرى، لأن كل شيء يُقرأ من مخزن الموافقات. وإذا كان النموذج يُختار
 لكل تشغيل (`model` على هيئة دالة) فالنموذج المستخدَم هو الذي استخدمه التشغيل

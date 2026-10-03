@@ -62,7 +62,7 @@ export function Chat() {
 | الحقل | ما هو |
 | ----- | ---------- |
 | `messages` | `UIMessage[]`: `{ id, role: 'user' \| 'assistant', text, toolCalls }`. كل استدعاء لـ `send()` يضيف رسالة مستخدم ورسالة مساعد تمتلئ مع وصول `text.delta` وأحداث الأدوات. |
-| `toolCalls[i]` | `{ id, name, args, status, result?, error? }`، وقيمة `status` هي `'running'` أو `'awaiting-approval'` أو `'done'` أو `'error'` أو `'rejected'`. |
+| `toolCalls[i]` | `{ id, name, args, status, result?, error?, partial? }`، وقيمة `status` هي `'running'` أو `'awaiting-approval'` أو `'done'` أو `'error'` أو `'rejected'`. و`partial` هي أحدث لقطة `tool.partial` لـ[أداة بث](/ar/tools#بث-النتائج-الجزئية) قيد التشغيل، وتُزال عندما يستقر الاستدعاء أو يتوقف مؤقتًا. |
 | `status` | `'idle'` أو `'streaming'` أو `'awaiting-approval'` أو `'error'`. |
 | `pendingApproval` | `{ id, toolCallId, toolName, args }` لاستدعاء الأداة الذي توقف عنده التشغيل، وإلا `null`. ولاستدعاء `ask_question` يتضمن أيضًا `kind: 'question'` و`question: { text, options?, allowFreeText? }`. |
 | `error` | `{ name, message }` لآخر حدث `error` أو لطلب فاشل، وإلا `null`. |

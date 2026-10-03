@@ -3,7 +3,7 @@ title: "OAuth"
 ---
 {/* Generated from docs/oauth.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-تحتاج الأدوات وخوادم MCP التي تستدعي واجهة API نيابةً عن شخص ما إلى رمز وصول (access token) من OAuth، وغالبًا إلى رمز تحديث (refresh token) للحصول على الرمز التالي. تتناول هذه الصفحة المكان الذي تُحفظ فيه هذه الرموز: الجزء `tokens` من `AgentStore`، مفهرسةً بالمزوّد وبمالك بيانات الاعتماد. أما تسجيل الدخول (إعادة التوجيه، ومسار رد النداء، وإيقاف التشغيل مؤقتًا إلى أن يتصل المستخدم) فيأتي في إصدار لاحق؛ والمخزن اليوم هو اللبنة الأساسية، ولا شيء يسجّل الدخول من تلقاء نفسه.
+تحتاج الأدوات وخوادم MCP التي تستدعي واجهة API نيابةً عن شخص ما إلى رمز وصول (access token) من OAuth، وغالبًا إلى رمز تحديث (refresh token) للحصول على الرمز التالي. تتناول هذه الصفحة المكان الذي تُحفظ فيه هذه الرموز: الجزء `tokens` من `AgentStore`، مفهرسةً بالمزوّد وبمالك بيانات الاعتماد. وكيف تحصل الأداة على رمز: تستدعي الأداة `ctx.getToken(provider)`، وحين لا يكون المستخدم قد اتصل بعد يتوقف التشغيل مؤقتًا إلى أن يسجّل الدخول ([أدوات تحتاج إلى تسجيل الدخول](#أدوات-تحتاج-إلى-تسجيل-الدخول)). وتسجّل خوادم MCP عبر HTTP الدخول بـOAuth أيضًا ([خوادم MCP مع OAuth](#خوادم-mcp-مع-oauth)).
 
 ## ملّاك بيانات الاعتماد
 
@@ -79,3 +79,167 @@ const agent = createAgent({ provider, store: fileStore('./.lousho', { tokenKey: 
 **لا شيء يسجّل الرمز.** لا تضع المخازن أبدًا رمز وصول أو رمز تحديث أو مُتحقِّق PKCE أو سر عميل في رسالة خطأ أو سطر سجل أو `cause` لخطأ، ولا تكون قيم الرموز جزءًا من أحداث الوكيل أو السجلات الحوارية أو نقاط الحفظ أو التتبّعات أو أشرطة التسجيل ما لم تُرجع أداة واحدًا منها بنفسها. والأداة التي تستخدم رمزًا ينبغي أن تُرجع جواب الـAPI لا الرمز.
 
 **الاتساق.** يأخذ SQLite عملية تسجيل دخول معلّقة في معاملة واحدة، ويحجزها مخزن الملفات بإنشاء ملف حصري، فيحصل عليها مستدعٍ واحد بالضبط. أما Workers KV فلا معاملات فيه: `takePending` تقرأ ثم تحذف، فقد يقرأ ردّا نداء في موقعَي حافة مختلفَين، ضمن تأخّر انتشار KV (حتى دقيقة تقريبًا)، الـ`state` نفسه. و`state` قيمة عشوائية من 128 بتًا لا يحملها إلا متصفح المستخدم، فإعادة استخدامها لا تمنح شيئًا لمن لا يملكها أصلًا. وتحتاج `tokens.list()` في `KVStore` إلى `list()` الخاصة بالربط (تملكها مساحة أسماء KV الحقيقية، وقد لا تملكها نسخة مزيفة مصنوعة يدويًا). أما `prune()` في `SqliteStore` فتحذف كذلك عمليات تسجيل الدخول المعلّقة المنتهية؛ ويسقطها مخزن الملفات عند بدء تسجيل الدخول التالي، وينهيها KV بنفسه.
+
+## أدوات تحتاج إلى تسجيل الدخول
+
+عرّف المزوّد مرة واحدة، على مستوى الوحدة (module) بجانب الأدوات التي تستخدمه، بـ`defineOAuthProvider()`. تطلب الأداة الرمز بـ`ctx.getToken(provider)`:
+
+```ts
+import { createAgent, defineOAuthProvider, defineTool, memoryStore } from '@lousho/build-ai-agent';
+import { z } from 'zod';
+
+export const github = defineOAuthProvider({
+  name: 'github', // also the token store key
+  displayName: 'GitHub', // shown on the sign-in prompt
+  authorizationUrl: 'https://github.com/login/oauth/authorize',
+  tokenUrl: 'https://github.com/login/oauth/access_token',
+  clientId: process.env.GITHUB_CLIENT_ID ?? 'client-id',
+  clientSecret: process.env.GITHUB_CLIENT_SECRET, // omit for a public client
+  scopes: ['repo'],
+  redirectUri: 'https://agent.example.com/api/agent/oauth/callback', // as registered with GitHub
+});
+
+const listRepos = defineTool({
+  name: 'list_repos',
+  description: "Lists the user's repositories",
+  input: z.object({}),
+  execute: async (_args, ctx) => {
+    const { accessToken } = await ctx.getToken(github); // first, before any side effect
+    const res = await fetch('https://api.github.com/user/repos', { headers: { authorization: `Bearer ${accessToken}` } });
+    if (res.status === 401) ctx.requireAuth(github); // the token was revoked: sign in again
+    const repos = (await res.json()) as Array<{ full_name: string }>;
+    return repos.map((repo) => repo.full_name); // the API's answer, never the token
+  },
+});
+
+const agent = createAgent({ provider, tools: [listRepos], store: memoryStore() });
+```
+
+- تقرأ `getToken()` من `store.tokens` رمزَ مبدأ التشغيل ([principal](/ar/auth)) (`credentialOwner: 'user'`، وهو الافتراضي) أو رمز التطبيق نفسه (`credentialOwner: 'app'`). والرمز الذي تنتهي صلاحيته خلال 60 ثانية وله رمز تحديث يُجدَّد أولًا عند `tokenUrl` ويُحفظ؛ وإن رفض الخادم التجديد حُذف الرمز.
+- بلا رمز صالح **يتوقف التشغيل مؤقتًا**، تمامًا مثل [الموافقة](/ar/approvals): `finishReason: 'awaiting-approval'`، وموافقة معلّقة بـ`kind: 'sign-in'`، متينة في مخازن الوكيل. وبعد أن يسجّل المستخدم الدخول وتُقبل الموافقة على التوقف، يُنفَّذ استدعاء الأداة من جديد **من البداية**. استدعِ `getToken()` قبل أي شيء له أثر جانبي: فما أُنجز قبلها يُنجَز مرتين.
+- `ctx.requireAuth(provider)` مخصصة لرمز رفضته الـAPI (الاستجابة 401): تحذف الرمز المخزَّن وتوقف التشغيل مؤقتًا لتسجيل دخول جديد.
+- بيانات اعتماد المستخدم تحتاج إلى مبدأ: في تشغيل بلا مبدأ (بلا مصادقة مسارات ولا قناة) تُفشل `getToken()` الاستدعاء بالخطأ [`LOUSHO_OAUTH_PRINCIPAL_REQUIRED`](/ar/errors#lousho_oauth_principal_required) ولا يتوقف شيء.
+- يحتاج الوكيل إلى مخزن رموز (`store` مع `tokens`)؛ وبدونه يتوقف التشغيل بالخطأ [`LOUSHO_OAUTH_STORE_MISSING`](/ar/errors#lousho_oauth_store_missing).
+- يُسجَّل المزوّد باسمه `name` على مستوى العملية، فيستطيع رد النداء إنهاء تسجيل دخول بدأ في طلب آخر أو قبل إعادة تشغيل. وتعريف الاسم نفسه مرة أخرى يستبدله.
+
+**بيانات اعتماد التطبيق.** المزوّد الذي له `credentialOwner: 'app'` يحمل رمزًا واحدًا للجميع (تثبيت بوت، حساب خدمة). لا يُرسَل رابط تسجيل الدخول الخاص به إلى مستخدم دردشة أبدًا، لأن من يفتحه سيربط حسابه هو ببيانات اعتماد الوكيل لكل المستخدمين: وبلا الرمز يفشل الاستدعاء بالخطأ [`LOUSHO_OAUTH_APP_SIGNIN_REQUIRED`](/ar/errors#lousho_oauth_app_signin_required). ويسجّل المشغّل دخول التطبيق مرة واحدة بـ`agent.oauth.signInUrl(provider)`:
+
+```ts
+import { createAgent, defineOAuthProvider, fileStore } from '@lousho/build-ai-agent';
+
+const slackBot = defineOAuthProvider({
+  name: 'slack_bot',
+  displayName: 'Slack',
+  credentialOwner: 'app',
+  authorizationUrl: 'https://slack.com/oauth/v2/authorize',
+  tokenUrl: 'https://slack.com/api/oauth.v2.access',
+  clientId: process.env.SLACK_CLIENT_ID ?? 'client-id',
+  clientSecret: process.env.SLACK_CLIENT_SECRET,
+  scopes: ['chat:write'],
+  redirectUri: 'https://agent.example.com/oauth/callback',
+});
+
+// connect-slack.ts: run once against the deployed agent's store, open the URL, approve.
+const agent = createAgent({ provider, store: fileStore('./.lousho', { tokenKey: process.env.LOUSHO_TOKEN_KEY }) });
+console.log('Open this to connect the app:', await agent.oauth.signInUrl(slackBot));
+```
+
+يعمل الرابط 10 دقائق؛ ومسار رد النداء في الوكيل المنشور (الذي يشارك المخزن نفسه) يخزّن الرمز، وكل تشغيل يستخدمه بعد ذلك، بمبدأ أو بدونه.
+
+## ما يراه المستخدم
+
+يُبلَّغ عن التوقف مثل أي موافقة، مع الرابط المطلوب فتحه:
+
+- الحدث `approval.requested` (والحدث `run.done` الذي يليه بـ`finishReason: 'awaiting-approval'`) يحمل `kind: 'sign-in'` و`signIn: { provider, displayName?, url }`. وتُرجع `agent.approvals.list()` السجل نفسه. اعرض `url`؛ وحين يعود المستخدم، وافق على التوقف ("سجّلت الدخول") بـ`agent.approvals.resolve({ id, approved: true })` أو `POST /chat/:id/approvals/:approvalId { "approved": true }`. والموافقة قبل أن يخزّن رد النداء رمزًا ترمي [`LOUSHO_SIGNIN_PENDING`](/ar/errors#lousho_signin_pending) (الحالة HTTP 409 على المسار) ويبقى التشغيل متوقفًا. أما `approved: false` فتلغي الاستدعاء: يتلقى النموذج خطأ أداة بـ`kind: 'denied'` نصه "Sign-in to GitHub was cancelled.".
+- لا تُسأل دالة `approve` عن تسجيل دخول أبدًا: المستخدم وحده يستطيع تسجيل الدخول.
+- تتلقاه تطبيقات React وVue وSvelte بصيغة `pendingApproval.kind === 'sign-in'` مع `pendingApproval.signIn`؛ اعرض الرابط واستدعِ `approve()` حين يقول المستخدم إنه انتهى (`reject()` تلغي). والجزء `data-lousho-approval` من بث AI SDK يحمل `kind` و`signIn` أيضًا.
+- تنشر [القنوات](/ar/channels) الرسالة الافتراضية "Sign in to GitHub to continue: &lt;url>" بلا أزرار Approve / Deny. يرسلها Slack بـ`chat.postEphemeral` إلى المستخدم الذي بدأ الدورة، ويرسلها Discord متابعةً مؤقتة (ephemeral)، فلا يرى الرابط أحد غيره في المحادثة. أما Teams وTelegram فينشرانها في المحادثة (ليس لديهما رسالة يراها مستخدم واحد فقط)، ولا ينشرها GitHub في خيط عام أبدًا. وخلف `createDeployedServer()` و`lousho dev` يتابع رد النداء بنفسه دورة القناة المتوقفة، وتُنشر الإجابة حيث طُرح السؤال.
+- تعرض صفحة الدردشة في `lousho dev` الرابط مع "I've signed in" و"Cancel"؛ أما `lousho chat` و`lousho acp` فتعرضان الرابط وتسألان من جديد إلى أن يسجّل المستخدم الدخول.
+
+## مسار رد النداء
+
+يجب أن يشير `redirectUri` إلى `GET /oauth/callback` في الوكيل المخدَّم، تمامًا كما سُجّل لدى المزوّد:
+
+| المضيف | رد النداء |
+| --- | --- |
+| `lousho dev`، وخادم node، وصورة Docker، وWorker | `GET /oauth/callback` |
+| `createRouteHandler(agent, { basePath })` | `GET <basePath>/oauth/callback` (مثل `/api/agent/oauth/callback`) |
+
+هذا المسار **ليس** خلف مصادقة المسارات ولا الرمز bearer: فإعادة توجيه المتصفح لا تحمل رمز API. وحمايته هي `state`: 32 بايتًا عشوائيًا، لاستخدام واحد، صالحة 10 دقائق. يستدعي `agent.oauth.complete({ state, code, error })` ويجيب بصفحة HTML صغيرة ("Signed in to GitHub. You can close this tab."، أو نص الإلغاء حين يرسل المزوّد `error`)، مع `cache-control: no-store`، وبلا سكربت، ومن دون أن يُردَّد أي قيمة من الاستعلام. و`state` غير المعروفة أو المستخدمة أو المنتهية تُجاب بـ400؛ ورفض تبديل الشيفرة بـ502 ([`LOUSHO_OAUTH_TOKEN_EXCHANGE_FAILED`](/ar/errors#lousho_oauth_token_exchange_failed)). وحين يجتاز طلب رد النداء مصادقة المسار (كوكي جلسة تقبلها دالة المصادقة لديك، مثلًا)، يُرفض تسجيل دخول بدأ لمستخدم آخر.
+
+تكتفي `agent.oauth.complete()` بتخزين الرمز: والعميل الذي عرض الرابط يتابع التشغيل بالموافقة على التوقف. وإن خدمت مسارك الخاص، فافعل الشيء نفسه:
+
+```ts
+import { createAgent } from '@lousho/build-ai-agent';
+
+const agent = createAgent({ provider });
+
+export async function GET(request: Request): Promise<Response> {
+  const query = new URL(request.url).searchParams;
+  const { outcome } = await agent.oauth.complete({
+    state: query.get('state') ?? '',
+    code: query.get('code') ?? undefined,
+    error: query.get('error') ?? undefined,
+  });
+  return new Response(outcome === 'signed-in' ? 'Signed in. You can close this tab.' : 'Sign-in cancelled.');
+}
+```
+
+حين يرفض المستخدم عند المزوّد، تُرجع `complete()` القيمة `outcome: 'declined'`، وتلغي الموافقة على التوقف عندئذٍ الاستدعاء مثل `approved: false`.
+
+## الموافقة وتسجيل الدخول معًا
+
+الأداة التي لها `needsApproval` تسأل أولًا: فبوابة الموافقة تعمل قبل `execute` الخاصة بالأداة. وبعد القبول يبدأ الاستدعاء، فلا تجد `getToken()` رمزًا ويتوقف التشغيل من جديد، هذه المرة لتسجيل الدخول. وبعد تسجيل الدخول، تُنفِّذ الموافقة على ذلك التوقف الاستدعاء مرة واحدة؛ ولا يُعرض على المراجع ثانيةً. والاستدعاء الذي يحتاج تسجيل دخول لدى مزوّدَين يتوقف مرة لكل واحد منهما، بالتتابع.
+
+حين تحتاج عدة استدعاءات في دورة نموذج واحدة إلى تسجيل الدخول، يتوقف التشغيل عند الأول؛ وتُنفَّذ البقية بعد البتّ فيه، مثل بقية دورة توقفت على موافقة.
+
+## الأمان
+
+- **PKCE وstate.** يستخدم كل تسجيل دخول PKCE بخوارزمية S256 (مُتحقِّق من 32 بايتًا) و`state` عشوائية من 32 بايتًا. لا يُحفظ المُتحقِّق إلا في السجل المعلّق المشفَّر (`store.tokens.putPending`)، ولا يوجد أبدًا في لقطة الموافقة ولا في نقطة حفظ ولا في حدث؛ و`state` لاستخدام واحد وتنتهي بعد 10 دقائق. ويحمل عنوان التفويض `state` والتحدّي (challenge)، وكلاهما آمن للعرض؛ ولا تُسجَّل شيفرة التفويض أبدًا.
+- **التشفير.** تُشفَّر الرموز وعمليات تسجيل الدخول المعلّقة أثناء التخزين في المخازن الدائمة ([تخزين الرموز](#تخزين-الرموز)).
+- **ربط المبدأ.** يُخزَّن رمز المستخدم للمبدأ الذي يعمل التشغيل المتوقف نيابةً عنه، أيًّا كان من يُكمل رد النداء، ولا يقرأ التشغيل إلا رمز مبدئه هو. فلا يختلط رمزا مستخدمَين أبدًا؛ والمعرّف نفسه من جهة إصدار أخرى مستخدم آخر. أما بيانات اعتماد التطبيق فلا يسجّل دخولها إلا المشغّل.
+- **من يرى الرابط.** من يفتح رابط تسجيل دخول يربط حسابه هو بالمستخدم الذي طلب. اعرضه لذلك المستخدم وحده: في بث التشغيل نفسه، أو رسالة مؤقتة في قناة مشتركة (Slack وDiscord)، ولا تعرضه في خيط عام أبدًا.
+- **لا تُرجع رمزًا من أداة أبدًا.** أرجع جواب الـAPI. وكشبكة أمان، فنتيجة الأداة التي تحتوي رمزًا سلّمته `getToken()` أثناء ذلك الاستدعاء يُستبدل به `[REDACTED]` قبل تسجيلها، ويسمّي تحذيرٌ الأداةَ. ولا تدخل الرموز أبدًا في أحداث الوكيل ولا السجلات الحوارية ولا نقاط الحفظ ولا سجلات الموافقة ولا مقاطع التتبّع ولا أشرطة التسجيل.
+
+## خوادم MCP مع OAuth
+
+تتطلب خوادم MCP المستضافة مثل Linear وGitHub وAtlassian وNotion بروتوكول OAuth 2.1 كما تعرّفه مواصفة تفويض MCP. أعطِ مدخل HTTP في `mcpServers` الحقل `oauth` فيتولى الـSDK البروتوكول: يقرأ بيانات وصفية للمورد المحمي (RFC 9728) ليجد خادم التفويض الخاص به، ويقرأ البيانات الوصفية لذلك الخادم (RFC 8414)، ويسجّل عميلًا إن لم يكن لديك واحد (التسجيل الديناميكي للعميل، RFC 7591)، ويسجّل الدخول بـPKCE (S256) ومؤشر مورد (RFC 8707). وتُحفظ الرموز في مخزن رموز الوكيل (مشفّرةً في المخازن الدائمة) تحت اسم المزوّد `mcp-<server>`، ويجدّدها MCP SDK حين يرفض الخادم رمزًا منتهيًا.
+
+```ts
+import { createAgent } from '@lousho/build-ai-agent';
+import { SqliteStore } from '@lousho/build-ai-agent/sqlite';
+
+const agent = createAgent({
+  provider,
+  mcpServers: {
+    linear: {
+      url: 'https://mcp.linear.app/mcp',
+      oauth: { redirectUri: 'https://agent.example.com/oauth/callback' },
+    },
+  },
+  store: new SqliteStore('./agent.db', { tokenKey: process.env.LOUSHO_TOKEN_KEY }),
+});
+
+// connect-linear.ts: run once against the deployed agent's store, open the URL, approve.
+console.log('Open this to connect Linear:', await agent.oauth.mcpSignInUrl('linear'));
+```
+
+يقبل `oauth`:
+
+- `redirectUri` (إلزامي): عنوان رد النداء للوكيل، أي [مسار رد النداء](#مسار-رد-النداء) في الوكيل المنشور.
+- `clientId`، و`clientSecret` لعميل سري: عميل سجّلته بنفسك لدى خادم التفويض. وبلا `clientId` يسجّل الـSDK واحدًا عند أول تسجيل دخول (باسم `clientName`، والافتراضي `lousho`، و`redirectUri` عنوان إعادة التوجيه الوحيد له) ويحتفظ به في مخزن الرموز.
+- `scopes`: تُطلب حين لا تسمّي البيانات الوصفية للخادم أيًّا منها.
+
+**تسجيل الدخول.** المنحة (grant) ملك للتطبيق، مثل [بيانات اعتماد التطبيق](#أدوات-تحتاج-إلى-تسجيل-الدخول): تسجيل دخول واحد للوكيل كله، يجريه مشغّل: تُرجع `agent.oauth.mcpSignInUrl('<server>')` (السطر الأخير من المثال أعلاه) عنوان التفويض؛ يفتحه المشغّل ويوافق، ويخزّن مسار رد النداء في الوكيل المنشور، الذي يشارك المخزن نفسه، الرمز. ويعمل الرابط مرة واحدة، 10 دقائق. وتصنع `mcpSignInUrl()` رابطًا جديدًا دائمًا، حتى حين يكون هناك رمز مخزَّن، فتعيد كذلك ربط التطبيق بحساب آخر. وتتصل `ready()` التالية أو استدعاء الأداة التالي بالرمز الجديد؛ ولا شيء يحتاج إعادة تشغيل.
+
+**`needs-auth`.** إلى أن يُسجَّل دخول التطبيق، أو بعد إلغاء المنحة (رُفض الرمز ورمز التحديث معه)، تكون حالة الخادم `'needs-auth'` ويفشل الاتصال بالخطأ [`LOUSHO_MCP_AUTH_REQUIRED`](/ar/errors#lousho_mcp_auth_required): فترفضان `ready()` وأول `send()` به (أو، مع `connectMcp(servers, { onError: 'skip' })`، يُترك الخادم خارجًا). واستدعاء أداة رُفض أثناء تشغيل يصبح نتيجة خطأ للنموذج، بالرمز نفسه؛ ولا يتوقف التشغيل، لأن مستخدم الدردشة لا يسجّل الدخول عن التطبيق أبدًا. ولا يسجّل الاتصال عميلًا ولا يبدأ تسجيل دخول من تلقاء نفسه: `mcpSignInUrl()` وحدها تفعل ذلك.
+
+**الأمان.**
+
+- يحتاج `oauth` إلى عنوان `https`؛ ويُسمح بـ`http` العادي فقط لـ`localhost` و`127.0.0.1` و`[::1]`. وتبقى `headers` تعمل بجانب `oauth` (ترويسة مفتاح API، مثلًا) وتُرسل إلى أصل (origin) خادم MCP نفسه فقط، ولا تُرسل إلى خادم التفويض أبدًا؛ وترويسة `Authorization` مع `oauth` تُرفض.
+- لا يُرسَل الرمز إلا إلى `url` الذي أُخذ له. وحين يتغير `url` المدخل، لا تُستخدم المنحة المخزَّنة ولا أي عميل مسجَّل، ويحتاج الخادم إلى تسجيل دخول جديد. كما يرفض الـSDK البيانات الوصفية للمورد المحمي التي لا يطابق `resource` فيها عنوان الخادم.
+- لا تظهر الرموز وشيفرات التفويض ومُتحقِّقات PKCE وسر العميل أبدًا في رسائل الأخطاء ولا أسطر السجل ولا `status()` ولا أحداث الوكيل ولا نتائج الأدوات؛ ويُبلَّغ عن خطأ خادم التفويض برمز `error` الخاص بـOAuth وحده.
+
+**الحدود.** منح MCP يملكها التطبيق: اتصال واحد ورمز واحد لكل خادم لكل مستخدمي الوكيل. أما منح MCP لكل مستخدم (يسجّل كل مستخدم الدخول بحسابه هو، بقائمة أدوات خاصة به) فغير مدعومة بعد. ويسري OAuth على خوادم HTTP فقط، لا stdio. ووثائق بيانات العميل الوصفية (Client ID metadata documents) والمصادقة `private_key_jwt` للعميل غير مدعومة.
+
+لاستخدام `connectMcp()` بلا وكيل، مرّر المخزن بصيغة `connectMcp(servers, { tokens: store.tokens })`؛ فهي تستخدم الرمز المخزَّن، ويجري تسجيل الدخول عبر `agent.oauth.mcpSignInUrl()` في وكيل على المخزن نفسه.

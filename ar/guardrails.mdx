@@ -11,9 +11,23 @@ title: "حواجز الحماية والبيئات المعزولة"
 
 | القائمة | تُطبَّق على | متى |
 | ---- | ------- | ---- |
-| `input` | كل رسالة مستخدم جديدة (رسائل المستخدم التي ينتهي بها سجل المحادثة) | قبل أول استدعاء للنموذج. عند الحظر لا يُجرى أي استدعاء للنموذج. |
+| `input` | كل رسالة مستخدم جديدة (رسائل المستخدم التي ينتهي بها سجل المحادثة) | قبل أول استدعاء للنموذج. عند الحظر لا يُجرى أي استدعاء للنموذج. أما حاجز المدخلات `runInParallel` فيعمل أثناء تنفيذ أول استدعاء للنموذج (انظر أدناه). |
 | `output` | النص النهائي للمساعد؛ وفي تشغيل `stream()` (الذي تمرّ عليه بحلقة)، نص كل خطوة. أما `send()` مع مستمع فتفحص النص النهائي فقط. | قبل إصداره: قبل `text.done` الخاص به، وقبل `run.done`. |
 | `tools` | معاملات استدعاء الأداة (`text` هو المعاملات بصيغة JSON، و`args` هو الكائن) | بعد [قواعد الصلاحيات](/ar/approvals#سياسات-الصلاحيات) (ويُتخطّى حين ترفض قاعدةٌ الاستدعاء) وقبل `needsApproval`. |
+
+**حواجز المدخلات المتوازية.** الفحص البطيء للمدخلات (الذي يستدعي نموذجًا، مثل `moderationGuardrail({ model })`) يضيف زمن استجابته كاملًا قبل أن يبدأ الوكيل الرد. علّمه بـ `runInParallel: true` (على `IoGuardrail` الخاص بك، أو خيارًا في `promptInjectionGuardrail` و`moderationGuardrail`) فيعمل بينما يكون أول استدعاء للنموذج جاريًا بالفعل: تعمل أولًا حواجز المدخلات الحاجبة (وهي الافتراضية)، بما فيها إعادة الكتابة، ثم تبدأ المتوازية معًا على ذلك المُدخَل ويبدأ استدعاء النموذج فورًا. وإلى أن تجتاز كل الفحوص المتوازية، لا يُفرَج عن أي شيء أنتجه الاستدعاء: تُحتجز بالترتيب أحداث `text.delta` و`reasoning.*` وأحداث الأدوات التي ينفذها المزوّد (ولا يُحتجز `step.start`)، ولا تُنفَّذ استدعاءات الأدوات؛ والرد الذي يصل أولًا ينتظر الفحوص. فإذا اجتازت، خرجت الأحداث المحتجزة ومضى التشغيل تمامًا كما مع الحواجز الحاجبة. وإذا أُثير أحدها، أُلغي استدعاء النموذج، وسقطت الأحداث المحتجزة، ولا يصل شيء من الاستدعاء إلى سجل المحادثة أو نقطة حفظ أو `onLLMResponse`، وينتهي التشغيل بـ `finishReason: 'guardrail'` و`guardrail.tripped` (أو `GuardrailError` مع `onTripped: 'throw'`) كما في الحظر الحاجب. ولا يستطيع الفحص المتوازي إعادة الكتابة، لأن النموذج قد تلقى المُدخَل بالفعل: فنتيجة `rewrite` تحجب، وسببها يبدأ بـ `runInParallel guardrails cannot rewrite: `. والمقابل هو التكلفة: فقد يكون الاستدعاء الذي أُثير قد استهلك رموزًا. وتُحتسب في `result.usage` متى أبلغ عنها المزوّد (استدعاء انتهى قبل الإثارة)؛ أما البث الملغى فعادةً لا يبلّغ عن شيء، ولا يُقدَّر أي شيء. يُسابَق أول استدعاء للنموذج في التشغيل فقط، والتشغيل المستأنف بعد موافقة لا يفحص مُدخَله مرة أخرى. أما في حواجز `output` و`tools` فيُتجاهل `runInParallel`.
+
+```ts
+import { createAgent, moderationGuardrail, piiGuardrail } from '@lousho/build-ai-agent';
+
+const agent = createAgent({
+  provider,
+  guardrails: {
+    // The PII check is instant and may rewrite, so it blocks; the moderation call runs alongside the agent's.
+    input: [piiGuardrail({ action: 'rewrite' }), moderationGuardrail({ model: 'openai/gpt-4o-mini', runInParallel: true })],
+  },
+});
+```
 
 حاجز الحماية هو `{ name, check(ctx) }`. يحتوي `ctx` على `kind` (`'input'` أو `'output'` أو `'tool'`)، و`text`، و`messages` الخاصة بالتشغيل، و`toolName` و`args` في حالة استدعاء أداة، و`signal` الخاصة بالتشغيل. تُعيد `check` (مباشرةً أو عبر وعد) `{ ok: true }` أو `{ ok: false, reason, action?, replacement?, info? }`:
 
@@ -71,8 +85,8 @@ try {
 | `llmJudgeGuardrail({ model, instruction, name? })` | `model` (كائن `LLMProvider` أو `"provider/model"`)، الذي يُسأل مرة واحدة في كل فحص عمّا إذا كان النص يلتزم بـ `instruction`، لا يرد بـ `PASS`؛ ويكون رده `FAIL: <reason>` هو السبب. |
 | `piiGuardrail({ types?, action?, name? })` | يحتوي النص على بيانات شخصية من أحد `types` (الافتراضي كلها): `email` و`phone` (من 9 إلى 15 رقمًا، مع رمز دولة `+` وفواصل اختيارية) و`credit-card` (يجب أن يجتاز فحص Luhn) و`iban` (يجب أن يجتاز فحص mod-97) و`us-ssn` (بصيغة `123-45-6789`) و`ip-address` (IPv4). يحجب افتراضيًا؛ ومع `action: 'rewrite'` يستبدل كل تطابق بـ `[<type>]`، مثل `[email]`. فحص تقريبي (heuristic) دون استدعاء نموذج. |
 | `secretsGuardrail({ action?, extraPatterns?, name? })` | يحتوي النص على مفتاح خاص، أو مفتاح من Anthropic (`sk-ant-`) أو OpenRouter (`sk-or-v1-`) أو OpenAI (`sk-proj-` و`sk-`) أو AWS (`AKIA`) أو GitHub (`ghp_` وسائر بادئات `gh?_` و`github_pat_`) أو Slack (`xoxb-` وما شابهه) أو Google (`AIza`) أو Stripe الحي (`sk_live_` و`rk_live_`)، أو JWT، أو رمز `Authorization: Bearer`، أو تطابقًا مع `extraPatterns`. يستبدل كل تطابق بـ `[secret]` افتراضيًا؛ ويحجب `action: 'block'`. فحص تقريبي دون استدعاء نموذج. |
-| `promptInjectionGuardrail({ model?, name? })` | في النص إشارة إلى حقن الموجّه (prompt injection): "ignore (all) previous instructions" وما يشبهها، أو "you are now"، أو طلب الموجّه النظامي، أو علامة دور في قالب محادثة (`<\|im_start\|>` أو `### System:` أو `[INST]`)، أو عبارة كسر حماية معروفة، أو أحرف وسوم يونيكود غير المرئية (من U+E0000 إلى U+E007F). ومع `model`، يُرسَل أيضًا إلى النموذج النص الذي تجتازه الأنماط، وعليه أن يرد بـ `SAFE` أو `INJECTION: <reason>`. يحجب فقط. |
-| `moderationGuardrail({ model, categories?, name? })` | يعدّ `model`، المسؤول مرة واحدة في كل فحص بموجّه ثابت، إحدى `categories` (الافتراضي كلها: `hate` و`harassment` و`self-harm` و`sexual` و`sexual-minors` و`violence` و`illicit`) منطبقة؛ ويرد بـ `NONE` أو بالفئات. موجّه وليس نقطة إشراف خاصة بمزوّد، لذا يعمل مع كل المزوّدين. يحجب فقط. |
+| `promptInjectionGuardrail({ model?, name?, runInParallel? })` | في النص إشارة إلى حقن الموجّه (prompt injection): "ignore (all) previous instructions" وما يشبهها، أو "you are now"، أو طلب الموجّه النظامي، أو علامة دور في قالب محادثة (`<\|im_start\|>` أو `### System:` أو `[INST]`)، أو عبارة كسر حماية معروفة، أو أحرف وسوم يونيكود غير المرئية (من U+E0000 إلى U+E007F). ومع `model`، يُرسَل أيضًا إلى النموذج النص الذي تجتازه الأنماط، وعليه أن يرد بـ `SAFE` أو `INJECTION: <reason>`. يحجب فقط. |
+| `moderationGuardrail({ model, categories?, name?, runInParallel? })` | يعدّ `model`، المسؤول مرة واحدة في كل فحص بموجّه ثابت، إحدى `categories` (الافتراضي كلها: `hate` و`harassment` و`self-harm` و`sexual` و`sexual-minors` و`violence` و`illicit`) منطبقة؛ ويرد بـ `NONE` أو بالفئات. موجّه وليس نقطة إشراف خاصة بمزوّد، لذا يعمل مع كل المزوّدين. يحجب فقط. ومع `runInParallel: true` (وهو متاح أيضًا في `promptInjectionGuardrail`) يعمل فحص المُدخَل بالتوازي مع أول استدعاء للنموذج. |
 
 الأربعة الأخيرة مجموعة بداية للفحوص التي يحتاجها معظم وكلاء الإنتاج:
 

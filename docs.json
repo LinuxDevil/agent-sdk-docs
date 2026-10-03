@@ -57,6 +57,8 @@
                   "tools",
                   "openapi-tools",
                   "hosted-tools",
+                  "tool-search",
+                  "code-mode",
                   "approvals",
                   "permission-modes",
                   "hooks",
@@ -77,6 +79,7 @@
                 "group": "Compose agents",
                 "pages": [
                   "sub-agents",
+                  "handoffs",
                   "skills",
                   "mcp",
                   "agent-directories",
@@ -188,6 +191,8 @@
                   "ar/tools",
                   "ar/openapi-tools",
                   "ar/hosted-tools",
+                  "ar/tool-search",
+                  "ar/code-mode",
                   "ar/approvals",
                   "ar/permission-modes",
                   "ar/hooks",
@@ -208,6 +213,7 @@
                 "group": "تركيب الوكلاء",
                 "pages": [
                   "ar/sub-agents",
+                  "ar/handoffs",
                   "ar/skills",
                   "ar/mcp",
                   "ar/agent-directories",

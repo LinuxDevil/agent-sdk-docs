@@ -122,6 +122,8 @@ mean"):
 يفشل برسالة فيها اسم المُدخل، مثل
 `'mcpServers.files': AgentSpec validation failed: missing 'command' (stdio server) or 'url' (HTTP server)`.
 والحقل الاختياري `approval` (`annotations` أو `always` أو `never`) يحدد أيّ أدوات الخادم تطلب الموافقة؛ انظر [الموافقة على أدوات MCP](/ar/mcp#الموافقة-على-أدوات-mcp).
+والحقل الاختياري `deferLoading: true` يحجب أدوات الخادم عن النموذج إلى أن يجدها بـ `tool_search`؛ انظر [البحث عن الأدوات](/ar/tool-search).
+ويمكن لمدخل HTTP أن يضبط `oauth` (`redirectUri`، و`clientId` و`clientSecret` و`scopes` و`clientName` اختياريًا) ليسجّل الدخول إلى الخادم بـ OAuth بدل ترويسة `Authorization` ثابتة؛ انظر [خوادم MCP مع OAuth](/ar/oauth#خوادم-mcp-مع-oauth).
 ويتحقق `lousho doctor` من أن كل `command` لخادم stdio يمكن العثور عليه.
 
 ```yaml
@@ -272,6 +274,8 @@ const agent = createAgent({ prompt: 'You are helpful.', provider });
 | `toolConcurrency` | عدد استدعاءات الأدوات التي تعمل معًا في دورة نموذج واحدة: عدد صحيح موجب أو `'unbounded'` (الافتراضي). انظر [استدعاءات الأدوات المتوازية](/ar/runs#استدعاءات-الأدوات-المتوازية). |
 | `skills`   | مهارات من `defineSkill()` / `loadSkills()`؛ انظر [المهارات](/ar/skills). |
 | `subagents`, `maxSubagentDepth` | وكلاء فرعيون مسمَّون خلف أداة `task` واحدة، وأقصى عمق لتداخلهم (الافتراضي 1)؛ انظر [الوكلاء الفرعيون](/ar/sub-agents). |
+| `handoffs`, `maxHandoffs` | وكلاء يستطيع هذا الوكيل أن يسلّمهم المحادثة كلها، بأداة `transfer_to_<name>` لكل منهم، وعدد عمليات التسليم المسموح بها في تشغيل واحد (الافتراضي 5)؛ انظر [التسليم](/ar/handoffs). |
+| `toolSearch` | يضبط [البحث عن الأدوات](/ar/tool-search) للأدوات المعلَّمة بـ `deferLoading`: `{ thresholdPercent?, maxResults?, contextWindow?, search? }`، أو `false` لإرسال كل أداة في كل استدعاء. |
 | `store`    | مخزن `AgentStore` (`SqliteStore`، أو `memoryStore()`، أو `{ sessions?, checkpoints?, approvals? }`): المخازن الافتراضية لـ `agent.session()` وللموافقات ولتشغيلات `send(message, { sessionId })`؛ وتُكمل `agent.resume(id)` تشغيلًا انقطع. انظر [الجلسات المتينة](/ar/sessions#الجلسات-المتينة). |
 | `memory`   | خانات ذاكرة من `defineMemory()`: تُستحضر إلى موجّه النظام في بداية كل تشغيل، مع أدوات `remember_<name>` / `recall_<name>`. انظر [الذاكرة](/ar/memory). |
 | `approvalStore` | الموضع الذي يُحفظ فيه التوقف المؤقت الناتج عن `needsApproval` (الافتراضي: `store.approvals`، وإلا `InMemoryApprovalStore` خاص بكل وكيل)؛ انظر [الموافقات](/ar/approvals). |
