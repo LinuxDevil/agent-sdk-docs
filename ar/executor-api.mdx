@@ -70,6 +70,7 @@ console.log(events); // includes 'run.start' and 'run.done'
 | `exporter`                              | `TraceExporter` لمقاطع التتبّع (اصطلاحات OpenTelemetry GenAI، انظر [المراقبة](/ar/observability)). |
 | `captureContent`, `redactContent`       | تسجيل محتوى الرسائل والأدوات في سمات المقاطع `gen_ai.*` (اختياري) / حذف سمات المحتوى المُهمَلة. |
 | `onLLMRequest`, `onLLMResponse`, `onToolCall`, `onToolResult` | خطّافات المراقبة.                |
+| `toolSearch`                            | يضبط [البحث عن الأدوات](/ar/tool-search) للأدوات المعلَّمة بـ `deferLoading`، أو `false` لإرسال كل أداة في كل استدعاء. |
 
 وتُنجَز بنتيجة من النوع `ExecutionResult`: `{ text, messages, toolCalls, usage,
 finishReason, steps, approvalId? }`.

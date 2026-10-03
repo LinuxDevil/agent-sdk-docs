@@ -1,0 +1,183 @@
+---
+title: "البحث عن الأدوات"
+---
+{/* Generated from docs/tool-search.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
+
+الوكيل الذي يملك أدوات كثيرة (عدة خوادم MCP، أو مجموعة أدوات داخلية كبيرة)
+يرسل تعريف كل أداة في كل استدعاء للنموذج. وهذا يكلّف رموز إدخال (tokens)،
+وبعد نحو 30 أداة يصبح النموذج أسوأ في اختيار الأداة المناسبة. مع البحث عن
+الأدوات، تُستبعد من الطلب الأدوات المعلَّمة بـ `deferLoading`. يحصل النموذج
+على أداة مضمَّنة واحدة هي `tool_search`، فيجد ما يحتاج إليه بكلمات قليلة،
+وتُرسل الأدوات التي وجدها ابتداءً من خطوته التالية.
+
+يجري البحث داخل SDK، فيعمل مع كل المزوّدين.
+
+## متى تستخدمه
+
+- الوكيل متصل بخوادم MCP كثيرة الأدوات، أو لديه مجموعة أدوات كبيرة، ومعظم
+  التشغيلات لا تستخدم منها إلا القليل.
+- تعريفات الأدوات تشغل حصة ملحوظة من نافذة السياق.
+
+مع عدد قليل من الأدوات لا فائدة تُرجى: افتراضيًا لا يُطبَّق التأجيل إلا حين
+تبلغ التعريفات المؤجَّلة 10% من نافذة السياق (انظر [العتبة](#العتبة)).
+
+## علِّم الأدوات أو الخوادم بـ `deferLoading`
+
+علِّم أداة بعينها بـ `defineTool({ deferLoading: true })`:
+
+```ts
+import { createAgent, defineTool } from '@lousho/build-ai-agent';
+import { z } from 'zod';
+
+const convertCurrency = defineTool({
+  name: 'convert_currency',
+  description: 'Convert an amount of money from one currency to another',
+  input: z.object({ amount: z.number(), from: z.string(), to: z.string() }),
+  deferLoading: true,
+  execute: async ({ amount, to }) => ({ amount: amount * 0.92, currency: to }),
+});
+
+const lookupStock = defineTool({
+  name: 'lookup_stock',
+  description: 'Look up the latest price of a stock ticker',
+  input: z.object({ ticker: z.string() }),
+  deferLoading: true,
+  execute: async ({ ticker }) => ({ ticker, price: 123.45 }),
+});
+
+const agent = createAgent({
+  model: 'openai/gpt-4o-mini',
+  instructions: 'You are a helpful assistant.',
+  tools: [convertCurrency, lookupStock],
+  toolSearch: { thresholdPercent: 0 }, // defer even this small set (see below)
+});
+```
+
+أو علِّم خادم MCP بأكمله: فكل أداة يسردها تُؤجَّل.
+
+```ts
+import { createAgent } from '@lousho/build-ai-agent';
+
+const agent = createAgent({
+  model: 'openai/gpt-4o-mini',
+  mcpServers: {
+    github: { url: 'https://example.com/github/mcp', deferLoading: true },
+    files: { command: 'npx', args: ['-y', '@modelcontextprotocol/server-filesystem', '.'] },
+  },
+});
+```
+
+يعمل `deferLoading` بالطريقة نفسها في ملفات المواصفات ومجلدات الوكيل
+(`mcpServers.<name>.deferLoading: true`)، ومع `connectMcp()`: فالواصفات
+التي يعيدها تحمل `deferLoading`، فيحافظ تمرير `mcp.tools` إلى
+`createAgent({ tools })` على التأجيل.
+
+لا تُؤجَّل أبدًا، مهما عُلِّمت: `load_skill` ([المهارات](/ar/skills))، وأدوات
+الذاكرة، و`task` وأدوات المهام الخلفية ([الوكلاء الفرعيون](/ar/sub-agents))،
+و`ask_question`، وأدوات `transfer_to_<name>` الخاصة بـ[التسليمات](/ar/handoffs)،
+و`tool_search` نفسها. أما الأدوات المستضافة لدى المزوّد فتُرسل دائمًا.
+
+## ما يراه النموذج
+
+حين ينطبق التأجيل، يحتوي أول طلب في التشغيل على الأدوات غير المؤجَّلة مع
+`tool_search`، ويضيف موجّه النظام فقرة واحدة: كم أداة لم تُحمَّل، وخوادم MCP
+التي جاءت منها (مع الأعداد)، وأن على النموذج استدعاء `tool_search` بكلمات
+قليلة تصف القدرة المطلوبة.
+
+تتلقى `tool_search` المدخل `{ query: string }` وتعيد JSON:
+
+```json
+{ "loaded": [{ "name": "convert_currency", "description": "Convert an amount of money from one currency to another" }], "more": 38 }
+```
+
+يسرد `loaded` الأدوات التي وجدها هذا البحث (بحد أقصى `maxResults`)؛
+ويعدّ `more` الأدوات المؤجَّلة التي لم تُحمَّل بعد. ابتداءً من الخطوة التالية
+يتضمن الطلب الأدوات المحمَّلة. وحين تُحمَّل كل الأدوات المؤجَّلة لا تعود
+`tool_search` معروضة.
+
+الأداة المؤجَّلة التي يستدعيها النموذج باسمها قبل أن تُحمَّل تعمل كأي أداة
+أخرى (وتنطبق الموافقات والصلاحيات وحواجز الحماية كالمعتاد). ويبلّغ `stream()`
+عن `tool_search` كزوج عادي من `tool.start` / `tool.done`.
+
+يقارن الترتيب الافتراضي كلمات الاستعلام باسم كل أداة مؤجَّلة (مقسَّمًا عند
+`_` و`-` و`__` وعند تغيّر حالة الأحرف camelCase) ووصفها، بلا حساسية لحالة
+الأحرف. والكلمة الموجودة في الاسم تُحتسب ثلاثة أضعاف الموجودة في الوصف؛
+وتُرتَّب حالات التعادل بالاسم. وتُصدَّر الدالة نفسها باسم
+`rankToolsByKeywords(query, tools)`.
+
+## خيارات `toolSearch`
+
+يضبط كل من `createAgent({ toolSearch })` و`AgentExecutor.execute({ toolSearch })`
+عملية البحث. أما تفعيل التأجيل نفسه فيتم بتعليم الأدوات أو الخوادم بـ
+`deferLoading`؛ و`toolSearch: false` يحمّل كل الأدوات مقدمًا.
+
+| الخيار | القيمة الافتراضية | الوصف |
+| ------ | ------- | ----------- |
+| `thresholdPercent` | `0.1` | لا يُؤجَّل إلا حين تبلغ التعريفات المؤجَّلة هذه الحصة من نافذة السياق. والقيمة `0` تؤجّل دائمًا. |
+| `maxResults` | `5` | عدد الأدوات المحمَّلة في كل بحث. |
+| `contextWindow` | سجل النماذج، وإلا 128,000 | نافذة سياق النموذج، لحساب العتبة. |
+| `search(query, tools)` | الترتيب بالكلمات المفتاحية | ترتيبك الخاص (مثلًا بالتضمينات embeddings): أعد أسماء الأدوات، الأفضل أولًا. الأسماء المجهولة والمكررة تُسقَط. وإن رمت الدالة خطأً صار الاستدعاء خطأ أداة ولا يُحمَّل شيء. |
+
+```ts
+import { createAgent } from '@lousho/build-ai-agent';
+
+const agent = createAgent({
+  model: 'openai/gpt-4o-mini',
+  mcpServers: { github: { url: 'https://example.com/github/mcp', deferLoading: true } },
+  toolSearch: {
+    maxResults: 3,
+    search: (query, tools) => tools.filter((tool) => tool.description.toLowerCase().includes(query.toLowerCase())).map((tool) => tool.name),
+  },
+});
+```
+
+القيمة غير الصالحة ترمي `LOUSHO_CONFIG_INVALID` عند إنشاء الوكيل. وأداة من
+عندك اسمها `tool_search` ترمي `LOUSHO_CONFIG_INVALID` حين يبدأ تشغيل والتأجيل
+فعّال: غيّر اسمها، أو اضبط `toolSearch: false`.
+
+## العتبة
+
+عند بدء التشغيل يقدّر SDK رموز التعريفات المؤجَّلة (الاسم والوصف ومخطط JSON
+Schema لكل أداة، بـ `estimateTokens()` الخاصة بنموذج التشغيل). وتحت
+`thresholdPercent` من نافذة السياق تُرسل كل الأدوات مقدمًا ولا تُضاف أداة
+`tool_search`: فالتعريفات رخيصة، وخطوة البحث ستكلّف أكثر مما توفّر. وهذه
+القاعدة نفسها المتّبعة في وضع `auto` في Claude Agent SDK.
+
+قاس الاختبار الحي لهذه الميزة (40 أداة من سطر واحد على `gpt-4o-mini`) 157
+رمز إدخال في الاستدعاء الأول مع التأجيل، و892 بدونه.
+
+## كيف يستمر التحميل
+
+الأدوات المحمَّلة لا تُخزَّن في أي مكان: بل تُقرأ من السجل عند كل استدعاء
+للنموذج. تُعدّ الأداة محمَّلة حين تسمّيها نتيجة `tool_search` ناجحة في رسائل
+التشغيل. وعليه:
+
+- الاستئناف بعد تعطل من نقطة حفظ، وتوقف الموافقة واستئنافها، والتفرّع (fork)،
+  والدورة التالية في الجلسة، كلها تُبقي الأدوات المحمَّلة.
+- لا يبلّغ الاستئناف عن [انجراف الوكيل](/ar/durable-execution#الاستئناف-بوكيل-تغيَّر)
+  بسبب التحميل: فالبصمة تشمل كل الأدوات، المؤجَّلة وغيرها.
+- [ضغط السياق](/ar/compaction) الذي يقتطع نتيجة `tool_search` يُلغي تحميل
+  أدواتها ابتداءً من استدعاء النموذج التالي؛ ويبحث النموذج من جديد حين
+  يحتاج إليها.
+- هدف [التسليم](/ar/handoffs) يبدأ دون أي أداة محمَّلة، حتى لو كانت له الأدوات
+  المؤجَّلة نفسها: لا يُعتدّ إلا بنتائج `tool_search` الواقعة بعد آخر تسليم،
+  وتنطبق أدوات الهدف الخاصة المعلَّمة بـ `deferLoading` وإعداد `toolSearch`
+  الخاص به. أما [الوكيل الفرعي](/ar/sub-agents) فيشغّل قائمة أدواته الخاصة على
+  سجله الخاص، فلا يرث أبدًا ما حمّله الوكيل الرئيسي.
+
+## خوادم MCP التي تتطلب تسجيل الدخول
+
+سرد أدوات الخادم يحتاج إلى اتصال، لذا فإن خادمًا معلَّمًا بـ `deferLoading`
+ويستخدم [OAuth](/ar/oauth#خوادم-mcp-مع-oauth) ولم يُسجَّل الدخول إليه يُفشل
+التشغيل بالخطأ `LOUSHO_MCP_AUTH_REQUIRED` كأي خادم آخر. وحين يسجّل المشغّل
+الدخول تُؤجَّل أدواته كالمعتاد. وأي صلاحية تُسحب لاحقًا تحوّل استدعاء أداة
+محمَّلة إلى خطأ أداة `LOUSHO_MCP_AUTH_REQUIRED`، كما هو الحال بلا تأجيل.
+
+## التخزين المؤقت للموجّه
+
+تتغير قائمة الأدوات حين تُحمَّل الأدوات. والمزوّدون الذين يخزّنون مؤقتًا بادئة
+الطلب (التخزين المؤقت للموجّه في Anthropic، والتخزين التلقائي في OpenAI)
+يضعون تعريفات الأدوات في أولها، فقد تخطئ الخطوة التي تحمّل أدوات التخزين
+المؤقت من تلك النقطة. ويحدث التحميل بضع مرات في التشغيل الواحد على الأكثر؛
+وإن كانت تشغيلاتك تعيد استخدام بادئة مخزَّنة طويلة عبر استدعاءات كثيرة،
+فقارن التكلفة مع `toolSearch: false`.

@@ -33,11 +33,14 @@ const agent = createAgent({ prompt: '...', provider, tools: [weather] });
 | `displayName` | لا | تسمية لواجهات المستخدم. قيمتها الافتراضية `name`. |
 | `needsApproval` | لا | `true`، أو دالة شرطية تُستمد أنواعها من `input`، للتوقف بانتظار قرار بشري قبل تنفيذ الاستدعاء. راجع [الموافقات](/ar/approvals). |
 | `annotations` | لا | تلميحات MCP (`readOnlyHint` و`destructiveHint` و...)، وتُخزَّن في `metadata.mcp.annotations`. القيمة `readOnlyHint: true` تتيح للأداة أن تعمل في [وضع plan](/ar/permission-modes#أي-الأدوات-للقراءة-فقط). |
+| `deferLoading` | لا | يحجب تعريف الأداة عن النموذج إلى أن يجدها بـ`tool_search`. راجع [البحث عن الأدوات](/ar/tool-search). |
 | `editsFiles` | لا | الأداة تعدّل الملفات: [`permissionMode: 'acceptEdits'`](/ar/permission-modes#تعديل-الملفات-العلامة-editsfiles) يشغّل استدعاءاتها من دون سؤال. وتُخزَّن في `metadata.editsFiles`. |
 | `requiresSandbox` | لا | تشغيل الأداة عبر `SandboxAdapter` المُعَدّ بدلًا من تشغيلها داخل العملية (يتطلب `sandboxExecute`). راجع [حواجز الحماية وبيئات العزل](/ar/guardrails#الأدوات-المعزولة). |
 | `sandboxExecute(args, sandbox)` | لا | مسار التنفيذ داخل البيئة المعزولة، ويُستخدم عندما تكون قيمة `requiresSandbox` هي true. |
 
 تُوضع الأدوات التي يشغّلها مزوّد النموذج نفسه (البحث على الويب ومفسّر الشيفرة والبحث في الملفات) في قائمة `tools` نفسها؛ راجع [أدوات المزوّد المستضافة](/ar/hosted-tools).
+
+مع كثرة الأدوات، علّمها بـ`deferLoading` ليجدها النموذج بأداة مدمجة اسمها `tool_search` بدل أن يتلقى كل التعريفات في كل استدعاء؛ راجع [البحث عن الأدوات](/ar/tool-search).
 
 تتحقق `defineTool()` من الاسم والوصف ومخطط zod في `input` عند استدعائها، وترمي خطأً يبيّن كيفية إصلاح القيمة غير الصالحة. وتسجيل أداتين بالاسم نفسه يرمي خطأً يذكر التعارض.
 
@@ -49,6 +52,8 @@ const agent = createAgent({ prompt: '...', provider, tools: [weather] });
 - **الأخطاء نتائج.** الأداة التي ترمي خطأً تعطي النموذج `{ error, toolName, message, kind }` (دون تتبّع المكدّس stack trace) ويستمر التشغيل. راجع [الأخطاء](#الأخطاء).
 - **الاستدعاءات المتوازية.** الاستدعاءات المتعددة في دورة نموذج واحدة تُنفَّذ بالتزامن؛ ضع لها حدًّا بـ `toolConcurrency` (`1` للتنفيذ التسلسلي الصارم). وتصل النتائج إلى سجل المحادثة بترتيب استدعاءات النموذج. راجع [استدعاءات الأدوات المتوازية](/ar/runs#استدعاءات-الأدوات-المتوازية).
 - **الإلغاء.** تصل `AbortSignal` الخاصة بالتشغيل إلى كل استدعاء في `ctx.abortSignal`، فيمكن إيقاف العمل الطويل مبكرًا.
+- **التقدّم.** الأداة التي تُكتب `execute` فيها بصيغة `async function*` تبثّ لقطات من مخرجاتها أثناء عملها؛ وآخر لقطة هي النتيجة. راجع [بث النتائج الجزئية](#بث-النتائج-الجزئية).
+- **استدعاءات كثيرة في خطوة واحدة.** مع `createAgent({ codeMode })` يستطيع النموذج أيضًا استدعاء الأدوات من برنامج JavaScript قصير (`run_code`)، ويمر كل استدعاء بالفحوص نفسها. راجع [وضع الشيفرة](/ar/code-mode).
 - **إعادة المحاولة بعد انهيار.** مع التنفيذ المتين قد تُنفَّذ الأداة أكثر من مرة إذا وقع انهيار؛ استخدم `ctx.toolCallId` مفتاحًا يمنع تكرار الأثر (idempotency key). راجع [التنفيذ المتين](/ar/durable-execution#الأدوات-تُنفَّذ-مرة-واحدة-على-الأقل-اجعل-الآثار-الجانبية-آمنة-عند-التكرار).
 
 ## سياق التنفيذ
@@ -190,3 +195,44 @@ tools.register('current_date', currentDateTool);
 ```
 
 مرّره في `toolRegistry` إلى `AgentExecutor.execute()`؛ وخريطة `tools` في إعدادات الوكيل تسمّي الأدوات التي يجوز له استخدامها.
+
+## بث النتائج الجزئية
+
+تستطيع أداة طويلة (منشئ تقارير، بحث في مصادر كثيرة) أن تُظهر التقدّم أثناء عملها: اكتب `execute` بصيغة `async function*`. كل `yield` لقطة كاملة من المخرجات حتى تلك اللحظة، وتحلّ محل السابقة، وتصل إلى أحداث التشغيل بصيغة `tool.partial` (راجع [أحداث البث](/ar/stream-events)). وآخر قيمة تُمرَّر بـ`yield` هي نتيجة الأداة: يحصل عليها النموذج، وهي `result` الاستدعاء في `tool.done`، فتظهر اللقطة الأخيرة مرتين (آخر `tool.partial` وفي `tool.done`). وقيمة `return` تُهمَل؛ والمولِّد الذي لا يُمرِّر شيئًا نتيجته `undefined` (و`null` في الأحداث).
+
+```ts
+import { createAgent, defineTool, type ToolOutput } from '@lousho/build-ai-agent';
+import { z } from 'zod';
+
+const buildReport = defineTool({
+  name: 'build_report',
+  description: 'Builds a report from several sources',
+  input: z.object({ topic: z.string() }),
+  async *execute({ topic }, ctx) {
+    const sections: string[] = [];
+    for (const source of ['news', 'papers', 'forums']) {
+      if (ctx.abortSignal?.aborted) return;
+      sections.push(`${source}: notes on ${topic}`);
+      yield { topic, sections: [...sections], done: false };
+    }
+    yield { topic, sections, done: true };
+  },
+});
+type Report = ToolOutput<typeof buildReport>; // { topic: string; sections: string[]; done: boolean }
+
+const agent = createAgent({ model: 'openai/gpt-4o-mini', tools: [buildReport] });
+for await (const event of agent.stream('Write a report on solar power.')) {
+  if (event.type === 'tool.partial') console.log(`step ${event.index}`, event.output);
+}
+```
+
+ما ينبغي معرفته:
+
+- **تُحفظ النتيجة وحدها.** لا تُرسل اللقطات إلى النموذج، ولا تُضاف إلى سجل المحادثة أو الجلسة، ولا تُحفظ في نقاط الحفظ، ولا تُسجَّل في مقاطع التتبّع. والخطّافات (`postToolCall` و`onToolResult`) ترى النتيجة فقط.
+- **الانهيار يفقدها.** المخرجات الجزئية ليست متينة: فبعد انهيار، أو توقف لـ[تسجيل دخول](/ar/oauth) داخل المولِّد، لا تكون للاستدعاء نتيجة بعد ويُنفَّذ من جديد من البداية (`tool.start` جديد، و`index` من 0). وتبقى اللقطات التي بُثّت في سجل الأحداث؛ وينبغي لواجهة المستخدم أن تتخلص منها حين يتوقف الاستدعاء أو يبدأ من جديد (وتفعل ذلك [روابط واجهة المستخدم](/ar/react)).
+- **الموافقات والصلاحيات أولًا.** أداة المولِّد التي تحتاج إلى موافقة تعمل، وتبثّ، بعد القرار فقط (وكذلك في استئناف مبثوث، `agent.approvals.streamResolve()`).
+- **الإلغاء.** حين يُلغى التشغيل، يتوقف الـSDK عن قراءة المولِّد فورًا، ويُنهي الاستدعاء بوصفه ملغى، ويستدعي `return()` الخاصة به، فتعمل كتل `finally` فيه - بعد أن ينتهي الـ`await` الذي هو فيه، فمرّر `ctx.abortSignal` إلى العمل الذي تنتظره.
+- **تُحجب الرموز في اللقطات أيضًا.** اللقطة التي تحتوي رمزًا حصلت عليه الأداة من `ctx.getToken()` يُستبدل به `[REDACTED]`، مثل النتيجة. والخطّاف `postToolCall` الذي يعيد كتابة النتيجة لا يرى اللقطات: فإن كان لا بد أن يرشّح خطّاف مخرجات أداة، فرشّحها في الأداة نفسها أو لا تبثّها.
+- **أي القيم تُبثّ.** القيمة التي لها دالة `next()` وهي أيضًا قابلة للتكرار غير المتزامن (async iterable) فقط (وهذا ما تُرجعه `async function*`) هي التي تُبثّ. أما النتيجة القابلة للتكرار غير المتزامن فقط، مثل `ReadableStream`، فنتيجة عادية.
+- **التشغيل كله محسوب.** يحتفظ `toolConcurrency` بالموضع حتى ينتهي المولِّد. واستدعاء `execute` الخاصة بالأداة بنفسك يُرجع المولِّد.
+- **أين.** الحلقة الرئيسية، والاستدعاء الذي يُنفَّذ بعد موافقة، وعقدة استدعاء الأداة في مسار عمل (التي لا تحتفظ إلا بالنتيجة) كلها تكرّر المولِّد؛ أما `sandboxExecute` الخاصة بالأداة فلا تبثّ. وفي بث AI SDK UI تكون اللقطات مخرجات أداة أولية (راجع [AI SDK UI](/ar/ai-sdk-ui#مقابلة-الأحداث)).

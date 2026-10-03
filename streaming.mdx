@@ -122,11 +122,12 @@ and it will be removed in a future major version. Replace it with
 | `abort` (`abortReason`, `usage`) | `run.done` with `finishReason: 'aborted'` (the reason is your signal's `reason`) |
 | `finish` (`finishReason`, `usage: RunUsage`) | `run.done` (`finishReason`, `text`, `usage`, `object`); the full `RunUsage` is on `result.usage` |
 | a sub-agent's `start` / `finish` (with `subagent`) | the lead's `tool.start` / `tool.done` of the call that started it |
+| (none: a run was one agent) | `handoff` (`from`, `to`, `toolCallId`): the run handed the conversation to another agent ([Handoffs](/handoffs)) |
 | `timestamp: Date` | `timestamp`: an ISO-8601 string; plus `runId`, `seq` and `v` |
 
 `AgentEvent` also reports what `ExecutionEvent` never did: step boundaries,
 approval requests, permission decisions, budgets, guardrails, queued and
-steered input, compaction, reasoning, provider retries and agent drift (see the
+steered input, compaction, reasoning, provider retries, agent drift and handoffs (see the
 [schema](/stream-events#event-schema-version-1)).
 
 ## Streaming a session turn
@@ -158,7 +159,8 @@ too. `agent.approvals.streamResolve()` (or `streamAnswer()`) returns an
 `AgentRun` whose `result` is what `agent.approvals.resolve()` returns. Its events are `run.start`, the decided
 call's `tool.start` and `tool.done` (`tool.error` for a rejection), then the
 continuation's events exactly as in a fresh run, up to `run.done`; a further
-pause ends it with `approval.requested`. Cancellation, `enqueue()` and
+pause ends it with `approval.requested` (`kind: 'sign-in'` with a `signIn`
+link when a tool waits for an [OAuth sign-in](/oauth#what-the-user-sees)). Cancellation, `enqueue()` and
 `steer()` work as on any run, and the approval can come from another
 process, since everything is read from the approval store. A model chosen per
 run (`model` as a function) is the one the paused run used.

@@ -1,0 +1,242 @@
+---
+title: "التسليم بين الوكلاء"
+description: "التسليم (handoff) يمرّر المحادثة كاملة إلى وكيل آخر. يقرأ وكيل الفرز طلب المستخدم ويسلّمه إلى وكيل متخصص؛ ويجيب المتخصص المستخدم مباشرة، وفي الجلسة يبقى هو من يتولى المحادثة في الدورات اللاحقة."
+---
+{/* Generated from docs/handoffs.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
+
+## تسليمات أم وكلاء فرعيون؟
+
+| استخدم | ماذا يحدث |
+| --- | --- |
+| **التسليمات** | يتولى الهدف الأمر. يرى المحادثة (أو ما يُبقي عليه `inputFilter`)، ويجيب المستخدم بنفسه، ويظل الوكيل النشط في الجلسة إلى أن يسلّم إلى وكيل آخر أو يعيد التسليم. أما الوكيل الذي سلّم فلا يرى الإجابة. |
+| **[الوكلاء الفرعيون](/ar/sub-agents)** | يبقى الوكيل الرئيسي هو المسؤول. لا يرى الوكيل الفرعي إلا موجّه المهمة الذي كتبه الوكيل الرئيسي، وينجز العمل، ويعيد نتيجة إلى الوكيل الرئيسي، فيجيب هو المستخدم بعدها. |
+
+## البدء السريع
+
+أعطِ كل هدف `name` و`description` (يقرأ النموذج الوصف ليقرر متى يسلّم)،
+ثم مرّرها إلى وكيل الفرز في `handoffs`:
+
+```ts
+import { createAgent, defineTool } from '@lousho/build-ai-agent';
+import { z } from 'zod';
+
+const lookupCharges = defineTool({
+  name: 'lookup_charges',
+  description: "Lists the user's recent charges",
+  input: z.object({}),
+  execute: async () => [{ date: '2026-09-01', amountUsd: 9.99 }],
+});
+
+const billing = createAgent({
+  name: 'billing',
+  description: 'Handles charges, refunds and subscriptions',
+  instructions: 'You are the billing desk. Answer in one or two sentences.',
+  model: 'openai/gpt-4o-mini',
+  tools: [lookupCharges],
+});
+
+const techSupport = createAgent({
+  name: 'tech-support',
+  description: 'Handles logins, passwords and technical problems',
+  instructions: 'You are tech support. Answer in one or two sentences.',
+  model: 'openai/gpt-4o-mini',
+});
+
+const triage = createAgent({
+  name: 'triage',
+  instructions: 'Route the user: billing questions to billing, technical questions to tech-support.',
+  model: 'openai/gpt-4o-mini',
+  handoffs: [billing, techSupport],
+});
+
+const result = await triage.send('I was charged twice for my subscription.');
+console.log(result.agentName, result.text); // 'billing', the billing desk's answer
+```
+
+يُعرض كل هدف على النموذج أداةً واحدة اسمها `transfer_to_<name>`
+(`transfer_to_billing` و`transfer_to_tech-support`). حين يستدعيها النموذج،
+يتابع التشغيل بصفة الهدف ضمن استدعاء `send()` / `stream()` نفسه.
+و`result.agentName` هو اسم الوكيل الذي أنتج الرد النهائي.
+
+يجب أن يأتي الهدف من `createAgent()` وأن يكون له `name` (فريد بين
+التسليمات) و`description` (أو `description` في `handoff()`)؛ وإلا يرمي
+`createAgent()` الخطأ `LOUSHO_CONFIG_INVALID`. ولا يجوز أن يشارك
+اسم أداة التسليم اسمَ إحدى أدوات الوكيل.
+
+## خيارات `handoff()`
+
+غلّف الهدف بـ `handoff()` لضبطه:
+
+```ts
+import { createAgent, handoff, handoffFilters } from '@lousho/build-ai-agent';
+import { z } from 'zod';
+
+const refunds = createAgent({ name: 'refunds', description: 'Issues refunds', model: 'openai/gpt-4o-mini' });
+
+const triage = createAgent({
+  name: 'triage',
+  model: 'openai/gpt-4o-mini',
+  handoffs: [
+    handoff(refunds, {
+      toolName: 'escalate_refund',
+      description: 'Hand off when the user asks for money back',
+      input: z.object({ orderId: z.string() }),
+      inputFilter: handoffFilters.removeToolCalls,
+      onHandoff: ({ from, to, args }) => console.log(`${from} -> ${to}`, args),
+      isEnabled: ({ metadata }) => metadata?.plan === 'pro',
+    }),
+  ],
+});
+```
+
+| الخيار | القيمة الافتراضية | ماذا يفعل |
+| --- | --- | --- |
+| `toolName` | `transfer_to_<name>` | الأداة التي يستدعيها النموذج. |
+| `description` | `description` الخاص بالهدف | وصف الأداة. |
+| `input` | `{ reason?: string }` | الوسائط التي يمرّرها النموذج (مخطط zod أو أي Standard Schema). الوسائط التي لا تطابقه تعطي النموذج خطأ أداة، ولا يحدث تسليم. |
+| `inputFilter` | كل شيء | ما يراه الهدف (انظر [مرشحات الإدخال](#مرشحات-الإدخال)). |
+| `onHandoff` | لا شيء | يُستدعى مع `{ messages, from, to, args, sessionId }` بعد حسم التسليم وقبل أول استدعاء للنموذج من الهدف. |
+| `isEnabled` | `true` | هل يُعرض التسليم؛ والدالة تتلقى `{ input, metadata, principal, sessionId }` الخاصة بالتشغيل. أداة التسليم المعطَّلة لا تُرسل إلى النموذج. |
+
+## مرشحات الإدخال
+
+يرى الهدف المحادثة كما يعيدها `inputFilter`، تحت موجّه النظام الخاص به
+(موجّه النظام للوكيل الذي سلّم يُستبدل ولا يُحتفظ به أبدًا). يتلقى
+المرشح `{ messages, from, to, args }`؛ و`messages` هي السجل حتى تلك
+اللحظة بلا موجّه النظام، وتنتهي باستدعاء التسليم ونتيجته. يوجد مرشحان
+مضمَّنان:
+
+- `handoffFilters.removeToolCalls`: يُبقي نص المستخدم والمساعد، ويحذف
+  استدعاءات الأدوات ونتائجها.
+- `handoffFilters.lastUserMessage`: يُبقي آخر رسالة للمستخدم فقط.
+
+```ts
+import { handoffFilters, type HandoffInputData } from '@lousho/build-ai-agent';
+
+// The last four messages, without tool traffic.
+const recent = (data: HandoffInputData) => handoffFilters.removeToolCalls(data).slice(-4);
+```
+
+ما يعيده المرشح يصبح سجل التشغيل: ويستمر كل من `result.messages` وسجل
+الجلسة منه. ويجب أن يُبقي المرشح رسالة واحدة على الأقل. أما الموافقات
+التي جرى تذكّرها بـ `once()` في الجزء الأسبق من السجل فتُسقَط عند التسليم،
+فتعود أدوات الهدف إلى طلب الموافقة.
+
+## ما الذي يتبدل وما الذي يبقى
+
+| عند التسليم، ما يخص الهدف نفسه | ما يخص التشغيل، طوال مدته |
+| --- | --- |
+| التعليمات (موجّه النظام) والنموذج والمزوّد | `hooks` و`limits` والإنفاق حتى الآن (ميزانية واحدة) |
+| الأدوات والأدوات المستضافة والمهارات والوكلاء الفرعيون | `maxSteps`، ويُحسب عبر الوكلاء كلهم |
+| `reasoning` | إشارة الإلغاء |
+| `handoffs` الخاصة به | مخازن الموافقات ونقاط الحفظ والرموز |
+| حواجز الحماية وقواعد الصلاحيات: تُطبَّق قواعد الوكيل الرئيسي أولًا ثم قواعد الهدف نفسه | `onEvent` و`exporter` |
+| | `output`: تُحدَّد نوعية النتيجة بمخطط الوكيل الرئيسي (`output` الخاص بالهدف لا يُستخدم) |
+| | وضع الصلاحيات والمُنفِّذ (principal، أي من يعمل التشغيل نيابةً عنه) |
+
+الوكيل الذي بدأ به التشغيل هو الوكيل الرئيسي. لا يحصل الهدف على أي من أدوات
+الوكيل الرئيسي أو وكلائه الفرعيين أو خانات [الذاكرة](/ar/memory) الخاصة به؛
+ولا تُستخدم خانات الذاكرة الخاصة بالهدف أيضًا (كما في الوكيل الفرعي). وتُضاف
+تعليمات `output` الخاصة بالوكيل الرئيسي إلى موجّه النظام لكل هدف.
+
+## الجلسات
+
+في الجلسة، الوكيل النشط هو الذي سلّم إليه السجل آخر مرة (قيمة `to` في
+آخر علامة `metadata.handoff`)، فيشغّل الاستدعاء التالي
+`session.send()` / `session.stream()` ذلك الوكيل:
+
+```ts
+import { createAgent } from '@lousho/build-ai-agent';
+
+const billing = createAgent({ name: 'billing', description: 'Handles charges and refunds', model: 'openai/gpt-4o-mini' });
+const triage = createAgent({ name: 'triage', model: 'openai/gpt-4o-mini', handoffs: [billing] });
+
+const session = triage.session();
+await session.send('I was charged twice.'); // triage hands off; billing answers
+const next = await session.send('Can you refund one?'); // billing answers again
+console.log(next.agentName); // 'billing'
+```
+
+أما `agent.send()` بلا جلسة فيبدأ دائمًا من الوكيل الرئيسي.
+
+يعيد الهدف التسليم عبر `handoffs` الخاصة به. ولأن الوكيل الرئيسي يُنشأ بعد
+أهدافه، أعطِ الهدف مصفوفة ثم أضف إليها الوكيل الرئيسي لاحقًا (تُقرأ
+المصفوفة عند كل تشغيل):
+
+```ts
+import { createAgent, handoff, type Handoff } from '@lousho/build-ai-agent';
+
+const billingHandoffs: Handoff[] = [];
+const billing = createAgent({
+  name: 'billing',
+  description: 'Handles charges and refunds',
+  instructions: 'For anything that is not about billing, hand back to triage.',
+  model: 'openai/gpt-4o-mini',
+  handoffs: billingHandoffs,
+});
+const triage = createAgent({
+  name: 'triage',
+  description: 'Routes the user to the right desk',
+  model: 'openai/gpt-4o-mini',
+  handoffs: [billing],
+});
+billingHandoffs.push(handoff(triage));
+```
+
+الأسماء هي التي تحدد الوكلاء: يجب أن يكون لكل وكيل يمكن الوصول إليه عبر
+`handoffs` اسمه الخاص. وإذا لم يعد الوكيل الذي يذكره السجل قابلًا للوصول،
+يعمل الوكيل الرئيسي.
+
+## الموافقات والاستئناف بعد التسليم
+
+أداة الهدف التي تحتاج إلى موافقة توقف التشغيل في مخزن الموافقات الخاص
+بالوكيل الرئيسي؛ ويتابعه `agent.approvals.resolve()` على الوكيل الرئيسي
+بصفة الهدف. والتشغيل ذو نقاط الحفظ (`send(message, { sessionId })` أو جلسة
+لها مخزن) الذي تعطّل بعد تسليم يُستأنف بصفة الهدف عبر `agent.resume(id)` أو
+`session.resume()`. ويقارن فحص الانجراف عند الاستئناف (`onAgentDrift`، انظر
+[التنفيذ المتين](/ar/durable-execution#الاستئناف-بوكيل-تغيَّر))
+ببصمة الهدف المحفوظة.
+
+وحين تحتوي خطوة على استدعاء تسليم بجانب استدعاء يتوقف انتظارًا لموافقة،
+ينتظر التسليم: يتوقف التشغيل بصفة الوكيل الذي سلّم، ويحدث التسليم بعد البتّ
+في الموافقة وتنفيذ الاستدعاءات الأخرى في الخطوة.
+
+## الأحداث
+
+يُبلَّغ عن التسليم بين `tool.start` / `tool.done` الخاصين باستدعاء التسليم
+وأول `step.start` للهدف:
+
+```ts
+import { createAgent } from '@lousho/build-ai-agent';
+
+const billing = createAgent({ name: 'billing', description: 'Handles charges and refunds', model: 'openai/gpt-4o-mini' });
+const triage = createAgent({ name: 'triage', model: 'openai/gpt-4o-mini', handoffs: [billing] });
+
+for await (const event of triage.stream('I was charged twice.')) {
+  if (event.type === 'handoff') console.log(`${event.from} -> ${event.to}`); // triage -> billing
+}
+```
+
+يحمل `handoff` الحقول `from` و`to` و`toolCallId`. وللتشغيل `run.start`
+واحد و`run.done` واحد مهما بلغ عدد التسليمات. انظر
+[مخطط الأحداث](/ar/stream-events).
+
+## القيود
+
+- تسليم واحد فقط في الدورة الواحدة للنموذج: حين تستدعي الدورة عدة أدوات
+  تسليم، يُنفَّذ الأول وتحصل الباقية على خطأ أداة.
+- `maxHandoffs` (خيار في `createAgent()`، وقيمته الافتراضية 5) يحدّ عدد
+  تسليمات التشغيل الواحد، لمنع الوكلاء من تمرير المحادثة ذهابًا وإيابًا. أي
+  استدعاء تسليم يتجاوز الحد يحصل على خطأ أداة ويجيب الوكيل بنفسه. والتشغيل
+  الذي يُستأنف بعد موافقة أو بعد تعطل يبدأ العدّ من الصفر مجددًا.
+- لا يمكن أن تكون الوكلاء البعيدة (`remoteAgent()`) أهدافًا للتسليم؛
+  استخدمها وكلاء فرعيين.
+- لا يعيد الهدف التسليم من تلقاء نفسه في نهاية دورته؛ أعطِه تسليمًا إلى
+  الوكيل الرئيسي (انظر [الجلسات](#الجلسات)).
+
+## واجهة المنفِّذ البرمجية
+
+يقبل `AgentExecutor.execute()` الخيارين `handoffs` (`ResolvedHandoff[]`:
+`name` و`toolName` و`description` و`input` و`spec(input)` الذي يحدد إعداد
+تشغيل الهدف وتسليماته الخاصة، و`inputFilter` و`onHandoff`) و`maxHandoffs`.
+يبنيها `createAgent()`؛ ولا تمرّرها بنفسك إلا حين تشغّل المنفِّذ مباشرة.

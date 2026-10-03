@@ -59,11 +59,14 @@ export function Chat() {
 | `text.delta`، `text.done` | `text-start` (مرة واحدة لكل جزء نصي)، `text-delta`، `text-end` |
 | `reasoning.start`، `reasoning.delta`، `reasoning.done` | `reasoning-start`، `reasoning-delta`، `reasoning-end` (راجع [الاستدلال](/ar/reasoning)) |
 | `tool.start` | `tool-input-start`، ثم `tool-input-available` مع المعاملات |
+| `tool.partial` | `tool-output-available` مع `preliminary: true` (AI SDK 5 فما فوق): لقطة من [أداة بث](/ar/tools#بث-النتائج-الجزئية) |
 | `tool.done` / `tool.error` | `tool-output-available` / `tool-output-error` |
 | `approval.requested` | `data-lousho-approval` (أدناه) |
 | `todo.updated` | `data-lousho-todos`: جزء بيانات `{ todos, counts }` فيه قائمة المهام كاملة، بالمعرّف `todos` فيحلّ كل تحديث محل سابقه (راجع [أدوات المهام](/ar/tools#أدوات-قائمة-المهام)) |
 | `error` | `error` |
 | `run.done` | `finish` |
+
+تصل لقطات أداة البث على هيئة مخرجات أولية، يعرضها `useChat` بوصفها `output` لجزء الأداة مع `preliminary: true`؛ أما جزء `tool.done` الذي يليها فلا يحمل `preliminary` وهو المخرج النهائي.
 
 الأحداث التي لا مقابل لها في الواجهة (إعادات المحاولة، وضغط السياق، وقرارات الصلاحيات، وحواجز الحماية، ...) وأحداث الوكلاء الفرعيين لا تُمرَّر. وقيمة `finishReason` في الجزء `finish` هي من قيم AI SDK (`stop`، `length`، `content-filter`، `tool-calls`، `error`؛ وأي قيمة أخرى، مثل `awaiting-approval` أو `max-steps`، تصبح `other`).
 
