@@ -45,7 +45,8 @@ const result = await agent.send('Fix the failing test in src/math.test.ts');
 تشغّل `createAgent()` الصنف `AgentExecutor` من تحتها (راجع [واجهة المنفِّذ](/ar/executor-api)). وإن أردت التحكم في الربط بنفسك، فسجّل الأدوات في `ToolRegistry` واستدعِ المنفِّذ؛ فالتوقف المؤقت هو نفسه، و`resumeAfterApproval(...)` هي ما تستدعيه `agent.approvals.resolve()` متى وافق إنسان:
 
 ```ts
-import { AgentExecutor, ToolRegistry, NodeWorkspace, createFsTools, createShellTool } from '@lousho/build-ai-agent';
+import { AgentExecutor, ToolRegistry } from '@lousho/build-ai-agent/executor';
+import { NodeWorkspace, createFsTools, createShellTool } from '@lousho/build-ai-agent';
 
 const workspace = new NodeWorkspace({ root: '.' }); // every path is confined to this directory
 const registry = new ToolRegistry();

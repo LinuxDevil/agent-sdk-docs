@@ -39,7 +39,8 @@ if (queued.applied === false || !(await queued.applied)) {
 بلا بث، مرّر `InputQueue` إلى `AgentExecutor.execute()` (راجع [واجهة المنفِّذ](/ar/executor-api)):
 
 ```ts
-import { AgentExecutor, InputQueue } from '@lousho/build-ai-agent';
+import { AgentExecutor } from '@lousho/build-ai-agent/executor';
+import { InputQueue } from '@lousho/build-ai-agent';
 
 const inputQueue = new InputQueue();
 const pending = AgentExecutor.execute({ agent, provider, input: 'Plan my trip.', inputQueue });

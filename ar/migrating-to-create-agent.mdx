@@ -4,7 +4,7 @@ sidebarTitle: "الانتقال إلى createAgent()"
 ---
 {/* Generated from docs/migrating-to-create-agent.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-هذه الصفحة موجّهة إلى الشيفرة التي تستخدم `AgentBuilder` و`AgentExecutor` و`ToolRegistry` و`resumeAfterApproval()`: أي واجهة المستوى الأدنى التي بدأ بها SDK. ما زالت هذه الصادرات تعمل ولا تزيلها هذه الصفحة؛ وإن بقيت عليها فانظر [واجهة المنفِّذ](/ar/executor-api). سبب الانتقال أن استدعاءً واحدًا لـ`createAgent()` يربط الأدوات والمخازن والموافقات والجلسات وإعادة المحاولة وضغط السياق، بينما يطلب منك المنفِّذ (executor) تجميع كل واحد منها بنفسك وتمريره إلى كل استدعاء.
+هذه الصفحة موجّهة إلى الشيفرة التي تستخدم `AgentBuilder` و`AgentExecutor` و`ToolRegistry` و`resumeAfterApproval()`: أي واجهة المستوى الأدنى التي بدأ بها SDK. أصبحت هذه الصادرات الآن في `@lousho/build-ai-agent/executor` ولن تزول؛ وإن بقيت عليها فانظر [واجهة المنفِّذ](/ar/executor-api). سبب الانتقال أن استدعاءً واحدًا لـ`createAgent()` يربط الأدوات والمخازن والموافقات والجلسات وإعادة المحاولة وضغط السياق، بينما يطلب منك المنفِّذ (executor) تجميع كل واحد منها بنفسك وتمريره إلى كل استدعاء.
 
 لا يقبل `createAgent()` كل الخيارات التي يقبلها المنفِّذ حتى الآن؛ راجع [ما لا يقبله createAgent() بعد](#ما-لا-يقبله-createagent-بعد) قبل أن تبدأ.
 
@@ -16,11 +16,10 @@ sidebarTitle: "الانتقال إلى createAgent()"
 import {
   AgentBuilder,
   AgentExecutor,
-  InMemoryApprovalStore,
   ToolRegistry,
-  defineTool,
   resumeAfterApproval,
-} from '@lousho/build-ai-agent';
+} from '@lousho/build-ai-agent/executor';
+import { InMemoryApprovalStore, defineTool } from '@lousho/build-ai-agent';
 import { mockModel } from '@lousho/build-ai-agent/testing';
 import { z } from 'zod';
 
@@ -116,8 +115,6 @@ console.log(result.text); // 'Sent the report to Sam.'
 | `skills` و`subagents` | الأسماء نفسها في `createAgent()`، الذي يقبل أيضًا `mcpServers` و`memory`. |
 | `inputQueue` | `run.enqueue()` على تشغيل مبثوث، أو `agent.session({ turnPolicy })`؛ انظر [المدخلات المصطفّة](/ar/queue-and-steer#المدخلات-المصطفّة). |
 | `sessionBudget` | `agent.session({ id, limits })`؛ انظر [الجلسات](/ar/sessions). |
-| `createDelegateTool()` | `subagents`؛ انظر [الوكلاء الفرعيون](/ar/sub-agents). |
-| `AgentType` و`setType()` | لا شيء تنقله: النوع بلا أي أثر. |
 
 ## ما لا يقبله createAgent() بعد
 

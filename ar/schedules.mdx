@@ -63,7 +63,7 @@ const running = startSchedules(agent, schedules);
 
 ## على Cloudflare Workers
 
-ليس لـWorker عملية طويلة العمر، فلا مؤقِّتات: تستدعي Cloudflare المعالج `scheduled()` في Worker مرة لكل تعبير cron مدرج تحت `[triggers] crons` في `wrangler.toml`. والهدف `cloudflare-worker` يولّد الاثنين من `triggers` في ملف مواصفات الوكيل:
+ليس لـWorker عملية طويلة العمر، فلا مؤقِّتات: تستدعي Cloudflare المعالج `scheduled()` في Worker مرة لكل تعبير cron مدرج تحت `[triggers] crons` في `wrangler.toml`. والهدف `cloudflare-worker` يولّد الاثنين من `triggers` في ملف مواصفات الوكيل — وفي مجلد الوكيل، من ملفات `schedules/` الخاصة به، التي تتبع القواعد نفسها أدناه:
 
 ```yaml
 triggers:

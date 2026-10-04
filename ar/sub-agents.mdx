@@ -432,8 +432,6 @@ if (paused.finishReason === 'awaiting-approval') {
 | مخطط `output` | لا | مخرجات الوكيل الفرعي خاصة به: إن كان له مخطط، تعيد `task` كائنه بعد التحقق منه بصيغة JSON (انظر [المخرجات المنظَّمة](/ar/structured-output#الوكلاء-الفرعيون))؛ وإلا فتعيد نصًا. |
 | سجل المحادثة | لا | لا يرى الوكيل الفرعي إلا موجّه المهمة (مع دوراته السابقة حين [يستأنف الوكيل الرئيسي المهمة](#متابعة-مهمة)). |
 
-أبناء `createDelegateTool()` يرثون بالطريقة نفسها.
-
 ### الخطّافات داخل الوكلاء الفرعيين
 
 انظر [الخطّافات](/ar/hooks) لنقاط الربط والنتائج.
@@ -499,8 +497,7 @@ if (paused.finishReason === 'awaiting-approval' && paused.approvalId) {
 الاستئناف ينفّذ الاستدعاء المعلّق للوكيل الفرعي (أو يرفضه)، ويدع الوكيل الفرعي
 يُكمل عمله، ويعيد إجابته النهائية إلى الوكيل الرئيسي نتيجةً لـ`task`، ثم
 يواصل الوكيل الرئيسي. وإذا احتاج الوكيل الفرعي إلى موافقة أخرى، يتوقف التشغيل
-مرة أخرى بـ`approvalId` جديد. يعمل ذلك عند أي عمق، ومع
-أبناء `createDelegateTool()` (مرّر السجل (registry) الذي يحتوي أداة التفويض).
+مرة أخرى بـ`approvalId` جديد. يعمل ذلك عند أي عمق.
 
 خيار `approve` على الوكيل الرئيسي يبتّ في استدعاءات وكلائه الفرعيين أيضًا.
 
@@ -539,7 +536,8 @@ if (paused.finishReason === 'awaiting-approval' && paused.approvalId) {
 التشغيل المتوقف:
 
 ```ts
-import { AgentExecutor, resumeAfterApproval, ToolRegistry, createAgent } from '@lousho/build-ai-agent';
+import { AgentExecutor, resumeAfterApproval, ToolRegistry } from '@lousho/build-ai-agent/executor';
+import { createAgent } from '@lousho/build-ai-agent';
 
 const subagents = { researcher: createAgent({ provider, instructions: 'You research.', description: 'Researches' }) };
 
@@ -556,48 +554,3 @@ if (paused.finishReason === 'awaiting-approval' && paused.approvalId) {
 }
 ```
 
-## `createDelegateTool()`
-
-حلّت `subagents` محل `createDelegateTool()`؛ وهي باقية للشيفرة التي
-تبني `ToolRegistry` يدويًا.
-
-تغلّف `createDelegateTool({ agent, provider, toolRegistry })` وكيلًا ابنًا واحدًا في
-أداة تسمّيها وتسجّلها بنفسك، مع حارس `maxDepth` خاص بها. وهي تعمل
-على نواة التفويض نفسها التي تعمل عليها `task`، فترث بيئة تشغيل الأب بالطريقة
-نفسها، وبنية نتيجتها (`{ text, usage }`) لم تتغير. فضِّل
-`subagents` في الشيفرة الجديدة: أداة واحدة، وسرد للوكلاء في الموجّه، ومهام متوازية، وحدود
-للعمق، كلها تأتي بلا جهد إضافي.
-
-```ts
-import { AgentExecutor, createDelegateTool, ToolRegistry } from '@lousho/build-ai-agent';
-
-const billingAgent = {
-  name: 'Billing Agent',
-  prompt: 'You answer billing questions and look up invoices.',
-};
-
-const registry = new ToolRegistry();
-registry.register(
-  'delegate_billing_agent',
-  createDelegateTool({
-    agent: billingAgent,
-    provider,
-    contextMode: 'none', // 'full-history' shares the parent's context array too
-    maxSteps: 10,
-    maxDepth: 3, // bounds a delegation chain (e.g. A -> B -> A) before it throws
-  })
-);
-
-const supportAgent = {
-  name: 'Support Agent',
-  prompt: 'You help customers. Delegate billing questions to the billing agent.',
-  tools: { delegate_billing_agent: { tool: 'delegate_billing_agent' } },
-};
-
-const result = await AgentExecutor.execute({
-  agent: supportAgent,
-  input: 'Why was I charged twice this month?',
-  provider,
-  toolRegistry: registry,
-});
-```

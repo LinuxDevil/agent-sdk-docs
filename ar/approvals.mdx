@@ -195,6 +195,10 @@ const chat = agent.session(); // the first staging deploy asks, later ones in th
 - `agent.approvals.list()` تُرجع الاستدعاءات المعلّقة التي توقف عندها هذا الوكيل في
   هذه العملية، الأقدم أولًا: `{ id, toolCallId, toolName, args, createdAt }`،
   مع `subagentPath` حين يكون الاستدعاء تابعًا لوكيل فرعي.
+- `agent.approvals.get(id)` تُرجع استدعاءً معلّقًا واحدًا دون أن تبتّ فيه:
+  مدخلات `list()` أولًا، ثم — مع `approvalStore` يطبّق
+  `load()` — توقفًا حُفظ قبل إعادة تشغيل، و`undefined` حين يكون المعرّف
+  غير معروف أو سبق البتّ فيه.
 - `agent.approvals.resolve({ id, approved, note? })` تنفّذ الاستدعاء (عند الموافقة)
   أو تعطي النموذج رفضًا مع `note` الذي كتبته (عند الرفض)، ثم تتابع
   التشغيل، وتُنجَز بنتيجة التشغيل المتابَع، وقد يتوقف مؤقتًا من جديد.
@@ -218,10 +222,11 @@ const store = new SqliteStore('./.lousho/agent.db');
 const agent = createAgent({ provider, tools: [emailTool], store }); // or approvalStore: store.approvals
 ```
 
-لا تعرف `list()` إلا التوقفات التي أحدثها كائن الوكيل هذا؛ فاحتفظ بـ
-`approvalId` (أو اقرأ المخزن) للبتّ في توقف مؤقت من مكان آخر. ولا ينضم
-التشغيل المتابَع إلى جلسة إلا حين يُبتّ فيه عبر الوكيل الذي
-يملك كائن تلك الجلسة.
+لا تعرف `list()` إلا التوقفات التي أحدثها كائن الوكيل هذا؛ وتجد
+`get(id)` أيضًا توقفًا ما زال المخزن الدائم يحتفظ به (مثل توقف حُفظ قبل
+إعادة تشغيل). فاحتفظ بـ `approvalId` (أو اقرأ المخزن) للبتّ في توقف مؤقت
+من مكان آخر. ولا ينضم التشغيل المتابَع إلى جلسة إلا حين يُبتّ فيه
+عبر الوكيل الذي يملك كائن تلك الجلسة.
 
 ### الاستئناف بوكيل تغيّر
 
@@ -346,7 +351,8 @@ const scripted = createAgent({
 `resumeAfterApproval()`:
 
 ```ts
-import { AgentExecutor, resumeAfterApproval, StorageServiceApprovalStore } from '@lousho/build-ai-agent';
+import { AgentExecutor, resumeAfterApproval } from '@lousho/build-ai-agent/executor';
+import { StorageServiceApprovalStore } from '@lousho/build-ai-agent/utils';
 
 const approvalStore = new StorageServiceApprovalStore(storage);
 

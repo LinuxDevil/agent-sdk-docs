@@ -292,6 +292,12 @@
                   "ar/errors",
                   "ar/utilities"
                 ]
+              },
+              {
+                "group": "الإصدارات",
+                "pages": [
+                  "ar/upgrading"
+                ]
               }
             ]
           }

@@ -24,7 +24,7 @@ npm run docs:build   # writes docs/api/index.html
 │  │ Executor (approvals,        │    │
 │  │ checkpoints, tracing)       │    │
 │  ├────────────────────────────┤    │
-│  │ Tools │ Delegation │ MCP    │    │
+│  │ Tools │ Sub-agents │ MCP    │    │
 │  │ Flows │ Guardrails │ Evals  │    │
 │  ├────────────────────────────┤    │
 │  │       Core Engine          │    │
@@ -43,19 +43,17 @@ npm run docs:build   # writes docs/api/index.html
 | العنصر المُصدَّر | الوصف |
 | ----------------------------- | --------------------------------------------------------------------------- |
 | `createAgent(config)`         | وكيل بواجهة `{ send(message) }` لا يحتاج إلى أي إعداد، يُنشأ من سلسلة `model` نصية أو من مزوّد (مع التعليمات والأدوات). |
-| `AgentBuilder`                | بانٍ بأسلوب الاستدعاءات المتسلسلة (fluent builder) لإنشاء `AgentConfig` (`AgentBuilder.create().setName(...)...build()`). استخدام متقدم: انظر [واجهة المنفِّذ](/ar/executor-api). |
-| `AgentExecutor.execute(opts)` | منفّذ ساكن (static): يشغّل وكيلًا (النموذج مع حلقة استدعاء الأدوات) ويُحَلّ (resolve) بقيمة `ExecutionResult`. استخدام متقدم: انظر [واجهة المنفِّذ](/ar/executor-api). |
-| `AgentType`                   | مُهمَل ولا أثر له وقت التشغيل: لا يحتاج الوكلاء إلى نوع. |
-| `resumeAfterApproval()`       | استئناف تنفيذ متوقف مؤقتًا بانتظار موافقة بشرية. استخدام متقدم: انظر [واجهة المنفِّذ](/ar/executor-api). |
+| `AgentBuilder` (من `@lousho/build-ai-agent/executor`) | بانٍ بأسلوب الاستدعاءات المتسلسلة (fluent builder) لإنشاء `AgentConfig` (`AgentBuilder.create().setName(...)...build()`). استخدام متقدم: انظر [واجهة المنفِّذ](/ar/executor-api). |
+| `AgentExecutor.execute(opts)` (من `@lousho/build-ai-agent/executor`) | منفّذ ساكن (static): يشغّل وكيلًا (النموذج مع حلقة استدعاء الأدوات) ويُحَلّ (resolve) بقيمة `ExecutionResult`. استخدام متقدم: انظر [واجهة المنفِّذ](/ar/executor-api). |
+| `resumeAfterApproval()` (من `@lousho/build-ai-agent/executor`) | استئناف تنفيذ متوقف مؤقتًا بانتظار موافقة بشرية. استخدام متقدم: انظر [واجهة المنفِّذ](/ar/executor-api). |
 | `InMemoryApprovalStore`       | مخزن `ApprovalStore` محلي داخل العملية؛ وهو المخزن الافتراضي للوكلاء المُنشأين بـ `createAgent()`. |
-| `StorageServiceApprovalStore`, `LocalStorageCheckpointStore` | مخزنان للموافقات ونقاط الحفظ (checkpoints) يعتمدان على الملفات فوق `StorageService` (انظر [الموافقات](/ar/approvals) و[التنفيذ المتين](/ar/durable-execution)). |
+| `StorageServiceApprovalStore`, `LocalStorageCheckpointStore` (من `/utils`) | مخزنان للموافقات ونقاط الحفظ (checkpoints) يعتمدان على الملفات فوق `StorageService` (انظر [الموافقات](/ar/approvals) و[التنفيذ المتين](/ar/durable-execution)). |
 | `SqliteStore` (من `/sqlite`) | الجلسات ونقاط الحفظ والموافقات في ملف SQLite واحد (انظر [الجلسات](/ar/sessions#اختيار-المخزن)). |
 | `fileStore(dir)`              | الجلسات ونقاط الحفظ والموافقات في ملفات JSON عادية تحت `dir` (انظر [الجلسات](/ar/sessions#اختيار-المخزن)). |
 | `KVStore`, `KVCheckpointStore` (من `/kv`) | مخازن فوق ارتباط Cloudflare Workers KV، لـ Worker تكتبه يدويًا (انظر [النشر](/ar/deployment)). |
 | `AgentStore`, `memoryStore()` | الخيار `createAgent({ store })`: `{ sessions?, checkpoints?, approvals?, tokens? }`، ومخزن جاهز يعمل في الذاكرة (انظر [الجلسات](/ar/sessions#اختيار-المخزن)؛ ويحفظ `tokens` رموز OAuth، انظر [OAuth](/ar/oauth)). |
 | `SessionAwaitingApprovalError` | يرميه `execute()` عندما تكون الجلسة ذات الـ `sessionId` المُمرَّر إليه متوقفة مؤقتًا بانتظار موافقة (انظر [التنفيذ المتين](/ar/durable-execution)). |
 | `SDKError`, `ERROR_CODES`    | الصنف الأساسي لأخطاء الـ SDK: `code` ثابت و`hint` ورابط `docs` (انظر [الأخطاء](/ar/errors)). |
-| `createDelegateTool()`        | تغليف وكيل ابن في صورة أداة للتفويض بين عدة وكلاء. حلّت محلها `subagents`. |
 
 ### الإعداد الديناميكي
 
@@ -219,7 +217,7 @@ await agent.send('Hi', { metadata: { tenant: 'Globex', role: 'admin' } });
 | -------------------------------------------- | --------------------------------------------- |
 | `defineTool({ name, description, input, execute, ... })` | تعريف أداة؛ تُستنتَج أنواع وسائط `execute`/`needsApproval` من `input` المعرَّف بـ zod. تقبلها `createAgent({ tools: [...] })` و`ToolRegistry.register(tool)` و`AgentBuilder.addTool(tool)`. |
 | `ToolInput<typeof t>`, `ToolOutput<typeof t>` | نوعا الوسائط والنتيجة لأداة معرَّفة. |
-| `ToolRegistry`                               | يحتفظ بالأدوات التي يشير إليها إعداد الوكيل (استخدام متقدم: `register(tool)` أو `register(name, descriptor)`). |
+| `ToolRegistry` (من `@lousho/build-ai-agent/tools` أو `@lousho/build-ai-agent/executor`) | يحتفظ بالأدوات التي يشير إليها إعداد الوكيل (استخدام متقدم: `register(tool)` أو `register(name, descriptor)`). |
 | `httpTool`, `currentDateTool`, `dayNameTool` | أدوات مضمّنة. |
 | `createFsTools(fs, options?)`, `createShellTool(shell, options?)` | أدوات مساحة العمل (`read_file`، `write_file`، `edit_file`، `list_dir`، `glob`، `grep`، `shell`) فوق `FsProvider` / `ShellProvider`. انظر [أدوات مساحة العمل](/ar/workspace-tools). |
 | `NodeWorkspace`, `MemoryWorkspace`, `SandboxShell` | مزوّدو مساحة العمل: مجلد حقيقي (المسارات محصورة داخل `root`، وبيئة shell بأقل قدر من المتغيرات)، وشجرة في الذاكرة مع `exec` مُعدّ مسبقًا للاختبارات، و`ShellProvider` فوق `SandboxAdapter` (Docker). |
@@ -309,7 +307,7 @@ const tools = await loadMcpTools(mcpClient, 'my-server', {
 
 ## مسارات العمل والتقييمات والمراقبة والأمان
 
-- `FlowBuilder` / `FlowExecutor` - مخططات بيانية (graphs) لمسارات عمل متعددة الخطوات؛ انظر [مسارات العمل](/ar/flows).
+- `FlowBuilder` / `FlowExecutor` (`@lousho/build-ai-agent/flows`) - مخططات بيانية (graphs) لمسارات عمل متعددة الخطوات؛ انظر [مسارات العمل](/ar/flows).
 - `WebhookTriggerAdapter` و`SlackTriggerAdapter` و`CronTriggerAdapter` و`TriggerRegistry`
   (`@lousho/build-ai-agent/triggers`) - توقظ الوكيل عند ورود webhook أو رسالة Slack
   أو حلول موعد في جدول زمني؛ انظر [المُشغِّلات](/ar/triggers).
@@ -329,13 +327,14 @@ const tools = await loadMcpTools(mcpClient, 'my-server', {
   OpenTelemetry (ومسارات العمل تُتتبَّع أيضًا)؛ انظر
   [المراقبة](/ar/observability).
 - `NoopSandbox` / `SubprocessSandbox` - العزل للأدوات التي تختاره عبر
-  `requiresSandbox`؛ و`runGuardrails()` وحواجز حماية مثل
-  `createCommandGuardrail()` و`createDiffSizeGuardrail()` و
-  `secretScanGuardrail`. انظر [حواجز الحماية والعزل](/ar/guardrails).
+  `requiresSandbox`؛ و`runPatchChecks()` وفحوص الرقع مثل
+  `createCommandCheck()` و`createDiffSizeCheck()` و
+  `secretScanCheck`. انظر [حواجز الحماية والعزل](/ar/guardrails).
 - `HookRegistry` و`AgentHook` و`HookContext` و`ToolCallHookContext` و
   `GenerateHookContext` - خطّافات تراقب استدعاءات الأدوات واستدعاءات النموذج أو ترفضها
   أو تعيد كتابتها أو تحجب أجزاء منها. انظر [الخطّافات](/ar/hooks).
-- `EncryptionUtils` و`sha256` و`StorageService` - أدوات مساعدة داعمة؛ انظر
+- `EncryptionUtils` و`sha256` و`StorageService`
+  (`@lousho/build-ai-agent/utils`) - أدوات مساعدة داعمة؛ انظر
   [الأدوات المساعدة](/ar/utilities).
 
 ## النشر

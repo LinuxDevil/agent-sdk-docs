@@ -3,7 +3,7 @@ title: "حواجز الحماية والبيئات المعزولة"
 ---
 {/* Generated from docs/guardrails.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-أدوات لتشغيل الوكلاء بأمان: **حواجز حماية المدخلات والمخرجات** تفحص ما يدخل إلى أي تشغيل وما يخرج منه (ومعاملات أدواته)، و**حواجز حماية الرقع (patch)** فحوص تُجرى على تغيير مقترح قبل أن تتصرف بناءً عليه، وتعدّ أي خلل فشلًا (fail-closed)، و**الأدوات المعزولة** تعمل داخل حاوية معزولة بدل عملية المضيف. للقرارات البشرية الخاصة بكل استدعاء، راجع [الموافقات](/ar/approvals)؛ وللخطّافات التي تفحص كل استدعاء أداة أو ترفضه، راجع [الخطّافات](/ar/hooks).
+أدوات لتشغيل الوكلاء بأمان: **حواجز حماية المدخلات والمخرجات** تفحص ما يدخل إلى أي تشغيل وما يخرج منه (ومعاملات أدواته)، و**فحوص الرقع (patch checks)** فحوص تُجرى على تغيير مقترح قبل أن تتصرف بناءً عليه وتعدّ أي خلل فشلًا (fail-closed)، و**الأدوات المعزولة** تعمل داخل حاوية معزولة بدل عملية المضيف. للقرارات البشرية الخاصة بكل استدعاء، راجع [الموافقات](/ar/approvals)؛ وللخطّافات التي تفحص كل استدعاء أداة أو ترفضه، راجع [الخطّافات](/ar/hooks).
 
 ## حواجز حماية المدخلات والمخرجات
 
@@ -80,7 +80,7 @@ try {
 | الحاجز المضمَّن | يفشل عندما |
 | -------- | ---------- |
 | `maxLengthGuardrail({ maxChars })` | يزيد طول النص على `maxChars` حرفًا. |
-| `regexGuardrail({ name, pattern?, action?, replacement? })` | يطابق النص `pattern` (كائن `RegExp` أو قائمة؛ والافتراضي: أنماط `secretScanGuardrail`). مع `action: 'rewrite'` يوضع `replacement` مكان كل تطابق (والافتراضي `'[redacted]'`). |
+| `regexGuardrail({ name, pattern?, action?, replacement? })` | يطابق النص `pattern` (كائن `RegExp` أو قائمة؛ والافتراضي: أنماط `secretScanCheck`). مع `action: 'rewrite'` يوضع `replacement` مكان كل تطابق (والافتراضي `'[redacted]'`). |
 | `denyTopicsGuardrail({ topics })` | يحتوي النص على أحد عناصر `topics` (كلمات مفتاحية لا تُراعى فيها حالة الأحرف). |
 | `llmJudgeGuardrail({ model, instruction, name? })` | `model` (كائن `LLMProvider` أو `"provider/model"`)، الذي يُسأل مرة واحدة في كل فحص عمّا إذا كان النص يلتزم بـ `instruction`، لا يرد بـ `PASS`؛ ويكون رده `FAIL: <reason>` هو السبب. |
 | `piiGuardrail({ types?, action?, name? })` | يحتوي النص على بيانات شخصية من أحد `types` (الافتراضي كلها): `email` و`phone` (من 9 إلى 15 رقمًا، مع رمز دولة `+` وفواصل اختيارية) و`credit-card` (يجب أن يجتاز فحص Luhn) و`iban` (يجب أن يجتاز فحص mod-97) و`us-ssn` (بصيغة `123-45-6789`) و`ip-address` (IPv4). يحجب افتراضيًا؛ ومع `action: 'rewrite'` يستبدل كل تطابق بـ `[<type>]`، مثل `[email]`. فحص تقريبي (heuristic) دون استدعاء نموذج. |
@@ -110,19 +110,19 @@ if (result.guardrail?.info?.category === 'prompt-injection') console.warn(result
 
 **الحدود.** فحوص البيانات الشخصية والأسرار وحقن الموجّه فحوص أنماط تقريبية: تلتقط الصيغ الشائعة المذكورة أعلاه وتفوّت غيرها (بيانات شخصية بصيغ أو لغات أخرى، أو سر ببادئة غير معروفة، أو حقن أُعيدت صياغته أو تُرجم أو رُمّز)، وتُشير أيضًا إلى بعض النصوص البريئة (رقم طلب يشبه رقم هاتف، أو نص إصدار يشبه عنوان IP، أو مستخدم يسأل عن "system prompts"). عاملها على أنها مرشّح أول وليست حدًّا أمنيًا؛ وأبقِ صلاحيات الأدوات والموافقات قائمة لكل ما يهم. أما الفحوص المعتمدة على نموذج فموثوقيتها بقدر موثوقية النموذج، وتكلّف استدعاءً واحدًا لكل نص مفحوص، وتُغلق عند الفشل: الرد الذي لا يطابق أيًّا من الصيغتين يحجب، مع سبب يقول إن الرد تعذّرت قراءته. ولا يفحص أي حاجز حماية نتائج الأدوات بعد (مثل صفحة ويب مجلوبة تحمل حقنًا غير مباشر).
 
-## حواجز حماية الرقع
+## فحوص الرقع
 
-ينفّذ `runGuardrails(action, guardrails)` كل الفحوص بالتزامن على رقعة مقترحة ويجمع النتائج في حكم واحد. يستخدمه [مثال ops-pipeline](https://github.com/LinuxDevil/agent-sdk/blob/main/examples/ops-pipeline) لفحص رقعة وكيل الإصلاح قبل فتح طلب سحب (pull request):
+ينفّذ `runPatchChecks(patch, checks)` كل الفحوص بالتزامن على رقعة مقترحة ويجمع النتائج في حكم واحد. يستخدمه [مثال ops-pipeline](https://github.com/LinuxDevil/agent-sdk/blob/main/examples/ops-pipeline) لفحص رقعة وكيل الإصلاح قبل فتح طلب سحب (pull request):
 
 ```ts
-import { runGuardrails, secretScanGuardrail, createDiffSizeGuardrail, createCommandGuardrail } from '@lousho/build-ai-agent';
+import { runPatchChecks, secretScanCheck, createDiffSizeCheck, createCommandCheck } from '@lousho/build-ai-agent';
 
-const verdict = await runGuardrails(
+const verdict = await runPatchChecks(
   { diff: patch },
   [
-    secretScanGuardrail,
-    createDiffSizeGuardrail(500),
-    createCommandGuardrail('test-run', repoPath, 'npm', ['test']),
+    secretScanCheck,
+    createDiffSizeCheck(500),
+    createCommandCheck('test-run', repoPath, 'npm', ['test']),
   ],
 );
 
@@ -131,14 +131,14 @@ if (!verdict.pass) {
 }
 ```
 
-| حاجز الحماية | يفشل عندما |
+| فحص الرقعة | يفشل عندما |
 | --------- | ---------- |
-| `secretScanGuardrail` | يحتوي الفرق (diff) على ترويسة مفتاح خاص، أو مفتاح API على نمط مفاتيح OpenAI، أو مفتاح وصول AWS. |
-| `createDiffSizeGuardrail(maxLines)` | يزيد عدد أسطر الفرق على `maxLines`. |
-| `createCommandGuardrail(name, cwd, command, args, { timeoutMs? })` | ينتهي الأمر برمز خروج غير صفري. إذا كان الفرق غير فارغ فإنه يُطبَّق أولًا (`git apply`) على نسخة مؤقتة من `cwd`، ويفشل الفحص إن لم يُطبَّق دون تعارض. |
-| `createTestRunGuardrail(repoPath)`، `createLintGuardrail(repoPath)` | يفشل `npm test` / `npm run lint` (اختصاران لحاجز الأمر). |
+| `secretScanCheck` | يحتوي الفرق (diff) على ترويسة مفتاح خاص، أو مفتاح API على نمط مفاتيح OpenAI، أو مفتاح وصول AWS. |
+| `createDiffSizeCheck(maxLines)` | يزيد عدد أسطر الفرق على `maxLines`. |
+| `createCommandCheck(name, cwd, command, args, { timeoutMs? })` | ينتهي الأمر برمز خروج غير صفري. إذا كان الفرق غير فارغ فإنه يُطبَّق أولًا (`git apply`) على نسخة مؤقتة من `cwd`، ويفشل الفحص إن لم يُطبَّق دون تعارض. |
+| `createTestRunCheck(repoPath)`، `createLintCheck(repoPath)` | يفشل `npm test` / `npm run lint` (اختصاران لفحص الأمر). |
 
-**الإغلاق عند الفشل (fail-closed).** حاجز الحماية الذي يرمي استثناءً، أو يُرفض وعده، أو لا يُحسم ضمن مهلته (30 ثانية افتراضيًا)، أو يُحسم بأي شيء غير `pass: true` يُعدّ فاشلًا: تغلّف `runGuardrailSafely(guardrail, action)` كل حاجز. وحاجز الأمر يقتل عمليته حين تنقضي المهلة (وعلى Windows، شجرة العمليات كلها). اكتب حاجزك الخاص في صورة `{ name, check(action) }` تُعيد `{ pass, reason? }`.
+**الإغلاق عند الفشل (fail-closed).** الفحص الذي يرمي استثناءً، أو يُرفض وعده، أو لا يُحسم ضمن مهلته (30 ثانية افتراضيًا)، أو يُحسم بأي شيء غير `pass: true` يُعدّ فاشلًا: تغلّف `runPatchCheckSafely(check, patch)` كل فحص. وفحص الأمر يقتل عمليته حين تنقضي المهلة (وعلى Windows، شجرة العمليات كلها). اكتب فحصك الخاص في صورة `{ name, check(patch) }` تُعيد `{ pass, reason? }`.
 
 ## الأدوات المعزولة
 
@@ -147,7 +147,8 @@ if (!verdict.pass) {
 #### متقدم: واجهة المنفّذ
 
 ```ts
-import { AgentExecutor, SubprocessSandbox } from '@lousho/build-ai-agent';
+import { AgentExecutor } from '@lousho/build-ai-agent/executor';
+import { SubprocessSandbox } from '@lousho/build-ai-agent';
 
 // Route a flagged tool (requiresSandbox + sandboxExecute) through a real,
 // Docker-backed sandbox instead of the in-process NoopSandbox default

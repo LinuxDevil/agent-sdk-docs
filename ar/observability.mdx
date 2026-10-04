@@ -30,7 +30,8 @@ const agent = createAgent({
 مع المنفِّذ، مرّر المُصدِّر إلى `AgentExecutor.execute()`:
 
 ```ts
-import { AgentExecutor, type TraceExporter } from '@lousho/build-ai-agent';
+import { AgentExecutor } from '@lousho/build-ai-agent/executor';
+import { type TraceExporter } from '@lousho/build-ai-agent';
 
 const exporter: TraceExporter = {
   onSpanStart: (span) => console.log('[start]', span.kind, span.name),
@@ -160,7 +161,8 @@ const exporter = createOtelTraceExporter(); // metrics on by default
 مع المنفِّذ، فعّلها لكل تشغيل على حدة:
 
 ```ts
-import { AgentExecutor, type TraceExporter } from '@lousho/build-ai-agent';
+import { AgentExecutor } from '@lousho/build-ai-agent/executor';
+import { type TraceExporter } from '@lousho/build-ai-agent';
 
 declare const exporter: TraceExporter;
 

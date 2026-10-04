@@ -1,13 +1,13 @@
 ---
 title: "وظائف مساعدة"
-description: "وظائف مساعدة داعمة مصدَّرة من جذر الحزمة: التشفير والتجزئة (hashing)، وتخزين ملفات المرفقات. لا تحتاج إلى أي منها لبناء وكيل؛ فهي موجودة لخدمة التطبيقات المحيطة به."
+description: "وظائف مساعدة داعمة مصدَّرة من المسار الفرعي @lousho/build-ai-agent/utils: التشفير والتجزئة (hashing)، وتخزين ملفات المرفقات. لا تحتاج إلى أي منها لبناء وكيل؛ فهي موجودة لخدمة التطبيقات المحيطة به."
 ---
 {/* Generated from docs/utilities.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 ## التشفير والتجزئة
 
 ```ts
-import { EncryptionUtils, sha256 } from '@lousho/build-ai-agent';
+import { EncryptionUtils, sha256 } from '@lousho/build-ai-agent/utils';
 
 const encryption = new EncryptionUtils('your-secret-key');
 const encrypted = await encryption.encrypt('sensitive data'); // fresh random salt every call
@@ -28,7 +28,7 @@ const hash = await sha256('password', 'salt');
 و`LocalStorageCheckpointStore`.
 
 ```ts
-import { StorageService } from '@lousho/build-ai-agent';
+import { StorageService } from '@lousho/build-ai-agent/utils';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 

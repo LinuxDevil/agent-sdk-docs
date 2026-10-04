@@ -105,11 +105,12 @@ await agent.send('Weather in Paris?');
 
 ### الانتقال من `onEvent` / `ExecutionEvent`
 
-الخيار `ExecuteOptions.onEvent` مع `ExecutionEvent` هو دالة رد النداء القديمة
-للأحداث في الـ SDK. وهو مُهمَل: ما زال يعمل (ويسجّل تحذير `console.warn` مرة
-واحدة)، وأحداثه تُشتق الآن من أحداث `AgentEvent` الخاصة بالتشغيل، وسيُزال في
-إصدار رئيسي قادم. استبدل به `onAgentEvent` (أو `createAgent({ onEvent })`، وهو
-يستقبل أحداث `AgentEvent` أصلًا):
+أُزيل الخيار `ExecuteOptions.onEvent` ونوعه `ExecutionEvent` في هذا الإصدار
+(وكانا مُهمَلَين منذ LOU-D41). مرّر بدلًا منهما `onAgentEvent` إلى
+`AgentExecutor.execute()` / `stream()` / `resumeAfterApproval()` — أما
+`createAgent({ onEvent })` فيستقبل أحداث `AgentEvent` أصلًا ولم يتغيّر.
+يطابق الجدول أدناه أسماء الأحداث القديمة بأحداث `AgentEvent` التي يصل إليها
+المستمع الآن:
 
 | `ExecutionEvent` (`onEvent`) | `AgentEvent` (`onAgentEvent`) |
 | --- | --- |
@@ -186,7 +187,7 @@ for await (const event of run) {
 `AgentRun` نفسه.
 
 ```ts
-import { AgentExecutor, streamResumeAfterApproval } from '@lousho/build-ai-agent';
+import { AgentExecutor, streamResumeAfterApproval } from '@lousho/build-ai-agent/executor';
 
 const paused = await AgentExecutor.execute({ agent, input, provider, toolRegistry, approvalStore });
 const run = streamResumeAfterApproval({ id: paused.approvalId!, approved: true }, approvalStore, toolRegistry, provider);
@@ -200,8 +201,8 @@ for await (const event of run) {
 
 ## الوكلاء الفرعيون
 
-حين يفوّض الوكيل العمل عبر الأداة `task` أو أداة منشأة بـ
-`createDelegateTool()` (انظر [الوكلاء الفرعيون](/ar/sub-agents))، يُبَث تشغيل
+حين يفوّض الوكيل العمل عبر الأداة `task`
+(انظر [الوكلاء الفرعيون](/ar/sub-agents))، يُبَث تشغيل
 الوكيل الفرعي داخل البث نفسه: تظهر خطواته وأحداث `text.delta` و`text.done`
 وأحداث الأدوات والأخطاء الخاصة به بين `tool.start` و`tool.done` (أو
 `tool.error`) لدى الوكيل الرئيسي لذلك الاستدعاء، وكلٌّ منها يحمل الحقل
@@ -358,7 +359,7 @@ source.onmessage = (message) => {
 تنهي البث بـ `approval.requested`:
 
 ```ts
-import { AgentExecutor } from '@lousho/build-ai-agent';
+import { AgentExecutor } from '@lousho/build-ai-agent/executor';
 
 const run = AgentExecutor.stream({ agent, input, provider, toolRegistry, approvalStore });
 for await (const event of run) {
