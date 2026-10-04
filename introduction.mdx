@@ -74,6 +74,31 @@ The agent is the same object everywhere. What changes is the surface in front of
   </Card>
 </CardGroup>
 
+## Compared to other libraries
+
+{/* DRAFT for owner review (issue #206): the rows and cell wording below are a
+    proposal, not approved copy. Remove the Note and this comment once the
+    owner signs off on which rows to keep. */}
+
+<Note>
+**Draft — pending owner review.** This comparison is a proposal, not approved copy. Claims were checked against each project's documentation when written, but all of these libraries move fast; every cell should be re-verified before this section ships.
+</Note>
+
+`@lousho/build-ai-agent` sits one layer above a model call: like LangGraph, Mastra or the OpenAI Agents SDK it runs a full agent loop, but as a library with no required platform, web framework or hosted runtime — and unlike the raw AI SDK, it ships the production pieces (durability, approvals, sessions) rather than leaving them to you.
+
+| Capability | `@lousho/build-ai-agent` | Vercel AI SDK | LangChain / LangGraph | Mastra | OpenAI Agents SDK |
+| ---------- | ---------------------- | ------------- | --------------------- | ------ | ----------------- |
+| Typed event stream | Yes — `agent.stream()` emits versioned, sequenced JSON events for runs, steps, tokens and tool calls, SSE-ready | Partial — typed `streamText` parts; the run loop is yours | Yes — node/graph events via `streamEvents` | Yes — agent and workflow streams | Yes — streamed run events |
+| Durable execution, checkpoints | Yes — checkpoints in pluggable stores (memory, files, SQLite, Cloudflare KV); a crashed or paused run resumes in another process | No — state lives in memory; you persist it | Yes — checkpointer saves thread state | Yes — workflow suspend/resume snapshots | Partial — sessions keep history; mid-run resume across processes is not built in |
+| Approvals (human-in-the-loop) | Yes — `needsApproval` pauses the run; `agent.approvals.resolve()` continues it from any process | Build it — you gate the tool call | Yes — `interrupt()` and human nodes | Yes — human steps in workflows | Partial — approvals exist for hosted tools; arbitrary tool gating is manual |
+| Channels | Yes — `mountChannels()` serves HTTP, webhook, Slack and Discord surfaces, with approvals back to the channel | No | No — community adapters only | Partial — some deploy/chat integrations | No |
+| Deploy targets | `lousho build` emits a Node server, Docker image or Cloudflare Worker from one spec | BYO — runs wherever your app runs | BYO, or LangGraph Platform (hosted) | `mastra build` targets Node, Vercel, Netlify, Workers | BYO — the loop runs in your process |
+| Sessions | Yes — `agent.session({ id })` over memory, file or SQLite stores | No — you keep the message array | Yes — threads and chat-history helpers | Yes — threads and memory | Yes — session objects keep conversation history |
+| MCP | Client (`mcpServers`) and server (`serveMcp`) | Client only (`experimental_createMCPClient`) | Client via community adapters | Yes — MCP client and server | Yes — MCP servers as tool sources |
+| Guardrails | Yes — input/output/tool-argument guardrails, prompt-injection and moderation checks, sandboxed tools | No — compose your own | Partial — community guardrails and LangSmith evaluators | Yes — input/output processors | Yes — input/output guardrails |
+
+When something else fits better: if you only need to stream model text in a Next.js route, the AI SDK alone is less surface; if your team is on Python or already runs LangGraph Platform, staying in that ecosystem avoids a second stack. `@lousho/build-ai-agent` is aimed at TypeScript teams that want a durable, approvable agent loop inside their own process without adopting a platform.
+
 ## Next steps
 
 - [Quick start](/quickstart): scaffold a project, or run the five-line agent. The snippets run offline with the built-in mock provider.
