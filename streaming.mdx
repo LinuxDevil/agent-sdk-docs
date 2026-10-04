@@ -106,12 +106,12 @@ await agent.send('Weather in Paris?');
 
 ### Migrating from `onEvent` / `ExecutionEvent`
 
-`ExecuteOptions.onEvent` with `ExecutionEvent` is the SDK's older event
-callback. It is deprecated: it still works (it logs a one-time
-`console.warn`), with its events now derived from the run's `AgentEvent`s,
-and it will be removed in a future major version. Replace it with
-`onAgentEvent` (or `createAgent({ onEvent })`, which already takes
-`AgentEvent`s):
+`ExecuteOptions.onEvent` and its `ExecutionEvent` type were removed in this
+release (they had been deprecated since LOU-D41). Pass `onAgentEvent` to
+`AgentExecutor.execute()` / `stream()` / `resumeAfterApproval()` instead -
+`createAgent({ onEvent })` already takes `AgentEvent`s and is unchanged.
+The table below maps the old event names to the `AgentEvent`s a listener
+gets now:
 
 | `ExecutionEvent` (`onEvent`) | `AgentEvent` (`onAgentEvent`) |
 | --- | --- |
@@ -189,7 +189,7 @@ of `resumeAfterApproval()` (see [the executor API](/executor-api)) and
 returns the same `AgentRun`.
 
 ```ts
-import { AgentExecutor, streamResumeAfterApproval } from '@lousho/build-ai-agent';
+import { AgentExecutor, streamResumeAfterApproval } from '@lousho/build-ai-agent/executor';
 
 const paused = await AgentExecutor.execute({ agent, input, provider, toolRegistry, approvalStore });
 const run = streamResumeAfterApproval({ id: paused.approvalId!, approved: true }, approvalStore, toolRegistry, provider);
@@ -203,8 +203,8 @@ Every event has `type`, `runId`, `seq`, `timestamp` and `v`. The full list of ev
 
 ## Sub-agents
 
-When the agent delegates with the `task` tool or a `createDelegateTool()`
-tool (see [Sub-agents](/sub-agents)), the sub-agent's run is streamed
+When the agent delegates with the `task` tool
+(see [Sub-agents](/sub-agents)), the sub-agent's run is streamed
 inside the same stream: its steps, `text.delta`s, `text.done`s, tool events
 and errors appear between the lead's `tool.start` and `tool.done` (or
 `tool.error`) for that call, each with a `subagent` field:
@@ -362,7 +362,7 @@ with `{ sessionId, input }` streams `agent.session({ id }).stream(input)` as
 needs approval ends the stream with `approval.requested`:
 
 ```ts
-import { AgentExecutor } from '@lousho/build-ai-agent';
+import { AgentExecutor } from '@lousho/build-ai-agent/executor';
 
 const run = AgentExecutor.stream({ agent, input, provider, toolRegistry, approvalStore });
 for await (const event of run) {

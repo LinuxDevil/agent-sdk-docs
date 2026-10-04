@@ -161,6 +161,7 @@
               {
                 "group": "Releases",
                 "pages": [
+                  "upgrading",
                   "changelog"
                 ]
               }

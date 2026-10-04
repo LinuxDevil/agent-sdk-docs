@@ -10,19 +10,34 @@ The files are copied into your project as source you own and can edit. There is
 no runtime plugin loader, and nothing from a registry is executed or imported
 while adding it.
 
-There is no hosted registry yet. Point `lousho add` at one with `--registry` or
-the `LOUSHO_REGISTRY` environment variable; without either it fails with
-`LOUSHO_CONFIG_INVALID` and says how to pass one.
+`lousho add` works out of the box: without `--registry` or `LOUSHO_REGISTRY` it
+reads the default registry at `https://registry.lousho.com/index.json`, which
+is the `registry/dist/` folder of the SDK's repository served as static JSON.
+`--registry` and `LOUSHO_REGISTRY` point it at another registry, and the value
+`none` (in either place) disables the registry entirely — `lousho add` then
+fails with `LOUSHO_CONFIG_INVALID`, for offline or locked-down use.
+
+The default registry currently carries five items:
+
+| Name | Type | Permissions it asks for |
+| ---- | ---- | ----------------------- |
+| `changelog` | skill | none |
+| `code-review` | skill | none |
+| `generic-webhook` | channel | `WEBHOOK_SECRET` |
+| `github-issues` | tool (list and create issues; create asks for approval) | `api.github.com`, `GITHUB_TOKEN` |
+| `open-meteo-weather` | tool | `api.open-meteo.com`, `geocoding-api.open-meteo.com` |
 
 ```bash
-lousho add --list --registry ./registry/index.json
+lousho add --list                       # the default registry's items
+lousho add open-meteo-weather --dir ./my-agent
 lousho add web-search --registry https://example.com/registry/index.json --dir ./my-agent
 LOUSHO_REGISTRY=./registry/index.json lousho add web-search --dry-run
+lousho add --list --registry none       # fails: the registry is disabled
 ```
 
 | Flag | Meaning |
 | ---- | ------- |
-| `--registry <url-or-path>` | The index: an `http(s)` URL or a local path (`LOUSHO_REGISTRY` when absent). |
+| `--registry <url-or-path>` | The index: an `http(s)` URL or a local path (`LOUSHO_REGISTRY` when absent, else the default registry). `none` disables the registry. |
 | `--dir <agent-dir>` | The agent directory to write into (default: the current directory; it must exist). |
 | `--yes`, `-y` | Do not ask for confirmation. Required when stdin is not a terminal. Does not grant elevated permissions on its own (see `--allow`). |
 | `--allow <list>` | With `--yes`, the elevated permissions you grant, comma-separated: `exec`, `fs-write`, `network`, `env`. An item that asks for one you did not name is refused. |
@@ -80,6 +95,15 @@ name starts with a letter or digit, followed by letters, digits, `.`, `_` and
 `-`. A document that does not match the
 format is `LOUSHO_REGISTRY_INVALID`, with the fields named.
 
+To contribute an item to the default registry, add a `registry/<name>/` folder
+to the SDK's repository: an `item.json` (`name`, `type`, `description`,
+`permissions`, `dependencies`) and the item's files laid out the way they
+should land in the agent directory (`tools/x.ts`, `skills/<name>/SKILL.md`,
+`channels/x.ts`). `npm run registry:build` validates every item against the
+same rules `lousho add` enforces (schema, paths, the code/manifest check) and
+rebuilds `registry/dist/`; commit the result. CI runs `npm run registry:check`,
+which fails when `registry/dist/` is stale.
+
 ## Permission manifest
 
 `permissions` declares what the item can do, so you can decide before you
@@ -131,17 +155,53 @@ What `lousho add` enforces, before it writes anything:
   grant command execution silently.
 - **A receipt of what was installed.** After writing, `lousho add` updates
   `lousho-registry.json` at the root of the agent directory (next to
-  `instructions.md`; the agent loader ignores it). Each item's entry has its
+  `instructions.md`). Each item's entry has its
   `type`, the `registry` it came from, `installedAt`, the `permissions` and every
   file's `path` and `sha256`, so you can tell later whether a file was edited.
   `--overwrite` replaces the entry; `--dry-run` writes nothing. A receipt that is
-  not valid JSON stops the install before any file is written.
+  not valid JSON stops the install before any file is written. The receipt is
+  what `loadAgentDir` enforces at load and run time (below).
 
-What it does not do: the check reads the code as written. It is not a sandbox and
-nothing is enforced when the agent runs; code that hides what it does (string
-escapes, aliasing, encoded payloads, a dependency that does the work) can get past
-it. Read the files it lists (`--dry-run` shows them) the way you would read any
-dependency before running it.
+What `loadAgentDir` enforces, from the receipt, when the agent loads and the
+item's tools run:
+
+- **Integrity.** Every file the receipt lists is re-hashed. A file that was
+  edited or removed since makes its item *unattested*: a warning names the item
+  and the changed files, and `resolveAgentDir()` reports the same in
+  `manifest.registry` (`status: 'attested' | 'unattested'`, plus the `modified`
+  and `missing` paths). Loading is not refused - the files are yours to edit -
+  and an unreadable receipt is a warning, not an error.
+- **Approval.** The tools of an item declaring `exec: true` or
+  `needsApproval: true` - and of any unattested item, whose stale receipt no
+  longer certifies the modified code - always wait for
+  [approval](/approvals); a `deny` from the tool's own `needsApproval`
+  still denies.
+- **Network.** While a receipt item's tool runs, `fetch` is limited to the
+  hosts its `network` declares: a host the manifest does not list is refused,
+  and an item that declares no `network` cannot fetch at all.
+- **Environment.** While it runs, `process.env` shows the tool only the names
+  `env` declares.
+- **Sandboxed tools.** A `requiresSandbox` tool gets a narrowed adapter:
+  `run()` is refused without `exec`, `writeFile()` without
+  `filesystem: "write"`, and a command's environment is the usual non-secret
+  base plus the declared variables only.
+
+The confinement stays at least as narrow as the manifest accepted at install,
+attested or not: editing an installed file marks it, asks for approval on its
+calls, and widens nothing, until `lousho add <name> --overwrite` installs the
+current files and attests them again.
+
+What it does not do: the install-time check reads the code as written, and the
+run-time confinement covers only what the SDK can intercept - calls to `fetch`
+and `process.env` reads made while the tool runs, and the adapter handed to a
+sandboxed tool. Requests through `http`/`net`/`axios`, file access, a reference
+captured at module scope (`const f = fetch`), work done when the file is
+imported, and a container's own network policy (`SubprocessSandbox`'s
+`{ allow }` is a property of the sandbox, not of the item) are all outside it;
+so is code that hides what it does (string escapes, aliasing, encoded
+payloads, a dependency that does the work) from the static check. Read the
+files it lists (`--dry-run` shows them) the way you would read any dependency
+before running it.
 
 ## Safety rules
 

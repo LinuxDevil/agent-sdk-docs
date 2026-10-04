@@ -167,6 +167,11 @@ console.log(manifest.tools, manifest.skills, manifest.subagents);
 const agent = createAgent({ ...config, maxSteps: 3 });
 ```
 
+When the directory has a `lousho-registry.json` install receipt
+([Registry](/registry)), `manifest.registry` reports whether each installed
+item's files still match it, and the tools of a receipt item run inside the
+permission manifest it was installed with.
+
 ## Overrides
 
 The second argument takes the same options as `createAgent()` and wins over the
@@ -233,7 +238,7 @@ config, `auth.ts`, `tools/`, `schedules/`, `channels/`, `memory/`, and the same 
 sub-agent) are bundled to `dist/agent/**.js`, and `instructions.md`, `skills/`
 and JSON/YAML config are copied next to them, so the server needs no TypeScript
 loader, sources or `node_modules`. See [Deployment](/deployment#agent-directories).
-The Cloudflare Worker target builds a directory too, without `subagents/`, `schedules/`, `channels/` or `memory/` ([Cloudflare Workers](/cloudflare-workers#build-and-deploy)).
+The Cloudflare Worker target builds a directory too, embedding every folder: `subagents/` become `delegate_to_` tools, `schedules/` become cron triggers, `channels/` are mounted under `/channels` and `memory/` slots run on `kvMemory()` ([Cloudflare Workers](/cloudflare-workers#build-and-deploy)).
 
 ## What is not covered
 

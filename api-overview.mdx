@@ -24,7 +24,7 @@ How the pieces fit:
 │  │ Executor (approvals,        │    │
 │  │ checkpoints, tracing)       │    │
 │  ├────────────────────────────┤    │
-│  │ Tools │ Delegation │ MCP    │    │
+│  │ Tools │ Sub-agents │ MCP    │    │
 │  │ Flows │ Guardrails │ Evals  │    │
 │  ├────────────────────────────┤    │
 │  │       Core Engine          │    │
@@ -43,19 +43,17 @@ How the pieces fit:
 | Export                        | Description                                                                 |
 | ----------------------------- | --------------------------------------------------------------------------- |
 | `createAgent(config)`         | Zero-config `{ send(message) }` agent from a `model` string or provider (+ instructions, tools). |
-| `AgentBuilder`                | Fluent builder for an `AgentConfig` (`AgentBuilder.create().setName(...)...build()`). Advanced: see [the executor API](/executor-api). |
-| `AgentExecutor.execute(opts)` | Static executor: runs an agent (LLM + tool-calling loop) and resolves to an `ExecutionResult`. Advanced: see [the executor API](/executor-api). |
-| `AgentType`                   | Deprecated, no runtime effect: agents need no type.                        |
-| `resumeAfterApproval()`       | Resume an execution paused for human approval. Advanced: see [the executor API](/executor-api). |
+| `AgentBuilder` (from `@lousho/build-ai-agent/executor`) | Fluent builder for an `AgentConfig` (`AgentBuilder.create().setName(...)...build()`). Advanced: see [the executor API](/executor-api). |
+| `AgentExecutor.execute(opts)` (from `@lousho/build-ai-agent/executor`) | Static executor: runs an agent (LLM + tool-calling loop) and resolves to an `ExecutionResult`. Advanced: see [the executor API](/executor-api). |
+| `resumeAfterApproval()` (from `@lousho/build-ai-agent/executor`) | Resume an execution paused for human approval. Advanced: see [the executor API](/executor-api). |
 | `InMemoryApprovalStore`       | Process-local `ApprovalStore`; the default store of `createAgent()` agents. |
-| `StorageServiceApprovalStore`, `LocalStorageCheckpointStore` | File-backed approval and checkpoint stores over a `StorageService` (see [Approvals](/approvals), [Durable execution](/durable-execution)). |
+| `StorageServiceApprovalStore`, `LocalStorageCheckpointStore` (from `/utils`) | File-backed approval and checkpoint stores over a `StorageService` (see [Approvals](/approvals), [Durable execution](/durable-execution)). |
 | `SqliteStore` (from `/sqlite`) | Sessions, checkpoints and approvals in one SQLite file (see [Sessions](/sessions#choosing-a-store)). |
 | `fileStore(dir)`              | Sessions, checkpoints and approvals as plain JSON files under `dir` (see [Sessions](/sessions#choosing-a-store)). |
 | `KVStore`, `KVCheckpointStore` (from `/kv`) | Stores on a Cloudflare Workers KV binding, for a hand-written Worker (see [Deployment](/deployment)). |
 | `AgentStore`, `memoryStore()` | The `createAgent({ store })` option: `{ sessions?, checkpoints?, approvals?, tokens? }`, and an in-memory one (see [Sessions](/sessions#choosing-a-store); `tokens` holds OAuth tokens, see [OAuth](/oauth)). |
 | `SessionAwaitingApprovalError` | Thrown by `execute()` when its `sessionId` is paused on an approval (see [Durable execution](/durable-execution)). |
 | `SDKError`, `ERROR_CODES`    | Base class of the SDK's errors: a stable `code`, a `hint` and a `docs` link (see [Errors](/errors)). |
-| `createDelegateTool()`        | Wrap a child agent as a tool for multi-agent delegation. Superseded by `subagents`. |
 
 ### Dynamic config
 
@@ -222,7 +220,7 @@ Exported from `@lousho/build-ai-agent/testing` (see [Testing agents](/testing)).
 | -------------------------------------------- | --------------------------------------------- |
 | `defineTool({ name, description, input, execute, ... })` | Define a tool; `execute`/`needsApproval` args are inferred from the zod `input`. Accepted by `createAgent({ tools: [...] })`, `ToolRegistry.register(tool)` and `AgentBuilder.addTool(tool)`. |
 | `ToolInput<typeof t>`, `ToolOutput<typeof t>` | Argument and result types of a defined tool. |
-| `ToolRegistry`                               | Holds the tools an agent config refers to (advanced: `register(tool)` or `register(name, descriptor)`). |
+| `ToolRegistry` (from `@lousho/build-ai-agent/tools` or `@lousho/build-ai-agent/executor`) | Holds the tools an agent config refers to (advanced: `register(tool)` or `register(name, descriptor)`). |
 | `httpTool`, `currentDateTool`, `dayNameTool` | Built-in tools.                               |
 | `createFsTools(fs, options?)`, `createShellTool(shell, options?)` | Workspace tools (`read_file`, `write_file`, `edit_file`, `list_dir`, `glob`, `grep`, `shell`) over an `FsProvider` / `ShellProvider`. See [Workspace tools](/workspace-tools). |
 | `NodeWorkspace`, `MemoryWorkspace`, `SandboxShell` | Workspace providers: a real directory (paths confined to `root`, minimal shell env), an in-memory tree with a scripted `exec` for tests, and a `ShellProvider` over a `SandboxAdapter` (Docker). |
@@ -315,7 +313,8 @@ Token estimates, the model price table, and the usage and cost of a run: see [Mo
 
 ## Flows, evals, observability and security
 
-- `FlowBuilder` / `FlowExecutor` - multi-step workflow graphs; see [Flows](/flows).
+- `FlowBuilder` / `FlowExecutor` (`@lousho/build-ai-agent/flows`) - multi-step
+  workflow graphs; see [Flows](/flows).
 - `WebhookTriggerAdapter`, `SlackTriggerAdapter`, `CronTriggerAdapter` and `TriggerRegistry`
   (`@lousho/build-ai-agent/triggers`) - wake an agent from a webhook, a Slack
   message or a schedule; see [Triggers](/triggers).
@@ -335,13 +334,14 @@ Token estimates, the model price table, and the usage and cost of a run: see [Mo
   semantic conventions (flows are traced too); see
   [observability](/observability).
 - `NoopSandbox` / `SubprocessSandbox` - sandboxing for tools that opt in via
-  `requiresSandbox`; `runGuardrails()` and guardrails such as
-  `createCommandGuardrail()`, `createDiffSizeGuardrail()` and
-  `secretScanGuardrail`. See [Guardrails and sandboxing](/guardrails).
+  `requiresSandbox`; `runPatchChecks()` and patch checks such as
+  `createCommandCheck()`, `createDiffSizeCheck()` and
+  `secretScanCheck`. See [Guardrails and sandboxing](/guardrails).
 - `HookRegistry`, `AgentHook`, `HookContext`, `ToolCallHookContext`,
   `GenerateHookContext` - hooks that observe, deny, rewrite or redact tool calls
   and model calls. See [Hooks](/hooks).
-- `EncryptionUtils`, `sha256`, `StorageService` - supporting utilities; see
+- `EncryptionUtils`, `sha256`, `StorageService`
+  (`@lousho/build-ai-agent/utils`) - supporting utilities; see
   [Utilities](/utilities).
 
 ## Deployment

@@ -81,6 +81,7 @@ const PAGES = {
   'docs/stream-events.md': 'stream-events',
   'docs/queue-and-steer.md': 'queue-and-steer',
   'docs/openapi-tools.md': 'openapi-tools',
+  'docs/upgrading.md': 'upgrading',
   'CHANGELOG.md': 'changelog',
 };
 
@@ -100,6 +101,7 @@ const SIDEBAR_TITLES = {
   'stream-events': 'Stream events',
   'queue-and-steer': 'Queued input and steering',
   'models-and-cost': 'Models and cost',
+  upgrading: 'Upgrading to 1.0',
 };
 
 /** Pages written by hand in this repository. Listed so the report can flag SDK docs with no page. */
