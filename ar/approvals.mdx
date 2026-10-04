@@ -79,8 +79,7 @@ true` تُنفَّذ مباشرة، أما `destructiveHint` بقيمة true أ�
 وحين لا تنطبق أي قاعدة، يحسم `needsApproval` الخاص بالأداة، كما كان من قبل.
 `tool` اسم، أو قائمة أسماء، أو `RegExp` يُختبر على الاسم، أو
 `'*'` لكل الأدوات. و`when` يحصر القاعدة في بعض الاستدعاءات: يستقبل
-الوسائط بعد التحقق منها (بعد خطّافات `preToolCall`) و`{ toolName, toolCallId,
-sessionId }`، ويجوز أن يكون غير متزامن؛ وإذا رمى خطأً فشل الاستدعاء بذلك
+الوسائط بعد التحقق منها (بعد خطّافات `preToolCall`) و`{ toolName, toolCallId, sessionId, principal }` (`principal`: من يعمل التشغيل نيابةً عنه، ثابت؛ ويغيب حين لا توجد هوية — انظر [الهويات في الأدوات والموافقات](/ar/auth#الهويات-في-الأدوات-والموافقات))، ويجوز أن يكون غير متزامن؛ وإذا رمى خطأً فشل الاستدعاء بذلك
 الخطأ. الدوال `allow(tools)` و`deny(tools, reason?)` و`ask(tools)` تبني
 القواعد الشائعة.
 
@@ -264,8 +263,9 @@ const trusted = createAgent({
 `agent.approvals.streamAnswer({ id, answer }, { signal })` تتابعان التشغيل
 مثل `resolve()` و`answer()`، لكنهما تُرجعان `AgentRun` نفسه الذي
 تُرجعه `agent.stream()` (انظر [البث](/ar/streaming#البث-بعد-الموافقة)):
-`run.start`، ثم `tool.start` و`tool.done` للاستدعاء الذي بُتّ فيه (و`tool.error` عند
-الرفض)، ثم أحداث المتابعة حتى `run.done`. و`run.result`
+`run.start`، ثم `tool.resume` و`tool.done` للاستدعاء الذي بُتّ فيه (و`tool.error` عند
+الرفض؛ `tool.resume` لا `tool.start` ثانيًا، لأن التشغيل المتوقف قد أبلغ عن بدء
+ذلك الاستدعاء من قبل)، ثم أحداث المتابعة حتى `run.done`. و`run.result`
 هو ما تُنجَز به `resolve()`. والمتابعة التي تتوقف مؤقتًا من جديد تنتهي بـ
 `approval.requested` ثم `run.done` (`'awaiting-approval'`)، حتى مع وجود
 دالة `approve`، كما يفعل `stream()`. والتوقف المؤقت الذي حدث داخل جلسة

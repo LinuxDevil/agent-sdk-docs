@@ -88,7 +88,7 @@ const fromOurAuthServer = jwt({
 
 ### `oidc()`
 
-هي `jwt()` تأتي مفاتيحها من مزوّد OpenID Connect. تجلب `<issuer>/.well-known/openid-configuration` مرة واحدة (أو `discoveryUrl`)، وتشترط أن يساوي `issuer` في الوثيقة قيمتك تمامًا، وتستخدم `jwks_uri` منها (ويجب أن يكون https). الخوارزميات الافتراضية `RS256` و`ES256`؛ ولا يُسمح بـ HMAC.
+هي `jwt()` تأتي مفاتيحها من مزوّد OpenID Connect. تجلب `<issuer>/.well-known/openid-configuration` مرة واحدة (أو `discoveryUrl`)، وتشترط أن يساوي `issuer` في الوثيقة قيمتك تمامًا، وتستخدم `jwks_uri` منها (https، أو http على `localhost` / `127.0.0.1` / `[::1]` — القاعدة نفسها التي يتبعها `jwksUrl` في `jwt()`). الخوارزميات الافتراضية `RS256` و`ES256`؛ ولا يُسمح بـ HMAC.
 
 ```ts
 import { oidc } from '@lousho/build-ai-agent/auth';
@@ -178,7 +178,7 @@ export default [
 
 ## قراءة الهوية أثناء التشغيل
 
-تكون الهوية في سياق التشغيل بجوار `sessionId` و`metadata`:
+تكون الهوية في سياق التشغيل بجوار `sessionId` و`metadata`. وتختار بادئة النموذج `vendor/` المزوّد؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`):
 
 ```ts
 import { createAgent, defineMemory, inMemoryMemory, type Principal } from '@lousho/build-ai-agent';

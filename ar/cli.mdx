@@ -24,20 +24,24 @@ title: "واجهة سطر الأوامر (CLI)"
 ## طريقة الاستخدام
 
 ```text
-lousho init [dir] [--provider P] [--template T] [--yes] [--no-install] [--no-git] [--package-manager PM] [--force]
-lousho dev <spec.yaml|spec.json|agent-dir|agent.ts> [--port N] [--host H] [--no-schedules]
-lousho chat <spec.yaml|spec.json|agent-dir|agent.ts> [--model provider/model] [--session id] [--store sqlite:<file>]
+lousho init [dir] [--provider P] [--template T] [--yes] [--no-install] [--no-git] [--package-manager PM] [--force] [--sdk-path <dir|tgz>]
+lousho dev <spec.yaml|spec.json|agent-dir|agent.ts> [--port N] [--host H] [--no-schedules] [--traces[=dir]]
+lousho chat <spec.yaml|spec.json|agent-dir|agent.ts> [--model provider/model] [--session id] [--store sqlite:<file>] [--traces[=dir]]
 lousho acp <spec.yaml|spec.json|agent-dir|agent.ts> [--model provider/model]
 lousho add <name> [--registry <url-or-path>] [--dir <agent-dir>] [--yes] [--allow <list>] [--overwrite] [--dry-run]    (or --list)
 lousho build <agent-dir|spec> --target=<name> [--out=<dir>]    (or --agent=<path>)
 lousho studio [--port N] [--host H] [--prod|--dev]
 lousho mcp <agent.yaml|json> [--http --port N --host H]
 lousho doctor [agent.yaml|json] [--json]
-lousho eval [globs...] [--tag t] [--junit path] [--json path] [--strict] [--judge] [--record | --replay | --drift [--drift-usage]] [--url <base> [--token <bearer>]]
+lousho eval [globs...] [--tag t] [--junit path] [--json path] [--strict] [--judge] [--record | --replay | --drift [--drift-usage]] [--url <base> [--token <bearer>]] [--config vitest.config.ts]
 lousho traces [traceId|prefix] [--dir D] [--limit N] [--json] [--content]
 ```
 
-تحلّل الأوامر كلها خياراتها بالطريقة نفسها (`parseArgs` في Node، بالوضع الصارم): تعمل الصيغتان `--flag value` و`--flag=value`، وعند تكرار خيار تُعتمد قيمته الأخيرة (أما `--tag` فتتراكم قيمه)، وتنهي `--` الخيارات، ويطبع `-h` / `--help` صيغة استخدام الأمر ويخرج بالرمز 0. الخيار غير المعروف، أو الخيار الذي تنقصه قيمته (لا يأخذ الخيارَ التالي قيمةً له أبدًا)، أو الوسيط الزائد، يفشل بالخطأ `LOUSHO_CONFIG_INVALID` مع سطر صيغة الاستخدام. والقيمة التي تبدأ بـ `-` تحتاج إلى صيغة `=`: `--model=-x`.
+تحلّل الأوامر كلها خياراتها بالطريقة نفسها (`parseArgs` في Node، بالوضع الصارم): تعمل الصيغتان `--flag value` و`--flag=value`، وعند تكرار خيار تُعتمد قيمته الأخيرة (أما `--tag` فتتراكم قيمه)، وتنهي `--` الخيارات، ويطبع `-h` / `--help` صيغة استخدام الأمر ويخرج بالرمز 0. الخيار غير المعروف، أو الخيار الذي تنقصه قيمته (لا يأخذ الخيارَ التالي قيمةً له أبدًا)، أو الوسيط الزائد، يفشل بالخطأ `LOUSHO_CONFIG_INVALID` مع سطر صيغة الاستخدام. والقيمة التي تبدأ بـ `-` تحتاج إلى صيغة `=`: `--model=-x`. والخيار `--traces` هو الوحيد الذي تكون قيمته اختيارية: لا يأخذها إلا بصيغة `=` (`--traces=./t`)، ولذلك يبقى `--traces agent.yaml` خيارًا يتبعه المسار.
+
+`lousho init` هو الاستثناء: يحلّل خياراته بنفسه، والخيار أو القيمة غير الصالحة يفشل بخطأ `InitUsageError` — تُطبع رسالته كما هي برمز خروج 1 — لا بمسار `LOUSHO_CONFIG_INVALID` المشترك. والخيارات القصيرة الوحيدة غير `-h` هي `-y` بمعنى `--yes`، في `init` وفي `add`.
+
+ويقبل `lousho eval` أيضًا `--config <file>` ليعمل تحت ملف إعداد vitest الخاص بك بدل المولَّد؛ وتُضيّق محارف البدل (globs) عندها ملفات ذلك الإعداد باعتبارها مرشّحات vitest.
 
 يشغّل `npm create lousho-agent my-agent` الأمر `lousho init` بالوسائط نفسها. ولإنشاء هيكل مشروع يعتمد على بناء غير منشور من الـ SDK، مرِّر `--sdk-path` (انظر [التثبيت من بناء محلي](/ar/installation#التثبيت-من-بناء-محلي)).
 
@@ -59,7 +63,7 @@ npx lousho dev ./my-agent --no-schedules   # do not fire the directory's cron sc
 | ---- | ----------- |
 | `.yaml`, `.yml`, `.json` | `loadSpec()` + `specToAgent()` ([الإعداد](/ar/configuration)) |
 | مجلد | `loadAgentDir()` ([مجلدات الوكلاء](/ar/agent-directories)) |
-| `.ts`, `.mts`, `.js`, `.mjs`, `.cjs` | التصدير الافتراضي للوحدة، أو تصديرها المسمّى `agent`: كائن `SimpleAgent` (ما يعيده `createAgent()`) أو كائن خيارات `createAgent()` |
+| `.ts`, `.mts`, `.cts`, `.js`, `.mjs`, `.cjs` | التصدير الافتراضي للوحدة، أو تصديرها المسمّى `agent`: كائن `SimpleAgent` (ما يعيده `createAgent()`) أو كائن خيارات `createAgent()` |
 
 أي امتداد آخر، أو مسار غير موجود، أو وحدة لا تصدّر وكيلًا، يفشل بخطأ ذي رمز (`LOUSHO_SPEC_UNSUPPORTED_FORMAT` أو `LOUSHO_CONFIG_INVALID`) مع حلّه. وحدة `.ts` يستوردها Node العامل نفسه (الإصدار 22.19 أو أحدث يزيل الأنواع، ولذلك تحتاج الاستيرادات النسبية إلى امتداد الملف)؛ استخدم `.js` للشيفرة التي تحتاج إلى مترجم مصدري (transpiler).
 
@@ -69,10 +73,12 @@ npx lousho dev ./my-agent --no-schedules   # do not fire the directory's cron sc
 | -------- | ------------ |
 | `POST /chat` `{ "sessionId", "input" }` | تشغّل `agent.session({ id: sessionId }).stream(input)` وتبث الدورة بصيغة SSE: سطر `data: <AgentEvent JSON>` لكل حدث ([البث](/ar/streaming))، ثم `event: done`. يُحفظ السجل لكل `sessionId` (من 1 إلى 128 محرفًا من `A-Za-z0-9_-`). |
 | `GET /chat/:sessionId` | سجل محادثة الجلسة: `{ sessionId, messages, pending }`؛ وتكون `pending` هي `{ status, approvalId? }` ما دامت دورة تنتظر موافقة، وإلا `null`. |
-| `POST /chat/:sessionId/approvals/:id` `{ "approved", "note"? }` أو `{ "answer" }` | تبتّ في الموافقة المعلّقة (`agent.approvals.resolve()`)، أو تجيب عن سؤال (`agent.approvals.answer()`)، وتبث تتمة الدورة بصيغة SSE. قد تتوقف الدورة مرة أخرى بحدث `approval.requested` آخر. تعيد `404` حين لا يكون `id` معلّقًا. |
+| `POST /chat/:sessionId/approvals/:id` `{ "approved", "note"? }` أو `{ "answer" }` | تبتّ في الموافقة المعلّقة (`agent.approvals.streamResolve()`)، أو تجيب عن سؤال (`agent.approvals.streamAnswer()`)، وتبث تتمة الدورة بصيغة SSE. قد تتوقف الدورة مرة أخرى بحدث `approval.requested` آخر. تعيد `404` حين لا يكون `id` معلّقًا. |
 | `POST /chat` `{ "message" }` | مُهمَل: بلا جلسة وبلا بث. تعيد `ExecutionResult` الخاص بالوكيل بصيغة JSON، مع الترويسة `Deprecation: true`. |
 
-تعيش الجلسات في `memoryStore()` داخل العملية (تزول حين يتوقف `lousho dev`)، أو في مخزن `store` الخاص بالوكيل حين تضبطه خيارات `createAgent()` في الوحدة. تتمة الموافقة لا تُبَث رمزًا رمزًا: فنقطة النهاية تشغّلها بـ `agent.approvals.resolve()` وترسل نتائج أدوات الدورة ونصها كأحداث بعد انتهائها.
+يكتب `--traces` (أو `--traces=<dir>`) كل تشغيل في ملفات تتبّع محلية عبر `fileTraceExporter()`، في `.lousho/traces` ما لم تسمِّ مجلدًا، فيُظهر `npx lousho traces` ما فعله الوكيل. وهو معطَّل افتراضيًا لأن الملفات تحوي محتوى الموجّهات ووسائط الأدوات ونتائجها، ويطبع الخيارُ المجلدَ الذي يكتب فيه. وينطبق على ملفات المواصفات ومجلدات الوكلاء والوحدات على حد سواء (فيُستبدل `exporter` الخاص بالوحدة ما دام الخيار مضبوطًا). انظر [التتبّعات المحلية](/ar/observability#التتبّعات-المحلية).
+
+تعيش الجلسات في `memoryStore()` داخل العملية (تزول حين يتوقف `lousho dev`)، أو في مخزن `store` الخاص بالوكيل حين تضبطه خيارات `createAgent()` في الوحدة. تتمة الموافقة تُبَثّ هي الأخرى: فنقطة النهاية تشغّلها بـ `agent.approvals.streamResolve()` (أو `streamAnswer()` في حالة سؤال) وترسل أحداث الدورة التالية — استدعاء الأداة المبتوت فيه، وزيادات النص، وتوقفًا آخر محتملًا، و`run.done` — فور وقوعها.
 
 خوادم `lousho build` (`node-server` و`docker`) تقدّم نقاط النهاية نفسها من الشيفرة نفسها، مع جلسات في مخزن يحدده `LOUSHO_STORE` ومصادقة bearer اختيارية: انظر [النشر: واجهة HTTP البرمجية](/ar/deployment#واجهة-http).
 
@@ -115,6 +121,7 @@ Done, the report is on its way.
 - استدعاء الأداة الذي يحتاج إلى موافقة يسأل `Approve <tool>(args)? [y/N]`: الإجابة `y` أو `yes` تنفّذه، وأي إجابة أخرى ترفضه ويواصل النموذج عمله. استدعاء `ask_question` (`askQuestion: true`) يطبع السؤال مع خيارات مرقَّمة؛ أجب بالرقم أو بنص حر.
 - بعد كل دورة يعرض `[usage]` عدد الرموز، وكذلك التكلفة حين تكون أسعار كل النماذج المستخدمة معروفة (العلامة `~` تدل على رموز مقدَّرة).
 - أخطاء الـ SDK تُطبع مع رمزها `[LOUSHO_...]` وحلّها، وتستمر الجلسة.
+- يكتب `--traces` أو `--traces=<dir>` تشغيلات الجلسة في ملفات تتبّع محلية كما في `lousho dev`؛ ويذكر سطر على stderr مكانها.
 
 | الأمر | ما يفعله |
 | ------- | ------------ |
@@ -127,7 +134,7 @@ Done, the report is on its way.
 
 | الخيار | المعنى |
 | ------ | ------- |
-| `--model provider/model` | يستخدم هذا النموذج بدل الذي يسمّيه الهدف. ينطبق على ملفات المواصفات، ومجلدات الوكلاء، وتصديرات خيارات `createAgent()`؛ أما الوحدة التي تصدّر وكيلًا مبنيًا مسبقًا فتحتفظ بنموذجها. |
+| `--model provider/model` | يستخدم هذا النموذج بدل الذي يسمّيه الهدف. ينطبق على ملفات المواصفات، ومجلدات الوكلاء، وتصديرات خيارات `createAgent()`؛ أما الوحدة التي تصدّر وكيلًا مبنيًا مسبقًا فتحتفظ بنموذجها. بادئة النموذج `vendor/` هي التي تختار المزوّد؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o`). |
 | `--session id` | يفتح هذه الجلسة (من 1 إلى 128 محرفًا من `A-Za-z0-9_-`)؛ والافتراضي جلسة جديدة باسم `chat-<id>`. |
 | `--store sqlite:<file>` | يحفظ الجلسات في ملف SQLite ([`SqliteStore`](/ar/durable-execution))، فيكمل `--session id` المحادثة بعد إعادة التشغيل. الافتراضي: في الذاكرة. الموافقات المعلّقة لا تُستعاد بعد إعادة التشغيل. |
 

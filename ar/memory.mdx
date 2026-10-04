@@ -12,6 +12,8 @@ title: "الذاكرة"
 
 ## الذاكرة في الكود
 
+تحدّد بادئة `vendor/` في اسم النموذج المزوّد؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`).
+
 ```ts
 import { createAgent, defineMemory, fileMemory } from '@lousho/build-ai-agent';
 
@@ -197,7 +199,7 @@ const agent = createAgent({ model: 'openai/gpt-4o-mini', memory: [facts] });
 (الأحدث أولًا عند التعادل) وتعيد `limit` منها. وتحمل كل عنصر معاد درجته
 في `metadata.score`. ومن دون استعلام، أو مع استعلام فارغ، تسرد الأحدث
 أولًا، كما يفعل كل مزوّد. ويصبح وصف الأداة `recall_<name>` عندئذٍ: "Search
-the memory by meaning, most relevant first."
+the "&lt;name>" memory by meaning, most relevant first."
 
 وللاسترجاع بحسب المعنى عند بداية التشغيل، اضبط `recall: { query: 'last-input' }`
 على الخانة: فتكون آخر رسالة للمستخدم في التشغيل هي الاستعلام، فتحوي كتلة `<memory>`

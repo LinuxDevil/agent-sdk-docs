@@ -63,7 +63,7 @@ LOUSHO_REGISTRY=./registry/index.json lousho add web-search --dry-run
 }
 ```
 
-استضف الاثنين ملفات ثابتة في أي مكان (مجلد في مستودع، أو مخزن كائنات، أو خادم ويب). يجب أن يطابق `name` و`type` في المستند مدخله في الفهرس، ويتكوّن الاسم من أحرف وأرقام و`.` و`_` و`-`. المستند الذي لا يطابق الصيغة يُعطي الخطأ `LOUSHO_REGISTRY_INVALID`، مع ذكر الحقول المعنية.
+استضف الاثنين ملفات ثابتة في أي مكان (مجلد في مستودع، أو مخزن كائنات، أو خادم ويب). يجب أن يطابق `name` و`type` في المستند مدخله في الفهرس، ويبدأ الاسم بحرف أو رقم، تتبعه أحرف وأرقام و`.` و`_` و`-`. المستند الذي لا يطابق الصيغة يُعطي الخطأ `LOUSHO_REGISTRY_INVALID`، مع ذكر الحقول المعنية.
 
 ## بيان الصلاحيات
 
@@ -80,12 +80,12 @@ LOUSHO_REGISTRY=./registry/index.json lousho add web-search --dry-run
 ما يفرضه `lousho add` قبل أن يكتب أي شيء:
 
 - **الشيفرة تطابق البيان.** يُفحص كل ملف JavaScript وTypeScript في العنصر، بعد حذف التعليقات، بحثًا عمّا يلجأ إليه ظاهريًا:
-  - `exec: true` عند استيراد `child_process` (بـ`node:` أو دونها) أو `execa` أو `shelljs`، أو عند استخدام `createShellTool` أو `SubprocessSandbox` من SDK؛
-  - `filesystem: "read"` (أو `"write"`) عند استيراد `fs` أو `fs/promises` أو `createFsTools` من SDK، و`"write"` عند استدعاء `writeFile` أو `appendFile` أو `createWriteStream` أو `mkdir` أو `rm` أو `rmdir` أو `unlink` أو `rename` أو `copyFile` أو `cp` (وصيغها `Sync`)؛
-  - `network` غير فارغ عند `fetch(` أو استيراد `http` أو `https` أو `net` أو `tls` أو `undici` أو `axios` أو `node-fetch` أو `ws`، ويجب أن يطابق كل `http(s)://host` في أي سلسلة نصية أحد مدخلات `network` (أما المضيف الذي يُبنى وقت التشغيل، مثل `` `https://${host}/` ``، فيحتاج إلى `network` غير فارغ ويُطبع ملاحظةً لأنه لا يمكن فحصه)؛
+  - `exec: true` عند استيراد `child_process` (بـ`node:` أو دونها) أو `execa` أو `shelljs`، أو عند استخدام `createShellTool` أو `runShellCommand` أو `SubprocessSandbox` من SDK؛
+  - `filesystem: "read"` (أو `"write"`) عند استيراد `fs` (بما فيها `fs/promises` وصيغ `node:`) أو `fs-extra` أو `graceful-fs`، أو `createFsTools` من SDK، و`"write"` عند استدعاء `writeFile` أو `appendFile` أو `createWriteStream` أو `mkdir` أو `mkdtemp` أو `rm` أو `rmdir` أو `unlink` أو `rename` أو `copyFile` أو `cp` (وصيغها `Sync`)؛
+  - `network` غير فارغ عند `fetch(` أو استخدام `createHttpTool` من SDK أو استيراد `http` أو `https` أو `http2` أو `net` أو `tls` أو `dgram` أو `undici` أو `axios` أو `node-fetch` أو `ws`، ويجب أن يطابق كل مضيف `http(s)://` أو `ws(s)://` في أي سلسلة نصية أحد مدخلات `network` (أما المضيف الذي يُبنى وقت التشغيل، مثل `` `https://${host}/` ``، فيحتاج إلى `network` غير فارغ ويُطبع ملاحظةً لأنه لا يمكن فحصه)؛
   - يجب إدراج كل `process.env.NAME` و`process.env['NAME']` في `env`.
 
-  وتُرفض دائمًا `eval(` و`new Function(` و`process.env[name]` المحسوب و`process.env` المستخدم كاملًا، وأي `import()` أو `require()` لما ليس سلسلة نصية حرفية. وعدم المطابقة يعطي `LOUSHO_REGISTRY_MANIFEST_MISMATCH` مع كل ملاحظة بالشكل `<file>:<line>: <what> (<fix>)`؛ ويبلّغ عنه `--dry-run` أيضًا. أما ملفات Markdown وغيرها مما ليس شيفرة (مثل `SKILL.md` في المهارة) فلا تُفحص. ويجب أن تكون مدخلات `network` أسماء مضيفين أو أنماطًا بديلة تبدأ بـ`*.` (`api.example.com` و`*.example.com`)، ومدخلات `env` أسماء متغيرات (`SEARCH_KEY`)؛ وغير ذلك يعطي `LOUSHO_REGISTRY_INVALID`.
+  وتُرفض دائمًا `eval(` و`new Function(` و`process.env[name]` المحسوب و`process.env` المستخدم كاملًا، وأي `import()` أو `require()` لما ليس سلسلة نصية حرفية، و`require` المستخدم قيمةً (`const r = require`). وعدم المطابقة يعطي `LOUSHO_REGISTRY_MANIFEST_MISMATCH` مع كل ملاحظة بالشكل `<file>:<line>: <what> (<fix>)`؛ ويبلّغ عنه `--dry-run` أيضًا. أما ملفات Markdown وغيرها مما ليس شيفرة (مثل `SKILL.md` في المهارة) فلا تُفحص. ويجب أن تكون مدخلات `network` أسماء مضيفين أو أنماطًا بديلة تبدأ بـ`*.` (`api.example.com` و`*.example.com` — والنمط البديل يطابق النطاقات الفرعية فقط لا المضيف المجرّد)، ومدخلات `env` أسماء متغيرات (`SEARCH_KEY`)؛ وغير ذلك يعطي `LOUSHO_REGISTRY_INVALID`.
 - **الموافقة تغطي الصلاحيات المرتفعة.** يوسَم كل من `exec: true` و`filesystem: "write"` و`network` غير الفارغ و`env` غير الفارغ بالعلامة `[elevated: ...]` في البيان المطبوع. ويسردها السؤال التفاعلي قبل `[y/N]`. ومع `--yes` يجب تسمية كل منها في `--allow` (`--allow network,env` للمثال أعلاه)، لأن `--yes` هو الطريقة التي تشغّل بها السكربتات والوكلاء الأمر `lousho add` ولا ينبغي أن يمنح تنفيذ الأوامر بصمت.
 - **إيصال بما ثُبِّت.** بعد الكتابة يحدّث `lousho add` الملف `lousho-registry.json` في جذر مجلد الوكيل (بجانب `instructions.md`؛ ويتجاهله محمِّل الوكيل). يحتوي مدخل كل عنصر على `type` و`registry` الذي جاء منه و`installedAt` و`permissions` و`path` و`sha256` لكل ملف، لتعرف لاحقًا هل عُدّل ملف ما. ويستبدل `--overwrite` المدخل؛ ولا يكتب `--dry-run` شيئًا. والإيصال الذي ليس JSON صالحًا يوقف التثبيت قبل كتابة أي ملف.
 

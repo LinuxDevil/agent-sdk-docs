@@ -24,7 +24,7 @@ npm install @modelcontextprotocol/sdk
 وتُضاف أدوات كل خادم باسم `<server>__<tool>` (مثل `docs__search`).
 الخادم الذي يتعذر اتصاله يُفشل ذلك الاستدعاء، ويحاول الاستدعاء التالي مرة أخرى.
 يقطع `agent.close()` الاتصال بها (ويوقف عمليات stdio)؛ وأي استدعاء أداة لاحق
-يعيد الاتصال. وبلا `mcpServers` لا تفعل `ready()` ولا `close()` شيئًا.
+يعيد الاتصال. وبلا `mcpServers` لا تفعل `ready()` ولا `close()` شيئًا. تختار بادئة النموذج `vendor/` المزوّد؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`).
 
 ```ts
 import { createAgent } from '@lousho/build-ai-agent';
@@ -67,6 +67,13 @@ await agent.close();
 تعيد `{ tools, close(), status() }`؛ وتربط `status()` كل خادم بإحدى القيم
 `'idle'` أو `'connected'` أو `'failed'` أو `'needs-auth'` (خادم له `oauth` لم يسجّل التطبيق دخوله إليه).
 
+`tools` هي `Record<string, ToolDescriptor>` مفتاحها `<server>__<tool>` —
+خريطة، لا المصفوفة التي تصنعها نتائج `defineTool()`. وتقبل
+`createAgent({ tools })` الصورتين معًا وتجمعهما: `tools: [myTool, mcp.tools]`
+تسجّل عناصر المصفوفة بأسمائها وعناصر الخريطة بمفاتيحها، فتجتمع أدواتك
+الخاصة وأدوات MCP في قائمة واحدة. (والنشر في خريطة واحدة،
+`tools: { ...mcp.tools, my_tool: myTool }`، يعمل أيضًا.)
+
 ```ts
 import { createAgent } from '@lousho/build-ai-agent';
 import { connectMcp } from '@lousho/build-ai-agent/mcp';
@@ -80,6 +87,11 @@ const agent = createAgent({ model: 'openai/gpt-4o-mini', tools: mcp.tools });
 await agent.send('List the files here.');
 await mcp.close();
 ```
+
+`mcp.tools` خريطة، و`tools` تقبل المصفوفة أيضًا، فتختلط الصورتان:
+`tools: [mcp.tools, weatherTool]` أو
+`tools: [...createFsTools(workspace), ...Object.values(mcp.tools)]` (يحمل كل
+واصف MCP اسم `<server>__<tool>` الخاص به، فيعمل `Object.values` أيضًا).
 
 ### الموافقة على أدوات MCP
 

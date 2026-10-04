@@ -26,7 +26,7 @@ const result = await agent.send('What changed in Node 24?');
 console.log(result.text, result.usage.hostedToolCalls); // { web_search: 1 }
 ```
 
-لا ينفّذ SDK أي أداة مستضافة أبدًا. يرسلها مع كل استدعاء للنموذج في التشغيل ويُبلغ عمّا فعله المزوّد.
+لا ينفّذ SDK أي أداة مستضافة أبدًا. يرسلها مع كل استدعاء للنموذج في التشغيل ويُبلغ عمّا فعله المزوّد. تختار بادئة النموذج `vendor/` المزوّد؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`).
 
 ## الدوال المساعدة
 

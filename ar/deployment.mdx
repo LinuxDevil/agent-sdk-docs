@@ -45,7 +45,7 @@ npx lousho build ./my-agent --target=cloudflare-worker
 | `GET /health` | `200 ok`. لا تحتاج إلى مصادقة أبدًا: وجِّه إليها موازِنات الحمل وفحوص سلامة الحاويات. |
 | `POST /chat` `{ "sessionId", "input" }` | تشغّل دورة من الجلسة `sessionId` (من 1 إلى 128 محرفًا من `A-Za-z0-9_-`؛ المعرّف الجديد يبدأ محادثة، والمعروف يواصلها) وتبثّها بصيغة SSE: سطر `data: <AgentEvent JSON>` لكل حدث ([البث](/ar/streaming))، ثم `event: done`. و`input` سلسلة نصية أو مصفوفة من أجزاء المحتوى. |
 | `GET /chat/:sessionId` | سجل محادثة الجلسة: `{ sessionId, messages, pending }`. |
-| `POST /chat/:sessionId/approvals/:id` `{ "approved", "note"? }` أو `{ "answer" }` | تبتّ في موافقة أداة معلّقة، أو تجيب عن `ask_question`، وتبثّ الدورة المتواصلة مباشرةً بصيغة SSE، بالتأطير وأنواع الأحداث نفسها التي في `POST /chat` (`tool.start` / `tool.done` أو `tool.error` للاستدعاء المبتوت فيه، وأجزاء النص المتتابعة، و`approval.requested` إن توقفت مرة أخرى، و`run.done`)، من `agent.approvals.streamResolve()` / `streamAnswer()`. تعيد `404` حين لا يكون `id` معلّقًا. |
+| `POST /chat/:sessionId/approvals/:id` `{ "approved", "note"? }` أو `{ "answer" }` | تبتّ في موافقة أداة معلّقة، أو تجيب عن `ask_question`، وتبثّ الدورة المتواصلة مباشرةً بصيغة SSE، بالتأطير وأنواع الأحداث نفسها التي في `POST /chat` (`tool.resume` / `tool.done` أو `tool.error` للاستدعاء المبتوت فيه، وأجزاء النص المتتابعة، و`approval.requested` إن توقفت مرة أخرى، و`run.done`)، من `agent.approvals.streamResolve()` / `streamAnswer()`. تعيد `404` حين لا يكون `id` معلّقًا. |
 | `POST /chat` `{ "message" }` | صيغة قديمة: دورة واحدة بلا سجل محادثة ولا بث؛ تعيد `ExecutionResult` الخاص بالوكيل بصيغة JSON، مع الترويسة `Deprecation: true`. |
 
 الأجسام التي تتجاوز 1MB تحصل على `413`، وJSON غير الصالح يحصل على `400`.
@@ -109,7 +109,7 @@ docker run -p 3000:3000 -e OPENAI_API_KEY=... lousho-agent
 
 ### الاعتماديات النظيرة الاختيارية في بناءي node وdocker
 
-يحزّم `dist/server.js` الـSDK لكنه يُبقي اعتمادياتها النظيرة الاختيارية (مدخلات `peerDependenciesMeta` في package.json الخاص بها: حزم المزوّدين، و`dockerode`، وMCP SDK، و`prompts`، ...) خارج الحزمة، فلا يحتاج أي بناء إلى اعتمادية لا تستخدمها. ثبّت، حيث يعمل الخادم، الاعتماديات النظيرة التي يحتاج إليها وكيله فقط (مثل `@ai-sdk/openai` لوكيل OpenAI)؛ ومسار الشيفرة الذي يحتاج إلى اعتمادية مفقودة يرمي خطأ SDK ذا الرمز الخاص بالاعتمادية النظيرة المفقودة. ومُشغِّلات cron في ملف المواصفات تعمل على هدفي node-server وdocker كما تعمل على Workers ([الجداول الزمنية](/ar/schedules#على-خادم-node)).
+يحزّم `dist/server.js` الـSDK لكنه يُبقي اعتمادياتها النظيرة الاختيارية (مدخلات `peerDependenciesMeta` في package.json الخاص بها: حزم المزوّدين، و`dockerode`، وMCP SDK، و`prompts`، ...) خارج الحزمة، فلا يحتاج أي بناء إلى اعتمادية لا تستخدمها. وملف `package.json` المولَّد يدرج أصلًا ما يحتاج إليه الوكيل حيث يعمل الخادم — `@lousho/build-ai-agent` (مثبَّتًا على الإصدار الذي بناه)، وحزمة المزوّد التي يسمّيها ملف المواصفات (بنطاق يواكب الإصدار الرئيسي من `ai` الذي بُني به، مثل `@ai-sdk/openai` لوكيل OpenAI)، و`@modelcontextprotocol/sdk` حين يحوي ملف المواصفات `mcpServers` — فيثبّتها `npm install --omit=dev` في صورة docker، أو `npm install` بجوار ناتج node-server. وما عداها (استيرادات مجلد الوكيل نفسه، و`dockerode` للأدوات المعزولة) تضيفه بنفسك؛ ومسار الشيفرة الذي يحتاج إلى اعتمادية مفقودة يرمي خطأ SDK ذا الرمز الخاص بالاعتمادية النظيرة المفقودة. ومُشغِّلات cron في ملف المواصفات تعمل على هدفي node-server وdocker كما تعمل على Workers ([الجداول الزمنية](/ar/schedules#على-خادم-node)).
 
 ## الأهداف المخصَّصة
 

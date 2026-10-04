@@ -55,7 +55,7 @@ const running = startSchedules(agent, schedules);
 
 ## على خادم node
 
-يبدأ `createDeployedServer(agent, { schedules })` (خادم الهدفين `node-server` و`docker`) الجداول حين يبدأ الاستماع ويوقفها حين يُغلق. والأمر `lousho build ./my-agent --target=node-server` (أو `docker`) يبني مجلد الوكيل في خادم كهذا، فتعمل جداول `schedules/` الخاصة به في العملية المنشورة ([النشر](/ar/deployment#مجلدات-الوكيل)). ومُشغِّلات cron في ملف المواصفات، أي `triggers` (`{ type: 'cron', cron, input, name?, timezone? }`)، تعمل على هذين الهدفين أيضًا: `lousho build spec.yaml --target=node-server` يحوّلها بالقواعد نفسها المتبعة في Worker ويبدؤها الخادم المبني حين يبدأ الاستماع (`timezone` مدعوم؛ والمُشغِّل غير الصالح يُفشل البناء بالخطأ `LOUSHO_SCHEDULE_INVALID`). تُجرى استدعاءات النموذج في عملية الخادم، فيجب أن تكون حزمة المزوّد مثبَّتة حيث يعمل. أما على Cloudflare Workers فانظر أدناه.
+يبدأ `createDeployedServer(agent, { schedules })` (المساعِد الداخلي وراء الخادم الذي يُخرجه `lousho build` للهدفين `node-server` و`docker`) الجداول حين يبدأ الاستماع ويوقفها حين يُغلق. والأمر `lousho build ./my-agent --target=node-server` (أو `docker`) يبني مجلد الوكيل في خادم كهذا، فتعمل جداول `schedules/` الخاصة به في العملية المنشورة ([النشر](/ar/deployment#مجلدات-الوكيل)). ومُشغِّلات cron في ملف المواصفات، أي `triggers` (`{ type: 'cron', cron, input, name?, timezone? }`)، تعمل على هذين الهدفين أيضًا: `lousho build spec.yaml --target=node-server` يحوّلها بالقواعد نفسها المتبعة في Worker ويبدؤها الخادم المبني حين يبدأ الاستماع (`timezone` مدعوم؛ والمُشغِّل غير الصالح يُفشل البناء بالخطأ `LOUSHO_SCHEDULE_INVALID`). تُجرى استدعاءات النموذج في عملية الخادم، فيجب أن تكون حزمة المزوّد مثبَّتة حيث يعمل. أما على Cloudflare Workers فانظر أدناه.
 
 ## في `lousho dev`
 
@@ -73,7 +73,7 @@ triggers:
     input: Summarise last week.
 ```
 
-يكتب `lousho build` التعبيرات بعد إزالة المكرر منها في `[triggers] crons`، وينفّذ `scheduled()` في Worker كل مُشغِّل يساوي `cron` الخاص به التعبير المستدعى، دورةَ وكيل داخل `ctx.waitUntil()`. لكل مُشغِّل جلسته الخاصة، `schedule:<name>`، فيمكن فحص تشغيلاته في مخزن الجلسات KV عند ربط `AGENT_CHECKPOINTS` (`GET /chat/schedule:weekly-report`، بترميز URL). المُشغِّل الفاشل يُسجَّل عبر `console.error` (الاسم ورمز الخطأ) ولا يوقف غيره أبدًا، و`scheduled()` لا يرمي استثناءً أبدًا.
+يكتب `lousho build` التعبيرات بعد إزالة المكرر منها في `[triggers] crons`، وينفّذ `scheduled()` في Worker كل مُشغِّل يساوي `cron` الخاص به التعبير المستدعى، دورةَ وكيل داخل `ctx.waitUntil()`. لكل مُشغِّل جلسته الخاصة، `schedule-<name>`، فيمكن فحص تشغيلاته في مخزن الجلسات KV عند ربط `AGENT_CHECKPOINTS` (`GET /chat/schedule-weekly-report`). والتشغيل يحدث داخل `ctx.waitUntil()`، بعد انتهاء عمر الطلب، فامنح الوكيل مخزنًا (`KVStore` على `AGENT_CHECKPOINTS`) — فالمخزن في الذاكرة يحفظ جلسات `schedule-<name>` إلى أن يُعاد تدوير العزل فقط. المُشغِّل الفاشل يُسجَّل عبر `console.error` (الاسم ورمز الخطأ) ولا يوقف غيره أبدًا، و`scheduled()` لا يرمي استثناءً أبدًا.
 
 تختلف مُشغِّلات cron في Cloudflare عن تلك العاملة داخل العملية، ولذلك يفشل البناء بالخطأ `LOUSHO_SCHEDULE_INVALID` مع ذكر اسم المُشغِّل بدل أن يُخرج إعدادًا يُنشر ولا يُطلَق أبدًا: التعبيرات بتوقيت UTC (لا `timezone`)، وخمسة حقول بالضبط (لا ثوانٍ، ولا `@daily`)، ويوم الأسبوع يجب أن يكون `*` أو أسماء (`MON-FRI`)، لأن Cloudflare ترقّم الأيام من 1 إلى 7 بدءًا من الأحد. أدق فاصل زمني هو دقيقة واحدة، وقد تبدأ Cloudflare التشغيل متأخرة بضع ثوانٍ.
 

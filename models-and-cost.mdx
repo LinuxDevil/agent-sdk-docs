@@ -27,7 +27,7 @@ const usd = estimateCost({ inputTokens: used, outputTokens: 500 }, 'my-llama'); 
 ```
 
 - `estimateTokens(input, { model?, estimator? })` is a heuristic (about 4 characters per token for English, more for CJK and other scripts, plus per-message overhead and tool-call JSON). Expect roughly 15-20% error on English: fine for compaction and budgets, not for billing. Plug in a real tokenizer with `setTokenEstimator(fn)` or `options.estimator`.
-- `getModelInfo(id)` matches the exact id, then `provider/id`, then dated snapshots (`gpt-4o-mini-2024-07-18` resolves to `gpt-4o-mini`). Unknown models return `undefined`.
+- `getModelInfo(id)` matches the exact id, then `provider/id`, then dated snapshots (`gpt-4o-mini-2024-07-18` resolves to `gpt-4o-mini`). Unknown models return `undefined`. (In `createAgent({ model })` and `resolveProvider()` strings the `vendor/` model prefix chooses the provider; with OpenRouter use `openrouter/<vendor>/<model>`, e.g. `openrouter/openai/gpt-4o-mini`.)
 - `registerModel(info)` adds or overrides an entry; the latest registration wins.
 - `estimateCost(usage, model)` returns USD, or `undefined` (not `0`) when the model or its prices are unknown.
 
@@ -51,7 +51,7 @@ console.log(formatUsage(result.usage)); // 1,234 in / 567 out tokens · $0.0042 
 ```
 
 - **Reported vs estimated.** Providers report `promptTokens`/`completionTokens`; the built-in providers also pass on `cachedInputTokens`/`reasoningTokens` when the 'ai' SDK's provider metadata carries them (`usage.cachedInputTokens` and `usage.reasoningTokens` only appear then). A backend that reports nothing gives `undefined` usage, never zeros. For that step the executor falls back to `estimateTokens` and sets `usage.estimated` (a leading `~` in `formatUsage`). A custom provider should leave `GenerateResult.usage` unset rather than fill in zeros.
-- **Cost.** `costUsd` is the sum of `estimateCost` per model. It is `undefined`, never a misleading partial sum, as soon as any model used has unknown pricing; `byModel` shows which ones are priced.
+- **Cost.** `costUsd` is the sum of `estimateCost` per model. It is `undefined`, never a misleading partial sum, as soon as any model used has unknown pricing; `byModel` shows which ones are priced. In `formatUsage` the cost prints with 4 decimals under $1 (2 at $1 or more), so a run under $0.00005 reads `$0.0000`.
 - **Hosted tools.** `usage.hostedToolCalls` counts the calls the provider ran for [hosted tools](/hosted-tools) per tool name (e.g. `{ web_search: 2 }`). Their per-call fees are billed by the provider and are not in `costUsd`.
 - **Delegation.** A delegated child's usage is added to the parent's totals and `byModel`, and is also shown on its own as `usage.delegated` (`{ inputTokens, outputTokens, totalTokens, costUsd, modelCalls, estimated, runs }`). A [remote sub-agent](/sub-agents#remote-sub-agents)'s usage is what the remote agent reports, filed under `byModel['remote:<name>']` with the remote's own `costUsd`.
 - **Resume.** A run resumed from a checkpoint, or after an approval, continues from the saved totals instead of restarting at zero. Checkpoints written by older versions start from their saved token counts with an unknown cost.

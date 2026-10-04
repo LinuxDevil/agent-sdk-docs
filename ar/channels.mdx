@@ -183,9 +183,14 @@ const handler = mountChannels(agent, [
 ## في مجلد الوكيل
 
 يمكن لـ [مجلد الوكيل](/ar/agent-directories#القنوات) أن يضع قنواته في
-`channels/*.ts`، قناة واحدة مُصدَّرة افتراضيًا (default export) في كل ملف
-(وتُسمّى باسم الملف ما لم تحدد القناة اسمًا). تُرجعها `resolveAgentDir()` في
-`channels`، ويركّبها خادم node عبر `createDeployedServer(agent, { channels })`.
+`channels/*.ts`، قناة واحدة مُصدَّرة افتراضيًا (default export) في كل ملف.
+المسار المخدوم هو `POST /channels/<name>`، حيث `<name>` هو `name` الذي تحدده
+القناة نفسها؛ واسم الملف لا ينطبق إلا على تصدير بلا اسم — وكل مصنع مضمَّن يحدد
+واحدًا (`webhookChannel()` ← `webhook`، و`slackChannel()` ← `slack`، ...)،
+فملف `channels/support.ts` الذي يصدّر `webhookChannel()` يُخدَّم على
+`/channels/webhook` لا `/channels/support`. تُرجعها `resolveAgentDir()` في
+`channels`، ويركّبها خادم node الذي يُخرجه `lousho build`
+(`createDeployedServer(agent, { channels })`، وهو مساعِد داخلي).
 
 ## من يحق له الموافقة (Slack وDiscord)
 

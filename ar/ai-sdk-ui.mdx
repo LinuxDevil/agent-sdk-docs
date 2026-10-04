@@ -14,10 +14,17 @@ sidebarTitle: "AI SDK UI (useChat)"
 
 ## معالج المسار
 
-```ts
-import { createAgent, fromUIMessages, toUIMessageStreamResponse, type UIMessageLike } from '@lousho/build-ai-agent';
+بادئة النموذج `vendor/` هي التي تختار المزوّد؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`).
 
-const agent = createAgent({ model: 'openai/gpt-4o-mini', instructions: 'You are helpful.' });
+```ts
+import { createAgent, fromUIMessages, memoryStore, toUIMessageStreamResponse, type UIMessageLike } from '@lousho/build-ai-agent';
+
+// The store must outlive the request: without one, every `agent.session({ id })`
+// gets a fresh in-memory transcript and the next turn would start empty.
+// `memoryStore()` keeps it for the process's life; for a serverless deployment
+// or to survive a restart use `fileStore()`, a `SqliteStore` or `KVStore`
+// (see [Sessions](sessions.md#choosing-a-store)).
+const agent = createAgent({ model: 'openai/gpt-4o-mini', instructions: 'You are helpful.', store: memoryStore() });
 
 // app/api/chat/route.ts
 export async function POST(request: Request): Promise<Response> {
@@ -34,9 +41,12 @@ export async function POST(request: Request): Promise<Response> {
 
 ```tsx
 import { useChat } from '@ai-sdk/react';
+import { DefaultChatTransport } from 'ai';
 
 export function Chat() {
-  const { messages, sendMessage } = useChat({ api: '/api/chat' });
+  const { messages, sendMessage } = useChat({
+    transport: new DefaultChatTransport({ api: '/api/chat' }),
+  });
   return (
     <>
       {messages.map((message) =>
@@ -50,6 +60,8 @@ export function Chat() {
 }
 ```
 
+يستهدف هذا المقتطف `ai` 6 و7 (يأخذ `useChat` الخيار `transport`، ويرسل `sendMessage` الرسالة). أما على `ai` 4 — وهو أيضًا نظير مدعوم — فيأخذ `useChat({ api: '/api/chat' })` نقطة النهاية مباشرة ويعيد `input` و`handleInputChange` و`handleSubmit` بدلًا من `sendMessage`؛ و`ai` 5 ليس ضمن نطاق النظراء.
+
 ## مقابلة الأحداث
 
 | حدث Lousho | جزء رسالة الواجهة |
@@ -58,7 +70,7 @@ export function Chat() {
 | `step.start` / `step.done` | `start-step` / `finish-step` |
 | `text.delta`، `text.done` | `text-start` (مرة واحدة لكل جزء نصي)، `text-delta`، `text-end` |
 | `reasoning.start`، `reasoning.delta`، `reasoning.done` | `reasoning-start`، `reasoning-delta`، `reasoning-end` (راجع [الاستدلال](/ar/reasoning)) |
-| `tool.start` | `tool-input-start`، ثم `tool-input-available` مع المعاملات |
+| `tool.start` / `tool.resume` | `tool-input-start`، ثم `tool-input-available` مع المعاملات |
 | `tool.partial` | `tool-output-available` مع `preliminary: true` (AI SDK 5 فما فوق): لقطة من [أداة بث](/ar/tools#بث-النتائج-الجزئية) |
 | `tool.done` / `tool.error` | `tool-output-available` / `tool-output-error` |
 | `approval.requested` | `data-lousho-approval` (أدناه) |
@@ -99,7 +111,7 @@ export function Chat() {
 }
 ```
 
-`kind` و`question` لا يحضران إلا في حالة `ask_question`. اعرض الجزء بأزرارك الخاصة وأجب عنه عبر مسار الموافقات في واجهة الجلسات (`POST /chat/:sessionId/approvals/:approvalId`، راجع [الجلسات](/ar/sessions) و[الموافقات](/ar/approvals)): `{ "approved": true }` أو `{ "approved": false, "note": "..." }` للأداة، و`{ "answer": "prod" }` للسؤال. الاستجابة هي تتمة التشغيل في صورة بث أحداث، يمكنك قراءته بالمحلِّل الذي توفره واجهات الربط (UI bindings) أو تجاهله واستدعاء `sendMessage` من `useChat` مرة أخرى؛ أو، في مسارك الخاص، استدعِ `agent.approvals.streamResolve()` / `streamAnswer()` وأعد `toUIMessageStreamResponse()` للنتيجة، فتُعرض التتمة في المحادثة نفسها.
+`kind` و`question` لا يحضران إلا في حالة `ask_question`؛ أما الأداة التي تنتظر [تسجيل دخول OAuth](/ar/oauth#ما-يراه-المستخدم) فتحمل بدلًا منهما `kind: 'sign-in'` و`signIn: { provider, displayName?, url }` — اعرض الرابط، وبعد أن يعيد المزوّد التوجيه إلى مسارك، اعتمدها («سجّلتُ الدخول»). اعرض الجزء بأزرارك الخاصة وأجب عنه عبر مسار الموافقات في واجهة الجلسات (`POST /chat/:sessionId/approvals/:approvalId`، راجع [الجلسات](/ar/sessions) و[الموافقات](/ar/approvals)): `{ "approved": true }` أو `{ "approved": false, "note": "..." }` للأداة، و`{ "answer": "prod" }` للسؤال. الاستجابة هي تتمة التشغيل في صورة بث أحداث، يمكنك قراءته بالمحلِّل الذي توفره واجهات الربط (UI bindings) أو تجاهله واستدعاء `sendMessage` من `useChat` مرة أخرى؛ أو، في مسارك الخاص، استدعِ `agent.approvals.streamResolve()` / `streamAnswer()` وأعد `toUIMessageStreamResponse()` للنتيجة، فتُعرض التتمة في المحادثة نفسها.
 
 ## تحويل الرسائل الواردة
 

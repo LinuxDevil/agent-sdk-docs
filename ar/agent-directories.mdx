@@ -18,15 +18,15 @@ const { text } = await agent.send('Hello!');
 
 ```text
 my-agent/
-  agent.ts | agent.js | agent.json | agent.yaml   # optional config
+  agent.{ts,mts,js,mjs,cjs,json,yaml,yml}          # optional config
   instructions.md                                  # system prompt
-  tools/*.ts | *.js                                # defineTool() tools
+  tools/*.{ts,mts,cts,js,mjs,cjs}                  # defineTool() tools
   skills/                                          # same layouts as loadSkills()
   subagents/<name>/                                # nested agent directories
-  schedules/*.ts|js                                # defineSchedule() cron schedules (see schedules.md)
-  channels/*.ts|js                                 # a channel each: defineChannel(), webhookChannel(), ... (see channels.md)
-  memory/*.ts|js                                   # a memory slot each: defineMemory() (see memory.md); part of the agent
-  auth.ts | auth.js                                # route auth for the deployed server: jwt(), oidc(), basic(), ... (see auth.md)
+  schedules/*.{ts,mts,cts,js,mjs,cjs}              # defineSchedule() cron schedules (see schedules.md)
+  channels/*.{ts,mts,cts,js,mjs,cjs}               # a channel each: defineChannel(), webhookChannel(), ... (see channels.md)
+  memory/*.{ts,mts,cts,js,mjs,cjs}                 # a memory slot each: defineMemory() (see memory.md); part of the agent
+  auth.{ts,mts,cts,js,mjs,cjs}                     # route auth for the deployed server: jwt(), oidc(), basic(), ... (see auth.md)
 ```
 
 لا يجوز وجود أكثر من ملف إعدادات واحد. تُقرأ الملفات داخل `tools/` ومدخلات `skills/` و`subagents/` بترتيب مفروز، فيكون التحميل حتميًا.
@@ -46,8 +46,8 @@ export default {
 | المفتاح | يقابل |
 | --- | ------- |
 | `name` | `createAgent({ name })` (الافتراضي: اسم المجلد) |
-| `description` | ليس من خيارات `createAgent`؛ هو ما يقرؤه الوكيل الأب عن وكيل فرعي (وهو إلزامي هناك) |
-| `model` | `createAgent({ model })` |
+| `description` | `manifest.description` — محمِّل المجلد لا يمرّرها إلى `createAgent` (وإن كانت `createAgent({ description })` تقبلها)؛ وهي ما يقرؤه الوكيل الأب عن وكيل فرعي (وهي إلزامية هناك) |
+| `model` | `createAgent({ model })`؛ وبادئة `vendor/` تختار المزوّد — فمع OpenRouter استخدم `openrouter/<vendor>/<model>` |
 | `provider` | `createAgent({ provider })` (في ملفات الإعدادات البرمجية فقط) |
 | `instructions` | `createAgent({ instructions })` (استخدم هذا أو `instructions.md`، لا كليهما) |
 | `maxSteps` | `createAgent({ maxSteps })` |
@@ -83,7 +83,7 @@ export default defineTool({
 
 ### القنوات
 
-كل ملف في `channels/` يصدّر تصديرًا افتراضيًا [قناة](/ar/channels) منشأة بـ `defineChannel()` أو بإحدى دوال المصنع المضمَّنة (`webhookChannel()` و`httpChannel()` و`slackChannel()` و`discordChannel()` و`telegramChannel()` و`githubChannel()` و`teamsChannel()`). اسم القناة هو الاسم الذي تحدّده هي، وإلا فاسم الملف. الملف الذي لا يصدّر قناة يفشل بالخطأ `LOUSHO_CHANNEL_INVALID` مع ذكر اسم الملف. تُرجعها `resolveAgentDir()` في `channels` (وأسماءها في `manifest.channels`)؛ أما `loadAgentDir()` فلا تركّبها. خادم Node (`createDeployedServer(agent, { channels })`) يركّبها تحت `/channels` إلى جانب مسارات المحادثة؛ ومع خادمك الخاص استخدم `mountChannels()`:
+كل ملف في `channels/` يصدّر تصديرًا افتراضيًا [قناة](/ar/channels) منشأة بـ `defineChannel()` أو بإحدى دوال المصنع المضمَّنة (`webhookChannel()` و`httpChannel()` و`slackChannel()` و`discordChannel()` و`telegramChannel()` و`githubChannel()` و`teamsChannel()`). اسم القناة هو الاسم الذي تحدّده هي، وإلا فاسم الملف. الملف الذي لا يصدّر قناة يفشل بالخطأ `LOUSHO_CHANNEL_INVALID` مع ذكر اسم الملف. تُرجعها `resolveAgentDir()` في `channels` (وأسماءها في `manifest.channels`)؛ أما `loadAgentDir()` فلا تركّبها. خادم node الذي يُخرجه `lousho build --target=node-server` يركّبها تحت `/channels` إلى جانب مسارات المحادثة (`createDeployedServer(agent, { channels })`، وهو مساعِد داخلي في الحزمة المولَّدة)؛ ومع خادمك الخاص استخدم `mountChannels()`:
 
 ```ts
 import { createServer } from 'node:http';

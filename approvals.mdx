@@ -80,7 +80,9 @@ When no rule matches, the tool's own `needsApproval` decides, as before.
 `tool` is a name, a list of names, a `RegExp` tested against the name, or
 `'*'` for every tool. `when` narrows a rule to some calls: it gets the
 validated arguments (after `preToolCall` hooks) and `{ toolName, toolCallId,
-sessionId }`, and may be async; when it throws, the call fails with that
+sessionId, principal }` (`principal`: who the run acts for, frozen; absent
+without one — see [Principals in tools and approvals](/auth#principals-in-tools-and-approvals)),
+and may be async; when it throws, the call fails with that
 error. `allow(tools)`, `deny(tools, reason?)` and `ask(tools)` build the
 common rules.
 
@@ -265,8 +267,9 @@ const trusted = createAgent({
 `agent.approvals.streamAnswer({ id, answer }, { signal })` continue the run
 like `resolve()` and `answer()`, but return the `AgentRun` that
 `agent.stream()` returns (see [Streaming](/streaming#streaming-after-an-approval)):
-`run.start`, the decided call's `tool.start` and `tool.done` (`tool.error` for
-a rejection), then the continuation's events up to `run.done`. `run.result`
+`run.start`, the decided call's `tool.resume` and `tool.done` (`tool.error` for
+a rejection; `tool.resume`, not a second `tool.start`, because the paused run
+already reported that call's start), then the continuation's events up to `run.done`. `run.result`
 is what `resolve()` resolves with. A continuation that pauses again ends with
 `approval.requested` and `run.done` (`'awaiting-approval'`), even with an
 `approve` callback, as `stream()` does. A pause made inside a session

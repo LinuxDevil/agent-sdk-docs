@@ -113,8 +113,9 @@ a token without `sub` skips.
 
 A `jwt()` whose keys come from an OpenID Connect provider. It fetches
 `<issuer>/.well-known/openid-configuration` once (or `discoveryUrl`), requires
-the document's `issuer` to equal yours exactly, and uses its `jwks_uri` (which
-must be https). Algorithms default to `RS256` and `ES256`; HMAC is not allowed.
+the document's `issuer` to equal yours exactly, and uses its `jwks_uri` (https,
+or http on `localhost` / `127.0.0.1` / `[::1]` — the same rule as `jwt()`'s
+`jwksUrl`). Algorithms default to `RS256` and `ES256`; HMAC is not allowed.
 
 ```ts
 import { oidc } from '@lousho/build-ai-agent/auth';
@@ -236,7 +237,9 @@ still is. The `cloudflare-worker` target serves spec files only and keeps the
 
 ## Reading the principal in the run
 
-The principal is on the run context next to `sessionId` and `metadata`:
+The principal is on the run context next to `sessionId` and `metadata`. The
+`vendor/` model prefix chooses the provider; with OpenRouter use
+`openrouter/<vendor>/<model>` (e.g. `openrouter/openai/gpt-4o-mini`).
 
 ```ts
 import { createAgent, defineMemory, inMemoryMemory, type Principal } from '@lousho/build-ai-agent';

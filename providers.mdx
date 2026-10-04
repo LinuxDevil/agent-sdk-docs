@@ -7,14 +7,16 @@ An `LLMProvider` is what an agent generates with. The SDK ships OpenAI,
 Anthropic, OpenRouter and Ollama providers (each backed by an optional peer
 package, see [Installation](/installation#provider-packages)) and a
 deterministic mock for tests. Name one with a `provider/model` string, or pass
-a provider instance.
+a provider instance. The `vendor/` model prefix chooses the provider; with
+OpenRouter use `openrouter/<vendor>/<model>` (e.g.
+`openrouter/openai/gpt-4o-mini`).
 
 ```ts
 import { resolveProvider, LLMProviderRegistry } from '@lousho/build-ai-agent';
 
 // The convenient way — reads the credential from the environment
 const openai = resolveProvider('openai/gpt-4o-mini');       // OPENAI_API_KEY
-const anthropic = resolveProvider('anthropic/claude-sonnet-5'); // ANTHROPIC_API_KEY
+const anthropic = resolveProvider('anthropic/claude-sonnet-5-5'); // ANTHROPIC_API_KEY
 const openrouter = resolveProvider('openrouter/openai/gpt-4o-mini'); // OPENROUTER_API_KEY
 const ollama = resolveProvider('ollama/llama3.1');           // OLLAMA_BASE_URL
 
@@ -43,7 +45,7 @@ const custom = LLMProviderRegistry.create('openai', {
 ```ts
 import { createAgent, createMockProvider, resolveProvider } from '@lousho/build-ai-agent';
 
-const fromString = createAgent({ model: 'anthropic/claude-sonnet-5' });
+const fromString = createAgent({ model: 'anthropic/claude-sonnet-5-5' });
 const fromInstance = createAgent({ provider: resolveProvider('openai/gpt-4o-mini'), model: 'gpt-4o' });
 const offline = createAgent({ provider: createMockProvider({ responses: ['Hi! How can I help?'] }) });
 ```
@@ -64,7 +66,7 @@ import { createAgent } from '@lousho/build-ai-agent';
 const agent = createAgent({
   model: 'openai/gpt-4o-mini',
   retry: { maxRetries: 3 }, // or false
-  fallbackModels: ['anthropic/claude-3-5-haiku-latest', 'openrouter/meta-llama/llama-3.1-70b-instruct'],
+  fallbackModels: ['anthropic/claude-haiku-4-5', 'openrouter/meta-llama/llama-3.3-70b-instruct'],
 });
 ```
 
@@ -80,8 +82,9 @@ In order: the agent's own `settings.model` (set with
 `AgentBuilder.setSettings({ model })`, or `model` next to `provider` in
 `createAgent()`), then the model the provider was built with
 (`resolveProvider('openai/gpt-4o-mini')`, a spec's `provider.model`, or
-`defaultModel`), then the provider's built-in default. There is no hard-coded
-fallback model.
+`defaultModel`), then the provider's built-in default. That last default only
+applies when nothing configured a model — a model you set is never overridden
+by a hard-coded one.
 
 ## Multimodal input
 
@@ -214,7 +217,7 @@ const agent = createAgent({
 });
 ```
 
-The same works with `@ai-sdk/google` (`google('gemini-2.0-flash')`),
+The same works with `@ai-sdk/google` (`google('gemini-2.5-flash')`),
 `@ai-sdk/amazon-bedrock`, `@ai-sdk/azure`, `@ai-sdk/mistral` and the AI Gateway
 (`gateway('openai/gpt-4o')` from `ai` 7 or `@ai-sdk/gateway`). Calls go through
 your installed `ai`, so install the provider package major that pairs with it

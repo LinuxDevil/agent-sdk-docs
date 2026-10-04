@@ -306,8 +306,8 @@ const lead = createAgent({ provider, instructions: 'You coordinate.', subagents:
 
 ## Remote sub-agents
 
-`remoteAgent()` uses an agent you already deployed (`lousho deploy`: the node
-server, Docker or a Cloudflare Worker) as a sub-agent. It goes in `subagents`
+`remoteAgent()` uses an agent you already deployed (`lousho build
+--target=node-server`, `docker` or `cloudflare-worker`) as a sub-agent. It goes in `subagents`
 next to local ones, and the lead delegates to it with the same `task` tool,
 including `background: true`.
 
@@ -338,8 +338,10 @@ store on the remote side); a remote task cannot be forked. The remote
 agent sees only that prompt, and runs with its own model, tools and limits, so
 the lead's runtime (hooks, sandbox, approval store) does not reach it. The
 lead run's abort signal aborts the request. Options: `url`, `auth`, `name`,
-`description`, `headers`, and `fetch` (inject one in tests; the
-`serveFetch()` routes of an in-process agent work as a fake deployment).
+`description`, `headers`, and `fetch` (inject one in tests; an in-process agent behind
+`createRouteHandler(agent, { basePath: '/' }).handler` — the exported Fetch
+handler, see [Deployment](/deployment#http-api) — works as a fake
+deployment: `fetch: (input, init) => handler(new Request(input, init))`).
 
 Failures (the agent is unreachable, a 401 or other non-2xx answer, a malformed
 stream, or a remote run that ends in an error) reach the lead as the
@@ -423,6 +425,8 @@ inherits:
 | Token usage | Rolls up | Added to the lead's `result.usage` (totals, `byModel`, and `usage.delegated`); a remote sub-agent's under `byModel['remote:<name>']`. |
 | `maxSubagentDepth` | The remaining budget | See [Depth](#depth). |
 | `permissionMode` | Yes, unless the lead's is `'default'` | The sub-agent runs under the lead's [permission mode](/permission-modes#sub-agents), read at each of its tool calls; while the lead's is `'default'`, under its own (a sub-agent whose own mode is `'plan'` always stays in plan mode). A remote sub-agent does not inherit it: plan mode refuses a `task` call to one. |
+| `principal` | Yes | Who the lead's run acts for (route auth's caller, a channel's sender); a remote sub-agent is not told. |
+| `metadata` | Yes | The lead run's `metadata` — the sub-agent's hooks see it. |
 | `onLLMRequest`, `onToolCall` and the other single-run callbacks | No | They describe one run; use hooks or an event listener to observe sub-agents. |
 | `sessionId` / `checkpointStore` | No | A sub-agent is not checkpointed on its own. If the process dies while a sub-agent runs, the resumed lead runs that `task` call again. |
 | `output` schema | No | A sub-agent's output is its own: with one, `task` returns its validated object as JSON (see [Structured output](/structured-output#sub-agents)); without, text. |

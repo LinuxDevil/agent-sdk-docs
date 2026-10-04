@@ -17,6 +17,7 @@ title: "الإعدادات"
 | `provider.model` | `string`   | نعم      | معرّف النموذج الذي يستخدمه كل استدعاء (النموذج المضبوط في المزوّد؛ والقيمة `settings.model` الخاصة بالوكيل، إن وُجدت، تتقدم عليه). |
 | `tools`          | `string[]` | لا       | أسماء أدوات مضمَّنة (انظر أدناه).                       |
 | `policy`         | `AgentSpecPolicy` | لا | الموافقات وحواجز الحماية والحدود وغيرها، وتُفرَض حين يتحول ملف المواصفات إلى وكيل (انظر أدناه). |
+| `triggers`       | `AgentSpecTrigger[]` | لا | ما يشغّل الوكيل من تلقاء نفسه — جداول cron زمنية (`{ type: 'cron', cron, input, name?, timezone? }`)؛ انظر [الجداول الزمنية](/ar/schedules) و[المُشغِّلات](/ar/triggers#جداول-cron-الزمنية). |
 | `mcpServers`     | `Record<string, McpServerSpec>` | لا | خوادم MCP التي يستخدمها الوكيل، مفهرسة بالاسم (انظر أدناه). |
 
 الحقل الناقص أو غير الصالح يُفشل التحميل بخطأ يسمّي الحقل بعينه، مثل
@@ -178,7 +179,7 @@ console.log(Object.keys(agent.mcpServers)); // ['filesystem', 'docs']
 ## إعادة المحاولة والبديل الاحتياطي لدى المزوّد
 
 تعيد `createAgent()` محاولة استدعاءات النموذج الفاشلة من تلقاء نفسها، ويمكنها
-اللجوء إلى نماذج أخرى كبديل احتياطي:
+اللجوء إلى نماذج أخرى كبديل احتياطي. تحدّد بادئة `vendor/` في اسم النموذج المزوّد؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`).
 
 ```ts
 import { createAgent } from '@lousho/build-ai-agent';
@@ -186,7 +187,7 @@ import { createAgent } from '@lousho/build-ai-agent';
 const agent = createAgent({
   model: 'openai/gpt-4o-mini',
   retry: { maxRetries: 3, backoff: { initialMs: 1000 } }, // default { maxRetries: 2 }; false turns it off
-  fallbackModels: ['anthropic/claude-3-5-haiku-latest'], // tried in order once the retries are used up
+  fallbackModels: ['anthropic/claude-haiku-4-5'], // tried in order once the retries are used up
 });
 
 for await (const event of agent.stream('Hello!')) {
@@ -227,7 +228,7 @@ const provider = withFallback(
       backoff: { initialMs: 500, maxMs: 10_000 },
       onRetry: ({ attempt, delayMs }) => console.warn(`retry ${attempt} in ${delayMs}ms`),
     }),
-    withRetry(resolveProvider('anthropic/claude-3-5-haiku-latest')),
+    withRetry(resolveProvider('anthropic/claude-haiku-4-5')),
   ],
   { onFallback: ({ from, to }) => console.warn(`falling back from ${from} to ${to}`) }
 );

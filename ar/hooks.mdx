@@ -249,7 +249,7 @@ console.log(model.calls.length); // 1
 
 ## HookRegistry
 
-يقبل `createAgent({ hooks })` مصفوفة عادية. أما الشيفرة التي تستخدم واجهة المنفّذ البرمجية ([واجهة المنفّذ البرمجية](/ar/executor-api)) فتمرّر `HookRegistry`: مجموعة مرتّبة فيها `register` و`registerMany` و`get` و`has` و`list` و`unregister` و`clear` و`size`. تسجيل خطّاف ثانٍ بالاسم `name` نفسه يستبدل الأول ويسجّل تحذيرًا.
+يقبل `createAgent({ hooks })` مصفوفة عادية. أما الشيفرة التي تستخدم واجهة المنفّذ البرمجية ([واجهة المنفّذ البرمجية](/ar/executor-api)) فتمرّر `HookRegistry`: مجموعة مرتّبة فيها `register` و`registerMany` و`get` و`has` و`list` و`unregister` و`clear` و`size()` — فـ `size` دالة (`hooks.size()`)، لا خاصية على نمط `Map`. تسجيل خطّاف ثانٍ بالاسم `name` نفسه يستبدل الأول ويسجّل تحذيرًا.
 
 ```ts
 import { HookRegistry, type AgentHook } from '@lousho/build-ai-agent/hooks';

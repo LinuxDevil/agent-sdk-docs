@@ -10,7 +10,7 @@ sidebarTitle: "التتبّع"
 
 ## البدء السريع
 
-مرّر `exporter` إلى `createAgent()`؛ فيُتتبَّع كل تشغيل للوكيل (`send()` و`stream()` ودورات الجلسة و`resume()` والتشغيلات التي يواصلها `agent.approvals.resolve()`)، بما فيها الوكلاء الفرعيون. ولحفظ التتبّعات على القرص وتصفحها بالأمر `npx lousho traces`، استخدم `fileTraceExporter()` (راجع [التتبّعات المحلية](#التتبّعات-المحلية)):
+مرّر `exporter` إلى `createAgent()`؛ فيُتتبَّع كل تشغيل للوكيل (`send()` و`stream()` ودورات الجلسة و`resume()` والتشغيلات التي يواصلها `agent.approvals.resolve()`)، بما فيها الوكلاء الفرعيون. ولحفظ التتبّعات على القرص وتصفحها بالأمر `npx lousho traces`، استخدم `fileTraceExporter()` (راجع [التتبّعات المحلية](#التتبّعات-المحلية)). وبادئة النموذج `vendor/` تختار المزوّد؛ فمع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`).
 
 ```ts
 import { createAgent } from '@lousho/build-ai-agent';
@@ -49,6 +49,8 @@ invoke_agent {agent name}          INTERNAL
   chat {model}                     CLIENT     one per provider.generate() call
   execute_tool {tool name}         INTERNAL   one per tool call
 ```
+
+التشغيل المُستأنَف بعد موافقة (`agent.approvals.resolve()`) تتبّع قائم بذاته: مقطع `invoke_agent` فيه يضم مقطع `execute_tool` الخاص بالاستدعاء المُوافَق عليه (أولًا، لأن الاستدعاء يعمل قبل استدعاء النموذج مجددًا)، ثم مقاطع `chat` لبقية التشغيل. أما الاستدعاء المرفوض فلا مقطع `execute_tool` له.
 
 تشغيل مسار عمل (`FlowExecutor.execute`) يُنتج:
 
@@ -251,6 +253,8 @@ invoke_agent weather         |████████████████�
 `startTime` و`endTime` بالمللي ثانية منذ بداية العصر (epoch)؛ و`attributes` هي سمات المقطع المذكورة أعلاه، دون اختصار. والمقطع الذي لم ينتهِ قط (ماتت العملية) لا يوجد في الملف. وإذا تعذّرت الكتابة في المجلد فإن المُصدِّر يحذّر مرة واحدة ويستمر التشغيل. وتقرأ `listTraces({ dir, limit })` و`readTrace(idOrPrefix, { dir })` الملفات من الشيفرة.
 
 تحمل الملفات ما تحمله المقاطع: سمات `input` و`prompt` و`args` و`result` المُهمَلة تحمل محتوى الرسائل والأدوات (راجع [أسماء السمات المُهمَلة](#أسماء-السمات-المُهمَلة))، ويضيف `captureContent: true` محتوى `gen_ai.*`. أبقِ `.lousho/` خارج نظام التحكم في الإصدارات؛ والمشاريع التي ينشئها `lousho init` تتجاهله.
+
+يكتب `lousho dev` و`lousho chat` هذه الملفات حين تمرّر `--traces` (إلى `.lousho/traces`) أو `--traces=<dir>`، سواء لملف مواصفات أو مجلد وكيل أو وحدة، فيمكن تتبّع وكيل ملف مواصفات دون أي شيفرة. وهو خيار صريح قصدًا: الملفات تحفظ محتوى الموجّه والأدوات، و`captureContent: false` لا يزيله (الخيار `redactContent: true` وحده يفعل)، فلا يُكتب شيء على القرص إلا إذا طلبت. وليس في تنسيق ملف المواصفات إعداد للتتبّعات.
 
 ## الأنظمة الخلفية
 

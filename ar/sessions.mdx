@@ -30,7 +30,7 @@ console.log(session.id, session.messages.length);
 | `load()` | يقرأ سجل المحادثة المحفوظ من المخزن. يفعل `send()` ذلك عنك؛ استدعِه لعرض السجل قبل أول `send()` في جلسة مستأنفة. |
 | `compact(options?)` | يضغط سجل المحادثة الآن - انظر [ضغط سياق جلسة](/ar/compaction#ضغط-سياق-جلسة). |
 | `clear()` | يفرّغ سجل المحادثة ويحفظه فارغًا (فلا يحوي المخزن أي رسائل لهذا المعرّف). يُبقي معرّف الجلسة والمخزن والخيارات؛ ويحذف نقطة حفظ الدورة المنقطعة؛ أما خانات الذاكرة فمشتركة بين الجلسات ولا تُمسّ. يُصدر `context.cleared` إلى مستمعي `on()`. يُرفض بالخطأ `LOUSHO_SESSION_BUSY` ما دامت دورة قيد التنفيذ، وبالخطأ `LOUSHO_SESSION_AWAITING_APPROVAL` ما دامت دورة متينة تنتظر موافقة. |
-| `on(listener)` | يستمع إلى أحداث `compact()` / `clear()` (`compaction.start` و`compaction.done` و`context.cleared`)؛ ويُرجع دالة تزيل المستمع. |
+| `on(listener)` | يستمع إلى أحداث الجلسة: أحداث كل دورة فور وقوعها (دورات `send()` و`stream()`، والدورة المتوقفة التي يواصلها `agent.approvals.resolve()`)، إضافة إلى أحداث `compact()` / `clear()` (`compaction.start` و`compaction.done` و`context.cleared`)؛ ويُرجع دالة تزيل المستمع. وأحداث الدورة هي `AgentEvent` التي يُخرجها `stream()` الخاص بها. |
 | `pending()` | في [جلسة متينة](#الجلسات-المتينة): الدورة التي لم تنتهِ (`{ status, approvalId?, approvalKind? }`؛ تكون قيمة `approvalKind` هي `'question'` حين تنتظر الدورة استدعاء `ask_question`)، أو `null`. |
 | `resume({ signal })` | في جلسة متينة: يُنهي دورة منقطعة ويُنجَز بنتيجتها، أو بـ `null` حين لا توجد دورة معلّقة. |
 | `discardPending()` | في جلسة متينة: يتخلى عن دورة غير منتهية دون تنفيذها. |
@@ -53,7 +53,7 @@ console.log(session.id, session.messages.length);
   أما أحداث الدورة، ومنها `input.queued` و`input.applied`، فتُبث على
   التشغيل الذي بدأها. وإذا انتهت الدورة قبل أن تأخذ المُدخَل
   (اكتملت، أو توقفت مؤقتًا، أو أُلغيت)، نُفِّذ الاستدعاء دورةً تالية في
-  نهاية المطاف. وإذا فشلت الدورة رُفض الاستدعاء بالخطأ نفسه؛ وفي الجلسة
+  نهاية المطاف — إلا في جلسة متينة ما تزال دورتها المتوقفة معلّقة: فهناك يستأنفها الاستدعاء أولًا، ويُرفض بالخطأ `SessionAwaitingApprovalError` إذا كانت ما تزال تنتظر الموافقة (ابتّ فيها بـ `agent.approvals.resolve()`). وإذا فشلت الدورة رُفض الاستدعاء بالخطأ نفسه؛ وفي الجلسة
   المتينة يبقى المُدخَل في نقطة حفظ الدورة ويطبّقه `resume()`.
 - `'steer'`: مثل `'queue'`، لكن المُدخَل ينضم عبر
   [`run.steer()`](/ar/queue-and-steer#التوجيه): إذا لم يكن استدعاء النموذج في الدورة قد
@@ -61,6 +61,8 @@ console.log(session.id, session.messages.length);
   استدعاءات الأدوات التي لم تبدأ في الدورة. وإلا انتظر
   النقطة الآمنة التالية، كما في `'queue'`. يُنجَز الاستدعاء بنتيجة
   الدورة، وتسري البدائل نفسها.
+
+تحدّد بادئة `vendor/` في اسم النموذج المزوّد؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`).
 
 ```ts
 import { createAgent } from '@lousho/build-ai-agent';
@@ -255,6 +257,8 @@ const agent = createAgent({ provider, store: fileStore('./.lousho') });
 // ./.lousho/sessions/user-42.json, ./.lousho/checkpoints/..., ./.lousho/approvals/...
 await agent.session({ id: 'user-42' }).send('Hello');
 ```
+
+ولكل ملف `checkpoints/<id>.json` ملف `checkpoint-history/<id>.json` بجواره: السجل المحدود لنقطة الحفظ، الأقدم أولًا. وتُنشأ المجلدات عند أول كتابة، لذا لا يظهر `approvals/` (ولا `oauth/`) إلا بعد أول موافقة معلّقة (أو تسجيل دخول).
 
 البتّ في موافقة من `fileStore` آمن عبر العمليات (لا يحصل على السجل إلا
 مستدعٍ واحد)؛ أما عمليتان تكتبان جلسة واحدة في اللحظة نفسها فلا تنسيق بينهما،

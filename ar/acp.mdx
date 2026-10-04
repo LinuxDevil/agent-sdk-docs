@@ -24,7 +24,9 @@ lousho acp <spec.yaml|spec.json|agent-dir|agent.ts> [--model provider/model]
 ```
 
 يُحمَّل `<path>` كما يحمّله [`lousho chat`](/ar/cli#lousho-chat)، ويعمل
-`--model` بالطريقة نفسها. المحرر هو من يبدأ العملية؛ وتستمر حتى
+`--model` بالطريقة نفسها. وبادئة النموذج `vendor/` تختار المزوّد؛ فمع
+OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل
+`openrouter/openai/gpt-4o`). المحرر هو من يبدأ العملية؛ وتستمر حتى
 يُغلق stdin. لا يحمل stdout سوى رسائل البروتوكول: فالأخطاء،
 وكل ما تطبعه شيفرة الوكيل عبر `console.log`، تذهب إلى stderr الذي
 تعرضه المحررات في سجلاتها. المسار أو الخيار الخاطئ يُنهي العملية برمز الخروج 1 مع

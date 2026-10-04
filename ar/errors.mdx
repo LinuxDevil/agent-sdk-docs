@@ -1,6 +1,6 @@
 ---
 title: "الأخطاء"
-description: "كل خطأ ترميه حزمة SDK عمدًا هو SDKError (أو صنف فرعي منه مثل ConfigurationError أو ValidationError أو MissingPeerDependencyError) ويحمل:"
+description: "تقريبًا كل خطأ ترميه حزمة SDK عمدًا هو SDKError (أو صنف فرعي منه مثل ConfigurationError أو ValidationError أو MissingPeerDependencyError) ويحمل:"
 ---
 {/* Generated from docs/errors.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
@@ -17,6 +17,10 @@ ConfigurationError: createAgent: no model configured. Do one of the following: (
 
 `error.detail` هو الرسالة من دون ذلك السطر. أما أخطاء الأدوات والمزوّدين (`ToolExecutionError` و`LLMProviderError` و`TimeoutError` و`RateLimitError`) فتبقى رسالتها كما هي، لأن النموذج يراها نتيجةَ أداة أو خطأَ مزوّد مضغوطًا؛ ومع ذلك تضيف دالة `toString()` الخاصة بها ذلك السطر.
 
+الاستثناءات أصناف فرعية معدودة ومسماة من `Error` لا تحمل `code`، وأُبقيت عادية عن قصد: `PropagatingToolError` وأصنافها الفرعية (ترميها الأداة لإيقاف التشغيل)، و`WorkspaceError` (عملية على مساحة العمل رُفضت أو فشلت — يراها النموذج خطأ أداة)، و`McpToolError` (أداة MCP محمَّلة أبلغ خادمها عن `isError`؛ وهي أيضًا خطأ أداة)، و`AuthError` (يرفض مسار في `@lousho/build-ai-agent/auth` الطلب برمز 401 أو 403 الخاص به)، و`CronExpressionError` (`parseCronExpression()` التي يتركها `CronTriggerAdapter` تخرج وتغلّفها `defineSchedule()` في `LOUSHO_SCHEDULE_INVALID`)، و`DecryptionError` (`EncryptionUtils` و`DTOEncryptionFilter`).
+
+أما `CassetteMismatchError` (إعادة تشغيل `recordReplay`؛ راجع [الاختبار](/ar/testing#ما-الذي-تتحقق-منه-الإعادة)) فليست واحدة منها: إنها `SDKError` تحمل الرمز [`LOUSHO_CASSETTE_INVALID`](#lousho_cassette_invalid) والحقلين `.cassette` / `.callNumber`.
+
 ```ts
 import { createAgent, SDKError } from '@lousho/build-ai-agent';
 
@@ -31,7 +35,7 @@ try {
 }
 ```
 
-يربط `ERROR_CODES` (وهو مُصدَّر) كل رمز خطأ بتلميحه. ويضمن اختبارٌ بقاءه متطابقًا مع الرموز المستخدمة في الشيفرة المصدرية ومع الأقسام أدناه. ويفشل اختبار ثانٍ حين ترمي شيفرة جديدة في حزمة SDK خطأ `Error` عاديًا بدلًا من `SDKError`؛ والأخطاء العادية القليلة المتبقية داخلية، وهي مسرودة في `src/utils/plainErrors.test.ts` مع سبب كل منها.
+يربط `ERROR_CODES` (وهو مُصدَّر) كل رمز خطأ بتلميحه. ويضمن اختبارٌ بقاءه متطابقًا مع الرموز المستخدمة في الشيفرة المصدرية ومع الأقسام أدناه. ويفشل اختبار ثانٍ حين ترمي شيفرة جديدة في حزمة SDK `new Error(...)` حرفيًا بدلًا من `SDKError`؛ والمواضع القليلة المتبقية داخلية ومسرودة في `src/utils/plainErrors.test.ts` مع سبب كل منها.
 
 للبدء من العَرَض بدل الرمز، انظر [استكشاف الأخطاء وإصلاحها](/ar/troubleshooting).
 
@@ -41,18 +45,19 @@ try {
 | ---- | ----- | ------------------ |
 | [الإعدادات](#الإعدادات) | [`LOUSHO_CONFIG_INVALID`](#lousho_config_invalid)، [`LOUSHO_CONFIG_MISSING_PROVIDER`](#lousho_config_missing_provider)، [`LOUSHO_CONFIG_MISSING_AGENT`](#lousho_config_missing_agent)، [`LOUSHO_CONFIG_MISSING_INPUT`](#lousho_config_missing_input)، [`LOUSHO_CONFIG_CONFLICTING_OPTIONS`](#lousho_config_conflicting_options)، [`LOUSHO_CONFIG_MISSING_CHECKPOINT_STORE`](#lousho_config_missing_checkpoint_store)، [`LOUSHO_CONFIG_RESOLVER_FAILED`](#lousho_config_resolver_failed) | استدعاء `createAgent()` أو المنفّذ تنقصه خيارات أو يخلط بينها، أو مُحلِّل إعدادات فشل. |
 | [المزوّدون والاعتماديات النظيرة](#المزوّدون-والاعتماديات-النظيرة) | [`LOUSHO_PROVIDER_SPEC_INVALID`](#lousho_provider_spec_invalid)، [`LOUSHO_PROVIDER_UNKNOWN`](#lousho_provider_unknown)، [`LOUSHO_PROVIDER_MISSING_API_KEY`](#lousho_provider_missing_api_key)، [`LOUSHO_PROVIDER_REQUEST_FAILED`](#lousho_provider_request_failed)، [`LOUSHO_PROVIDER_RATE_LIMITED`](#lousho_provider_rate_limited)، [`LOUSHO_PEER_MISSING`](#lousho_peer_missing)، [`LOUSHO_HOSTED_TOOL_UNSUPPORTED`](#lousho_hosted_tool_unsupported) | تحليل سلسلة النموذج، أو مفتاح API أو حزمة نظيرة مفقودة، أو طلب نموذج فشل أو قُيّد معدله، أو أداة مستضافة لا يستطيع المزوّد تشغيلها. |
-| [ملفات مواصفات الوكيل](#ملفات-مواصفات-الوكيل) | [`LOUSHO_SPEC_INVALID`](#lousho_spec_invalid)، [`LOUSHO_SPEC_UNKNOWN_FIELD`](#lousho_spec_unknown_field)، [`LOUSHO_SPEC_UNSUPPORTED_FORMAT`](#lousho_spec_unsupported_format) | تحميل ملف `AgentSpec` بـ`loadSpec()` أو `specToAgent()`. |
+| [ملفات مواصفات الوكيل](#ملفات-مواصفات-الوكيل) | [`LOUSHO_SPEC_NOT_FOUND`](#lousho_spec_not_found)، [`LOUSHO_SPEC_INVALID`](#lousho_spec_invalid)، [`LOUSHO_SPEC_UNKNOWN_FIELD`](#lousho_spec_unknown_field)، [`LOUSHO_SPEC_UNSUPPORTED_FORMAT`](#lousho_spec_unsupported_format) | تحميل ملف `AgentSpec` بـ`loadSpec()` أو `specToAgent()`. |
 | [الأدوات](#الأدوات) | [`LOUSHO_TOOL_NOT_FOUND`](#lousho_tool_not_found)، [`LOUSHO_TOOL_NEEDS_CREDENTIALS`](#lousho_tool_needs_credentials)، [`LOUSHO_TOOL_EXECUTION_FAILED`](#lousho_tool_execution_failed)، [`LOUSHO_TOOL_ARGS_INVALID`](#lousho_tool_args_invalid) | أداة استدعاها النموذج غير معروفة، أو تحتاج إلى بيانات اعتماد، أو رمت خطأ، أو تلقّت معاملات غير صالحة. |
 | [الموافقات والجلسات](#الموافقات-والجلسات) | [`LOUSHO_APPROVAL_STORE_MISSING`](#lousho_approval_store_missing)، [`LOUSHO_APPROVAL_NOT_FOUND`](#lousho_approval_not_found)، [`LOUSHO_SESSION_AWAITING_APPROVAL`](#lousho_session_awaiting_approval)، [`LOUSHO_SESSION_ID_INVALID`](#lousho_session_id_invalid)، [`LOUSHO_SESSION_FILE_CORRUPT`](#lousho_session_file_corrupt)، [`LOUSHO_SESSION_BUSY`](#lousho_session_busy)، [`LOUSHO_SESSION_TURN_PENDING`](#lousho_session_turn_pending)، [`LOUSHO_SESSION_STREAM_UNSUPPORTED`](#lousho_session_stream_unsupported)، [`LOUSHO_SESSION_STEP_NOT_FOUND`](#lousho_session_step_not_found)، [`LOUSHO_SESSION_EXISTS`](#lousho_session_exists)، [`LOUSHO_SESSION_FORK_UNSUPPORTED`](#lousho_session_fork_unsupported)، [`LOUSHO_REMOTE_UNAUTHORIZED`](#lousho_remote_unauthorized)، [`LOUSHO_REMOTE_REQUEST_FAILED`](#lousho_remote_request_failed)، [`LOUSHO_SUBAGENT_TASK_NOT_FOUND`](#lousho_subagent_task_not_found)، [`LOUSHO_SUBAGENT_TASK_BUSY`](#lousho_subagent_task_busy)، [`LOUSHO_CHECKPOINT_NOT_FOUND`](#lousho_checkpoint_not_found)، [`LOUSHO_AGENT_DRIFT`](#lousho_agent_drift)، [`LOUSHO_RESUME_TOOL_MISSING`](#lousho_resume_tool_missing)، [`LOUSHO_RUN_ALREADY_ITERATED`](#lousho_run_already_iterated) | الموافقات والجلسات ونقاط الحفظ والاستئناف، والوكلاء عن بُعد، ومهام الوكلاء الفرعيين. |
 | [الجداول الزمنية](#الجداول-الزمنية) | [`LOUSHO_SCHEDULE_INVALID`](#lousho_schedule_invalid) | تعريف جدول زمني أو تحميله. |
 | [القنوات](#القنوات) | [`LOUSHO_CHANNEL_INVALID`](#lousho_channel_invalid)، [`LOUSHO_MEMORY_INVALID`](#lousho_memory_invalid) | تعريف قناة أو خانة ذاكرة. |
-| [السجل](#السجل) | [`LOUSHO_REGISTRY_UNREACHABLE`](#lousho_registry_unreachable)، [`LOUSHO_REGISTRY_ITEM_NOT_FOUND`](#lousho_registry_item_not_found)، [`LOUSHO_REGISTRY_INVALID`](#lousho_registry_invalid)، [`LOUSHO_REGISTRY_UNSAFE_PATH`](#lousho_registry_unsafe_path)، [`LOUSHO_REGISTRY_FILE_EXISTS`](#lousho_registry_file_exists) | أمر `lousho add` حين يجلب من سجل أو ينسخ منه. |
+| [السجل](#السجل) | [`LOUSHO_REGISTRY_UNREACHABLE`](#lousho_registry_unreachable)، [`LOUSHO_REGISTRY_ITEM_NOT_FOUND`](#lousho_registry_item_not_found)، [`LOUSHO_REGISTRY_INVALID`](#lousho_registry_invalid)، [`LOUSHO_REGISTRY_UNSAFE_PATH`](#lousho_registry_unsafe_path)، [`LOUSHO_REGISTRY_FILE_EXISTS`](#lousho_registry_file_exists)، [`LOUSHO_REGISTRY_MANIFEST_MISMATCH`](#lousho_registry_manifest_mismatch) | أمر `lousho add` حين يجلب من سجل أو ينسخ منه. |
 | [البيئة المعزولة](#البيئة-المعزولة) | [`LOUSHO_SANDBOX_EGRESS_UNSUPPORTED`](#lousho_sandbox_egress_unsupported) | أن تطلب من بيئة معزولة ما لا تستطيع فعله على المنصة الحالية. |
 | [مجلدات الوكلاء والمهارات ومسارات العمل](#مجلدات-الوكلاء-والمهارات-ومسارات-العمل) | [`LOUSHO_AGENT_DIR_INVALID`](#lousho_agent_dir_invalid)، [`LOUSHO_SKILL_INVALID`](#lousho_skill_invalid)، [`LOUSHO_FLOW_INVALID`](#lousho_flow_invalid) | تحميل مجلد وكيل، أو مهارة، أو تعريف مسار عمل. |
 | [التخزين والنشر والتكاملات](#التخزين-والنشر-والتكاملات) | [`LOUSHO_STORAGE_FAILED`](#lousho_storage_failed)، [`LOUSHO_TRIGGER_INVALID`](#lousho_trigger_invalid)، [`LOUSHO_CHANNEL_REQUEST_FAILED`](#lousho_channel_request_failed)، [`LOUSHO_DEPLOY_FAILED`](#lousho_deploy_failed) | واجهة تخزين خلفية، أو مُشغِّل، أو طلب قناة، أو `lousho build`. |
 | [الاختبارات والتقييمات](#الاختبارات-والتقييمات) | [`LOUSHO_EVALS_INVALID`](#lousho_evals_invalid)، [`LOUSHO_TEST_FAILED`](#lousho_test_failed)، [`LOUSHO_CASSETTE_INVALID`](#lousho_cassette_invalid) | `defineEval()` و`mockModel` وأشرطة التسجيل. |
 | [عام](#عام) | [`LOUSHO_GENERIC_ERROR`](#lousho_generic_error)، [`LOUSHO_AGENT_EXECUTION_FAILED`](#lousho_agent_execution_failed)، [`LOUSHO_FLOW_EXECUTION_FAILED`](#lousho_flow_execution_failed)، [`LOUSHO_VALIDATION_FAILED`](#lousho_validation_failed)، [`LOUSHO_OPERATION_TIMEOUT`](#lousho_operation_timeout)، [`LOUSHO_OUTPUT_INVALID`](#lousho_output_invalid)، [`LOUSHO_BUDGET_EXCEEDED`](#lousho_budget_exceeded)، [`LOUSHO_GUARDRAIL_TRIPPED`](#lousho_guardrail_tripped) | إخفاقات على مستوى التشغيل: مهلة، أو توقف بسبب ميزانية أو حاجز حماية، أو مخرجات غير صالحة، والرموز الشاملة. |
-| [OAuth](#oauth) | [`LOUSHO_TOKEN_KEY_MISSING`](#lousho_token_key_missing)، [`LOUSHO_TOKEN_DECRYPT_FAILED`](#lousho_token_decrypt_failed) | تخزين رموز OAuth أو قراءتها في ملف أو SQLite أو مخزن KV. |
+| [المصادقة](#المصادقة) | [`LOUSHO_AUTH_CONFIG_INVALID`](#lousho_auth_config_invalid) | مساعد مصادقة مسارات (`jwt()` أو `oidc()` أو `basic()` أو `apiToken()`) تلقّى خيارات لا يستطيع التحقق بها. |
+| [OAuth](#oauth) | [`LOUSHO_TOKEN_KEY_MISSING`](#lousho_token_key_missing)، [`LOUSHO_TOKEN_DECRYPT_FAILED`](#lousho_token_decrypt_failed)، [`LOUSHO_OAUTH_PRINCIPAL_REQUIRED`](#lousho_oauth_principal_required)، [`LOUSHO_OAUTH_APP_SIGNIN_REQUIRED`](#lousho_oauth_app_signin_required)، [`LOUSHO_OAUTH_STORE_MISSING`](#lousho_oauth_store_missing)، [`LOUSHO_OAUTH_STATE_INVALID`](#lousho_oauth_state_invalid)، [`LOUSHO_SIGNIN_PENDING`](#lousho_signin_pending)، [`LOUSHO_OAUTH_TOKEN_EXCHANGE_FAILED`](#lousho_oauth_token_exchange_failed)، [`LOUSHO_MCP_AUTH_REQUIRED`](#lousho_mcp_auth_required) | تخزين رموز OAuth أو قراءتها في ملف أو SQLite أو مخزن KV، وتسجيل الدخول وتبادل الرموز لأدوات OAuth وخوادم MCP. |
 
 ## الإعدادات
 
@@ -68,7 +73,7 @@ try {
 
 **المعنى:** لا يوجد نموذج للتشغيل: إما أن `createAgent()` لم يتلقَّ `model` ولا `provider` ولم يجد شيئًا في متغيرات البيئة، أو أن `AgentExecutor.execute()` / `stream()` لم يتلقَّ `provider`.
 
-**الحل:** مرّر `model: 'openai/gpt-4o-mini'` (أي قيمة بالصيغة `<provider>/<model>`)، أو مرّر كائن `provider`، أو عيّن `LOUSHO_MODEL` أو مفتاح مزوّد مثل `OPENAI_API_KEY`. راجع [المزوّدون](/ar/providers).
+**الحل:** مرّر `model: 'openai/gpt-4o-mini'` (أي قيمة بالصيغة `<provider>/<model>`)، أو مرّر كائن `provider`، أو عيّن `LOUSHO_MODEL` أو مفتاح مزوّد مثل `OPENAI_API_KEY`. بادئة النموذج `vendor/` هي التي تختار المزوّد؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`). راجع [المزوّدون](/ar/providers).
 
 **مثال:** `createAgent({ instructions: 'x' })` من دون تعيين أي متغير بيئة لمزوّد.
 
@@ -118,7 +123,7 @@ try {
 
 **المعنى:** سلسلة النموذج ليست بالصيغة `<provider>/<model>`.
 
-**الحل:** اكتب الجزأين معًا، مثل `'openai/gpt-4o-mini'` أو `'anthropic/claude-3-5-sonnet-latest'`.
+**الحل:** اكتب الجزأين معًا، مثل `'openai/gpt-4o-mini'` أو `'anthropic/claude-sonnet-4-5'`.
 
 **مثال:** `resolveProvider('gpt-4o')`.
 
@@ -171,6 +176,14 @@ try {
 **مثال:** `createAgent({ model: 'ollama/llama3.2', tools: [webSearch()] })` يرفض أول `send()` له.
 
 ## ملفات مواصفات الوكيل
+
+### LOUSHO_SPEC_NOT_FOUND
+
+**المعنى:** أُعطي `loadSpec()` مسارًا غير موجود.
+
+**الحل:** تحقق من المسار الوارد في الرسالة — قد يكون خطأ إملائيًا، أو مجلد عمل خاطئًا، أو ملف مواصفات لم يُولَّد قط.
+
+**مثال:** `loadSpec('agent.yaml')` حين لا يوجد `agent.yaml` في مجلد العمل الحالي.
 
 ### LOUSHO_SPEC_INVALID
 
@@ -504,7 +517,7 @@ loadSpec: 'agent.yaml' failed validation - 'prompt': AgentSpec validation failed
 
 **المعنى:** فشل التخزين: تعذّر فتح قاعدة بيانات SQLite (ويحمل `cause` خطأ المشغّل)، أو استُخدمت بعد `close()`، أو مخططها أحدث مما تعرفه هذه النسخة من حزمة SDK، أو أن `node:sqlite` غير متوفر؛ أو تجاوز ملف حد حجم التخزين.
 
-**الحل:** تحقق من المسار والصلاحيات، واستخدم Node >= 22.5 مع `SqliteStore` (أو مخزنًا يعتمد على الملفات)، وأنشئ مخزنًا جديدًا بعد إغلاق مخزن.
+**الحل:** تحقق من المسار والصلاحيات، واستخدم Node >= 22.13 مع `SqliteStore` (أو مخزنًا يعتمد على الملفات)، وأنشئ مخزنًا جديدًا بعد إغلاق مخزن.
 
 **مثال:** `new SqliteStore('/read-only/agent.db')`.
 
@@ -514,7 +527,7 @@ loadSpec: 'agent.yaml' failed validation - 'prompt': AgentSpec validation failed
 
 **الحل:** استخدم المثال الوارد في الرسالة. راجع [القنوات](/ar/channels) و[الجداول الزمنية](/ar/schedules).
 
-**مثال:** `webhookTrigger({ auth: { type: 'hmac', secret: '' } })`.
+**مثال:** `webhookChannel({ auth: { type: 'hmac', secret: '' } })`.
 
 ### LOUSHO_CHANNEL_REQUEST_FAILED
 
@@ -552,7 +565,7 @@ loadSpec: 'agent.yaml' failed validation - 'prompt': AgentSpec validation failed
 
 ### LOUSHO_CASSETTE_INVALID
 
-**المعنى:** شريط تسجيل (cassette) خاص بالتسجيل وإعادة التشغيل مفقود، أو ليس JSON صالحًا، أو لا يطابق الطلب المسجَّل. تذكر الرسالة اسم الملف.
+**المعنى:** شريط تسجيل (cassette) خاص بالتسجيل وإعادة التشغيل مفقود، أو ليس JSON صالحًا، أو لا يطابق الطلب المسجَّل. تذكر الرسالة اسم الملف. ويصل عدم التطابق داخل التشغيل إلى `send()` على هيئة `CassetteMismatchError` نفسه (من `@lousho/build-ai-agent/testing`، مع `.cassette` و`.callNumber`) — فهو فشل في تجهيزات الاختبار، لذا لا يُضغَط أبدًا في `CompactedLLMProviderError`.
 
 **الحل:** سجّله من جديد (`lousho eval --record <file>`، أو `recordReplay()` مع `mode: 'record'`). راجع [الاختبار](/ar/testing).
 

@@ -24,7 +24,9 @@ Pass an `exporter` to `createAgent()`; every run of the agent (`send()`,
 `stream()`, session turns, `resume()` and runs continued by
 `agent.approvals.resolve()`) is traced, sub-agents included. To keep traces
 on disk and browse them with `npx lousho traces`, use `fileTraceExporter()`
-(see [Local traces](#local-traces)):
+(see [Local traces](#local-traces)). The `vendor/` model prefix chooses the
+provider; with OpenRouter use `openrouter/<vendor>/<model>` (e.g.
+`openrouter/openai/gpt-4o-mini`).
 
 ```ts
 import { createAgent } from '@lousho/build-ai-agent';
@@ -67,6 +69,11 @@ invoke_agent {agent name}          INTERNAL
   chat {model}                     CLIENT     one per provider.generate() call
   execute_tool {tool name}         INTERNAL   one per tool call
 ```
+
+A run continued after an approval (`agent.approvals.resolve()`) is a trace of its
+own: its `invoke_agent` span holds the approved call's `execute_tool` span
+(first, as the call runs before the model is called again), then the `chat`
+spans of the rest of the run. A rejected call has no `execute_tool` span.
 
 A flow run (`FlowExecutor.execute`) produces:
 
@@ -316,6 +323,14 @@ and `result` attributes carry message and tool content (see
 [Deprecated attribute names](#deprecated-attribute-names)), and
 `captureContent: true` adds the `gen_ai.*` content. Keep `.lousho/` out of
 version control; projects made by `lousho init` ignore it.
+
+`lousho dev` and `lousho chat` write these files when you pass `--traces`
+(into `.lousho/traces`) or `--traces=<dir>`, for a spec file, an agent
+directory or a module, so a spec-file agent needs no code to be traced. It is
+opt-in on purpose: the files persist prompt and tool content, and
+`captureContent: false` does not remove it (only `redactContent: true` does),
+so nothing is written to disk unless you ask. The spec file format has no
+traces setting.
 
 ## Backends
 

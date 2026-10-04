@@ -61,10 +61,10 @@ export function Chat() {
 
 | الحقل | ما هو |
 | ----- | ---------- |
-| `messages` | `UIMessage[]`: `{ id, role: 'user' \| 'assistant', text, toolCalls }`. كل استدعاء لـ `send()` يضيف رسالة مستخدم ورسالة مساعد تمتلئ مع وصول `text.delta` وأحداث الأدوات. |
+| `messages` | `UIMessage[]`: `{ id, role: 'user' \| 'assistant', text, toolCalls, reasoning? }`. كل استدعاء لـ `send()` يضيف رسالة مستخدم ورسالة مساعد تمتلئ مع وصول `text.delta` وأحداث الأدوات؛ ويجمع `reasoning` نص `reasoning.delta` الذي يبثّه النموذج إن بثّ شيئًا منه. |
 | `toolCalls[i]` | `{ id, name, args, status, result?, error?, partial? }`، وقيمة `status` هي `'running'` أو `'awaiting-approval'` أو `'done'` أو `'error'` أو `'rejected'`. و`partial` هي أحدث لقطة `tool.partial` لـ[أداة بث](/ar/tools#بث-النتائج-الجزئية) قيد التشغيل، وتُزال عندما يستقر الاستدعاء أو يتوقف مؤقتًا. |
 | `status` | `'idle'` أو `'streaming'` أو `'awaiting-approval'` أو `'error'`. |
-| `pendingApproval` | `{ id, toolCallId, toolName, args }` لاستدعاء الأداة الذي توقف عنده التشغيل، وإلا `null`. ولاستدعاء `ask_question` يتضمن أيضًا `kind: 'question'` و`question: { text, options?, allowFreeText? }`. |
+| `pendingApproval` | `{ id, toolCallId, toolName, args }` لاستدعاء الأداة الذي توقف عنده التشغيل، وإلا `null`. ولاستدعاء `ask_question` يتضمن أيضًا `kind: 'question'` و`question: { text, options?, allowFreeText? }`؛ أما الأداة التي تنتظر تسجيل دخول OAuth فتتضمن `kind: 'sign-in'` و`signIn: { provider, displayName?, url }` (راجع [ما يراه المستخدم](/ar/oauth#ما-يراه-المستخدم)). |
 | `error` | `{ name, message }` لآخر حدث `error` أو لطلب فاشل، وإلا `null`. |
 | `usage` | استهلاك الرموز (tokens) في آخر تشغيل مكتمل (من `run.done`)، وإلا `null`. |
 | `todos` | قائمة مهام الوكيل (`{ id, content, status }[]`)، يضبطها كل حدث `todo.updated` من [أدوات المهام](/ar/tools#أدوات-قائمة-المهام)؛ و`[]` حتى أول حدث. وتنتقل عبر الدورات؛ راجع [المهام](#المهام). |
@@ -74,13 +74,13 @@ export function Chat() {
 | `approve(note?)`, `reject(note?)` | تحسمان `pendingApproval` (انظر أدناه). |
 | `answer(text)` | تجيب عن سؤال (`pendingApproval.kind === 'question'`)؛ وهي مماثلة لـ `approve(text)`. أما `reject()` فترفض الإجابة عنه. |
 
-إزالة المكوّن (unmount) تلغي الدورة الجارية. وأحداث تشغيل [وكيل فرعي](/ar/sub-agents) (وهي تحمل `subagent`) لا تغيّر `messages`؛ اقرأها من `lastEvent` إن أردت عرضها.
+إزالة المكوّن (unmount) تلغي الدورة الجارية. وأحداث تشغيل [وكيل فرعي](/ar/sub-agents) (وهي تحمل `subagent`) لا تغيّر `messages` — إلا حدث `approval.requested` من وكيل فرعي، فهو يحدّث `messages` و`pendingApproval` و`status` (فالبتّ في هذا التوقف للمستخدم). اقرأ بقية أحداث الوكيل الفرعي من `lastEvent` إن أردت عرضها.
 
 ## الموافقات
 
 عند استدعاء أداة تحمل `needsApproval`، يتوقف التشغيل بالحدث `approval.requested`. تصبح قيمة `status` هي `'awaiting-approval'` ويحمل `pendingApproval` الاستدعاء. بعد ذلك:
 
-- **داخل العملية**، تستدعي `approve(note?)` و`reject(note?)` الدالة `agent.approvals.resolve({ id, approved, note })` (راجع [الموافقات](/ar/approvals)). يُلحَق نص التشغيل المتواصل برسالة المساعد وتعود `status` إلى `'idle'`، أو إلى `'awaiting-approval'` إذا توقف التشغيل مجددًا.
+- **داخل العملية**، تستدعي `approve(note?)` و`reject(note?)` الدالة `agent.approvals.streamResolve({ id, approved, note }, { signal })` (راجع [الموافقات](/ar/approvals)). تصل أحداث التشغيل المتواصل بثًّا حيًّا، فيُلحَق نصّه برسالة المساعد فور وصوله وتعود `status` إلى `'idle'`، أو إلى `'awaiting-approval'` إذا توقف التشغيل مجددًا.
 - **عن بُعد**، مرّر `{ approvalsUrl }` وسيطًا ثانيًا. يرسل الخطّاف `{ "approved": true, "note": "..." }` بطلب POST إلى `${approvalsUrl}/${approvalId}` ويعرض تتمة التشغيل مباشرة من بث SSE الذي تجيب به واجهة الجلسات البرمجية (الأحداث نفسها التي في دورة محادثة؛ والتوقف الثاني يصل على هيئة `approval.requested`). والخادم الذي يجيب بدلًا من ذلك بـ JSON من نوع `ApprovalOutcome` (كالخادم الوارد أدناه) يبقى يعمل.
 - **عن بُعد دون `approvalsUrl`**، لا تفعل `approve()` و`reject()` شيئًا. اعرض `pendingApproval` واحسمه عبر واجهتك البرمجية الخاصة، ثم أرسل الدورة التالية بـ `send()`.
 
@@ -88,7 +88,7 @@ export function Chat() {
 
 ## جانب الخادم
 
-نقطة نهاية Node للوضع البعيد، مع مسار الموافقات:
+نقطة نهاية Node للوضع البعيد، مع مسار الموافقات (بادئة النموذج `vendor/` هي التي تختار المزوّد؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>`، مثل `openrouter/openai/gpt-4o-mini`):
 
 ```ts
 import { createServer, type IncomingMessage } from 'node:http';
@@ -128,7 +128,7 @@ createServer(async (req, res) => {
 }).listen(3000);
 ```
 
-ثم يستخدم العميل `useLoushoAgent({ url: '/api/agent' }, { approvalsUrl: '/api/approvals' })`. ولمحادثة متعددة الدورات، احتفظ على الخادم بـ `agent.session({ id })` لكل محادثة واستدعِ `session.stream()` بدلًا من `agent.stream()`.
+ثم يستخدم العميل `useLoushoAgent({ url: '/api/agent' }, { approvalsUrl: '/api/approvals' })`. ولمحادثة متعددة الدورات، احتفظ على الخادم بـ `agent.session({ id })` لكل محادثة واستدعِ `session.stream()` بدلًا من `agent.stream()`. وامنح الوكيل مخزن `store` (`createAgent({ store: memoryStore() })` أو مخزنًا متينًا) حين تُفتَح الجلسات لكل طلب: فبدونه يحصل كل `agent.session({ id })` على سجل محادثة جديد في الذاكرة، فتنسى الدورة التالية ما قبلها (راجع [اختيار مخزن](/ar/sessions#اختيار-المخزن)).
 
 ## داخل العملية
 
@@ -149,7 +149,7 @@ export function useSupportChat() {
 
 ## من دون React
 
-الخطّاف مغلِّف رقيق. منطق الحالة هو `reduceAgentEvents(state, event)`، وهو مختزِل (reducer) نقي يعمل على أحداث `AgentEvent` وبضعة إجراءات محلية (`ui.send` و`ui.decide` و`ui.resumed` و`ui.stopped` و`ui.error`)، أما `parseEventStream(response)` فتقرأ الأحداث من استجابة fetch. كلاهما مصدَّر من المسار الفرعي نفسه، لبناء ربط مخصّص أو عميل لا يستخدم React:
+الخطّاف مغلِّف رقيق. منطق الحالة هو `reduceAgentEvents(state, event)`، وهو مختزِل (reducer) نقي يعمل على أحداث `AgentEvent` وبضعة إجراءات محلية (`ui.send` و`ui.decide` و`ui.resumed` و`ui.stopped` و`ui.reset` و`ui.error`)، أما `parseEventStream(response)` فتقرأ الأحداث من استجابة fetch. كلاهما مصدَّر من المسار الفرعي نفسه، لبناء ربط مخصّص أو عميل لا يستخدم React:
 
 ```ts
 import { initialAgentUIState, parseEventStream, reduceAgentEvents } from '@lousho/build-ai-agent/react';

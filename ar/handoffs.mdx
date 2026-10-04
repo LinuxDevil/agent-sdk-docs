@@ -14,7 +14,8 @@ description: "التسليم (handoff) يمرّر المحادثة كاملة إ
 ## البدء السريع
 
 أعطِ كل هدف `name` و`description` (يقرأ النموذج الوصف ليقرر متى يسلّم)،
-ثم مرّرها إلى وكيل الفرز في `handoffs`:
+ثم مرّرها إلى وكيل الفرز في `handoffs`. تختار بادئة النموذج `vendor/` المزوّد؛
+ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`):
 
 ```ts
 import { createAgent, defineTool } from '@lousho/build-ai-agent';

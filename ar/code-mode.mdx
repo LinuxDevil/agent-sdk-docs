@@ -29,7 +29,8 @@ Docker. وكل استدعاء أداة يجريه يمرّ بالفحوص نفس
 ## تفعيله
 
 ثبّت الاعتمادية النظيرة الاختيارية `quickjs-emscripten` واضبط `codeMode` في
-`createAgent()`:
+`createAgent()`. تختار بادئة النموذج `vendor/` المزوّد؛ ومع OpenRouter استخدم
+`openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`):
 
 ```bash
 npm install quickjs-emscripten@^0.32.0

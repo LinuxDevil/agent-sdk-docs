@@ -9,15 +9,24 @@ framework whose handlers take a Web `Request` and return a `Response`: the
 Next.js App Router, SvelteKit, Remix / React Router, Hono, Bun.serve. It is a
 thin wrapper over the same session API as `lousho dev` and the deployed server
 ([Deployment](/deployment)), so the React, Vue and Svelte bindings work against it
-unchanged. It imports no framework and no `node:*` module.
+unchanged. It imports no framework and no `node:*` module. The `vendor/` model
+prefix chooses the provider; with OpenRouter use `openrouter/<vendor>/<model>`
+(e.g. `openrouter/openai/gpt-4o-mini`).
 
 ## Next.js App Router
 
 ```ts
 // app/api/agent/[[...path]]/route.ts
-import { createAgent, createRouteHandler } from '@lousho/build-ai-agent';
+import { createAgent, createRouteHandler, memoryStore } from '@lousho/build-ai-agent';
 
-const agent = createAgent({ model: 'openai/gpt-4o-mini', instructions: 'You are helpful.' });
+// `store` is what lets a session survive across requests: without one every
+// `agent.session({ id })` the handler opens gets a fresh in-memory transcript,
+// so a second turn forgets the first and `GET /chat/:id` returns empty.
+const agent = createAgent({
+  model: 'openai/gpt-4o-mini',
+  instructions: 'You are helpful.',
+  store: memoryStore(), // lives in the server process; use a durable store on serverless
+});
 
 export const { GET, POST } = createRouteHandler(agent, {
   basePath: '/api/agent',
@@ -53,6 +62,7 @@ accepted, and a request outside the base path is a 404).
 | `GET <basePath>/chat/:sessionId` | the session's transcript and pending approvals |
 | `POST <basePath>/chat/:sessionId/approvals/:id` | decide an approval in a session |
 | `POST <basePath>/ui` | with `uiMessageStream: true`: the AI SDK `useChat` endpoint |
+| `GET <basePath>/oauth/callback` | the OAuth provider's redirect after a sign-in; never behind `auth` (the single-use `state` protects it) |
 | `GET <basePath>/health` | `ok`, never behind `auth` |
 
 Sessions are kept by the agent's `store` (`createAgent({ store })`), so give
@@ -84,6 +94,7 @@ names the session, so only the newest user message is sent to the agent
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 
+// ai 6/7 signature; on ai 4 (also a supported peer) use useChat({ api: '/api/agent/ui' })
 const { messages, sendMessage } = useChat({ transport: new DefaultChatTransport({ api: '/api/agent/ui' }) });
 ```
 

@@ -67,7 +67,7 @@ try {
 
 ## الموافقات في منتصف دفعة أدوات
 
-حين تطلب دورة نموذج واحدة عدة أدوات وتحتاج إحداها إلى موافقة، تُنفَّذ الاستدعاءات التي تسبقها وتُسجَّل، ويتوقف التشغيل عندها. وتسجّل لقطة الموافقة (snapshot) الاستدعاءات التي تليها (`remainingToolCalls`). ثم تقوم `agent.approvals.resolve()` (وهي `resumeAfterApproval()` على المنفِّذ) بما يلي:
+حين تطلب دورة نموذج واحدة عدة أدوات وتحتاج إحداها إلى موافقة، تُنفَّذ الاستدعاءات التي تسبقها وتُسجَّل، ويتوقف التشغيل عندها. وتسجّل لقطة الموافقة (snapshot) الاستدعاءات التي تليها (`remainingToolCalls`). ثم تقوم `agent.approvals.resolve()` (ومن تحتها الدالة المُصدَّرة `resumeAfterApproval()`) بما يلي:
 
 1. تسجّل نتيجة الاستدعاء المتوقف: نتيجة الأداة إن وُوفق عليه، أو نتيجة رفض منظَّمة `{ error, note }` إن رُفض؛
 2. تنفّذ الاستدعاءات المتبقية بمنطق الدفعة نفسه: فقد تُنفَّذ، أو تفشل في التحقق، أو توقف التشغيل مرة أخرى عند موافقة أخرى (`approvalId` جديد؛ احسمه بالطريقة نفسها، وبعدد المرات اللازم)؛
@@ -176,7 +176,7 @@ const original = await store.checkpoints?.load('trip');
 const replayed = await store.checkpoints?.load(fork.sessionId);
 if (original && replayed) {
   const { divergedAt, a, b, drift } = compareTrajectories(original, replayed);
-  console.log(divergedAt, a.length, b.length, drift); // 1, then each run's steps and the tool-call diff
+  console.log(divergedAt, a.length, b.length, drift); // 2, then each run's steps and the tool-call diff
 }
 ```
 
@@ -198,7 +198,7 @@ if (original && replayed) {
 
 كل نقطة حفظ وكل لقطة موافقة تحمل **بصمة الوكيل** (agent fingerprint): معرّف النموذج، واسم كل أداة مع تجزئة (hash) لمخطط JSON الخاص بمدخلها، وتجزئة لتعليمات النظام (إضافةً إلى SHA-256 قصير محسوب عليها كلها باستخدام Web Crypto). الدوال والقيم الأخرى التي لا يمكن تحويلها إلى بيانات متسلسلة (`execute` الخاصة بالأداة، والخطّافات، ودوال رد النداء) ليست جزءًا منها، فتغيير الشيفرة وحدها لا يُعدّ تغييرًا أبدًا. وتُخزَّن الأجزاء كلٌّ على حدة ليتمكن عدم التطابق من بيان ما الذي تغيّر.
 
-حين يُستأنف تشغيل (`agent.resume(id)`، أو `session.resume()`، أو استدعاء لاحق لـ`execute()` على `sessionId` غير مكتمل، أو `agent.approvals.resolve()`، والصيغ المبثوثة منها)، تُقارَن بصمة الوكيل المستأنِف بالبصمة المحفوظة، قبل أي استدعاء للنموذج أو تنفيذ لأداة. ويحدّد `onAgentDrift` في `createAgent()` (وفي `AgentExecutor.execute()` / `resumeAfterApproval()`) ما يترتب على الاختلاف:
+حين يُستأنف تشغيل (`agent.resume(id)`، أو `session.resume()`، أو استدعاء لاحق لـ`execute()` على `sessionId` غير مكتمل، أو `agent.approvals.resolve()`، والصيغ المبثوثة منها)، تُقارَن بصمة الوكيل المستأنِف بالبصمة المحفوظة، قبل أي استدعاء للنموذج أو تنفيذ لأداة. ويحدّد `onAgentDrift` في `createAgent()` (وفي `AgentExecutor.execute()` / الدالة المُصدَّرة `resumeAfterApproval()`) ما يترتب على الاختلاف:
 
 | `onAgentDrift` | عند اختلاف النموذج أو الأدوات أو التعليمات |
 | -------------- | ------------------------------------------- |
@@ -260,7 +260,7 @@ try {
 }
 ```
 
-و`resumeAfterApproval()` هي `agent.approvals.resolve()`:
+الدالة المُصدَّرة `resumeAfterApproval()` هي ما تستدعيه `agent.approvals.resolve()`:
 
 ```ts
 import { AgentExecutor, resumeAfterApproval } from '@lousho/build-ai-agent';
@@ -318,5 +318,5 @@ if (original && replayed) {
 ## القيود
 
 - يعرّف `sessionId` محادثة منطقية واحدة؛ وتشغيل استدعاءين لـ`send()` (أو استدعاءين لـ`execute()`) على المعرّف نفسه في الوقت نفسه غير مدعوم.
-- إذا استدعيت `resumeAfterApproval()` (المنفِّذ الذي تقوم عليه `agent.approvals.resolve()`) من دون `checkpointStore`، تحتفظ الجلسة بعلامة `'awaiting-approval'` وتظل استدعاءات `send()` (أو `execute()`) اللاحقة ترمي `SessionAwaitingApprovalError`؛ مرّر المخزن (أو احذف نقطة الحفظ). أما `agent.approvals.resolve()` فتمرّره عنك.
+- إذا استدعيت `resumeAfterApproval()` (الدالة التي تقوم عليها `agent.approvals.resolve()`) من دون `checkpointStore`، تحتفظ الجلسة بعلامة `'awaiting-approval'` وتظل استدعاءات `send()` (أو `execute()`) اللاحقة ترمي `SessionAwaitingApprovalError`؛ مرّر المخزن (أو احذف نقطة الحفظ). أما `agent.approvals.resolve()` فتمرّره عنك.
 - Workers KV متّسق اتساقًا نهائيًا (eventual consistency) عبر المواقع؛ انظر [النشر](/ar/deployment) لمعرفة تفاصيل هذا التحفّظ.

@@ -105,6 +105,8 @@ cd .lousho/build/cloudflare-worker && npx wrangler deploy
 
 - يجب أن يسمّي `model` في الإعدادات مزوّدًا من الجدول أعلاه (`"model": "openai/gpt-4o-mini"`)،
   مع مفتاحه في الربط `OPENAI_API_KEY`؛ أو أن يضبط `agent.ts` الخاصية `provider` على نسخة.
+  تختار بادئة النموذج `vendor/` المزوّد؛ ومع OpenRouter استخدم
+  `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`).
   لا توجد بيئة يُختار منها نموذج افتراضي، لذلك يُرفض المجلد الذي يخلو من الأمرين.
 - يفحص `lousho build` إعدادات JSON/YAML؛ أما إعدادات `agent.ts` فتُفحص عند بدء
   الـ Worker، فيُبلغ `wrangler deploy` عن المشكلة.
@@ -207,8 +209,9 @@ export default {
 
 يمكن البتّ في موافقة أوقفت دورة في طلب ما، بطلب لاحق
 على عزل آخر: فالجلسة التي لها نقطة حفظ تسمّي موافقتها المعلّقة، وتتابعها
-نقطة نهاية الموافقات من KV. وأحداث هذه المتابعة تتخطى `tool.done`
-لاستدعاء الأداة الذي بُتّ فيه؛ ويحمل `run.done` فيها النص النهائي.
+نقطة نهاية الموافقات من KV. وتُبث هذه المتابعة بثًّا كتشغيل مستأنف عادي:
+`tool.resume` و`tool.done` للاستدعاء الذي بُتّ فيه (و`tool.error` عند الرفض)،
+ثم أحداث الدورة، منتهيةً بـ `run.done` يحمل النص النهائي.
 
 يحتفظ `POST /chat { "message", "sessionId"? }` المُهمَل بسلوكه السابق
 على Workers: فمع `sessionId` تُحفظ نقطة حفظ للتشغيل في
@@ -220,27 +223,40 @@ export default {
 تتحول مُشغِّلات cron في المواصفات (`triggers: [{ type: 'cron', cron: '0 9 * * MON', input: '...' }]`)
 إلى `[triggers] crons = [...]` في `wrangler.toml`، ويصدّر الـ Worker المولَّد
 معالجًا `scheduled()` يشغّلها بوصفها دورات للوكيل (الجلسة
-`schedule:<name>`، راجع [الجداول الزمنية](/ar/schedules#على-cloudflare-workers)). تقيّم Cloudflare
+`schedule-<name>`، راجع [الجداول الزمنية](/ar/schedules#على-cloudflare-workers)). تقيّم Cloudflare
 التعبيرات بتوقيت **UTC** وبدقة دقيقة واحدة؛ ويرفض
 البناء `timezone` أو حقل الثواني أو الاختصار `@daily` أو يوم الأسبوع
 الرقمي (`LOUSHO_SCHEDULE_INVALID`).
 
 وفي Worker تكتبه بنفسك، اربط وكيلًا معرَّفًا في الشيفرة عبر
-`handleScheduled(agent, schedules, controller, ctx)` (وهي مُصدَّرة أيضًا من
-`@lousho/build-ai-agent/deploy-runtime-worker`). تشغّل الجداول التي
+`handleScheduled(agent, schedules, controller, ctx)` (وهي مُصدَّرة من جذر الحزمة —
+فمحدِّد `@lousho/build-ai-agent/deploy-runtime-worker` في الشيفرة المولَّدة
+محدِّد افتراضي لا يحلّه إلا مُجمِّع `lousho build`؛ لا تستورده بنفسك). تشغّل الجداول التي
 يساوي `cron` فيها `controller.cron` داخل `ctx.waitUntil()` ولا ترمي أي استثناء؛
-وعليك أنت إدراج التعبيرات نفسها تحت `[triggers] crons`:
+وعليك أنت إدراج التعبيرات نفسها تحت `[triggers] crons`. امنح الوكيل مخزنًا —
+فبدونه تعيش جلسة `schedule-<name>` الخاصة بالتشغيل المجدول في ذاكرة عزل واحد
+وتختفي عند إعادة تدويره:
 
 ```ts
 import { createAgent, createMockProvider, defineSchedule, handleScheduled } from '@lousho/build-ai-agent';
 import type { ScheduledContext, ScheduledController } from '@lousho/build-ai-agent';
+import { KVStore, type KVBinding } from '@lousho/build-ai-agent/kv';
 
-const agent = createAgent({ instructions: 'You write reports.', provider: createMockProvider() });
+interface Env {
+  AGENT_CHECKPOINTS: KVBinding;
+}
+
 const schedules = [defineSchedule({ name: 'weekly', cron: '0 9 * * MON', prompt: 'Summarise last week.' })];
 
 export default {
-  scheduled: (controller: ScheduledController, _env: unknown, ctx: ScheduledContext) =>
-    handleScheduled(agent, schedules, controller, ctx),
+  scheduled: (controller: ScheduledController, env: Env, ctx: ScheduledContext) => {
+    const agent = createAgent({
+      instructions: 'You write reports.',
+      provider: createMockProvider(),
+      store: new KVStore(env.AGENT_CHECKPOINTS), // keeps sessions, checkpoints and paused approvals
+    });
+    return handleScheduled(agent, schedules, controller, ctx);
+  },
 };
 ```
 

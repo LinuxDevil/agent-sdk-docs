@@ -53,8 +53,9 @@ tools with the same name throws an error naming the conflict.
 A defined tool is a regular `ToolDescriptor`: it carries its schema as
 `inputSchema` (the same schema as `input`) and its `execute` function directly.
 The `.tool` field (an `ai` v4 `{ description, parameters, execute }` object) is
-legacy: it is still built for compatibility, and only used for hand-written
-descriptors that set neither `inputSchema` nor `execute`.
+legacy: it is still built for compatibility, and is read per field — a
+hand-written descriptor without `inputSchema` falls back to `tool.parameters`,
+and one without `execute` falls back to `tool.execute`, independently.
 
 ## What happens when the model calls a tool
 
@@ -96,7 +97,7 @@ node.
 | `ctx.toolCallId` | The model's id for this call. It stays the same when the call is re-run after a crash. A call with no model turn behind it (a flow node) gets a generated id. |
 | `ctx.messages` | A read-only copy of the transcript the model had seen before it made the call: no system prompt and not the assistant turn that made the call. Empty for a flow node. |
 | `ctx.abortSignal` | The run's `AbortSignal`, set when the run has one. |
-| `ctx.sessionId` | Reserved: the type has it and `buildToolRunContext()` passes it through, but the executor does not set it yet. |
+| `ctx.sessionId` | The run's session id — `agent.session({ id })`'s id or `send()`'s / `AgentExecutor.execute()`'s `sessionId`; absent when the run has none. |
 | `ctx.principal` | Who the run acts for (route auth's caller, a channel's sender), frozen; absent without one. See [Principals in tools and approvals](/auth#principals-in-tools-and-approvals). |
 | `ctx.approval` | Set when the call runs because a human approved it: the decision's `note`, and `by`, who decided, when the decision named them. |
 
@@ -127,7 +128,7 @@ The transcript message carries `isError: true`; `tool-result` events, `onToolRes
 | `not-run` | `ToolNotRunError` | The call was never started (a resumed run whose approval was saved without its remaining calls). |
 | `mcp` | `McpToolError` | An MCP server answered `isError: true`; `message` is the server's text. |
 | `sandbox` | `SandboxRequiredError` | The tool has `requiresSandbox` but no `sandboxExecute`, so it was refused rather than run unsandboxed. |
-| `denied` | `ToolDeniedError` | A `deny` [permission rule](/approvals#permission-policies) refused the call; `execute` did not run. Adds `reason` when the rule has one. |
+| `denied` | `ToolDeniedError` | A `deny` [permission rule](/approvals#permission-policies), the tool's `needsApproval` returning `'deny'`, a `preToolCall` hook's `deny`, or the permission mode refused the call; `execute` did not run. Adds `reason` when given. |
 
 **Argument validation.** The model's arguments are parsed with the tool's zod
 `inputSchema` (for a legacy descriptor, `tool.parameters`) before the tool runs, so pre-tool hooks, the
@@ -198,7 +199,9 @@ of content. A 4xx or 5xx response is returned with its body, not thrown, so
 the model can read an error page. Refusals, timeouts, too many redirects and
 bad URLs are tool errors that name the host. The page is untrusted input: the
 tool's description tells the model so, and `readOnlyHint` and `openWorldHint`
-are set. Options of `createWebFetchTool()`:
+are set. Options of `createWebFetchTool()` (the `vendor/` model prefix chooses
+the provider; with OpenRouter use `openrouter/<vendor>/<model>`, e.g.
+`openrouter/openai/gpt-4o-mini`):
 
 ```ts
 import { createAgent, createWebFetchTool } from '@lousho/build-ai-agent';
@@ -208,7 +211,7 @@ const webFetch = createWebFetchTool({
   maxRedirects: 10, // each hop is checked again
   maxBytes: 2 * 1024 * 1024, // read from the network, then stop (truncated: true)
   maxChars: 50_000, // characters of text returned to the model
-  allowedHosts: ['*.example.com'], // when set, any other host is refused before DNS
+  allowedHosts: ['*.example.com', 'example.com'], // `*.` matches subdomains only, so list the bare host too; when set, any other host is refused before DNS
   blockedHosts: ['private.example.com'], // always refused, before DNS
   allowPrivate: [], // hosts allowed to resolve to private addresses
   userAgent: 'lousho-web-fetch',
@@ -291,7 +294,8 @@ reaches the run's events as `tool.partial` (see
 result: the model gets it, and it is the `result` of the call's `tool.done`, so
 the final snapshot appears twice (as the last `tool.partial` and in
 `tool.done`). A `return` value is ignored; a generator that yields nothing has
-the result `undefined` (`null` in events).
+the result `null`, as does any tool that returns `undefined`: the transcript, the
+model and `tool.done` all see `null`.
 
 ```ts
 import { createAgent, defineTool, type ToolOutput } from '@lousho/build-ai-agent';
@@ -324,11 +328,13 @@ What to know:
 - **Only the result is kept.** Snapshots are not sent to the model, not added
   to the transcript or the session, not checkpointed and not recorded in trace
   spans. Hooks (`postToolCall`, `onToolResult`) see only the result.
-- **A crash loses them.** Partial output is not durable: after a crash, or a
-  pause for a [sign-in](/oauth) inside the generator, the call has no
-  result yet and runs again from the start (a new `tool.start`, `index` from
-  0). Snapshots already streamed stay in the event log; a UI should drop them
-  when the call pauses or starts again (the [UI bindings](/react) do).
+- **A crash loses them.** Partial output is not durable: after a crash the
+  call has no result yet and runs again from the start (a new `tool.start`,
+  `index` from 0). A pause for a [sign-in](/oauth) inside the generator
+  re-runs it from the start too, but the continued run reports `tool.resume`
+  rather than a second `tool.start`, again with `index` from 0. Snapshots
+  already streamed stay in the event log; a UI should drop them when the call
+  pauses or starts again (the [UI bindings](/react) do).
 - **Approvals and permissions apply first.** A generator tool that needs
   approval runs, and streams, only after the decision (also on a streamed
   resume, `agent.approvals.streamResolve()`).

@@ -10,8 +10,7 @@ sidebarTitle: "واجهة المنفّذ"
 
 `createAgent()` غلاف رقيق فوق `AgentBuilder` ودالة `AgentExecutor.execute()` الساكنة.
 لا تستخدمهما مباشرة إلا فيما لا تقبله `createAgent()`:
-`temperature` و`maxTokens`، و`TraceExporter` للتتبّع
-(`exporter` و`captureContent`). أما `createAgent()` فتقبل أصلًا `maxSteps`
+`temperature` و`maxTokens` (فـ `exporter` و`captureContent` و`redactContent` خيارات تقبلها `createAgent()` أيضًا). أما `createAgent()` فتقبل أصلًا `maxSteps`
 و`limits` و`onEvent` والموافقات و`store` (نقاط الحفظ) و`hooks` و`compaction`. `AgentExecutor` واجهة ساكنة (static)، فلا
 وجود لـ `new AgentExecutor()`.
 
@@ -72,5 +71,6 @@ console.log(events); // includes 'run.start' and 'run.done'
 | `onLLMRequest`, `onLLMResponse`, `onToolCall`, `onToolResult` | خطّافات المراقبة.                |
 | `toolSearch`                            | يضبط [البحث عن الأدوات](/ar/tool-search) للأدوات المعلَّمة بـ `deferLoading`، أو `false` لإرسال كل أداة في كل استدعاء. |
 
-وتُنجَز بنتيجة من النوع `ExecutionResult`: `{ text, messages, toolCalls, usage,
-finishReason, steps, approvalId? }`.
+وتُنجَز بنتيجة من النوع `ExecutionResult`: `{ text, reasoning?, messages, toolCalls,
+usage, stepUsage?, finishReason, steps, approvalId?, object?, outputError?,
+backgroundTasks?, budget?, guardrail?, agentName? }`.

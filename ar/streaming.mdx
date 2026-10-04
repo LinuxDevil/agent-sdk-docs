@@ -7,7 +7,8 @@ title: "البث"
 في صورة بثّ من الأحداث محدَّدة الأنواع: نص النموذج فور وصوله، وكل استدعاء أداة،
 وحدود الخطوات، وطلبات الموافقة، ثم الحدث الختامي `run.done`. كل حدث كائن JSON
 عادي، فيمكنك تمريره إلى المتصفح عبر Server-Sent Events أو WebSocket دون أي
-تحويل.
+تحويل. بادئة النموذج `vendor/` هي التي تختار المزوّد؛ ومع OpenRouter استخدم
+`openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`).
 
 ```ts
 import { createAgent } from '@lousho/build-ai-agent';
@@ -156,8 +157,9 @@ console.log((await again.result).text);
 التشغيل الذي توقف مؤقتًا بانتظار [موافقة](/ar/approvals) يمكن أن يُكمَل في صورة
 بث أيضًا. تُرجع `agent.approvals.streamResolve()` (أو `streamAnswer()`) كائن
 `AgentRun` قيمة `result` فيه هي ما تُرجعه `agent.approvals.resolve()`. أحداثه هي
-`run.start`، ثم `tool.start` و`tool.done` للاستدعاء الذي حُسم أمره
-(و`tool.error` في حالة الرفض)، ثم أحداث التتمّة تمامًا كما في تشغيل جديد، حتى
+`run.start`، ثم `tool.resume` و`tool.done` للاستدعاء الذي حُسم أمره
+(و`tool.error` في حالة الرفض — `tool.resume` لا `tool.start` ثانٍ، لأن التشغيل
+المتوقف قد أبلغ عن بدء ذلك الاستدعاء من قبل)، ثم أحداث التتمّة تمامًا كما في تشغيل جديد، حتى
 `run.done`؛ وأي توقف مؤقت آخر ينهيه بـ `approval.requested` (مع `kind: 'sign-in'` ورابط `signIn` حين تنتظر أداةٌ [تسجيل دخول OAuth](/ar/oauth#ما-يراه-المستخدم)). يعمل الإلغاء
 و`enqueue()` و`steer()` كما في أي تشغيل، ويمكن أن تأتي الموافقة من عملية
 (process) أخرى، لأن كل شيء يُقرأ من مخزن الموافقات. وإذا كان النموذج يُختار

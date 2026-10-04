@@ -61,10 +61,10 @@ npm run docs:build   # writes docs/api/index.html
 
 كلٌّ من `model` و`instructions` (أو `prompt`) و`tools` في `createAgent()` يقبل
 القيمة الثابتة أو دالة تأخذ سياق التشغيل، `(ctx) => value | Promise<value>`
-(النوع `PerRun<T>`). و`ctx` هو `{ sessionId?, input, metadata? }` (النوع
+(النوع `PerRun<T>`). و`ctx` هو `{ sessionId?, input, metadata?, principal? }` (النوع
 `RunConfigContext`): أي `sessionId` المُمرَّر إلى `send()` / `stream()` أو معرّف
 `agent.session()`، ومدخلات المستخدم في هذا التشغيل، وخيار الاستدعاء `metadata` في
-`send()` و`stream()` و`session.send()` و`session.stream()`. تُنفَّذ هذه الدوال
+`send()` و`stream()` و`session.send()` و`session.stream()`، والمُتصل الذي قبلته مصادقة التشغيل (`principal`، ويغيب حين لا يمرِّر الاستدعاء متصلًا). تُنفَّذ هذه الدوال
 مرة واحدة عند بدء التشغيل، قبل أول استدعاء للنموذج، ثم مرة أخرى في كل دورة من
 دورات الجلسة. وكل ما عدا ذلك يُطبَّق على ما تعيده: `fallbackModels`
 و`retry` و`projectInstructions` والذاكرة والمهارات والوكلاء الفرعيون وأدوات MCP
@@ -115,7 +115,8 @@ await agent.send('Hi', { metadata: { tenant: 'Globex', role: 'admin' } });
 
 مرِّر `subagents: { researcher, writer }` (وكلاء من `createAgent()` لكل منهم
 `description`، أو فهرسًا بصيغة `{ list, resolve }`) إلى `createAgent()` أو
-`AgentExecutor.execute()`: فيحصل الوكيل الرئيسي على أداة `task` واحدة وعلى قائمة
+`AgentExecutor.execute()`: فيحصل الوكيل الرئيسي على أداة `task` للتفويض، وعلى أدوات المهام الخلفية الثلاث
+`agent_status` و`agent_await` و`agent_cancel`، وعلى قائمة
 بالوكلاء الفرعيين في موجّهه، ويعمل كل وكيل فرعي على موجّه المهمة وحده، ويرث من
 تشغيل الوكيل الرئيسي الإشارة (signal) والخطّافات (`ctx.subagent`) والتتبّع ومخزن
 الموافقات ومستمعي الأحداث (`event.subagent`). ويحدّ `maxSubagentDepth` (الافتراضي 1)
@@ -130,9 +131,9 @@ await agent.send('Hi', { metadata: { tenant: 'Globex', role: 'admin' } });
 `agent.approvals.resolve({ id, approved, note? })` فينفّذ الاستدعاء أو يرفضه ثم
 يُحَلّ بنتيجة التشغيل بعد متابعته (مواصلًا الجلسة التي توقف فيها). تُحفَظ حالات
 التوقف في `InMemoryApprovalStore` خاص بكل وكيل ما لم تمرِّر
-`approvalStore` (مثل `SqliteStore.approvals`) أو `store`؛ والخيار `approve: (call) => boolean | string`
+`approvalStore` (مثل `SqliteStore.approvals`) أو `store`؛ والخيار `approve: (request: PendingApproval) => boolean | string | Promise<boolean | string>`
 يبتّ في كل استدعاء برمجيًا من دون توقف (لكنّ `stream()` يظل ينتهي عند نقطة
-التوقف). ومع `askQuestion: true` يستطيع الوكيل أن يطرح سؤالًا على المستخدم
+التوقف) — ويحمل `request` الاستدعاء مع `kind` و`principal`. ومع `askQuestion: true` يستطيع الوكيل أن يطرح سؤالًا على المستخدم
 (`kind: 'question'`)، ويُجاب عنه بـ `agent.approvals.answer({ id, answer })`.
 انظر [الموافقات](/ar/approvals).
 

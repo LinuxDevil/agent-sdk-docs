@@ -7,7 +7,7 @@ title: "ضغط السياق"
 
 ## ضغط سياق وكيل
 
-مع `createAgent()`، فعّل ضغط السياق بالخيار `compaction`. القيمة `true` تثبّت الخطّاف بإعداداته الافتراضية (تقليم نتائج الأدوات القديمة فوق 90% من نافذة النموذج)؛ والكائن يضبطه، و`summarizer` يختار `twoPhaseStrategy()` مع ذلك النموذج (سلسلة `"provider/model"` أو `LLMProvider`):
+مع `createAgent()`، فعّل ضغط السياق بالخيار `compaction`. القيمة `true` تثبّت الخطّاف بإعداداته الافتراضية (تقليم نتائج الأدوات القديمة فوق 90% من نافذة النموذج)؛ والكائن يضبطه، و`summarizer` يختار `twoPhaseStrategy()` مع ذلك النموذج (سلسلة `"provider/model"` أو `LLMProvider`). تحدّد بادئة `vendor/` في اسم النموذج المزوّد؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`).
 
 ```ts
 import { createAgent } from '@lousho/build-ai-agent';
@@ -39,7 +39,7 @@ for await (const event of agent.stream('Audit the repository.')) {
 | `compaction.start` | `strategy`, `tokensBefore`, `contextWindow`, `thresholdTokens`, `trigger?: 'manual'` |
 | `compaction.done` | `strategy`, `tokensBefore`, `tokensAfter`, `prunedToolCallIds`, `summary?: boolean`, `error?: { message }`, `trigger?: 'manual'` |
 
-كل حدث `compaction.start` يتبعه حدث `compaction.done` واحد بالضبط. حين لا تستطيع الاستراتيجية تقليص شيء، يساوي `tokensAfter` قيمة `tokensBefore`؛ وحين تفشل (أو يفشل نموذج التلخيص فيرجع الخطّاف إلى التقليم)، يُضبط `error` ويستمر التشغيل. تكون `summary` بقيمة `true` حين يوضع ملخص مكان الدورات القديمة (النص نفسه لا يُرسَل؛ استخدم `onCompaction` للحصول عليه). استدعاء `send()` دون مستمع لا يصدر أحداثًا. تضيف الخطّافات أحداثها الخاصة بـ `ctx.emit?.(...)` على سياق `preGenerate`، وهو موجود حين يكون للتشغيل مستمعون (`createAgent({ onEvent })` أو `onAgentEvent`) أو حين يكون مبثوثًا.
+كل حدث `compaction.start` يتبعه حدث `compaction.done` واحد بالضبط. حين لا تستطيع الاستراتيجية تقليص شيء، يساوي `tokensAfter` قيمة `tokensBefore`؛ وحين تفشل (أو يفشل نموذج التلخيص فيرجع الخطّاف إلى التقليم)، يُضبط `error` ويستمر التشغيل. والملخّص الذي لا يُنزّل المحادثة دون العتبة - أو الذي يجعلها أكبر - يُرفض بالطريقة نفسها: يُضبط `error`، ويحتفظ التشغيل بالنتيجة المقلَّمة بدلًا منه، ولا يفعل الخطّاف سوى تقليم ذلك السجل في بقية التشغيل، فلا يُستدعى نموذج تلخيص لا يستطيع المساعدة مرة أخرى خطوةً بعد خطوة. تكون `summary` بقيمة `true` حين يوضع ملخص مكان الدورات القديمة (النص نفسه لا يُرسَل؛ استخدم `onCompaction` للحصول عليه). استدعاء `send()` دون مستمع لا يصدر أحداثًا. تضيف الخطّافات أحداثها الخاصة بـ `ctx.emit?.(...)` على سياق `preGenerate`، وهو موجود حين يكون للتشغيل مستمعون (`createAgent({ onEvent })` أو `onAgentEvent`) أو حين يكون مبثوثًا.
 
 ## ضغط سياق تشغيل
 

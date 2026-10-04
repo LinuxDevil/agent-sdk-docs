@@ -30,7 +30,7 @@ npm install @ai-sdk/openai@^4.0.0 @ai-sdk/anthropic@^4.0.0
 
 ## 1. «مرحبًا بالعالم»
 
-`createAgent()` هي نقطة الدخول التي لا تحتاج إلى إعداد: تعطيها سلسلة `provider/model` وتعليمات، فتعطيك وكيلًا بواجهة `{ send }`. يُقرأ مفتاح API من متغير البيئة المتعارف عليه للمزوّد (`OPENAI_API_KEY` هنا؛ و`ANTHROPIC_API_KEY` أو `OPENROUTER_API_KEY` أو `OLLAMA_BASE_URL` للمزوّدين الآخرين).
+`createAgent()` هي نقطة الدخول التي لا تحتاج إلى إعداد: تعطيها سلسلة `provider/model` وتعليمات، فتعطيك وكيلًا بواجهة `{ send }`. يُقرأ مفتاح API من متغير البيئة المتعارف عليه للمزوّد (`OPENAI_API_KEY` هنا؛ و`ANTHROPIC_API_KEY` أو `OPENROUTER_API_KEY` أو `OLLAMA_BASE_URL` للمزوّدين الآخرين). بادئة النموذج `vendor/` هي التي تختار المزوّد؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`).
 
 ```ts
 import { createAgent } from '@lousho/build-ai-agent';
@@ -256,7 +256,7 @@ npx lousho build --target=node-server --agent=agent.yaml
 
 ## متقدم: واجهة المنفّذ
 
-`createAgent()` هي نقطة الدخول الموصى بها. وهي تقوم فوق `AgentBuilder` والدالة الساكنة `AgentExecutor.execute()`، اللتين تقبلان بعض الخيارات الأدنى مستوى التي لا تقبلها `createAgent()`، مثل `temperature` و`maxTokens` ومُصدِّر التتبّع. راجع [واجهة المنفّذ](/ar/executor-api).
+`createAgent()` هي نقطة الدخول الموصى بها. وهي تقوم فوق `AgentBuilder` والدالة الساكنة `AgentExecutor.execute()`، اللتين تقبلان بعض الخيارات الأدنى مستوى التي لا تقبلها `createAgent()`، مثل `temperature` و`maxTokens`. راجع [واجهة المنفّذ](/ar/executor-api).
 
 ## الخطوات التالية
 

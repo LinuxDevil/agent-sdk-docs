@@ -23,7 +23,8 @@ title: "البحث عن الأدوات"
 
 ## علِّم الأدوات أو الخوادم بـ `deferLoading`
 
-علِّم أداة بعينها بـ `defineTool({ deferLoading: true })`:
+علِّم أداة بعينها بـ `defineTool({ deferLoading: true })`. تختار بادئة النموذج
+`vendor/` المزوّد؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`):
 
 ```ts
 import { createAgent, defineTool } from '@lousho/build-ai-agent';

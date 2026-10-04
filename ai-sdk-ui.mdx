@@ -18,10 +18,18 @@ the package root, do the translation. They import nothing from `ai`, use no
 
 ## Route handler
 
-```ts
-import { createAgent, fromUIMessages, toUIMessageStreamResponse, type UIMessageLike } from '@lousho/build-ai-agent';
+The `vendor/` model prefix chooses the provider; with OpenRouter use
+`openrouter/<vendor>/<model>` (e.g. `openrouter/openai/gpt-4o-mini`).
 
-const agent = createAgent({ model: 'openai/gpt-4o-mini', instructions: 'You are helpful.' });
+```ts
+import { createAgent, fromUIMessages, memoryStore, toUIMessageStreamResponse, type UIMessageLike } from '@lousho/build-ai-agent';
+
+// The store must outlive the request: without one, every `agent.session({ id })`
+// gets a fresh in-memory transcript and the next turn would start empty.
+// `memoryStore()` keeps it for the process's life; for a serverless deployment
+// or to survive a restart use `fileStore()`, a `SqliteStore` or `KVStore`
+// (see [Sessions](sessions.md#choosing-a-store)).
+const agent = createAgent({ model: 'openai/gpt-4o-mini', instructions: 'You are helpful.', store: memoryStore() });
 
 // app/api/chat/route.ts
 export async function POST(request: Request): Promise<Response> {
@@ -39,9 +47,12 @@ Without a session, pass every message instead:
 
 ```tsx
 import { useChat } from '@ai-sdk/react';
+import { DefaultChatTransport } from 'ai';
 
 export function Chat() {
-  const { messages, sendMessage } = useChat({ api: '/api/chat' });
+  const { messages, sendMessage } = useChat({
+    transport: new DefaultChatTransport({ api: '/api/chat' }),
+  });
   return (
     <>
       {messages.map((message) =>
@@ -55,6 +66,12 @@ export function Chat() {
 }
 ```
 
+This snippet targets `ai` 6 and 7 (`useChat` takes a `transport`, and
+`sendMessage` posts the message). On `ai` 4 — also a supported peer —
+`useChat({ api: '/api/chat' })` takes the endpoint directly and returns
+`input` / `handleInputChange` / `handleSubmit` instead of `sendMessage`;
+`ai` 5 is not in the peer range.
+
 ## Event mapping
 
 | Lousho event | UI message chunk |
@@ -63,7 +80,7 @@ export function Chat() {
 | `step.start` / `step.done` | `start-step` / `finish-step` |
 | `text.delta`, `text.done` | `text-start` (once per text part), `text-delta`, `text-end` |
 | `reasoning.start`, `reasoning.delta`, `reasoning.done` | `reasoning-start`, `reasoning-delta`, `reasoning-end` (see [Reasoning](/reasoning)) |
-| `tool.start` | `tool-input-start`, then `tool-input-available` with the arguments |
+| `tool.start` / `tool.resume` | `tool-input-start`, then `tool-input-available` with the arguments |
 | `tool.partial` | `tool-output-available` with `preliminary: true` (AI SDK 5+): a snapshot of a [streaming tool](/tools#streaming-partial-results) |
 | `tool.done` / `tool.error` | `tool-output-available` / `tool-output-error` |
 | `approval.requested` | `data-lousho-approval` (below) |
@@ -115,7 +132,11 @@ custom data part, which `useChat` shows as a part of type
 }
 ```
 
-`kind` and `question` are present only for an `ask_question`. Render the part
+`kind` and `question` are present only for an `ask_question`; a tool waiting
+for an [OAuth sign-in](/oauth#what-the-user-sees) instead carries
+`kind: 'sign-in'` and `signIn: { provider, displayName?, url }` — show the
+link and, once the provider redirected back, approve it ("I've signed in").
+Render the part
 with your own buttons and answer it with the session API's approvals route
 (`POST /chat/:sessionId/approvals/:approvalId`, see [Sessions](/sessions) and
 [Approvals](/approvals)): `{ "approved": true }` or `{ "approved": false,

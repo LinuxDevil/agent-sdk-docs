@@ -96,7 +96,7 @@ const appendLine = defineTool({
 
 - `createAgent({ permissionMode })`: وضع الوكيل. الدالة تُقرأ عند كل استدعاء أداة، فالوضع الذي تبدّله أثناء تشغيل جارٍ يسري على استدعائه التالي.
 - `agent.send(message, { permissionMode })` / `agent.stream(...)`: الوضع لذلك التشغيل وحده.
-- `agent.session({ permissionMode })`، ثم `session.setPermissionMode(mode)` والمُجلِب `session.permissionMode`. تقرأ الجلسة وضعها عند كل استدعاء أداة في الدورة، فإن استُدعيت `setPermissionMode()` أثناء دورة (من مستمع `tool.start` مثلًا) سرت من استدعاء الأداة التالي في تلك الدورة. وافتراضيًا تأخذ الجلسة وضع الوكيل.
+- `agent.session({ permissionMode })`، ثم `session.setPermissionMode(mode)` والمُجلِب `session.permissionMode`. تقرأ الجلسة وضعها عند كل استدعاء أداة في الدورة، فإن استُدعيت `setPermissionMode()` أثناء دورة (من مستمع `tool.start` مثلًا - أي مستمع `session.on()` أو حلقة `stream()`) سرت من استدعاء الأداة التالي في تلك الدورة. وافتراضيًا تأخذ الجلسة وضع الوكيل.
 
 التبديل دائمًا استدعاء صريح لـ `setPermissionMode()`. ويُبلَّغ كل تبديل إلى `onPermissionModeChange` مع `{ sessionId, from, to, at }`:
 

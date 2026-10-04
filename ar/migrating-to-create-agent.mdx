@@ -112,6 +112,7 @@ console.log(result.text); // 'Sent the report to Sam.'
 | `hooks: HookRegistry` | `hooks: AgentHook[]`. |
 | `signal` | `agent.send(message, { signal })`. |
 | `maxSteps` و`limits` و`guardrails` و`toolConcurrency` و`onAgentDrift` و`reasoning` و`output` | الأسماء نفسها في `createAgent()`؛ ويمكن أيضًا تعيين `reasoning` لكل استدعاء `send()`. |
+| `exporter` و`captureContent` و`redactContent` | الأسماء نفسها في `createAgent()`. |
 | `skills` و`subagents` | الأسماء نفسها في `createAgent()`، الذي يقبل أيضًا `mcpServers` و`memory`. |
 | `inputQueue` | `run.enqueue()` على تشغيل مبثوث، أو `agent.session({ turnPolicy })`؛ انظر [المدخلات المصطفّة](/ar/queue-and-steer#المدخلات-المصطفّة). |
 | `sessionBudget` | `agent.session({ id, limits })`؛ انظر [الجلسات](/ar/sessions). |
@@ -125,7 +126,6 @@ console.log(result.text); // 'Sent the report to Sam.'
 | خيار المنفِّذ | البديل |
 | --------------- | ----------- |
 | `temperature` و`maxTokens` | لا بديل: ابقَ على المنفِّذ. (`limits.maxTokens` ميزانية للتشغيل، وليس إعداد توليد.) |
-| `exporter` و`captureContent` و`redactContent` | لا بديل: التتبّع بـ`TraceExporter` يحتاج إلى المنفِّذ. |
 | `sandbox` | لا بديل: ابقَ على المنفِّذ. |
 | `onLLMRequest` و`onLLMResponse` | خطّاف `preGenerate` / `postGenerate` في `hooks`، أو مستمع `onEvent`. |
 | `onToolCall` و`onToolResult` | خطّاف `preToolCall` / `postToolCall` في `hooks`، أو مستمع `onEvent`. |

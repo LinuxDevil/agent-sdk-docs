@@ -28,16 +28,16 @@ Every command that takes a `<spec>` reads an agent spec file (`.yaml`,
 ## Usage
 
 ```text
-lousho init [dir] [--provider P] [--template T] [--yes] [--no-install] [--no-git] [--package-manager PM] [--force]
-lousho dev <spec.yaml|spec.json|agent-dir|agent.ts> [--port N] [--host H] [--no-schedules]
-lousho chat <spec.yaml|spec.json|agent-dir|agent.ts> [--model provider/model] [--session id] [--store sqlite:<file>]
+lousho init [dir] [--provider P] [--template T] [--yes] [--no-install] [--no-git] [--package-manager PM] [--force] [--sdk-path <dir|tgz>]
+lousho dev <spec.yaml|spec.json|agent-dir|agent.ts> [--port N] [--host H] [--no-schedules] [--traces[=dir]]
+lousho chat <spec.yaml|spec.json|agent-dir|agent.ts> [--model provider/model] [--session id] [--store sqlite:<file>] [--traces[=dir]]
 lousho acp <spec.yaml|spec.json|agent-dir|agent.ts> [--model provider/model]
 lousho add <name> [--registry <url-or-path>] [--dir <agent-dir>] [--yes] [--allow <list>] [--overwrite] [--dry-run]    (or --list)
 lousho build <agent-dir|spec> --target=<name> [--out=<dir>]    (or --agent=<path>)
 lousho studio [--port N] [--host H] [--prod|--dev]
 lousho mcp <agent.yaml|json> [--http --port N --host H]
 lousho doctor [agent.yaml|json] [--json]
-lousho eval [globs...] [--tag t] [--junit path] [--json path] [--strict] [--judge] [--record | --replay | --drift [--drift-usage]] [--url <base> [--token <bearer>]]
+lousho eval [globs...] [--tag t] [--junit path] [--json path] [--strict] [--judge] [--record | --replay | --drift [--drift-usage]] [--url <base> [--token <bearer>]] [--config vitest.config.ts]
 lousho traces [traceId|prefix] [--dir D] [--limit N] [--json] [--content]
 ```
 
@@ -47,7 +47,18 @@ Every command parses its flags the same way (Node's `parseArgs`, strict):
 command's usage and exits 0. An unknown flag, a flag without its value (it
 never takes the next flag as its value) or an extra argument fails with
 `LOUSHO_CONFIG_INVALID` and the usage line. A value that starts with `-` needs
-the `=` form: `--model=-x`.
+the `=` form: `--model=-x`. `--traces` is the one flag whose value is optional:
+it takes it only in the `=` form (`--traces=./t`), so `--traces agent.yaml` is
+still the flag followed by the path.
+
+`lousho init` is the exception: it parses its own flags, and a bad flag or
+value fails with `InitUsageError` — its message printed as-is, exit code 1 —
+not the shared `LOUSHO_CONFIG_INVALID` path. The only short flags besides
+`-h` are `-y` for `--yes`, on `init` and on `add`.
+
+`lousho eval` also takes `--config <file>` to run under your own vitest config
+instead of the generated one; globs then narrow that config's files as vitest
+filters.
 
 `npm create lousho-agent my-agent` runs `lousho init` with the same arguments.
 To scaffold against an unreleased build of the SDK, pass `--sdk-path` (see
@@ -75,7 +86,7 @@ endpoints below (1MB body limit). What `<path>` is follows from the path:
 | ---- | ----------- |
 | `.yaml`, `.yml`, `.json` | `loadSpec()` + `specToAgent()` ([Configuration](/configuration)) |
 | a directory | `loadAgentDir()` ([Agent directories](/agent-directories)) |
-| `.ts`, `.mts`, `.js`, `.mjs`, `.cjs` | the module's default export, or its `agent` export: a `SimpleAgent` (what `createAgent()` returns) or a `createAgent()` options object |
+| `.ts`, `.mts`, `.cts`, `.js`, `.mjs`, `.cjs` | the module's default export, or its `agent` export: a `SimpleAgent` (what `createAgent()` returns) or a `createAgent()` options object |
 
 Any other extension, a missing path, or a module with no agent export fails
 with a coded error (`LOUSHO_SPEC_UNSUPPORTED_FORMAT`, `LOUSHO_CONFIG_INVALID`)
@@ -94,14 +105,23 @@ plus a free-text field. The same endpoints work from `curl` or your own page:
 | -------- | ------------ |
 | `POST /chat` `{ "sessionId", "input" }` | Runs `agent.session({ id: sessionId }).stream(input)` and streams the turn as SSE: one `data: <AgentEvent JSON>` per event ([Streaming](/streaming)), then `event: done`. History is kept per `sessionId` (1-128 characters of `A-Za-z0-9_-`). |
 | `GET /chat/:sessionId` | The session's transcript: `{ sessionId, messages, pending }`; `pending` is `{ status, approvalId? }` while a turn waits on an approval, else `null`. |
-| `POST /chat/:sessionId/approvals/:id` `{ "approved", "note"? }` or `{ "answer" }` | Decides the pending approval (`agent.approvals.resolve()`), or answers a question (`agent.approvals.answer()`), and streams the continued turn as SSE. It can pause again with another `approval.requested`. `404` when `id` is not pending. |
+| `POST /chat/:sessionId/approvals/:id` `{ "approved", "note"? }` or `{ "answer" }` | Decides the pending approval (`agent.approvals.streamResolve()`), or answers a question (`agent.approvals.streamAnswer()`), and streams the continued turn as SSE. It can pause again with another `approval.requested`. `404` when `id` is not pending. |
 | `POST /chat` `{ "message" }` | Deprecated: no session, no streaming. Returns the agent's `ExecutionResult` as JSON, with a `Deprecation: true` header. |
+
+`--traces` (or `--traces=<dir>`) writes every run to local trace files with
+`fileTraceExporter()`, in `.lousho/traces` unless you name a directory, so
+`npx lousho traces` shows what the agent did. It is off by default because the
+files hold prompt, tool argument and tool result content, and the flag prints
+the directory it writes to. It applies to spec files, agent directories and
+modules alike (a module's own `exporter` is replaced while the flag is set).
+See [Local traces](/observability#local-traces).
 
 Sessions live in an in-process `memoryStore()` (gone when `lousho dev` stops),
 or in the agent's own `store` when a module's `createAgent()` options set one.
-The continuation of an approval is not streamed token by token: the endpoint
-runs it with `agent.approvals.resolve()` and sends the turn's tool results and
-text as events once it finishes.
+The continuation of an approval is streamed too: the endpoint runs it with
+`agent.approvals.streamResolve()` (or `streamAnswer()` for a question) and
+sends the continued turn's events — the decided tool call, text deltas, a
+further pause and `run.done` — as they happen.
 
 `lousho build` servers (`node-server`, `docker`) serve these same endpoints from
 the same code, with sessions in a store chosen by `LOUSHO_STORE` and optional
@@ -172,6 +192,8 @@ Done, the report is on its way.
   known pricing, the cost (`~` marks estimated tokens).
 - Errors from the SDK print with their `[LOUSHO_...]` code and fix, and the
   session continues.
+- `--traces` or `--traces=<dir>` writes the session's runs to local trace files,
+  as for `lousho dev`; a line on stderr says where.
 
 | Command | What it does |
 | ------- | ------------ |
@@ -184,7 +206,7 @@ Done, the report is on its way.
 
 | Option | Meaning |
 | ------ | ------- |
-| `--model provider/model` | Use this model instead of the one the target names. Applies to spec files, agent directories and `createAgent()` options exports; a module that exports an already built agent keeps its model. |
+| `--model provider/model` | Use this model instead of the one the target names. Applies to spec files, agent directories and `createAgent()` options exports; a module that exports an already built agent keeps its model. The `vendor/` model prefix chooses the provider; with OpenRouter use `openrouter/<vendor>/<model>` (e.g. `openrouter/openai/gpt-4o`). |
 | `--session id` | Open this session (1-128 characters of `A-Za-z0-9_-`); default is a new `chat-<id>`. |
 | `--store sqlite:<file>` | Keep sessions in a SQLite file ([`SqliteStore`](/durable-execution)), so `--session id` continues a conversation after a restart. Default: in memory. Pending approvals are not restored after a restart. |
 

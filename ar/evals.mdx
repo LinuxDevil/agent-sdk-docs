@@ -90,7 +90,7 @@ defineEval({
 ```text
 calledTool('lookup_order') failed: tools called were [search_docs, issue_refund]
 calledTool('lookup_order', {"args":{"orderId":"41"}}) failed: 'lookup_order' was called 1 time(s) but no call matched the expected args; closest call differs in orderId: expected "41", got "42"
-completed() failed: finishReason was 'tool_calls' (the run hit maxSteps while still calling tools)
+completed() failed: finishReason was 'max-steps' (the run hit maxSteps while still calling tools)
 ```
 
 أعضاء السياق الأخرى: `t.reply` (نص آخر رد)، و`t.result` (آخر
@@ -287,13 +287,17 @@ refund flow  polite  args   lookup_order {"orderId":"42"}  lookup_order {"orderI
 
 كيف يعمل ذلك: حلقة التشغيل ترسل كل استدعاء للنموذج (`generate` أو `stream`، سواء من
 تشغيل عادي، أو تشغيل مبثوث، أو وكيل فرعي، أو استئناف بعد موافقة) عبر نقطة
-اعتراض واحدة للمزوّد، هي `setProviderInterceptor()` في
-`src/providers/interception.ts`. لا شيء مثبَّت فيها افتراضيًا، فلا كلفة
+اعتراض واحدة للمزوّد، هي `setProviderInterceptor()` (مُصدَّرة من
+`@lousho/build-ai-agent/testing`؛ و`src/providers/interception.ts` في
+المصدر). لا شيء مثبَّت فيها افتراضيًا، فلا كلفة
 لها. وحين تعمل حالة في أحد هذه الأوضاع، يجيب `lousho eval` عندها
 بالمزوّد مغلَّفًا بـ `recordReplay()` لشريط تسجيل تلك الحالة. ويمكنك استخدام
 نقطة الاعتراض بنفسك لوضع أي مغلِّف عند حدّ النموذج: يستقبل المعترِض
 مزوّد التشغيل ويُرجع المزوّد المراد استدعاؤه (ويجب أن يُرجع المغلِّف نفسه
-للمزوّد نفسه، وألا يمسّ مزوّدًا سبق أن غلّفه).
+للمزوّد نفسه، وألا يمسّ مزوّدًا سبق أن غلّفه). وأي فشل في شريط التسجيل
+ينشئه — عدم تطابق في إعادة التشغيل أو شريط مفقود — يصل إلى `send()`
+مُنمَّطًا (`CassetteMismatchError`، `LOUSHO_CASSETTE_INVALID`)، لا كخطأ مزوّد
+مضغوط.
 
 ## تشغيل التقييمات على نشر قائم
 
