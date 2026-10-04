@@ -261,7 +261,8 @@ export default {
 الرقمي (`LOUSHO_SCHEDULE_INVALID`).
 
 وفي Worker تكتبه بنفسك، اربط وكيلًا معرَّفًا في الشيفرة عبر
-`handleScheduled(agent, schedules, controller, ctx)` (وهي مُصدَّرة من جذر الحزمة —
+`handleScheduled(agent, schedules, controller, ctx)` (وهي مُصدَّرة من
+`@lousho/build-ai-agent/worker` —
 فمحدِّد `@lousho/build-ai-agent/deploy-runtime-worker` في الشيفرة المولَّدة
 محدِّد افتراضي لا يحلّه إلا مُجمِّع `lousho build`؛ لا تستورده بنفسك). تشغّل الجداول التي
 يساوي `cron` فيها `controller.cron` داخل `ctx.waitUntil()` ولا ترمي أي استثناء؛
