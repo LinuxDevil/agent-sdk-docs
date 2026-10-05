@@ -13,7 +13,7 @@ title: "واجهة سطر الأوامر (CLI)"
 | `lousho chat <path>` | حلقة REPL في الطرفية لملف مواصفات أو مجلد وكيل أو وكيل مكتوب بـ TS: تبث الردود، وتعرض استدعاءات الأدوات، وتطلب الموافقات وتطرح الأسئلة. | [أدناه](#lousho-chat) |
 | `lousho acp <path>` | يقدّم ملف مواصفات أو مجلد وكيل أو وكيلًا مكتوبًا بـ TS إلى محرر (Zed وغيره من عملاء ACP) عبر Agent Client Protocol على stdio. | [ACP](/ar/acp) |
 | `lousho add <name>` | يثبّت أداة أو مهارة أو قناة أو جدولًا زمنيًا أو خانة ذاكرة من سجل JSON في مجلد وكيل، بعد عرض بيان صلاحياتها وفحص الشيفرة مقابله. | [السجل](/ar/registry) |
-| `lousho mcp <spec>` | يقدّم الوكيل كخادم MCP (عبر stdio، أو HTTP مع `--http`). | [MCP](/ar/mcp#تقديم-وكيل-عبر-mcp) |
+| `lousho mcp <spec>` | يقدّم الوكيل كخادم MCP (عبر stdio، أو HTTP مع `--http`). | [MCP](/ar/mcp-integration#تقديم-وكيل-عبر-mcp) |
 | `lousho eval [globs...]` | يشغّل ملفات `*.eval.ts` تحت vitest؛ ويطبع ملخصًا ويكتب تقارير JUnit/JSON. | [التقييمات](/ar/evals#lousho-eval) |
 | `lousho traces [id]` | يعرض التشغيلات الأخيرة التي حفظها `fileTraceExporter()` (المدة، واستدعاءات النموذج والأدوات، والرموز، والتكلفة)، أو يطبع تشغيلًا واحدًا بوصفه شجرة مقاطع. | [قابلية المراقبة](/ar/observability#التتبّعات-المحلية) |
 | `lousho build --target=<t> --agent=<spec>` | يبني خادم Node أو صورة Docker أو Cloudflare Worker قابلًا للنشر. | [النشر](/ar/deployment) |

@@ -222,7 +222,7 @@ await agent.send('Hi', { metadata: { tenant: 'Globex', role: 'admin' } });
 | `createFsTools(fs, options?)`, `createShellTool(shell, options?)` | أدوات مساحة العمل (`read_file`، `write_file`، `edit_file`، `list_dir`، `glob`، `grep`، `shell`) فوق `FsProvider` / `ShellProvider`. انظر [أدوات مساحة العمل](/ar/workspace-tools). |
 | `NodeWorkspace`, `MemoryWorkspace`, `SandboxShell` | مزوّدو مساحة العمل: مجلد حقيقي (المسارات محصورة داخل `root`، وبيئة shell بأقل قدر من المتغيرات)، وشجرة في الذاكرة مع `exec` مُعدّ مسبقًا للاختبارات، و`ShellProvider` فوق `SandboxAdapter` (Docker). |
 | `createTodoTools({ store?, onChange? })`     | الأداتان `todo_write` / `todo_read` (مع `getTodos()`) ليتمكن الوكلاء من تخطيط الأعمال متعددة الخطوات ومتابعتها؛ انظر [أدوات قائمة المهام](/ar/tools#أدوات-قائمة-المهام). |
-| `connectMcp(servers, options?)`             | الاتصال بخوادم MCP انطلاقًا من الإعداد (stdio أو HTTP) وتحميل أدواتها؛ انظر [مشاركة الخوادم عبر `connectMcp()`](/ar/mcp#مشاركة-الخوادم-عبر-connectmcp). |
+| `connectMcp(servers, options?)`             | الاتصال بخوادم MCP انطلاقًا من الإعداد (stdio أو HTTP) وتحميل أدواتها؛ انظر [مشاركة الخوادم عبر `connectMcp()`](/ar/mcp-integration#مشاركة-الخوادم-عبر-connectmcp). |
 | `loadMcpTools(client, connectionName)`       | تحميل أدوات خادم MCP متصل في صورة `ToolDescriptor`. متاحة من جذر الحزمة ومن `@lousho/build-ai-agent/tools` و`@lousho/build-ai-agent/mcp`. |
 
 انظر [الأدوات](/ar/tools) للاطلاع على دليل تعريف الأدوات وتسجيلها.

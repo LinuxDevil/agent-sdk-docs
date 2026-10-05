@@ -144,7 +144,7 @@ runtime behavior or types your code may rely on, one line each:
   case. See [Handoffs](/handoffs).
 - `McpServerStatus` gains `'needs-auth'` and `AgentOAuth` gains
   `mcpSignInUrl(server)`: an exhaustive `switch` over `connectMcp().status()`
-  needs the new case. See [MCP](/mcp) and [OAuth](/oauth).
+  needs the new case. See [MCP](/mcp-integration) and [OAuth](/oauth).
 - `ToolExecutionContext` gains `getToken(provider)` and `requireAuth(provider)`,
   and `ApprovalKind` gains `'sign-in'`: a hand-built tool context in a test
   needs the two methods (or a cast). See [OAuth](/oauth).

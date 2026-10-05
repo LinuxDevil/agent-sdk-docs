@@ -68,7 +68,8 @@ const PAGES = {
   'docs/build-a-coding-agent.md': 'build-a-coding-agent',
   'docs/troubleshooting.md': 'troubleshooting',
   'docs/migrating-to-create-agent.md': 'migrating-to-create-agent',
-  'docs/mcp.md': 'mcp',
+  // 'mcp' is reserved by Mintlify's built-in MCP endpoint; the page lives at /mcp-integration.
+  'docs/mcp.md': 'mcp-integration',
   'docs/hooks.md': 'hooks',
   'docs/triggers.md': 'triggers',
   'docs/hosted-tools.md': 'hosted-tools',
@@ -96,7 +97,7 @@ const SIDEBAR_TITLES = {
   'executor-api': 'Executor API',
   'migrating-to-create-agent': 'Migrating to createAgent()',
   'build-a-coding-agent': 'Build a coding agent',
-  mcp: 'MCP',
+  'mcp-integration': 'MCP',
   runs: 'Runs and cancellation',
   'stream-events': 'Stream events',
   'queue-and-steer': 'Queued input and steering',

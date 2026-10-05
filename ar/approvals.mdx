@@ -60,7 +60,7 @@ const sendEmail = defineTool({
 أدوات MCP تأخذ قيمة `needsApproval` من تعليقات الأداة التوصيفية (annotations) على الخادم: `readOnlyHint:
 true` تُنفَّذ مباشرة، أما `destructiveHint` بقيمة true أو غير المحدَّدة (وهو افتراضي MCP) فتطلب الموافقة. اختر
 السلوك لكل خادم عبر `approval: 'annotations' | 'always' | 'never'` أو دالة؛ انظر
-[موافقة أدوات MCP](/ar/mcp#الموافقة-على-أدوات-mcp).
+[موافقة أدوات MCP](/ar/mcp-integration#الموافقة-على-أدوات-mcp).
 
 ## سياسات الصلاحيات
 
@@ -395,6 +395,6 @@ const result = await resumeAfterApproval(
 - **أدوات مساحة العمل.** أداة الصدفة (shell) تتطلب موافقة افتراضيًا. انظر
   [أدوات مساحة العمل](/ar/workspace-tools).
 - **MCP.** الأدوات التي تتطلب موافقة لا يمكن الموافقة عليها عبر MCP؛ انظر
-  [تقديم وكيل عبر MCP](/ar/mcp#تقديم-وكيل-عبر-mcp).
+  [تقديم وكيل عبر MCP](/ar/mcp-integration#تقديم-وكيل-عبر-mcp).
 - **Agent Forge** يعرض الموافقات المعلّقة بطاقاتٍ مضمّنة في محادثته؛ انظر
   [Agent Forge](/ar/agent-forge).

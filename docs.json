@@ -81,7 +81,7 @@
                   "sub-agents",
                   "handoffs",
                   "skills",
-                  "mcp",
+                  "mcp-integration",
                   "agent-directories",
                   "flows"
                 ]
@@ -216,7 +216,7 @@
                   "ar/sub-agents",
                   "ar/handoffs",
                   "ar/skills",
-                  "ar/mcp",
+                  "ar/mcp-integration",
                   "ar/agent-directories",
                   "ar/flows"
                 ]

@@ -121,7 +121,7 @@ Each entry sets exactly one of `command` / `url`; `args`/`env` apply only to
 stdio and `headers` only to HTTP. The field is validated by `loadSpec()`, and
 an invalid entry fails with the entry name in the message, e.g.
 `'mcpServers.files': AgentSpec validation failed: missing 'command' (stdio server) or 'url' (HTTP server)`.
-An optional `approval` (`annotations`, `always` or `never`) says which of the server's tools ask for approval; see [Approval for MCP tools](/mcp#approval-for-mcp-tools).
+An optional `approval` (`annotations`, `always` or `never`) says which of the server's tools ask for approval; see [Approval for MCP tools](/mcp-integration#approval-for-mcp-tools).
 An optional `deferLoading: true` withholds the server's tools from the model until it finds them with `tool_search`; see [Tool search](/tool-search).
 An HTTP entry may set `oauth` (`redirectUri`, optional `clientId`, `clientSecret`, `scopes` and `clientName`) to sign in to the server with OAuth instead of a static `Authorization` header; see [MCP servers with OAuth](/oauth#mcp-servers-with-oauth).
 `lousho doctor` checks each stdio `command` is resolvable.
@@ -156,9 +156,9 @@ console.log(Object.keys(agent.mcpServers)); // ['filesystem', 'docs']
 ```
 
 `specToAgent()` passes the servers to `createAgent({ mcpServers })`, described
-in [MCP](/mcp#use-mcp-servers-in-an-agent), so `lousho dev` and `lousho mcp` agents get their tools.
+in [MCP](/mcp-integration#use-mcp-servers-in-an-agent), so `lousho dev` and `lousho mcp` agents get their tools.
 
-MCP clients, `connectMcp()`, tool approval and serving an agent over MCP are on their own page: [MCP (Model Context Protocol)](/mcp).
+MCP clients, `connectMcp()`, tool approval and serving an agent over MCP are on their own page: [MCP (Model Context Protocol)](/mcp-integration).
 
 ## Provider credentials
 
@@ -401,4 +401,4 @@ The options of `AgentExecutor.execute()`, the lower-level entry point, are liste
 ## CLI
 
 `lousho dev`, `lousho build`, `lousho mcp` and the other commands, with their
-flags, are described in [CLI](/cli); `lousho mcp` is also covered in [MCP](/mcp#from-the-command-line).
+flags, are described in [CLI](/cli); `lousho mcp` is also covered in [MCP](/mcp-integration#from-the-command-line).

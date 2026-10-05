@@ -128,7 +128,7 @@ mean"):
 و`headers` يخصّ HTTP وحده. تتحقق `loadSpec()` من الحقل، والمُدخل غير الصالح
 يفشل برسالة فيها اسم المُدخل، مثل
 `'mcpServers.files': AgentSpec validation failed: missing 'command' (stdio server) or 'url' (HTTP server)`.
-والحقل الاختياري `approval` (`annotations` أو `always` أو `never`) يحدد أيّ أدوات الخادم تطلب الموافقة؛ انظر [الموافقة على أدوات MCP](/ar/mcp#الموافقة-على-أدوات-mcp).
+والحقل الاختياري `approval` (`annotations` أو `always` أو `never`) يحدد أيّ أدوات الخادم تطلب الموافقة؛ انظر [الموافقة على أدوات MCP](/ar/mcp-integration#الموافقة-على-أدوات-mcp).
 والحقل الاختياري `deferLoading: true` يحجب أدوات الخادم عن النموذج إلى أن يجدها بـ `tool_search`؛ انظر [البحث عن الأدوات](/ar/tool-search).
 ويمكن لمدخل HTTP أن يضبط `oauth` (`redirectUri`، و`clientId` و`clientSecret` و`scopes` و`clientName` اختياريًا) ليسجّل الدخول إلى الخادم بـ OAuth بدل ترويسة `Authorization` ثابتة؛ انظر [خوادم MCP مع OAuth](/ar/oauth#خوادم-mcp-مع-oauth).
 ويتحقق `lousho doctor` من أن كل `command` لخادم stdio يمكن العثور عليه.
@@ -163,9 +163,9 @@ console.log(Object.keys(agent.mcpServers)); // ['filesystem', 'docs']
 ```
 
 تمرّر `specToAgent()` الخوادم إلى `createAgent({ mcpServers })` الموصوف في
-[MCP](/ar/mcp#استخدام-خوادم-mcp-في-وكيل)، فتحصل وكلاء `lousho dev` و`lousho mcp` على أدواتها.
+[MCP](/ar/mcp-integration#استخدام-خوادم-mcp-في-وكيل)، فتحصل وكلاء `lousho dev` و`lousho mcp` على أدواتها.
 
-عملاء MCP و`connectMcp()` والموافقة على الأدوات وتقديم وكيل عبر MCP موضوعها صفحة مستقلة: [MCP (Model Context Protocol)](/ar/mcp).
+عملاء MCP و`connectMcp()` والموافقة على الأدوات وتقديم وكيل عبر MCP موضوعها صفحة مستقلة: [MCP (Model Context Protocol)](/ar/mcp-integration).
 
 ## بيانات اعتماد المزوّدين
 
@@ -411,4 +411,4 @@ const agent = createAgent({
 ## CLI
 
 الأوامر `lousho dev` و`lousho build` و`lousho mcp` وسائر الأوامر، مع
-راياتها (flags)، موصوفة في [CLI](/ar/cli)؛ ويُعرض `lousho mcp` أيضًا في [MCP](/ar/mcp#من-سطر-الأوامر).
+راياتها (flags)، موصوفة في [CLI](/ar/cli)؛ ويُعرض `lousho mcp` أيضًا في [MCP](/ar/mcp-integration#من-سطر-الأوامر).

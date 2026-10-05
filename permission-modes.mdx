@@ -63,7 +63,7 @@ says nothing is treated as one with side effects and is refused.
   `web_fetch`, `load_skill`, every `recall_<name>` memory tool, and
   `agent_status` / `agent_await` (they watch background sub-agents). An
   [OpenAPI tool](/openapi-tools) for a `GET` operation has it too, and an
-  [MCP tool](/mcp) keeps the hint its server sent: it is the server's word,
+  [MCP tool](/mcp-integration) keeps the hint its server sent: it is the server's word,
   not a guarantee, so only connect servers you trust.
 - The built-in `ask_question` (it only asks; the call still pauses for the
   answer) and `task` (its sub-agent inherits plan mode, see below).

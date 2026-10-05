@@ -127,9 +127,9 @@ const agent = createAgent({ prompt: '...', provider, tools: [weather] });
 | `askQuestionTool()`, `createAgent({ askQuestion: true })` | `ask_question`: يطرح الوكيل سؤالًا على المستخدم ويتوقف التشغيل إلى حين استدعاء `agent.approvals.answer()`؛ راجع [طرح سؤال على المستخدم](/ar/approvals#طرح-سؤال-على-المستخدم). |
 | `createFsTools()`, `createShellTool()` | أدوات نظام الملفات والصدفة (shell) لوكلاء البرمجة؛ راجع [أدوات مساحة العمل](/ar/workspace-tools). |
 | `createEmailTool()`, `createSlackTool()`, `createGitHubTools()`, `createJiraTools()` (من `@lousho/build-ai-agent/integrations`) | تكاملات تحتاج إلى بيانات اعتماد، ولذلك تُبنى بخيارات. |
-| `createAgent({ mcpServers })`, `connectMcp(servers)` | كل أدوات خوادم MCP المعطاة في الإعدادات (`command` عبر stdio أو `url` عبر HTTP)، وتُسمّى `<server>__<tool>`؛ راجع [استخدام خوادم MCP في وكيل](/ar/mcp#استخدام-خوادم-mcp-في-وكيل). |
+| `createAgent({ mcpServers })`, `connectMcp(servers)` | كل أدوات خوادم MCP المعطاة في الإعدادات (`command` عبر stdio أو `url` عبر HTTP)، وتُسمّى `<server>__<tool>`؛ راجع [استخدام خوادم MCP في وكيل](/ar/mcp-integration#استخدام-خوادم-mcp-في-وكيل). |
 | `openApiTools(document, options)` | أداة واحدة لكل عملية في مستند OpenAPI 3.0 / 3.1؛ والعمليات التي تغيّر البيانات تطلب موافقة. راجع [أدوات OpenAPI](/ar/openapi-tools). |
-| `loadMcpTools(client, name)` | كل أدوات خادم MCP متصل؛ راجع [أدوات MCP](/ar/mcp#أدوات-من-عميل-اتصلتَ-به-بنفسك). |
+| `loadMcpTools(client, name)` | كل أدوات خادم MCP متصل؛ راجع [أدوات MCP](/ar/mcp-integration#أدوات-من-عميل-اتصلتَ-به-بنفسك). |
 
 تُمرَّر الواصفات المضمَّنة في كائن مفاتيحه الأسماء التي يستخدمها الوكيل: `createAgent({ tools: { current_date: currentDateTool } })`. وتشير ملفات المواصفات إلى `http` و`web-fetch` و`current-date` و`day-name` بالاسم (راجع [الإعدادات](/ar/configuration#الأدوات-التي-يمكن-لملف-المواصفات-الإشارة-إليها)).
 

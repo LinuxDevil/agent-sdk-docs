@@ -41,7 +41,7 @@ await session.send('Apply the plan.'); // write_file and edit_file run without a
 
 لا يسمح وضع plan بتشغيل أداة إلا إذا أعلنت أنها لا تغيّر شيئًا. والأداة التي لا تعلن شيئًا تُعامل كأداة لها آثار جانبية وتُرفض.
 
-- أداة لها `annotations: { readOnlyHint: true }`. من المدمجة: `read_file` و`list_dir` و`glob` و`grep` و`todo_read` و`current_date` و`day_name` و`web_fetch` و`load_skill` وكل أداة ذاكرة `recall_<name>`، و`agent_status` / `agent_await` (تراقبان الوكلاء الفرعيين في الخلفية). ولـ[أداة OpenAPI](/ar/openapi-tools) لعملية `GET` التلميح نفسه، وتحتفظ [أداة MCP](/ar/mcp) بالتلميح الذي أرسله خادمها: وهو كلمة الخادم لا ضمانًا، فلا تربط إلا خوادم تثق بها.
+- أداة لها `annotations: { readOnlyHint: true }`. من المدمجة: `read_file` و`list_dir` و`glob` و`grep` و`todo_read` و`current_date` و`day_name` و`web_fetch` و`load_skill` وكل أداة ذاكرة `recall_<name>`، و`agent_status` / `agent_await` (تراقبان الوكلاء الفرعيين في الخلفية). ولـ[أداة OpenAPI](/ar/openapi-tools) لعملية `GET` التلميح نفسه، وتحتفظ [أداة MCP](/ar/mcp-integration) بالتلميح الذي أرسله خادمها: وهو كلمة الخادم لا ضمانًا، فلا تربط إلا خوادم تثق بها.
 - الأداة المدمجة `ask_question` (هي تسأل فقط؛ ويتوقف الاستدعاء بانتظار الجواب) والأداة `task` (يرث وكيلها الفرعي وضع plan، انظر أدناه).
 - [أدوات المزوّد المستضافة](/ar/hosted-tools) تعمل داخل طلب المزوّد، فلا يمكن رفض أي استدعاء. يرسل وضع plan الأداتين `webSearch()` و`fileSearch()` (فهما تقرآن) ويترك `codeInterpreter()` وكل `hostedTool()` خارج طلب النموذج؛ وترسلها الأوضاع الأخرى كلها.
 
