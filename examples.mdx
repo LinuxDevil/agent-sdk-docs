@@ -27,6 +27,11 @@ npm install
 | [evaluator-loop](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/evaluator-loop) | The writer/critic archetype: a draft is scored by `llmCritique()` and revised against its feedback until it passes | `npm run example:evaluator-loop` |
 | [data-analyst](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/data-analyst) | Text-to-SQL over `node:sqlite` with defense-in-depth read-only enforcement — `DELETE`/`DROP` can never run | `npm run example:data-analyst` |
 | [plan-mode](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/plan-mode) | A coding agent that reads and proposes in `plan` mode, then applies edits after `session.setPermissionMode('acceptEdits')` | `npm run example:plan-mode` |
+| [waves](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/waves) | WAVE engineering: bounded parallel workers, a deterministic aggregate, a typed verify gate, and extension waves seeded by the gaps it names | `npm run example:waves` |
+| [phase-pipeline](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/phase-pipeline) | Phase engineering on flows: discuss → spec → plan → implement → proof gate, with the retry ladder as a `oneOf` chain | `npm run example:phase-pipeline` |
+| [coding-agent-workflows](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/coding-agent-workflows) | A coding agent routed by a typed decision (`{ route, confidence }` via `output`), with a confidence floor escalating to the careful path | `npm run example:coding-agent-workflows` |
+| [connectors](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/connectors) | MCP connectors (the Claude-connectors shape) run fully offline against a mock `serveMcp` stdio server | `npm run example:connectors` |
+| [hostinger-deploy](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/hostinger-deploy) | Deploy an agent to a real Hostinger VPS: API verification, `docker save` over SSH, health + approval smoke tests | `node examples/hostinger-deploy/deploy.mjs --vm <id>` |
 | [agent-dir](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/agent-dir) | An agent defined as a directory (`instructions.md`, `tools/`, `skills/`, `agent.json`) and loaded with `loadAgentDir()` | `npm run example:agent-dir` |
 | [support-bot](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/support-bot) | A minimal customer-support agent | `npm run example:support-bot` |
 | [research-assistant](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/research-assistant) | A research agent with the built-in `http` tool | `npm run example:research-assistant` |
@@ -38,6 +43,9 @@ npm install
 
 ## Related guides
 
-- [Agent directories](/agent-directories) explains the layout the `agent-dir` example uses.
+- [Agent directories](/agent-directories) explains the layout the `agent-dir` example uses; [Claude Code projects](/claude-projects) covers the `.claude/` convention.
 - [Approvals](/approvals) and [Guardrails](/guardrails) cover the two gates in `ops-pipeline`.
+- [Prompting and context techniques](/prompting-techniques) maps waves, phases and typed decisions to the patterns the `waves`, `phase-pipeline` and `coding-agent-workflows` examples implement.
+- [Connectors](/connectors) and [MCP](/mcp-integration) cover the surface the `connectors` example exercises.
+- [Hostinger VPS](/hostinger-vps) walks the deployment the `hostinger-deploy` example automates.
 - [Tracing](/observability) lists the spans and attributes the `tracing` example prints.

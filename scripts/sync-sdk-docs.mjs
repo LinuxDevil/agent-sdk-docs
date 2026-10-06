@@ -82,6 +82,10 @@ const PAGES = {
   'docs/stream-events.md': 'stream-events',
   'docs/queue-and-steer.md': 'queue-and-steer',
   'docs/openapi-tools.md': 'openapi-tools',
+  'docs/prompting-techniques.md': 'prompting-techniques',
+  'docs/connectors.md': 'connectors',
+  'docs/claude-projects.md': 'claude-projects',
+  'docs/hostinger-vps.md': 'hostinger-vps',
   'docs/upgrading.md': 'upgrading',
   'CHANGELOG.md': 'changelog',
 };
