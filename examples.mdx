@@ -22,6 +22,11 @@ npm install
 | Example | What it shows | Run it |
 | ------- | ------------- | ------ |
 | [coding-harness](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/coding-harness) | A production-shaped coding agent: workspace tools with checkpoints, permission rules, a loop guard, a cost cap, and the `coding-kit` / `coding-pi` registry kits it ships as | `npx tsx examples/coding-harness/index.ts` |
+| [deep-research](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/deep-research) | The multi-agent research archetype: a coordinator fans out parallel `task` calls to researcher sub-agents, then synthesizes a cited report | `npm run example:deep-research` |
+| [support-desk](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/support-desk) | A triage agent that `handoff()`s the conversation to billing/tech specialists, with an approval-gated refund tool | `npm run example:support-desk` |
+| [evaluator-loop](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/evaluator-loop) | The writer/critic archetype: a draft is scored by `llmCritique()` and revised against its feedback until it passes | `npm run example:evaluator-loop` |
+| [data-analyst](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/data-analyst) | Text-to-SQL over `node:sqlite` with defense-in-depth read-only enforcement — `DELETE`/`DROP` can never run | `npm run example:data-analyst` |
+| [plan-mode](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/plan-mode) | A coding agent that reads and proposes in `plan` mode, then applies edits after `session.setPermissionMode('acceptEdits')` | `npm run example:plan-mode` |
 | [agent-dir](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/agent-dir) | An agent defined as a directory (`instructions.md`, `tools/`, `skills/`, `agent.json`) and loaded with `loadAgentDir()` | `npm run example:agent-dir` |
 | [support-bot](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/support-bot) | A minimal customer-support agent | `npm run example:support-bot` |
 | [research-assistant](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/research-assistant) | A research agent with the built-in `http` tool | `npm run example:research-assistant` |
