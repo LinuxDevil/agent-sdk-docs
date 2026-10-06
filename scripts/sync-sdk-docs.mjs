@@ -8,7 +8,7 @@
 // matter, links, MDX escaping). Do not edit a generated page; edit the SDK doc and
 // run the script again. Hand-written pages (see HAND_WRITTEN) are never touched.
 
-import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, posix, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { githubSlug, headings, mintSlug, slugList } from './anchors.mjs';
@@ -88,6 +88,12 @@ const PAGES = {
   'docs/hostinger-vps.md': 'hostinger-vps',
   'docs/upgrading.md': 'upgrading',
   'CHANGELOG.md': 'changelog',
+  // Example READMEs become full pages under the Examples tab.
+  'examples/waves/README.md': 'examples/waves',
+  'examples/phase-pipeline/README.md': 'examples/phase-pipeline',
+  'examples/coding-agent-workflows/README.md': 'examples/coding-agent-workflows',
+  'examples/connectors/README.md': 'examples/connectors',
+  'examples/hostinger-deploy/README.md': 'examples/hostinger-deploy',
 };
 
 /** Shorter sidebar labels where the SDK title is long. */
@@ -107,6 +113,11 @@ const SIDEBAR_TITLES = {
   'queue-and-steer': 'Queued input and steering',
   'models-and-cost': 'Models and cost',
   upgrading: 'Upgrading to 1.0',
+  'examples/waves': 'Waves (WAVE engineering)',
+  'examples/phase-pipeline': 'Phase pipeline',
+  'examples/coding-agent-workflows': 'Coding agent workflows',
+  'examples/connectors': 'Connectors',
+  'examples/hostinger-deploy': 'Hostinger deploy',
 };
 
 /** Pages written by hand in this repository. Listed so the report can flag SDK docs with no page. */
@@ -164,7 +175,7 @@ function rewriteLink(target, fromFile) {
   if (/^(https?:|mailto:|#)/.test(target)) return target;
   const [path, anchor] = target.split('#');
   const resolved = posix.normalize(posix.join(posix.dirname(fromFile), path));
-  const slug = PAGES[resolved];
+  const slug = PAGES[resolved] ?? PAGES[posix.join(resolved, 'README.md')];
   if (slug) return `/${slug}${anchor ? `#${anchor}` : ''}`;
   return `${GITHUB}${resolved}${anchor ? `#${anchor}` : ''}`;
 }
@@ -243,7 +254,9 @@ for (const [file, slug] of Object.entries(PAGES)) {
     process.exitCode = 1;
     continue;
   }
-  writeFileSync(join(siteRoot, `${slug}.mdx`), convert(file, slug));
+  const target = join(siteRoot, `${slug}.mdx`);
+  mkdirSync(dirname(target), { recursive: true });
+  writeFileSync(target, convert(file, slug));
   written++;
 }
 

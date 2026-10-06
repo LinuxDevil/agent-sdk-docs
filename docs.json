@@ -142,7 +142,12 @@
               {
                 "group": "Examples",
                 "pages": [
-                  "examples"
+                  "examples",
+                  "examples/waves",
+                  "examples/phase-pipeline",
+                  "examples/coding-agent-workflows",
+                  "examples/connectors",
+                  "examples/hostinger-deploy"
                 ]
               }
             ]
