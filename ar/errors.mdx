@@ -1,25 +1,25 @@
 ---
 title: "الأخطاء"
-description: "تقريبًا كل خطأ ترميه حزمة SDK عمدًا هو SDKError (أو صنف فرعي منه مثل ConfigurationError أو ValidationError أو MissingPeerDependencyError) ويحمل:"
+description: "تقريبًا كل خطأ يرميه الـ SDK عن قصد هو SDKError (أو subclass منه مثل ConfigurationError أو ValidationError أو MissingPeerDependencyError) وفيه:"
 ---
 {/* Generated from docs/errors.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-- `code`: سلسلة نصية ثابتة بالصيغة `LOUSHO_<AREA>_<NAME>`. ابنِ منطق التفريع في شيفرتك عليها لا على نص الرسالة، فقد يُعاد صوغ الرسالة لتصبح أوضح مع الوقت.
-- `hint`: جملة واحدة تشرح طريقة الإصلاح.
-- `docs`: رابط إلى قسم هذا الرمز في هذه الصفحة.
+- `code`: نص ثابت بصيغة `LOUSHO_<AREA>_<NAME>`. فرّع عليه، لا على نص الرسالة — الرسالة ممكن تصير أوضح مع الوقت.
+- `hint`: جملة واحدة عن طريقة الحل.
+- `docs`: رابط لقسم هذا الكود في الصفحة.
 
-تنتهي الرسالة بالمعلومات نفسها في سطر مستقل، فيخبرك الخطأ غير المُلتقَط بما عليك فعله:
+الرسالة تنتهي بنفس المعلومات في سطر لحاله، فالخطأ اللي يطلع بدون `catch` يقول لك إيش تسوّي:
 
 ```text
 ConfigurationError: createAgent: no model configured. Do one of the following: (1) pass a model: ...
 [LOUSHO_CONFIG_MISSING_PROVIDER] Pass a model string such as createAgent({ model: 'openai/gpt-4o-mini' }), a provider instance, or set LOUSHO_MODEL or a provider API key. (https://github.com/LinuxDevil/agent-sdk/blob/main/docs/errors.md#lousho_config_missing_provider)
 ```
 
-`error.detail` هو الرسالة من دون ذلك السطر. أما أخطاء الأدوات والمزوّدين (`ToolExecutionError` و`LLMProviderError` و`TimeoutError` و`RateLimitError`) فتبقى رسالتها كما هي، لأن النموذج يراها نتيجةَ أداة أو خطأَ مزوّد مضغوطًا؛ ومع ذلك تضيف دالة `toString()` الخاصة بها ذلك السطر.
+`error.detail` هو الرسالة بدون هالسطر. أخطاء الـ tools والـ providers (`ToolExecutionError` و`LLMProviderError` و`TimeoutError` و`RateLimitError`) تخلي رسالتها مثل ما هي، لأن الـ model يشوفها كنتيجة tool أو خطأ provider مضغوط؛ بس `toString()` لسّا تضيف السطر.
 
-الاستثناءات أصناف فرعية معدودة ومسماة من `Error` لا تحمل `code`، وأُبقيت عادية عن قصد: `PropagatingToolError` وأصنافها الفرعية (ترميها الأداة لإيقاف التشغيل)، و`WorkspaceError` (عملية على مساحة العمل رُفضت أو فشلت — يراها النموذج خطأ أداة)، و`McpToolError` (أداة MCP محمَّلة أبلغ خادمها عن `isError`؛ وهي أيضًا خطأ أداة)، و`AuthError` (يرفض مسار في `@lousho/build-ai-agent/auth` الطلب برمز 401 أو 403 الخاص به)، و`CronExpressionError` (`parseCronExpression()` التي يتركها `CronTriggerAdapter` تخرج وتغلّفها `defineSchedule()` في `LOUSHO_SCHEDULE_INVALID`)، و`DecryptionError` (`EncryptionUtils` و`DTOEncryptionFilter`).
+الاستثناءات شوية subclasses مسماة من `Error` بدون `code`، مبقاة عادية عن قصد: `PropagatingToolError` والـ subclasses تبعتها (الـ tool يرميها عشان يوقف الـ run)، و`WorkspaceError` (عملية على الـ workspace رُفضت أو فشلت — الـ model يشوفها كخطأ tool)، و`McpToolError` (أداة MCP محمّلة والسيرفر تبعها رجّع `isError`؛ برضه خطأ tool)، و`AuthError` (مدخل من `@lousho/build-ai-agent/auth` يرفض الطلب بـ 401 أو 403 تبعه)، و`CronExpressionError` (`parseCronExpression()` اللي `CronTriggerAdapter` يخليها تطلع و`defineSchedule()` تغلّفها كـ `LOUSHO_SCHEDULE_INVALID`)، و`DecryptionError` (`EncryptionUtils` و`DTOEncryptionFilter`).
 
-أما `CassetteMismatchError` (إعادة تشغيل `recordReplay`؛ راجع [الاختبار](/ar/testing#ما-الذي-تتحقق-منه-الإعادة)) فليست واحدة منها: إنها `SDKError` تحمل الرمز [`LOUSHO_CASSETTE_INVALID`](#lousho_cassette_invalid) والحقلين `.cassette` / `.callNumber`.
+أما `CassetteMismatchError` (replay في `recordReplay`؛ راجع [الاختبار](/ar/testing#ماذا-يفحص-الـ-replay)) فليست منها: هي `SDKError` بكود [`LOUSHO_CASSETTE_INVALID`](#lousho_cassette_invalid) وحقلين `.cassette` / `.callNumber`.
 
 ```ts
 import { createAgent, SDKError } from '@lousho/build-ai-agent';
@@ -35,161 +35,161 @@ try {
 }
 ```
 
-يربط `ERROR_CODES` (وهو مُصدَّر) كل رمز خطأ بتلميحه. ويضمن اختبارٌ بقاءه متطابقًا مع الرموز المستخدمة في الشيفرة المصدرية ومع الأقسام أدناه. ويفشل اختبار ثانٍ حين ترمي شيفرة جديدة في حزمة SDK `new Error(...)` حرفيًا بدلًا من `SDKError`؛ والمواضع القليلة المتبقية داخلية ومسرودة في `src/utils/plainErrors.test.ts` مع سبب كل منها.
+`ERROR_CODES` (مصدَّر) يربط كل كود بالـ hint تبعه. في test يحافظ على تطابقه مع الأكواد المستخدمة في الكود ومع الأقسام أدناه. وفي test ثاني يفشل لو كود جديد في الـ SDK رمى `new Error(...)` حرفي بدل `SDKError`؛ المواضع القليلة الباقية داخلية ومسردة في `src/utils/plainErrors.test.ts` مع سبب كل واحد.
 
-للبدء من العَرَض بدل الرمز، انظر [استكشاف الأخطاء وإصلاحها](/ar/troubleshooting).
+لو بتبدأ من العَرَض بدل الكود، راجع [استكشاف الأخطاء](/ar/troubleshooting).
 
-ابحث عن رمز بحسب المجال:
+لقِّ الكود حسب المجال:
 
-| المجال | الرموز | متى تصادفها |
+| المجال | الأكواد | متى تصادفها |
 | ---- | ----- | ------------------ |
-| [الإعدادات](#الإعدادات) | [`LOUSHO_CONFIG_INVALID`](#lousho_config_invalid)، [`LOUSHO_CONFIG_MISSING_PROVIDER`](#lousho_config_missing_provider)، [`LOUSHO_CONFIG_MISSING_AGENT`](#lousho_config_missing_agent)، [`LOUSHO_CONFIG_MISSING_INPUT`](#lousho_config_missing_input)، [`LOUSHO_CONFIG_CONFLICTING_OPTIONS`](#lousho_config_conflicting_options)، [`LOUSHO_CONFIG_MISSING_CHECKPOINT_STORE`](#lousho_config_missing_checkpoint_store)، [`LOUSHO_CONFIG_RESOLVER_FAILED`](#lousho_config_resolver_failed) | استدعاء `createAgent()` أو المنفّذ تنقصه خيارات أو يخلط بينها، أو مُحلِّل إعدادات فشل. |
-| [المزوّدون والاعتماديات النظيرة](#المزوّدون-والاعتماديات-النظيرة) | [`LOUSHO_PROVIDER_SPEC_INVALID`](#lousho_provider_spec_invalid)، [`LOUSHO_PROVIDER_UNKNOWN`](#lousho_provider_unknown)، [`LOUSHO_PROVIDER_MISSING_API_KEY`](#lousho_provider_missing_api_key)، [`LOUSHO_PROVIDER_REQUEST_FAILED`](#lousho_provider_request_failed)، [`LOUSHO_PROVIDER_RATE_LIMITED`](#lousho_provider_rate_limited)، [`LOUSHO_PEER_MISSING`](#lousho_peer_missing)، [`LOUSHO_HOSTED_TOOL_UNSUPPORTED`](#lousho_hosted_tool_unsupported) | تحليل سلسلة النموذج، أو مفتاح API أو حزمة نظيرة مفقودة، أو طلب نموذج فشل أو قُيّد معدله، أو أداة مستضافة لا يستطيع المزوّد تشغيلها. |
-| [ملفات مواصفات الوكيل](#ملفات-مواصفات-الوكيل) | [`LOUSHO_SPEC_NOT_FOUND`](#lousho_spec_not_found)، [`LOUSHO_SPEC_INVALID`](#lousho_spec_invalid)، [`LOUSHO_SPEC_UNKNOWN_FIELD`](#lousho_spec_unknown_field)، [`LOUSHO_SPEC_UNSUPPORTED_FORMAT`](#lousho_spec_unsupported_format) | تحميل ملف `AgentSpec` بـ`loadSpec()` أو `specToAgent()`. |
-| [الأدوات](#الأدوات) | [`LOUSHO_TOOL_NOT_FOUND`](#lousho_tool_not_found)، [`LOUSHO_TOOL_NEEDS_CREDENTIALS`](#lousho_tool_needs_credentials)، [`LOUSHO_TOOL_EXECUTION_FAILED`](#lousho_tool_execution_failed)، [`LOUSHO_TOOL_ARGS_INVALID`](#lousho_tool_args_invalid) | أداة استدعاها النموذج غير معروفة، أو تحتاج إلى بيانات اعتماد، أو رمت خطأ، أو تلقّت معاملات غير صالحة. |
-| [الموافقات والجلسات](#الموافقات-والجلسات) | [`LOUSHO_APPROVAL_STORE_MISSING`](#lousho_approval_store_missing)، [`LOUSHO_APPROVAL_NOT_FOUND`](#lousho_approval_not_found)، [`LOUSHO_SESSION_AWAITING_APPROVAL`](#lousho_session_awaiting_approval)، [`LOUSHO_SESSION_ID_INVALID`](#lousho_session_id_invalid)، [`LOUSHO_SESSION_FILE_CORRUPT`](#lousho_session_file_corrupt)، [`LOUSHO_SESSION_BUSY`](#lousho_session_busy)، [`LOUSHO_SESSION_TURN_PENDING`](#lousho_session_turn_pending)، [`LOUSHO_SESSION_STREAM_UNSUPPORTED`](#lousho_session_stream_unsupported)، [`LOUSHO_SESSION_STEP_NOT_FOUND`](#lousho_session_step_not_found)، [`LOUSHO_SESSION_EXISTS`](#lousho_session_exists)، [`LOUSHO_SESSION_FORK_UNSUPPORTED`](#lousho_session_fork_unsupported)، [`LOUSHO_REMOTE_UNAUTHORIZED`](#lousho_remote_unauthorized)، [`LOUSHO_REMOTE_REQUEST_FAILED`](#lousho_remote_request_failed)، [`LOUSHO_SUBAGENT_TASK_NOT_FOUND`](#lousho_subagent_task_not_found)، [`LOUSHO_SUBAGENT_TASK_BUSY`](#lousho_subagent_task_busy)، [`LOUSHO_CHECKPOINT_NOT_FOUND`](#lousho_checkpoint_not_found)، [`LOUSHO_AGENT_DRIFT`](#lousho_agent_drift)، [`LOUSHO_RESUME_TOOL_MISSING`](#lousho_resume_tool_missing)، [`LOUSHO_RUN_ALREADY_ITERATED`](#lousho_run_already_iterated) | الموافقات والجلسات ونقاط الحفظ والاستئناف، والوكلاء عن بُعد، ومهام الوكلاء الفرعيين. |
-| [الجداول الزمنية](#الجداول-الزمنية) | [`LOUSHO_SCHEDULE_INVALID`](#lousho_schedule_invalid) | تعريف جدول زمني أو تحميله. |
-| [القنوات](#القنوات) | [`LOUSHO_CHANNEL_INVALID`](#lousho_channel_invalid)، [`LOUSHO_MEMORY_INVALID`](#lousho_memory_invalid) | تعريف قناة أو خانة ذاكرة. |
-| [السجل](#السجل) | [`LOUSHO_REGISTRY_UNREACHABLE`](#lousho_registry_unreachable)، [`LOUSHO_REGISTRY_ITEM_NOT_FOUND`](#lousho_registry_item_not_found)، [`LOUSHO_REGISTRY_INVALID`](#lousho_registry_invalid)، [`LOUSHO_REGISTRY_UNSAFE_PATH`](#lousho_registry_unsafe_path)، [`LOUSHO_REGISTRY_FILE_EXISTS`](#lousho_registry_file_exists)، [`LOUSHO_REGISTRY_MANIFEST_MISMATCH`](#lousho_registry_manifest_mismatch) | أمر `lousho add` حين يجلب من سجل أو ينسخ منه. |
-| [البيئة المعزولة](#البيئة-المعزولة) | [`LOUSHO_SANDBOX_EGRESS_UNSUPPORTED`](#lousho_sandbox_egress_unsupported) | أن تطلب من بيئة معزولة ما لا تستطيع فعله على المنصة الحالية. |
-| [مجلدات الوكلاء والمهارات ومسارات العمل](#مجلدات-الوكلاء-والمهارات-ومسارات-العمل) | [`LOUSHO_AGENT_DIR_INVALID`](#lousho_agent_dir_invalid)، [`LOUSHO_SKILL_INVALID`](#lousho_skill_invalid)، [`LOUSHO_FLOW_INVALID`](#lousho_flow_invalid) | تحميل مجلد وكيل، أو مهارة، أو تعريف مسار عمل. |
-| [التخزين والنشر والتكاملات](#التخزين-والنشر-والتكاملات) | [`LOUSHO_STORAGE_FAILED`](#lousho_storage_failed)، [`LOUSHO_TRIGGER_INVALID`](#lousho_trigger_invalid)، [`LOUSHO_CHANNEL_REQUEST_FAILED`](#lousho_channel_request_failed)، [`LOUSHO_DEPLOY_FAILED`](#lousho_deploy_failed) | واجهة تخزين خلفية، أو مُشغِّل، أو طلب قناة، أو `lousho build`. |
-| [الاختبارات والتقييمات](#الاختبارات-والتقييمات) | [`LOUSHO_EVALS_INVALID`](#lousho_evals_invalid)، [`LOUSHO_TEST_FAILED`](#lousho_test_failed)، [`LOUSHO_CASSETTE_INVALID`](#lousho_cassette_invalid) | `defineEval()` و`mockModel` وأشرطة التسجيل. |
-| [عام](#عام) | [`LOUSHO_GENERIC_ERROR`](#lousho_generic_error)، [`LOUSHO_AGENT_EXECUTION_FAILED`](#lousho_agent_execution_failed)، [`LOUSHO_FLOW_EXECUTION_FAILED`](#lousho_flow_execution_failed)، [`LOUSHO_VALIDATION_FAILED`](#lousho_validation_failed)، [`LOUSHO_OPERATION_TIMEOUT`](#lousho_operation_timeout)، [`LOUSHO_OUTPUT_INVALID`](#lousho_output_invalid)، [`LOUSHO_BUDGET_EXCEEDED`](#lousho_budget_exceeded)، [`LOUSHO_GUARDRAIL_TRIPPED`](#lousho_guardrail_tripped) | إخفاقات على مستوى التشغيل: مهلة، أو توقف بسبب ميزانية أو حاجز حماية، أو مخرجات غير صالحة، والرموز الشاملة. |
-| [المصادقة](#المصادقة) | [`LOUSHO_AUTH_CONFIG_INVALID`](#lousho_auth_config_invalid) | مساعد مصادقة مسارات (`jwt()` أو `oidc()` أو `basic()` أو `apiToken()`) تلقّى خيارات لا يستطيع التحقق بها. |
-| [OAuth](#oauth) | [`LOUSHO_TOKEN_KEY_MISSING`](#lousho_token_key_missing)، [`LOUSHO_TOKEN_DECRYPT_FAILED`](#lousho_token_decrypt_failed)، [`LOUSHO_OAUTH_PRINCIPAL_REQUIRED`](#lousho_oauth_principal_required)، [`LOUSHO_OAUTH_APP_SIGNIN_REQUIRED`](#lousho_oauth_app_signin_required)، [`LOUSHO_OAUTH_STORE_MISSING`](#lousho_oauth_store_missing)، [`LOUSHO_OAUTH_STATE_INVALID`](#lousho_oauth_state_invalid)، [`LOUSHO_SIGNIN_PENDING`](#lousho_signin_pending)، [`LOUSHO_OAUTH_TOKEN_EXCHANGE_FAILED`](#lousho_oauth_token_exchange_failed)، [`LOUSHO_MCP_AUTH_REQUIRED`](#lousho_mcp_auth_required) | تخزين رموز OAuth أو قراءتها في ملف أو SQLite أو مخزن KV، وتسجيل الدخول وتبادل الرموز لأدوات OAuth وخوادم MCP. |
+| [الإعدادات](#الإعدادات) | [`LOUSHO_CONFIG_INVALID`](#lousho_config_invalid)، [`LOUSHO_CONFIG_MISSING_PROVIDER`](#lousho_config_missing_provider)، [`LOUSHO_CONFIG_MISSING_AGENT`](#lousho_config_missing_agent)، [`LOUSHO_CONFIG_MISSING_INPUT`](#lousho_config_missing_input)، [`LOUSHO_CONFIG_CONFLICTING_OPTIONS`](#lousho_config_conflicting_options)، [`LOUSHO_CONFIG_MISSING_CHECKPOINT_STORE`](#lousho_config_missing_checkpoint_store)، [`LOUSHO_CONFIG_RESOLVER_FAILED`](#lousho_config_resolver_failed) | استدعاء `createAgent()` أو executor ناقصه خيارات أو يخلطها، أو config resolver فشل. |
+| [الـ providers والـ peer dependencies](#providers-and-peers) | [`LOUSHO_PROVIDER_SPEC_INVALID`](#lousho_provider_spec_invalid)، [`LOUSHO_PROVIDER_UNKNOWN`](#lousho_provider_unknown)، [`LOUSHO_PROVIDER_MISSING_API_KEY`](#lousho_provider_missing_api_key)، [`LOUSHO_PROVIDER_REQUEST_FAILED`](#lousho_provider_request_failed)، [`LOUSHO_PROVIDER_RATE_LIMITED`](#lousho_provider_rate_limited)، [`LOUSHO_PEER_MISSING`](#lousho_peer_missing)، [`LOUSHO_HOSTED_TOOL_UNSUPPORTED`](#lousho_hosted_tool_unsupported) | حل نص model، أو API key أو حزمة peer ناقصة، أو طلب model فشل أو رجّع rate limit، أو hosted tool الـ provider ما يقدر يشغّلها. |
+| [ملفات الـ AgentSpec](#agent-spec-files) | [`LOUSHO_SPEC_NOT_FOUND`](#lousho_spec_not_found)، [`LOUSHO_SPEC_INVALID`](#lousho_spec_invalid)، [`LOUSHO_SPEC_UNKNOWN_FIELD`](#lousho_spec_unknown_field)، [`LOUSHO_SPEC_UNSUPPORTED_FORMAT`](#lousho_spec_unsupported_format) | تحميل ملف `AgentSpec` بـ `loadSpec()` أو `specToAgent()`. |
+| [الأدوات](#الأدوات) | [`LOUSHO_TOOL_NOT_FOUND`](#lousho_tool_not_found)، [`LOUSHO_TOOL_NEEDS_CREDENTIALS`](#lousho_tool_needs_credentials)، [`LOUSHO_TOOL_EXECUTION_FAILED`](#lousho_tool_execution_failed)، [`LOUSHO_TOOL_ARGS_INVALID`](#lousho_tool_args_invalid) | tool ناداها الـ model ليست معروفة، أو محتاجة credentials، أو رمت، أو وصلتها arguments غير صالحة. |
+| [الـ approvals والـ sessions](#approvals-and-sessions) | [`LOUSHO_APPROVAL_STORE_MISSING`](#lousho_approval_store_missing)، [`LOUSHO_APPROVAL_NOT_FOUND`](#lousho_approval_not_found)، [`LOUSHO_SESSION_AWAITING_APPROVAL`](#lousho_session_awaiting_approval)، [`LOUSHO_SESSION_ID_INVALID`](#lousho_session_id_invalid)، [`LOUSHO_SESSION_FILE_CORRUPT`](#lousho_session_file_corrupt)، [`LOUSHO_SESSION_BUSY`](#lousho_session_busy)، [`LOUSHO_SESSION_TURN_PENDING`](#lousho_session_turn_pending)، [`LOUSHO_SESSION_STREAM_UNSUPPORTED`](#lousho_session_stream_unsupported)، [`LOUSHO_SESSION_STEP_NOT_FOUND`](#lousho_session_step_not_found)، [`LOUSHO_SESSION_EXISTS`](#lousho_session_exists)، [`LOUSHO_SESSION_FORK_UNSUPPORTED`](#lousho_session_fork_unsupported)، [`LOUSHO_REMOTE_UNAUTHORIZED`](#lousho_remote_unauthorized)، [`LOUSHO_REMOTE_REQUEST_FAILED`](#lousho_remote_request_failed)، [`LOUSHO_SUBAGENT_TASK_NOT_FOUND`](#lousho_subagent_task_not_found)، [`LOUSHO_SUBAGENT_TASK_BUSY`](#lousho_subagent_task_busy)، [`LOUSHO_CHECKPOINT_NOT_FOUND`](#lousho_checkpoint_not_found)، [`LOUSHO_AGENT_DRIFT`](#lousho_agent_drift)، [`LOUSHO_RESUME_TOOL_MISSING`](#lousho_resume_tool_missing)، [`LOUSHO_RUN_ALREADY_ITERATED`](#lousho_run_already_iterated) | approvals (موافقات) وsessions (جلسات) وcheckpoints (نقاط حفظ) والـ resume، والـ remote agents ومهام الـ sub-agents. |
+| [الجداول الزمنية](#الجداول-الزمنية) | [`LOUSHO_SCHEDULE_INVALID`](#lousho_schedule_invalid) | تعريف schedule أو تحميله. |
+| [القنوات](#القنوات) | [`LOUSHO_CHANNEL_INVALID`](#lousho_channel_invalid)، [`LOUSHO_MEMORY_INVALID`](#lousho_memory_invalid) | تعريف channel أو خانة memory. |
+| [السجل](#السجل) | [`LOUSHO_REGISTRY_UNREACHABLE`](#lousho_registry_unreachable)، [`LOUSHO_REGISTRY_ITEM_NOT_FOUND`](#lousho_registry_item_not_found)، [`LOUSHO_REGISTRY_INVALID`](#lousho_registry_invalid)، [`LOUSHO_REGISTRY_UNSAFE_PATH`](#lousho_registry_unsafe_path)، [`LOUSHO_REGISTRY_FILE_EXISTS`](#lousho_registry_file_exists)، [`LOUSHO_REGISTRY_MANIFEST_MISMATCH`](#lousho_registry_manifest_mismatch) | `lousho add` وهو يجلب أو ينسخ من registry. |
+| [الـ sandbox](#sandbox) | [`LOUSHO_SANDBOX_EGRESS_UNSUPPORTED`](#lousho_sandbox_egress_unsupported) | لما تطلب من الـ sandbox شيء يعجز عنه على المنصة الحالية. |
+| [مجلدات الـ agents والـ skills والـ flows](#agent-directories-skills-and-flows) | [`LOUSHO_AGENT_DIR_INVALID`](#lousho_agent_dir_invalid)، [`LOUSHO_SKILL_INVALID`](#lousho_skill_invalid)، [`LOUSHO_FLOW_INVALID`](#lousho_flow_invalid) | تحميل مجلد agent، أو skill، أو تعريف flow. |
+| [الـ storage والنشر والتكاملات](#storage-deployment-and-integrations) | [`LOUSHO_STORAGE_FAILED`](#lousho_storage_failed)، [`LOUSHO_TRIGGER_INVALID`](#lousho_trigger_invalid)، [`LOUSHO_CHANNEL_REQUEST_FAILED`](#lousho_channel_request_failed)، [`LOUSHO_DEPLOY_FAILED`](#lousho_deploy_failed) | واجهة storage، أو trigger، أو طلب channel، أو `lousho build`. |
+| [الاختبارات والـ evals](#tests-and-evals) | [`LOUSHO_EVALS_INVALID`](#lousho_evals_invalid)، [`LOUSHO_TEST_FAILED`](#lousho_test_failed)، [`LOUSHO_CASSETTE_INVALID`](#lousho_cassette_invalid) | `defineEval()` و`mockModel` والـ cassettes. |
+| [عام](#عام) | [`LOUSHO_GENERIC_ERROR`](#lousho_generic_error)، [`LOUSHO_AGENT_EXECUTION_FAILED`](#lousho_agent_execution_failed)، [`LOUSHO_FLOW_EXECUTION_FAILED`](#lousho_flow_execution_failed)، [`LOUSHO_VALIDATION_FAILED`](#lousho_validation_failed)، [`LOUSHO_OPERATION_TIMEOUT`](#lousho_operation_timeout)، [`LOUSHO_OUTPUT_INVALID`](#lousho_output_invalid)، [`LOUSHO_BUDGET_EXCEEDED`](#lousho_budget_exceeded)، [`LOUSHO_GUARDRAIL_TRIPPED`](#lousho_guardrail_tripped) | فشل على مستوى الـ run: timeout، أو وقف بسبب budget أو guardrail، أو output غير صالح، والأكواد العامة. |
+| [المصادقة](#المصادقة) | [`LOUSHO_AUTH_CONFIG_INVALID`](#lousho_auth_config_invalid) | مساعد route auth (`jwt()` أو `oidc()` أو `basic()` أو `apiToken()`) أخذ خيارات ما يقدر يتحقق فيها. |
+| [OAuth](#oauth) | [`LOUSHO_TOKEN_KEY_MISSING`](#lousho_token_key_missing)، [`LOUSHO_TOKEN_DECRYPT_FAILED`](#lousho_token_decrypt_failed)، [`LOUSHO_OAUTH_PRINCIPAL_REQUIRED`](#lousho_oauth_principal_required)، [`LOUSHO_OAUTH_APP_SIGNIN_REQUIRED`](#lousho_oauth_app_signin_required)، [`LOUSHO_OAUTH_STORE_MISSING`](#lousho_oauth_store_missing)، [`LOUSHO_OAUTH_STATE_INVALID`](#lousho_oauth_state_invalid)، [`LOUSHO_SIGNIN_PENDING`](#lousho_signin_pending)، [`LOUSHO_OAUTH_TOKEN_EXCHANGE_FAILED`](#lousho_oauth_token_exchange_failed)، [`LOUSHO_MCP_AUTH_REQUIRED`](#lousho_mcp_auth_required) | تخزين أو قراءة OAuth tokens في ملف أو SQLite أو KV store، والـ sign-in وتبديل الـ tokens لأدوات OAuth وسيرفرات MCP. |
 
 ## الإعدادات
 
 ### LOUSHO_CONFIG_INVALID
 
-**المعنى:** خيار أو معامل يحمل قيمة لا تستطيع حزمة SDK استخدامها. هذا هو الرمز الافتراضي لـ `ConfigurationError`؛ ويذكر `error.field` اسم الخيار إن كان معروفًا.
+**المعنى:** خيار أو معامل فيه قيمة الـ SDK ما يقدر يستخدمها. هذا الكود الافتراضي لـ `ConfigurationError`؛ و`error.field` يسمّي الخيار إذا كان معروف.
 
-**الحل:** غيّر الخيار الذي تذكره الرسالة.
+**الحل:** غيّر الخيار اللي تسمّيه الرسالة.
 
-**مثال:** `withFallback([])` يرمي "withFallback() needs at least one provider". ويحمل الرمز نفسه كلٌّ من `new NodeWorkspace({ root })` حين يكون الجذر مفقودًا أو ليس مجلدًا، واسم أداة مكرر في `ToolRegistry`، وقيمة `toolConcurrency` غير صالحة، و`serveMcp()` من دون `name`، و`lousho studio` من دون ملفات Agent Forge.
+**مثال:** `withFallback([])` يرمي "withFallback() needs at least one provider". ونفس الكود مع `new NodeWorkspace({ root })` لما الـ root مفقود أو مو مجلد، ومع اسم tool مكرر في `ToolRegistry`، وقيمة `toolConcurrency` غلط، و`serveMcp()` بدون `name`، و`lousho studio` بدون ملفات Agent Forge.
 
 ### LOUSHO_CONFIG_MISSING_PROVIDER
 
-**المعنى:** لا يوجد نموذج للتشغيل: إما أن `createAgent()` لم يتلقَّ `model` ولا `provider` ولم يجد شيئًا في متغيرات البيئة، أو أن `AgentExecutor.execute()` / `stream()` لم يتلقَّ `provider`.
+**المعنى:** ما في model يشتغل: `createAgent()` وصل بدون `model` ولا `provider` وما لقى شيء في البيئة، أو `AgentExecutor.execute()` / `stream()` انستدعوا بدون `provider`.
 
-**الحل:** مرّر `model: 'openai/gpt-4o-mini'` (أي قيمة بالصيغة `<provider>/<model>`)، أو مرّر كائن `provider`، أو عيّن `LOUSHO_MODEL` أو مفتاح مزوّد مثل `OPENAI_API_KEY`. بادئة النموذج `vendor/` هي التي تختار المزوّد؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`). راجع [المزوّدون](/ar/providers).
+**الحل:** مرّر `model: 'openai/gpt-4o-mini'` (أي `<provider>/<model>`)، أو مرّر `provider` instance، أو اضبط `LOUSHO_MODEL` أو مفتاح provider مثل `OPENAI_API_KEY`. البادئة `vendor/` في اسم الـ model هي اللي تختار الـ provider؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثلاً `openrouter/openai/gpt-4o-mini`). راجع [المزوّدون](/ar/providers).
 
-**مثال:** `createAgent({ instructions: 'x' })` من دون تعيين أي متغير بيئة لمزوّد.
+**مثال:** `createAgent({ instructions: 'x' })` بدون أي env var للـ provider.
 
 ### LOUSHO_CONFIG_MISSING_AGENT
 
-**المعنى:** استُدعي `AgentExecutor.execute()` / `stream()` من دون `agent`.
+**المعنى:** `AgentExecutor.execute()` / `stream()` انستدعوا بدون `agent`.
 
-**الحل:** مرّر الوكيل، مثل `AgentBuilder.create().setName('a').build()`، أو استخدم `createAgent()` الذي لا يحتاج إلى كائن وكيل مستقل.
+**الحل:** مرّر الـ agent، مثلاً `AgentBuilder.create().setName('a').build()`، أو استخدم `createAgent()` اللي ما يحتاج كائن agent منفصل.
 
 **مثال:** `AgentExecutor.execute({ input: 'hi', provider })`.
 
 ### LOUSHO_CONFIG_MISSING_INPUT
 
-**المعنى:** استُدعي `AgentExecutor.execute()` / `stream()` من دون `input`.
+**المعنى:** `AgentExecutor.execute()` / `stream()` انستدعوا بدون `input`.
 
-**الحل:** مرّر رسالة المستخدم سلسلةً نصية أو مصفوفة `Message[]`.
+**الحل:** مرّر رسالة المستخدم كنص أو `Message[]`.
 
 **مثال:** `AgentExecutor.execute({ agent, provider })`.
 
 ### LOUSHO_CONFIG_CONFLICTING_OPTIONS
 
-**المعنى:** مُرِّر خياران يؤديان المعنى نفسه معًا.
+**المعنى:** مرّرت خيارين بنفس المعنى مع بعض.
 
-**الحل:** أبقِ واحدًا منهما. في `createAgent()`، الخيار `prompt` اسم بديل لـ `instructions`: أبقِ `instructions`.
+**الحل:** أبقِ واحد منهم. في `createAgent()` الخيار `prompt` هو alias لـ `instructions`: أبقِ `instructions`.
 
 **مثال:** `createAgent({ provider, instructions: 'a', prompt: 'b' })`.
 
 ### LOUSHO_CONFIG_MISSING_CHECKPOINT_STORE
 
-**المعنى:** تلقّى `send()` أو `stream()` قيمة `sessionId`، وهي تجعل التشغيل متينًا، لكن الوكيل لا يملك مخزن نقاط حفظ (checkpoint store).
+**المعنى:** `send()` أو `stream()` أخذوا `sessionId`، وهذا يخلي الـ run durable (الـ run يكمل بعد ما العملية تقع)، بس الـ agent ما عنده checkpoint store (مخزن نقاط حفظ).
 
-**الحل:** مرّر `createAgent({ store: memoryStore() })` (أو `SqliteStore`، أو `store` يحتوي على `checkpoints`)، أو احذف `sessionId`. راجع [التنفيذ المتين](/ar/durable-execution).
+**الحل:** مرّر `createAgent({ store: memoryStore() })` (أو `SqliteStore`، أو `store` فيه `checkpoints`)، أو احذف `sessionId`. راجع [Durable execution](/ar/durable-execution).
 
 **مثال:** `createAgent({ provider }).send('hi', { sessionId: 'job-1' })`.
 
 ### LOUSHO_CONFIG_RESOLVER_FAILED
 
-**المعنى:** أحد خيارات `createAgent()` المعطاة على هيئة دالة تعتمد على التشغيل (`model` أو `instructions` / `prompt` أو `tools`) رمى خطأ أثناء تحديد إعدادات التشغيل. لم يبدأ التشغيل أصلًا: يُرفَض وعد `send()`، وينتهي `stream()` بحدث `error`، ويبقى سجل محادثة الجلسة كما كان. يذكر `error.field` اسم الخيار، ويحمل `error.cause` ما رمته الدالة.
+**المعنى:** خيار من خيارات `createAgent()` معطى كدالة تعتمد على الـ run (`model` أو `instructions` / `prompt` أو `tools`) رمى أثناء حل إعدادات الـ run. الـ run ما بدأ أصلاً: `send()` ينرفض، و`stream()` ينتهي بحدث `error`، وسجل محادثة الـ session يبقى مثل ما هو. `error.field` يسمّي الخيار، و`error.cause` هو اللي رمته الدالة.
 
-**الحل:** أصلح الدالة المذكورة في الرسالة. راجع [الإعدادات الديناميكية](/ar/api-overview#الإعداد-الديناميكي).
+**الحل:** صلّح الدالة اللي تسمّيها الرسالة. راجع [الإعدادات الديناميكية](/ar/api-overview#dynamic-config).
 
 **مثال:** `createAgent({ provider, model: ({ metadata }) => plans[metadata.plan].model })` مع خطة غير معروفة.
 
-## المزوّدون والاعتماديات النظيرة
+## الـ providers والـ peer dependencies {#providers-and-peers}
 
 ### LOUSHO_PROVIDER_SPEC_INVALID
 
-**المعنى:** سلسلة النموذج ليست بالصيغة `<provider>/<model>`.
+**المعنى:** نص الـ model ليس بصيغة `<provider>/<model>`.
 
-**الحل:** اكتب الجزأين معًا، مثل `'openai/gpt-4o-mini'` أو `'anthropic/claude-sonnet-4-5'`.
+**الحل:** اكتب الجزأين، مثلاً `'openai/gpt-4o-mini'` أو `'anthropic/claude-sonnet-4-5'`.
 
 **مثال:** `resolveProvider('gpt-4o')`.
 
 ### LOUSHO_PROVIDER_UNKNOWN
 
-**المعنى:** بادئة المزوّد في سلسلة النموذج ليست من البادئات التي تعرفها حزمة SDK. تسرد الرسالة البادئات المدعومة وتقترح أقربها.
+**المعنى:** بادئة الـ provider في نص الـ model ليست من اللي يعرفها الـ SDK. الرسالة تسرد البادئات المدعومة وتقترح أقربها.
 
-**الحل:** استخدم بادئة مدعومة (`openai` أو `anthropic` أو `openrouter` أو `ollama`)، أو مرّر كائن `provider` خاصًا بك.
+**الحل:** استخدم بادئة مدعومة (`openai` أو `anthropic` أو `openrouter` أو `ollama`)، أو مرّر `provider` instance من عندك.
 
-**مثال:** `createAgent({ model: 'opnai/gpt-4o' })` يعطي الرسالة "Did you mean 'openai/gpt-4o'?".
+**مثال:** `createAgent({ model: 'opnai/gpt-4o' })` يقول "Did you mean 'openai/gpt-4o'?".
 
 ### LOUSHO_PROVIDER_MISSING_API_KEY
 
-**المعنى:** متغير البيئة الذي يحمل بيانات اعتماد المزوّد (`OPENAI_API_KEY` أو `ANTHROPIC_API_KEY` أو `OPENROUTER_API_KEY`) غير معيَّن.
+**المعنى:** متغير البيئة اللي يحمل credentials الـ provider (`OPENAI_API_KEY` أو `ANTHROPIC_API_KEY` أو `OPENROUTER_API_KEY`) غير مضبوط.
 
-**الحل:** عيّنه، أو مرّر كائن مزوّد مُهيَّأً.
+**الحل:** اضبطه، أو مرّر provider instance مهيّأ.
 
-**مثال:** `createAgent({ model: 'openai/gpt-4o-mini' })` من دون `OPENAI_API_KEY`.
+**مثال:** `createAgent({ model: 'openai/gpt-4o-mini' })` بدون `OPENAI_API_KEY`.
 
 ### LOUSHO_PROVIDER_REQUEST_FAILED
 
-**المعنى:** فشل استدعاء للنموذج (`LLMProviderError`، وكذلك `CompactedLLMProviderError` الذي تبيّن خاصيته `compacted.category` السبب: `rate-limit` أو `timeout` أو `context-length-exceeded` أو `auth-failure` أو `unknown`).
+**المعنى:** استدعاء model فشل (`LLMProviderError`، وكذلك `CompactedLLMProviderError` اللي `compacted.category` تبعه تشرح السبب: `rate-limit` أو `timeout` أو `context-length-exceeded` أو `auth-failure` أو `unknown`).
 
-**الحل:** في حالة `auth-failure` أصلح مفتاح API؛ وفي حالة `context-length-exceeded` قصّر المحادثة (راجع [ضغط السياق](/ar/compaction))؛ وفي حالات الفشل العابرة استخدم `withRetry()` / `fallbackModels` (راجع [المزوّدون](/ar/providers)).
+**الحل:** مع `auth-failure` صلّح الـ API key؛ ومع `context-length-exceeded` قصّر المحادثة (راجع [Context compaction](/ar/compaction))؛ ومع الفشل العابر استخدم `withRetry()` / `fallbackModels` (راجع [المزوّدون](/ar/providers)).
 
-**مثال:** استجابة 401 من المزوّد بسبب مفتاح مُلغى.
+**مثال:** رد 401 من الـ provider بمفتاح ملغي.
 
 ### LOUSHO_PROVIDER_RATE_LIMITED
 
-**المعنى:** خطأ `RateLimitError`: قيّد المزوّد معدل طلبات المستدعي.
+**المعنى:** `RateLimitError`: الـ provider قيّد معدل طلبات المستدعي.
 
-**الحل:** أعد المحاولة بعد `error.retryAfter` ثانية (وهذا ما يفعله `withRetry()`)، أو أرسل طلبات أقل.
+**الحل:** أعد المحاولة بعد `error.retryAfter` ثانية (`withRetry()` يسوي هذا)، أو أرسل طلبات أقل.
 
-**مثال:** استجابة 429.
+**مثال:** رد 429.
 
 ### LOUSHO_PEER_MISSING
 
-**المعنى:** ميزة تحتاج إلى حزمة اختيارية غير مثبتة (`MissingPeerDependencyError`، أو حزمة SDK خاصة بمزوّد مثل `@ai-sdk/openai`).
+**المعنى:** ميزة تحتاج حزمة اختيارية غير مثبتة (`MissingPeerDependencyError`، أو SDK خاص بـ provider مثل `@ai-sdk/openai`).
 
-**الحل:** نفّذ أمر `npm install` الوارد في الرسالة (وهو متاح أيضًا في `error.installCommand`). راجع [التثبيت](/ar/installation).
+**الحل:** نفّذ أمر `npm install` اللي في الرسالة (موجود كمان في `error.installCommand`). راجع [التثبيت](/ar/installation).
 
-**مثال:** `SubprocessSandbox` من دون `dockerode`: `npm install dockerode@^5.0.1`.
+**مثال:** `SubprocessSandbox` بدون `dockerode`: `npm install dockerode@^5.0.1`.
 
 ### LOUSHO_HOSTED_TOOL_UNSUPPORTED
 
-**المعنى:** لدى وكيل أداة مستضافة (`webSearch()` أو `codeInterpreter()` أو `fileSearch()` أو `hostedTool()`) لا يستطيع مزوّده إرسالها: إما أن المزوّد بلا أدوات مستضافة (Ollama، أو `LLMProvider` مخصص من دون `supportsHostedTool()`)، أو أن `ai` 4 هو المثبّت (تحتاج الأدوات المستضافة إلى `ai` 6 أو 7)، أو أن حزمة المزوّد المثبّتة لا تتضمن تلك الأداة. تذكر الرسالة المزوّد والأداة وما يمكن أن ينجح.
+**المعنى:** الـ agent عنده hosted tool (`webSearch()` أو `codeInterpreter()` أو `fileSearch()` أو `hostedTool()`) والـ provider تبعه ما يقدر يرسلها: إما الـ provider ما عنده hosted tools (Ollama، أو `LLMProvider` مخصص بدون `supportsHostedTool()`)، أو المثبّت `ai` 4 (الـ hosted tools تحتاج `ai` 6 أو 7)، أو حزمة الـ provider المثبّتة ما فيها هالأداة. الرسالة تسمّي الـ provider والأداة وما اللي رح يشتغل.
 
-**الحل:** شغّل الأداة على مزوّد وحزمة يدعمانها (راجع [أدوات المزوّد المستضافة](/ar/hosted-tools))، أو احذفها من `tools` لهذا المزوّد.
+**الحل:** شغّل الأداة على provider وحزمة يدعمونها (راجع [Hosted tools عند الـ provider](/ar/hosted-tools))، أو احذفها من `tools` لهذا الـ provider.
 
 **مثال:** `createAgent({ model: 'ollama/llama3.2', tools: [webSearch()] })` يرفض أول `send()` له.
 
-## ملفات مواصفات الوكيل
+## ملفات الـ AgentSpec {#agent-spec-files}
 
 ### LOUSHO_SPEC_NOT_FOUND
 
-**المعنى:** أُعطي `loadSpec()` مسارًا غير موجود.
+**المعنى:** `loadSpec()` أخذ مسار غير موجود.
 
-**الحل:** تحقق من المسار الوارد في الرسالة — قد يكون خطأ إملائيًا، أو مجلد عمل خاطئًا، أو ملف مواصفات لم يُولَّد قط.
+**الحل:** تأكد من المسار اللي في الرسالة — غلطة كتابة، أو مجلد عمل غلط، أو spec ما أُنشئ أصلاً.
 
-**مثال:** `loadSpec('agent.yaml')` حين لا يوجد `agent.yaml` في مجلد العمل الحالي.
+**مثال:** `loadSpec('agent.yaml')` وما في `agent.yaml` في الـ cwd.
 
 ### LOUSHO_SPEC_INVALID
 
-**المعنى:** وجد `loadSpec()` حقولًا لم تجتز التحقق. تُسرد كل مشكلة بالصيغة `'<path>': <problem>`، ومعها أي حقل في المستوى الأعلى يبدو خطأ إملائيًا، مع اقتراح للتصحيح.
+**المعنى:** `loadSpec()` لقى حقول ما عدّت الـ validation. كل مشكلة تنسرد كـ `'<path>': <problem>`، زائد أي حقل top-level باين عليه غلطة كتابة، مع اقتراح.
 
-**الحل:** أصلح كل حقل مذكور. راجع [الإعدادات](/ar/configuration).
+**الحل:** صلّح كل حقل مسرد. راجع [الإعدادات](/ar/configuration).
 
 **مثال:**
 
@@ -199,17 +199,17 @@ loadSpec: 'agent.yaml' failed validation - 'prompt': AgentSpec validation failed
 
 ### LOUSHO_SPEC_UNKNOWN_FIELD
 
-**المعنى:** ملف المواصفات صالح فيما عدا ذلك، لكن أحد حقول المستوى الأعلى يُرجَّح أنه خطأ إملائي في اسم حقل من حقول المواصفات، وكان سيُتجاهَل. أما الحقول غير المعروفة الأخرى فما زالت تُتجاهَل.
+**المعنى:** الـ spec صالح غير كذا، بس في حقل top-level غالبًا غلطة كتابة لحقل من حقول الـ spec، وكان رح يتجاهل. باقي الحقول المجهولة لسّا تتجاهل.
 
-**الحل:** أعد تسميته بالاسم المقترح، أو احذفه.
+**الحل:** سمّيه بالحقل المقترح، أو احذفه.
 
 **مثال:** `tool: [http]` يعطي "unknown field 'tool' (did you mean 'tools'?)".
 
 ### LOUSHO_SPEC_UNSUPPORTED_FORMAT
 
-**المعنى:** امتداد ملف المواصفات ليس `.yaml` ولا `.yml` ولا `.json`.
+**المعنى:** امتداد ملف الـ spec ليس `.yaml` ولا `.yml` ولا `.json`.
 
-**الحل:** أعد تسمية الملف، أو حوّله إلى صيغة مدعومة.
+**الحل:** سمّي الملف من جديد، أو حوّله.
 
 **مثال:** `loadSpec('agent.toml')`.
 
@@ -217,67 +217,67 @@ loadSpec: 'agent.yaml' failed validation - 'prompt': AgentSpec validation failed
 
 ### LOUSHO_TOOL_NOT_FOUND
 
-**المعنى:** أحد عناصر `tools` في ملف المواصفات يسمّي أداة ليست من الأدوات المدمجة.
+**المعنى:** عنصر `tools` في الـ spec يسمّي tool ليست من الأدوات المدمجة.
 
-**الحل:** استخدم إحدى الأدوات التي تسردها الرسالة، أو ابنِ الوكيل باستخدام `createAgent({ tools: [...] })` مع أداتك الخاصة. راجع [الأدوات](/ar/tools).
+**الحل:** استخدم واحدة من الأدوات اللي تسردها الرسالة، أو ابنِ الـ agent بـ `createAgent({ tools: [...] })` مع أداتك. راجع [الأدوات](/ar/tools).
 
-**مثال:** `tools: [not-a-real-tool]` في ملف مواصفات.
+**مثال:** `tools: [not-a-real-tool]` في spec.
 
 ### LOUSHO_TOOL_NEEDS_CREDENTIALS
 
-**المعنى:** ملف المواصفات يسمّي أداة (`github` أو `jira`) تحتاج إلى بيانات اعتماد لا يوجد لها حقل في مواصفات الوكيل.
+**المعنى:** الـ spec يسمّي tool (`github` أو `jira`) تحتاج credentials وملف الـ spec ما فيه حقل لها.
 
-**الحل:** ابنِ الوكيل باستخدام `createAgent()` ومرّر الأداة بعد تهيئتها، مثل الأدوات التي يعيدها `createGitHubTools(config)`.
+**الحل:** ابنِ الـ agent بـ `createAgent()` ومرّر الأداة مهيّأة، مثلاً `createGitHubTools(config)` من `@lousho/build-ai-agent/integrations`.
 
-**مثال:** `tools: [github]` في ملف مواصفات.
+**مثال:** `tools: [github]` في spec.
 
 ### LOUSHO_TOOL_EXECUTION_FAILED
 
-**المعنى:** خطأ `ToolExecutionError` (أو صنف فرعي منه مثل `ToolArgumentsValidationError`). داخل التشغيل يتلقاه النموذج نتيجةَ أداة ويستمر التشغيل.
+**المعنى:** `ToolExecutionError` (أو subclass منه مثل `ToolArgumentsValidationError`). داخل الـ run الـ model يوصله كنتيجة tool والـ run يكمل.
 
-**الحل:** افحص `error.toolName` و`error.cause`، ثم أصلح الأداة أو المدخلات التي أُعطيت لها.
+**الحل:** افحص `error.toolName` و`error.cause`، وصلّح الأداة أو المدخلات اللي انعطت لها.
 
-**مثال:** رمت دالة `execute` في أداة ما خطأ. الأدوات المدمجة (`http` و`email` و`github` و`jira` و`slack` و`ask_question`) ترمي `SDKError` بهذا الرمز عند فشل الاستدعاء؛ ورسالتها هي نتيجة الأداة، لذا لا يُلحَق بها سطر `[code] hint (docs)`.
+**مثال:** `execute` تبع أداة رمت. الأدوات المدمجة (`http` و`email` و`github` و`jira` و`slack` و`ask_question`) ترمي `SDKError` بهذا الكود عند فشل الاستدعاء؛ رسالتها هي نتيجة الأداة، فما يلحقها سطر `[code] hint (docs)`.
 
 ### LOUSHO_TOOL_ARGS_INVALID
 
-**المعنى:** استدعى النموذج أداة بمعاملات لا تطابق مخطط مدخلاتها (خطأ `ToolArgumentsValidationError`). داخل التشغيل يتلقى النموذج المشكلات نتيجةَ أداة ويستطيع إعادة المحاولة، فقلّما ينتهي تشغيل بهذا الخطأ.
+**المعنى:** الـ model نادى tool بـ arguments ما تطابق الـ input schema تبعها (`ToolArgumentsValidationError`). داخل الـ run الـ model توصله المشاكل كنتيجة tool ويقدر يعيد المحاولة، فنادرًا ما ينتهي run عليها.
 
-**الحل:** إن استدعيت الأداة بنفسك فأصلح المعاملات المذكورة في الرسالة؛ وإن ظل النموذج يخطئ فيها فاجعل نص `.describe()` الخاص بالحقل أوضح. يسرد `error.issues` كل مسار ومشكلته. راجع [الأدوات](/ar/tools).
+**الحل:** لو إنت اللي ناديت الأداة، صلّح الـ arguments اللي تسمّيها الرسالة؛ ولو الـ model ظل يغلط فيها، خلّي نص `.describe()` للحقل أوضح. `error.issues` يسرد كل مسار ومشكلته. راجع [الأدوات](/ar/tools).
 
-**مثال:** يرسل النموذج `{ to: 42 }` إلى أداة حقلها `to` سلسلة نصية.
+**مثال:** الـ model يرسل `{ to: 42 }` لأداة حقلها `to` نص.
 
-## الموافقات والجلسات
+## الـ approvals والـ sessions {#approvals-and-sessions}
 
 ### LOUSHO_APPROVAL_STORE_MISSING
 
-**المعنى:** استُدعيت أداة معرَّفة بـ `needsApproval` في تشغيل `AgentExecutor.execute()` ليس له `approvalStore` يتوقف عنده مؤقتًا.
+**المعنى:** أداة عليها `needsApproval` اننادت في run من `AgentExecutor.execute()` ما عنده `approvalStore` يوقف فيه.
 
-**الحل:** مرّر `approvalStore: new InMemoryApprovalStore()` (أو مخزنًا دائمًا)، أو استخدم `createAgent()` الذي يملك مخزنًا افتراضيًا. راجع [الموافقات](/ar/approvals).
+**الحل:** مرّر `approvalStore: new InMemoryApprovalStore()` (أو store دائم)، أو استخدم `createAgent()` اللي عنده واحد افتراضيًا. راجع [Approvals](/ar/approvals).
 
 **مثال:** `AgentExecutor.execute({ agent, input, provider, toolRegistry })` مع أداة `needsApproval`.
 
 ### LOUSHO_APPROVAL_NOT_FOUND
 
-**المعنى:** تلقّى `resumeAfterApproval()` أو `agent.approvals.resolve()` معرّفًا لا يقابل موافقة معلّقة: إما أنه غير معروف، أو أن الموافقة حُسمت من قبل.
+**المعنى:** `resumeAfterApproval()` أو `agent.approvals.resolve()` أخذوا id ما يقابل approval معلّقة: إما مجهول أو انحسم قبل كذا.
 
-**الحل:** احسم معرّفًا مأخوذًا من `agent.approvals.list()` (أو `approvalId` في النتيجة المتوقفة مؤقتًا)؛ فكل موافقة تُحسم مرة واحدة.
+**الحل:** احسم id من `agent.approvals.list()` (أو `approvalId` في النتيجة المتوقفة)؛ كل approval تنحسم مرة وحدة.
 
-**مثال:** استدعاء `agent.approvals.resolve({ id, approved: true })` مرتين.
+**مثال:** نداء `agent.approvals.resolve({ id, approved: true })` مرتين.
 
 ### LOUSHO_SESSION_AWAITING_APPROVAL
 
-**المعنى:** خطأ `SessionAwaitingApprovalError`: الجلسة أو التشغيل المرتبط بـ `sessionId` متوقف مؤقتًا بانتظار موافقة (`error.approvalId`)، فلا يستطيع استقبال مدخلات جديدة بعد.
+**المعنى:** `SessionAwaitingApprovalError`: الـ session أو الـ run تبع `sessionId` واقف على approval (`error.approvalId`)، فما يقدر ياخذ input جديد الحين.
 
-**الحل:** احسم الموافقة باستخدام `agent.approvals.resolve()` (أو `resumeAfterApproval()` مع `checkpointStore` نفسه)، ثم أعد الإرسال. راجع [التنفيذ المتين](/ar/durable-execution).
+**الحل:** احسم الـ approval بـ `agent.approvals.resolve()` (أو `resumeAfterApproval()` مع نفس `checkpointStore`)، وبعدين ابعث مرة ثانية. راجع [Durable execution](/ar/durable-execution).
 
-**مثال:** `session.send('next')` والدورة السابقة ما زالت تنتظر موافقة.
+**مثال:** `session.send('next')` والـ turn السابق لسّا منتظر approval.
 
 ### LOUSHO_SESSION_ID_INVALID
 
-**المعنى:** معرّف الجلسة ليس مؤلفًا من 1 إلى 128 محرفًا من الحروف والأرقام و`_` و`-` (المعرّفات تصبح أسماء ملفات، لذا تُرفَض `../` و`/`).
+**المعنى:** معرّف الـ session ليس من 1 إلى 128 حرف من الحروف والأرقام و`_` و`-` (المعرّفات تصير أسماء ملفات، فـ `../` و`/` مرفوضة).
 
-**الحل:** استخدم معرّفًا مثل `'user-42'`، أو احذفه ليُولَّد معرّف تلقائيًا.
+**الحل:** استخدم معرّف مثل `'user-42'`، أو اتركه ويتولّد واحد تلقائيًا.
 
 **مثال:** `agent.session({ id: '../etc' })`.
 
@@ -285,125 +285,125 @@ loadSpec: 'agent.yaml' failed validation - 'prompt': AgentSpec validation failed
 
 **المعنى:** ملف تابع لـ `FileSessionStore` ليس مصفوفة JSON من الرسائل.
 
-**الحل:** استعد الملف من نسخة احتياطية، أو احذفه لتبدأ الجلسة من جديد.
+**الحل:** استعد الملف من نسخة احتياطية، أو احذفه وتبدأ الـ session من جديد.
 
-**مثال:** الملف `sessions/user-42.json` ومحتواه `{}`.
+**مثال:** `sessions/user-42.json` ومحتواه `{}`.
 
 ### LOUSHO_SESSION_BUSY
 
-**المعنى:** استُدعي `session.compact()` أو `session.clear()` أو `session.fork()` وإحدى دورات تلك الجلسة قيد التنفيذ أو في قائمة الانتظار.
+**المعنى:** ناديت `session.compact()` أو `session.clear()` أو `session.fork()` وفي turn من هالـ session شغّال أو بالطابور.
 
-**الحل:** انتظر اكتمال `send()` الخاص بالدورة (أو ألغِه)، ثم أعد الاستدعاء.
+**الحل:** انتظر `send()` تبع الـ turn (أو ألغِه)، وبعدين نادِ مرة ثانية.
 
 ### LOUSHO_SESSION_TURN_PENDING
 
-**المعنى:** استُدعي `session.compact()` وفي جلسة متينة دورة منقطعة، ونقطة حفظها مفهرسة بطول سجل المحادثة.
+**المعنى:** ناديت `session.compact()` وفي session durable فيها turn منقطعة، والـ checkpoint تبعها مربوط بطول سجل المحادثة.
 
-**الحل:** أكملها باستخدام `session.resume()` أو تخلَّ عنها باستخدام `session.discardPending()`، ثم أعد الاستدعاء.
+**الحل:** أكملها بـ `session.resume()` أو تخلّص منها بـ `session.discardPending()`، وبعدين نادِ مرة ثانية.
 
 ### LOUSHO_SESSION_STREAM_UNSUPPORTED
 
-**المعنى:** استُدعي `stream()` على `AgentSession` أُنشئت يدويًا من دون مشغِّل يدعم البث.
+**المعنى:** ناديت `stream()` على `AgentSession` مبنية باليد بدون runner يدعم streaming.
 
-**الحل:** احصل على الجلسة من `agent.session()` القادرة على البث، أو استدعِ `send()`.
+**الحل:** خذ الـ session من `agent.session()` اللي تقدر تعمل stream، أو نادِ `send()`.
 
 **مثال:** `new AgentSession(run).stream('hi')`.
 
 ### LOUSHO_SESSION_STEP_NOT_FOUND
 
-**المعنى:** مُرّرت إلى `session.fork({ fromStep })` خطوة ليست عددًا صحيحًا من 0 إلى عدد الخطوات في `session.history()`. الخطأ من نوع `ConfigurationError` (`field: 'fromStep'`) وتسرد رسالته النطاق الصالح.
+**المعنى:** `session.fork({ fromStep })` أخذت خطوة ليست عدد صحيح من 0 إلى عدد الخطوات في `session.history()`. الخطأ `ConfigurationError` (`field: 'fromStep'`) ورسالته تسرد النطاق الصحيح.
 
-**الحل:** اختر خطوة من `session.history()`، أو `0` كي لا يُحتفظ بشيء.
+**الحل:** اختر خطوة من `session.history()`، أو `0` لو ما تبي تحتفظ بشيء.
 
-**مثال:** `session.fork({ fromStep: 9 })` على جلسة فيها ثلاث خطوات.
+**مثال:** `session.fork({ fromStep: 9 })` على session فيها ثلاث خطوات.
 
 ### LOUSHO_SESSION_EXISTS
 
-**المعنى:** مُرّر إلى `session.fork({ id })` معرّف له نصّ محادثة بالفعل في مخزن الجلسة (أو دورة لها نقطة حفظ كان التفرّع سيلتقطها)، أو هو معرّف الجلسة نفسها. الخطأ من نوع `ConfigurationError` (`field: 'id'`).
+**المعنى:** `session.fork({ id })` أخذت id إله سجل محادثة أصلاً في store الـ session (أو turn عليها checkpoint كان الـ fork رح يلتقطها)، أو هو نفس معرّف الـ session. الخطأ `ConfigurationError` (`field: 'id'`).
 
-**الحل:** اختر معرّفًا غير مستخدم، أو احذف `id` ليُنشأ `<id>-fork-<n>`.
+**الحل:** اختر id غير مستخدم، أو اترك `id` وينتج `<id>-fork-<n>`.
 
 **مثال:** `session.fork({ fromStep: 1, id: session.id })`.
 
 ### LOUSHO_SESSION_FORK_UNSUPPORTED
 
-**المعنى:** استُدعي `fork()` على `AgentSession` أُنشئت يدويًا من دون الدالة التي تنشئ الجلسات الشقيقة.
+**المعنى:** ناديت `fork()` على `AgentSession` مبنية باليد بدون الدالة اللي تنشئ sessions شقيقة.
 
-**الحل:** احصل على الجلسة من `agent.session()` القادرة على التفرّع.
+**الحل:** خذ الـ session من `agent.session()` اللي تدعم fork.
 
 **مثال:** `new AgentSession(run).fork({ fromStep: 0 })`.
 
 ### LOUSHO_REMOTE_UNAUTHORIZED
 
-**المعنى:** تلقّى `lousho eval --url` أو `remoteTarget()` أو وكيل فرعي من نوع `remoteAgent()` الاستجابة `401` من الوكيل المنشور: رمز الوصول (bearer token) مفقود أو خاطئ. تفشل حالة التقييم (ويستمر التشغيل)؛ أما النموذج الرئيسي فيتلقى خطأ أداة منظَّمًا. ولا يظهر رمز الوصول في الرسالة إطلاقًا.
+**المعنى:** `lousho eval --url` أو `remoteTarget()` أو sub-agent من نوع `remoteAgent()` وصلهم `401` من الـ agent المنشور: الـ bearer token مفقود أو غلط. حالة الـ eval تفشل (والـ run يكمل)؛ والـ lead model يوصله خطأ tool منظَّم. الـ token ما يدخل الرسالة أبدًا.
 
-**الحل:** مرّر قيمة `LOUSHO_API_TOKEN` الخاصة بالنشر عبر `--token` أو متغير البيئة `LOUSHO_EVAL_TOKEN`. راجع [تشغيل التقييمات على نسخة منشورة](/ar/evals#تشغيل-التقييمات-على-نشر-قائم).
+**الحل:** مرّر `LOUSHO_API_TOKEN` الخاصة بالنشر عبر `--token` أو متغير البيئة `LOUSHO_EVAL_TOKEN`. راجع [تشغيل الـ evals على نشر قائم](/ar/evals#تشغيل-evals-على-deployment).
 
-**مثال:** `lousho eval --url https://agent.example.com` على نسخة منشورة عُيّن لها رمز وصول.
+**مثال:** `lousho eval --url https://agent.example.com` على نشر عليه token.
 
 ### LOUSHO_REMOTE_REQUEST_FAILED
 
-**المعنى:** تعذّر تشغيل حالة تقييم عن بُعد (`lousho eval --url` أو `remoteTarget()`) أو مهمة `remoteAgent()`: تعذّر الوصول إلى النسخة المنشورة، أو أجابت بحالة خارج نطاق 2xx، أو أُلغي الطلب، أو انقطع بث أحداثها أو اقتُطع (بلا `run.done`). وتفشل به أيضًا مهمة `remoteAgent()` التي ينتهي تشغيلها البعيد بخطأ، وتقول الرسالة عندئذ "the remote run ended in an error". يتلقاه النموذج الرئيسي خطأ أداة منظَّمًا؛ ولا يظهر فيه رمز الوصول إطلاقًا.
+**المعنى:** حالة eval عن بُعد (`lousho eval --url` أو `remoteTarget()`) أو مهمة `remoteAgent()` ما قدرت تشتغل: النشر ما كان واصل، أو ردّ بحالة مو 2xx، أو الطلب انلغى، أو بث الأحداث انقطع أو انقصّ (بدون `run.done`). ومهمة `remoteAgent()` اللي الـ run البعيد تبعها ينتهي بخطأ تفشل فيه كمان، والرسالة تقول "the remote run ended in an error". الـ lead model يوصله كخطأ tool منظَّم؛ والـ bearer token ما يكون جزء منه أبدًا.
 
-**الحل:** اقرأ الرسالة (فهي تذكر العنوان، وتذكر معرّف الجلسة البعيدة في حالة الوكيل الفرعي)؛ وتحقق من عنوان URL ومن `GET <url>/health` ومن سجلات النسخة المنشورة.
+**الحل:** اقرأ الرسالة (تسمّي الـ url، ومع الـ sub-agent تسمّي معرّف الـ session البعيدة)؛ تأكد من الـ URL ومن `GET <url>/health` ومن سجلات النشر.
 
-**مثال:** `lousho eval --url http://localhost:1` ولا شيء يستمع على ذلك المنفذ.
+**مثال:** `lousho eval --url http://localhost:1` ولا شيء يستمع على المنفذ.
 
 ### LOUSHO_SUBAGENT_TASK_NOT_FOUND
 
-**المعنى:** طلب استدعاء `task` استئناف أو تفريع `taskId` لا تملك هذه الجلسة الرئيسية محادثة له (لم يبدأ قط، أو بدأ في جلسة رئيسية أخرى أو تشغيل آخر، أو لم ينتهِ)، أو أنه يخص وكيلًا فرعيًا آخر. يتلقاه النموذج الرئيسي خطأ أداة منظَّمًا.
+**المعنى:** نداء `task` طلب يستأنف أو يعمل fork لـ `taskId` هالـ session الرئيسية ما عندها محادثة له (ما بدأ أبدًا، أو بدأ في session رئيسية ثانية أو run ثاني، أو ما خلّص)، أو يخص sub-agent ثاني. الـ lead model يوصله كخطأ tool منظَّم.
 
-**الحل:** استخدم `taskId` من نتيجة `task` سابقة في الجلسة الرئيسية نفسها، ومع `agent` نفسه؛ أو احذف `taskId` لبدء مهمة جديدة. راجع [الوكلاء الفرعيون](/ar/sub-agents#متابعة-مهمة).
+**الحل:** استخدم `taskId` من نتيجة `task` سابقة لنفس الـ session الرئيسية، ومع نفس `agent`؛ أو اترك `taskId` وتبدأ مهمة جديدة. راجع [الـ sub-agents](/ar/sub-agents#تكملة-مهمة).
 
-**مثال:** `task({ agent: 'researcher', taskId: 'task_7', prompt })` والجلسة لا تملك سوى `task_1`.
+**مثال:** `task({ agent: 'researcher', taskId: 'task_7', prompt })` والـ session ما عندها غير `task_1`.
 
 ### LOUSHO_SUBAGENT_TASK_BUSY
 
-**المعنى:** طلب استدعاء `task` استئناف أو تفريع مهمة ما زال وكيلها الفرعي قيد التشغيل، كمهمة في الخلفية لم تنتهِ بعد.
+**المعنى:** نداء `task` طلب يستأنف أو يعمل fork لمهمة الـ sub-agent تبعها لسّا شغّال، مثلاً مهمة في الخلفية ما خلصت.
 
-**الحل:** انتظرها باستخدام `agent_await` (أو أوقفها باستخدام `agent_cancel`)، ثم تابعها.
+**الحل:** انتظرها بـ `agent_await` (أو وقّفها بـ `agent_cancel`)، وبعدين تابعها.
 
-**مثال:** `task({ agent: 'researcher', taskId: 'task_1', prompt })` مباشرة بعد بدء `task_1` مع `background: true`.
+**مثال:** `task({ agent: 'researcher', taskId: 'task_1', prompt })` مباشرة بعد بدء `task_1` بـ `background: true`.
 
 ### LOUSHO_CHECKPOINT_NOT_FOUND
 
-**المعنى:** طُلب من `AgentExecutor.fork()` أو `agent.fork()` خطوة لا يحتويها سجل نقاط الحفظ الخاص بالجلسة: الجلسة غير معروفة، أو لم يُبلَغ تلك الخطوة قط، أو حُذفت مدخلاتها لتجاوزها `historyLimit` الخاص بالمخزن. تسرد الرسالة الخطوات المحتفَظ بها.
+**المعنى:** `AgentExecutor.fork()` أو `agent.fork()` انطلب منهم خطوة ليست موجودة في سجل الـ checkpoints تبع الـ session: الـ session مجهولة، أو الخطوة ما انوصلت أبدًا، أو مدخلاتها انحذفت لما تجاوزت `historyLimit` تبع الـ store. الرسالة تسرد الخطوات المحفوظة.
 
-**الحل:** فرّع عند إحدى الخطوات المسرودة، أو ارفع قيمة `historyLimit` في المخزن. راجع [التنفيذ المتين](/ar/durable-execution#التفريع-وإعادة-التشغيل).
+**الحل:** اعمل fork عند وحدة من الخطوات المسردة، أو ارفع `historyLimit` في الـ store. راجع [Durable execution](/ar/durable-execution#fork-و-replay).
 
-**مثال:** `agent.fork('job-1', { fromStep: 9 })` بعد تشغيل من 3 خطوات.
+**مثال:** `agent.fork('job-1', { fromStep: 9 })` بعد run من 3 خطوات.
 
 ### LOUSHO_AGENT_DRIFT
 
-**المعنى:** استأنف تشغيلًا متوقفًا مؤقتًا أو منقطعًا وكيلٌ يختلف عن الوكيل الذي حفظه، وقيمة `onAgentDrift` هي `'error'`. تذكر الرسالة ما تغيّر: النموذج، أو أدوات أُضيفت أو حُذفت أو تغيّر مخطط مدخلاتها، أو التعليمات. يُرمى الخطأ قبل أي استدعاء للنموذج أو تنفيذ لأداة؛ وتبقى نقطة الحفظ (وكذلك السجل المعلّق في حالة الموافقة) كما كانت.
+**المعنى:** run متوقف مؤقتًا أو منقطع استأنفه agent مختلف عن اللي حفظه، و`onAgentDrift` قيمتها `'error'`. الرسالة تسمّي اللي تغيّر: الـ model، أو tools انضافت أو انحذفت أو تغيّر الـ input schema تبعها، أو الـ instructions. الخطأ يترمى قبل أي نداء model أو تشغيل tool؛ والـ checkpoint (ومع الـ approval، السجل المعلّق) تبقى مثل ما هي.
 
-**الحل:** استأنف بالوكيل الذي أوقف التشغيل مؤقتًا، أو عيّن `onAgentDrift` إلى `'warn'` (القيمة الافتراضية) أو `'ignore'` للمتابعة على أي حال. راجع [التنفيذ المتين](/ar/durable-execution#الاستئناف-بوكيل-تغيَّر).
+**الحل:** استأنف بنفس الـ agent اللي وقّف الـ run، أو عيّن `onAgentDrift` إلى `'warn'` (الافتراضية) أو `'ignore'` وتكمل على أي حال. راجع [Durable execution](/ar/durable-execution#استئناف-run-بعد-ما-يتغير-الـ-agent).
 
-**مثال:** `createAgent({ store, onAgentDrift: 'error' })` بعد عملية نشر غيّرت اسم أداة، ثم `agent.resume('job-1')`.
+**مثال:** `createAgent({ store, onAgentDrift: 'error' })` بعد نشر غيّر اسم tool، وبعدين `agent.resume('job-1')`.
 
 ### LOUSHO_RESUME_TOOL_MISSING
 
-**المعنى:** تشغيل مستأنَف ينتظر استدعاء أداة (استدعاء تمت الموافقة عليه، أو استدعاء من آخر دورة للنموذج لم تصدر نتيجته بعد) والوكيل الذي يستأنف لم يعد يملك تلك الأداة. هذا خطأ أيًّا كانت قيمة `onAgentDrift`، لأن الاستدعاء لا يمكن تنفيذه.
+**المعنى:** run مستأنَف منتظر tool call (call عليها موافقة، أو call من آخر turn للـ model ما طلعت نتيجتها بعد) والـ agent اللي يستأنف ما عنده هالـ tool. هذا خطأ مهما كانت قيمة `onAgentDrift`، لأن الـ call ما تقدر تشتغل.
 
-**الحل:** أعد الأداة بالاسم نفسه، أو تخلَّ عن التشغيل المتوقف مؤقتًا (احذف نقطة حفظه، أو ارفض موافقته). راجع [التنفيذ المتين](/ar/durable-execution#الاستئناف-بوكيل-تغيَّر).
+**الحل:** رجّع الـ tool بنفس الاسم، أو تخلّص من الـ run المتوقف (احذف الـ checkpoint تبعه، ارفض الـ approval تبعه). راجع [Durable execution](/ar/durable-execution#استئناف-run-بعد-ما-يتغير-الـ-agent).
 
-**مثال:** تشغيل متوقف مؤقتًا عند `charge_card`، ثم تحذف عملية نشر تلك الأداة ويُستدعى `agent.approvals.resolve({ id, approved: true })`.
+**مثال:** run متوقف عند `charge_card`، وبعدين نشر يحذف هالـ tool و`agent.approvals.resolve({ id, approved: true })` يننادى.
 
 ### LOUSHO_RUN_ALREADY_ITERATED
 
-**المعنى:** جرى المرور مرة ثانية على `AgentRun` ناتج عن `session.stream()`.
+**المعنى:** `AgentRun` من `session.stream()` اجتُوز عليه مرة ثانية.
 
-**الحل:** اجمع الأحداث في حلقة `for await` الأولى، أو استدعِ `stream()` من جديد للحصول على تشغيل جديد. راجع [البث](/ar/streaming).
+**الحل:** اجمع الأحداث في أول حلقة `for await`، أو نادِ `stream()` من جديد لـ run جديد. راجع [البث](/ar/streaming).
 
-**مثال:** حلقتا `for await (const event of run)` على `run` نفسه.
+**مثال:** حلقتين `for await (const event of run)` على نفس الـ `run`.
 
 ## الجداول الزمنية
 
 ### LOUSHO_SCHEDULE_INVALID
 
-**المعنى:** أُعطي `defineSchedule()` تعريفًا غير صالح: تعبير cron لا يمكن تحليله (تذكر الرسالة الحقل)، أو لم يُعطَ واحد فقط من `prompt` و`run`. مجلدات الوكلاء تصادف هذا الخطأ أثناء تحميل `schedules/`.
+**المعنى:** `defineSchedule()` أخذت تعريف غير صالح: تعبير cron يفشل parse (الرسالة تسمّي الحقل)، أو ليس بالضبط واحد من `prompt` و`run`. مجلدات الـ agents تواجه هذا أثناء تحميل `schedules/`.
 
-**الحل:** صحّح التعبير أو أعطِ الجدول الزمني واحدًا من `prompt` / `run`. راجع [الجداول الزمنية](/ar/schedules).
+**الحل:** صحّح التعبير أو أعطِ الـ schedule واحد من `prompt` / `run`. راجع [الجداول الزمنية](/ar/schedules).
 
 **مثال:** `defineSchedule({ cron: '61 * * * *', prompt: 'hi' })`.
 
@@ -411,17 +411,17 @@ loadSpec: 'agent.yaml' failed validation - 'prompt': AgentSpec validation failed
 
 ### LOUSHO_CHANNEL_INVALID
 
-**المعنى:** ملف في مجلد `channels/` داخل مجلد وكيل لا يصدّر قناةً تصديرًا افتراضيًا (أي كائنًا يحتوي على `parse` و`reply`). تذكر الرسالة اسم الملف.
+**المعنى:** ملف في `channels/` داخل مجلد agent ما يسوي default export لـ channel (كائن فيه `parse` و`reply`). الرسالة تسمّي الملف.
 
-**الحل:** صدّر تصديرًا افتراضيًا قناةً منشأة باستخدام `defineChannel()` أو `httpChannel()` أو `webhookChannel()` أو `slackChannel()` أو `discordChannel()` أو `telegramChannel()` أو `githubChannel()` أو `teamsChannel()`. راجع [القنوات](/ar/channels).
+**الحل:** اعمل default export لـ channel مبنية بـ `defineChannel()` أو `httpChannel()` أو `webhookChannel()` أو `slackChannel()` أو `discordChannel()` أو `telegramChannel()` أو `githubChannel()` أو `teamsChannel()`. راجع [القنوات](/ar/channels).
 
 **مثال:** `export default { cron: 'x' }` في `channels/sms.ts`.
 
 ### LOUSHO_MEMORY_INVALID
 
-**المعنى:** ملف في مجلد `memory/` داخل مجلد وكيل لا يصدّر خانة ذاكرة تصديرًا افتراضيًا (أي كائنًا يحتوي على `scope` و`provider`). تذكر الرسالة اسم الملف.
+**المعنى:** ملف في `memory/` داخل مجلد agent ما يسوي default export لخانة memory (كائن فيه `scope` و`provider`). الرسالة تسمّي الملف.
 
-**الحل:** صدّر تصديرًا افتراضيًا `defineMemory({ ... })`، أو الخيارات نفسها من دون `name` (فيُستخدم اسم الملف). راجع [الذاكرة](/ar/memory) و[مجلدات الوكلاء](/ar/agent-directories#الذاكرة).
+**الحل:** اعمل default export لـ `defineMemory({ ... })`، أو نفس الخيارات بدون `name` (يُستخدم اسم الملف). راجع [الذاكرة](/ar/memory) و[مجلدات agent](/ar/agent-directories#memory).
 
 **مثال:** `export default { cron: 'x' }` في `memory/notes.ts`.
 
@@ -429,294 +429,294 @@ loadSpec: 'agent.yaml' failed validation - 'prompt': AgentSpec validation failed
 
 ### LOUSHO_REGISTRY_UNREACHABLE
 
-**المعنى:** تعذّر على `lousho add` قراءة مستند من السجل: لم يُجب عنوان URL في الوقت المحدد أو أعاد خطأ، أو الملف المحلي مفقود، أو بروتوكول العنوان ليس `http(s)`، أو المستند أكبر من الحد الأقصى.
+**المعنى:** `lousho add` ما قدر يقرا مستند من الـ registry: الـ URL ما ردّ بالوقت أو رجّع خطأ، أو الملف المحلي مفقود، أو الـ scheme ليس `http(s)`، أو المستند أكبر من السقف.
 
-**الحل:** تحقق من قيمة `--registry` (أو `LOUSHO_REGISTRY`) ومن اتصالك. راجع [السجل](/ar/registry).
+**الحل:** تأكد من قيمة `--registry` (أو `LOUSHO_REGISTRY`) ومن اتصالك. راجع [السجل](/ar/registry).
 
 **مثال:** `lousho add x --registry https://example.invalid/index.json`.
 
 ### LOUSHO_REGISTRY_ITEM_NOT_FOUND
 
-**المعنى:** فهرس السجل لا يحتوي على عنصر بذلك الاسم. تقترح الرسالة أقرب اسم إن وُجد.
+**المعنى:** فهرس الـ registry ما فيه عنصر بهذا الاسم. الرسالة تقترح أقرب اسم إذا في.
 
-**الحل:** نفّذ `lousho add --list` واستخدم أحد الأسماء.
+**الحل:** نفّذ `lousho add --list` واستخدم واحد من الأسماء.
 
-**مثال:** `lousho add web-serach` واسم العنصر هو `web-search`.
+**مثال:** `lousho add web-serach` واسم العنصر `web-search`.
 
 ### LOUSHO_REGISTRY_INVALID
 
-**المعنى:** فهرس السجل أو مستند عنصر فيه ليس JSON صالحًا أو لا يطابق الصيغة (حقل مفقود، أو نوع عنصر غير معروف، أو عنصر يسمّي مستندُه عنصرًا آخر).
+**المعنى:** فهرس registry أو مستند عنصر فيه ليس JSON صالح أو ما يطابق الصيغة (حقل ناقص، أو نوع عنصر مجهول، أو عنصر مستنده يسمّي عنصر ثاني).
 
-**الحل:** أصلح المستند الذي تذكره الرسالة. راجع [السجل](/ar/registry#الصيغة).
+**الحل:** صلّح المستند اللي تسمّيه الرسالة. راجع [السجل](/ar/registry#الصيغة).
 
-**مثال:** مستند عنصر من دون `files`.
+**مثال:** مستند عنصر بدون `files`.
 
 ### LOUSHO_REGISTRY_UNSAFE_PATH
 
-**المعنى:** عنصر يطلب كتابة ملف مساره مطلق، أو يحتوي على `..` أو شرطات مائلة عكسية أو حرف قرص، أو يقع خارج المجلد المسموح لنوعه بالكتابة فيه، أو يؤول عبر رابط رمزي إلى خارج مجلد الوكيل، أو يتجاوز حدود الحجم. لم يُكتب أي شيء.
+**المعنى:** عنصر يطلب يكتب ملف مساره مطلق، أو فيه `..` أو backslashes أو حرف قرص، أو خارج المجلد اللي نوعه يقدر يكتب فيه، أو يحل خارج مجلد الـ agent عبر symlink، أو أكبر من سقوف الحجم. ما انكتب شيء.
 
-**الحل:** لا تثبّت العنصر؛ وأبلغ الجهة التي تستضيف السجل. راجع [السجل](/ar/registry#قواعد-الأمان).
+**الحل:** لا تثبّت العنصر؛ وقل للي مستضيف الـ registry. راجع [السجل](/ar/registry#قواعد-الأمان).
 
-**مثال:** عنصر أداة يحتوي على الملف `../../.bashrc`.
+**مثال:** عنصر tool فيه ملف `../../.bashrc`.
 
 ### LOUSHO_REGISTRY_FILE_EXISTS
 
-**المعنى:** ملف كان العنصر سيكتبه موجود مسبقًا. لم يُكتب أي شيء.
+**المعنى:** ملف كان العنصر رح يكتبه موجود أصلاً. ما انكتب شيء.
 
-**الحل:** مرّر `--overwrite`، أو انقل ملفك إلى مكان آخر أولًا.
+**الحل:** مرّر `--overwrite`، أو حرّك ملفك من الطريق أولاً.
 
 **مثال:** `lousho add web-search` مرتين.
 
 ### LOUSHO_REGISTRY_MANIFEST_MISMATCH
 
-**المعنى:** شيفرة عنصر تصل إلى شيء لا يعلنه بيان الصلاحيات (permission manifest) الخاص به: تستورد `child_process` من دون `exec: true`، أو تكتب ملفات من دون `filesystem: "write"`، أو تستدعي `fetch()` أو تسمّي مضيف URL ليس في `network`، أو تقرأ متغير بيئة ليس في `env`، أو تستخدم `eval` أو `new Function` أو `process.env[...]` محسوبًا أو `import()` / `require()` ديناميكيًا، وهذه لا يُسمح بها أبدًا. تسرد الرسالة كل ما وُجد بالصيغة `<file>:<line>: <what> (<fix>)`. لم يُكتب أي شيء. ويبلّغ عنه `--dry-run` أيضًا.
+**المعنى:** كود عنصر يمد إيده لشيء الـ permission manifest تبعه ما يعلنه: يستورد `child_process` بدون `exec: true`، أو يكتب ملفات بدون `filesystem: "write"`، أو ينادي `fetch()` أو يسمّي host URL ليس في `network`، أو يقرا متغير بيئة ليس في `env`، أو يستخدم `eval` أو `new Function` أو `process.env[...]` محسوب أو `import()` / `require()` ديناميكي — وهذه ما تتسمّح أبدًا. الرسالة تسرد كل مخالفة كـ `<file>:<line>: <what> (<fix>)`. ما انكتب شيء. `--dry-run` يبلّغ عنها كمان.
 
-**الحل:** لا تثبّت العنصر؛ وأبلغ الجهة التي تستضيف السجل. يصلح مؤلفه الشيفرة أو يعلن الصلاحية. راجع [السجل](/ar/registry#بيان-الصلاحيات).
+**الحل:** لا تثبّت العنصر؛ وقل للي يستضيف الـ registry. مؤلفه يصلّح الكود أو يعلن الصلاحية. راجع [السجل](/ar/registry#بيان-الصلاحيات).
 
-**مثال:** عنصر أداة يستورد ملفه `node:child_process` بينما يخلو بيانه من `exec`.
+**مثال:** عنصر tool ملفه يستورد `node:child_process` والـ manifest تبعه خالٍ من `exec`.
 
-## البيئة المعزولة
+## الـ sandbox {#sandbox}
 
 ### LOUSHO_SANDBOX_EGRESS_UNSUPPORTED
 
-**المعنى:** `SubprocessSandbox` مع `network: { allow }` و`broker` لا يستطيع على خدمة Docker هذه (daemon) أن يجعل وسيط بيانات الاعتماد (credential broker) المنفذ الوحيد للحاوية إلى الخارج، فلم يشغّل أي حاوية بدلًا من منحها اتصالًا صادرًا مفتوحًا. تذكر الرسالة السبب: Docker Desktop (الحاويات تعمل داخل آلة افتراضية، فلا يملك المضيف عنوانًا على الشبكة الداخلية)، أو Docker بلا صلاحيات الجذر (rootless)، أو خدمة Docker على جهاز آخر (لا يستطيع الوسيط الاستماع على بوابة الشبكة)، أو شبكة مُعاد استخدامها وليست داخلية، أو إصدار من Engine أقدم من 25.0.5 يعيد توجيه DNS من الشبكات الداخلية.
+**المعنى:** `SubprocessSandbox` مع `network: { allow }` و`broker` ما يقدر على الـ Docker daemon هذا يخلّي الـ credential broker الطريق الوحيد للحاوية للخارج، فما شغّل أي حاوية بدل ما يعطي egress مفتوح. الرسالة تسمّي السبب: Docker Desktop (الحاويات تشتغل داخل VM، فالـ host ما إله عنوان على الشبكة الداخلية)، أو Docker rootless، أو daemon على جهاز ثاني (الـ broker ما يقدر يسمع على بوابة الشبكة)، أو شبكة مُعاد استخدامها مو داخلية، أو Engine أقدم من 25.0.5 يمرّر DNS من الشبكات الداخلية.
 
-**الحل:** شغّل الوكيل على مضيف Linux نفسه الذي يعمل عليه Docker Engine بإصدار 25.0.5 أو أحدث، أو استخدم `network: 'none'`. راجع [أدوات مساحة العمل](/ar/workspace-tools#واجهة-أوامر-معزولة-sandboxshell).
+**الحل:** شغّل الـ agent على مضيف Linux اللي عليه Docker Engine 25.0.5 أو أحدث، أو استخدم `network: 'none'`. راجع [أدوات الـ workspace](/ar/workspace-tools#sandboxed-shell-sandboxshell).
 
 **مثال:** `new SubprocessSandbox({ network: { allow: ['api.github.com'] }, broker })` مع Docker Desktop.
 
-## مجلدات الوكلاء والمهارات ومسارات العمل
+## مجلدات الـ agents والـ skills والـ flows {#agent-directories-skills-and-flows}
 
 ### LOUSHO_AGENT_DIR_INVALID
 
-**المعنى:** تعذّر على `loadAgentDir()` (أو على `lousho dev` و`lousho build` اللذين يستخدمانه) تحميل مجلد: المجلد مفقود أو غير قابل للقراءة، أو أحد الملفات فارغ، أو ملف في `tools/` لا يحتوي على تصدير صالح للاستخدام، أو ملف إعدادات لا يمكن تحليله، أو مجلد وكيل فرعي بنيته غير سليمة. تذكر الرسالة اسم الملف.
+**المعنى:** `loadAgentDir()` (أو `lousho dev` و`lousho build` اللي يستخدموه) ما قدر يحمّل مجلد: المجلد مفقود أو غير مقروء، أو ملف فاضي، أو ملف `tools/` ما فيه export صالح، أو ملف إعدادات يفشل parse، أو مجلد sub-agent بنيته خربانة. الرسالة تسمّي الملف.
 
-**الحل:** صحّح الملف الذي تذكره الرسالة. راجع [مجلدات الوكلاء](/ar/agent-directories).
+**الحل:** صلّح الملف اللي تسمّيه الرسالة. راجع [مجلدات agent](/ar/agent-directories).
 
-**مثال:** `loadAgentDir('./agents/support')` والملف `instructions.md` فارغ.
+**مثال:** `loadAgentDir('./agents/support')` و`instructions.md` فاضي.
 
 ### LOUSHO_SKILL_INVALID
 
-**المعنى:** مهارة بنيتها غير سليمة (`defineSkill()` أو مجلد `skills/`)، أو أُعطي `withSkills()` أسماء مكررة، أو اسم مهارة يتعارض مع الأداة `load_skill`.
+**المعنى:** skill بنيته غلط (`defineSkill()` أو مجلد `skills/`)، أو `withSkills()` أخذ أسماء مكررة، أو اسم skill يتصادم مع الأداة `load_skill`.
 
-**الحل:** أعطِ كل مهارة اسمًا فريدًا ووصفًا ومحتوى؛ وغيّر اسم أي أداة اسمها `load_skill`. راجع [المهارات](/ar/skills).
+**الحل:** أعطِ كل skill اسم فريد ووصف ومحتوى؛ وغيّر اسم أي أداة اسمها `load_skill`. راجع [Skills](/ar/skills).
 
 **مثال:** `defineSkill({ name: 'x', description: '', content: '...' })`.
 
 ### LOUSHO_FLOW_INVALID
 
-**المعنى:** تعريف مسار العمل خاطئ: اسم مُدخَل مفقود أو مكرر، أو اسم مسار العمل أو شيفرته مفقودان، أو عقدة من نوع غير معروف.
+**المعنى:** تعريف flow فيه غلط: اسم input ناقص أو مكرر، أو اسم الـ flow أو كوده ناقص، أو node من نوع مجهول.
 
-**الحل:** أصلح الجزء الذي تذكره الرسالة من مسار العمل. راجع [مسارات العمل](/ar/flows).
+**الحل:** صلّح الجزء اللي تسمّيه الرسالة من الـ flow. راجع [Flows](/ar/flows).
 
-**مثال:** استدعاءان لـ `.input('city')` على `FlowBuilder` واحد.
+**مثال:** نداءين `.input('city')` على `FlowBuilder` واحد.
 
-## التخزين والنشر والتكاملات
+## الـ storage والنشر والتكاملات {#storage-deployment-and-integrations}
 
 ### LOUSHO_STORAGE_FAILED
 
-**المعنى:** فشل التخزين: تعذّر فتح قاعدة بيانات SQLite (ويحمل `cause` خطأ المشغّل)، أو استُخدمت بعد `close()`، أو مخططها أحدث مما تعرفه هذه النسخة من حزمة SDK، أو أن `node:sqlite` غير متوفر؛ أو تجاوز ملف حد حجم التخزين.
+**المعنى:** التخزين فشل: قاعدة SQLite ما انفتحت (الـ `cause` فيه خطأ الـ driver)، أو انستخدمت بعد `close()`، أو الـ schema تبعها أحدث مما يعرف هالـ SDK، أو `node:sqlite` مفقود؛ أو ملف تجاوز حد حجم التخزين.
 
-**الحل:** تحقق من المسار والصلاحيات، واستخدم Node >= 22.13 مع `SqliteStore` (أو مخزنًا يعتمد على الملفات)، وأنشئ مخزنًا جديدًا بعد إغلاق مخزن.
+**الحل:** تأكد من المسار والصلاحيات، واستخدم Node >= 22.13 مع `SqliteStore` (أو store مبني على ملفات)، واعمل store جديد بعد ما تقفل واحد.
 
 **مثال:** `new SqliteStore('/read-only/agent.db')`.
 
 ### LOUSHO_TRIGGER_INVALID
 
-**المعنى:** تلقّى مهايئ مُشغِّل خيارات غير صالحة: مهايئ cron لم يُعطَ واحدًا فقط من `intervalMs` / `cron`، أو كتلة `auth` لـ webhook فيها سرّ فارغ أو نوع غير معروف، أو مُشغِّل Slack لا يستطيع التحقق من الطلبات.
+**المعنى:** trigger adapter أخذ خيارات غلط: cron adapter بدون بالضبط واحد من `intervalMs` / `cron`، أو كتلة `auth` لـ webhook فيها secret فاضي أو نوع مجهول، أو trigger Slack ما يقدر يتحقق من الطلبات.
 
-**الحل:** استخدم المثال الوارد في الرسالة. راجع [القنوات](/ar/channels) و[الجداول الزمنية](/ar/schedules).
+**الحل:** اتبع المثال اللي في الرسالة. راجع [القنوات](/ar/channels) و[الجداول الزمنية](/ar/schedules).
 
 **مثال:** `webhookChannel({ auth: { type: 'hmac', secret: '' } })`.
 
 ### LOUSHO_CHANNEL_REQUEST_FAILED
 
-**المعنى:** فشل استدعاء لواجهة API خاصة بمنصة محادثة (Slack أو Discord أو Telegram أو GitHub)؛ تذكر الرسالة الاستدعاء وحالة HTTP أو خطأ المنصة.
+**المعنى:** نداء لـ API منصة محادثة (Slack أو Discord أو Telegram أو GitHub) فشل؛ الرسالة تسمّي النداء وحالة HTTP أو خطأ المنصة.
 
-**الحل:** تحقق من رمز البوت (token) وصلاحياته، ومن حالة المنصة. راجع [القنوات](/ar/channels).
+**الحل:** تأكد من token البوت وصلاحياته، ومن حالة المنصة. راجع [القنوات](/ar/channels).
 
-**مثال:** استدعاء `chat.postMessage` في Slack يجيب بـ `channel_not_found`، أو `sendMessage` في Telegram يجيب بـ 400 لمحادثة غير معروفة، أو `POST /repos/{owner}/{repo}/issues/{number}/comments` في GitHub يجيب بـ 403 لرمز وصول لا يملك صلاحية الكتابة.
+**مثال:** `chat.postMessage` في Slack يرد `channel_not_found`، أو `sendMessage` في Telegram يرد 400 لمحادثة مجهولة، أو `POST /repos/{owner}/{repo}/issues/{number}/comments` في GitHub يرد 403 لـ token ما عنده صلاحية كتابة.
 
 ### LOUSHO_DEPLOY_FAILED
 
-**المعنى:** تعذّر على `lousho build` / `lousho dev` / بيئة تشغيل node-server تحزيم الوكيل أو تشغيله: `--agent` مفقود، أو مسار الوكيل غير موجود أو ليس مجلد وكيل، أو قيمة `LOUSHO_STORE` غير صالحة، أو مصادر بيئة التشغيل مفقودة، أو أداة غير متوفرة في هدف Cloudflare Worker.
+**المعنى:** `lousho build` / `lousho dev` / الـ node-server runtime ما قدروا يحزّموا أو يشغّلوا الـ agent: `--agent` ناقص، أو مسار الـ agent ما موجود أو ليس مجلد agent، أو قيمة `LOUSHO_STORE` غلط، أو مصادر الـ runtime ناقصة، أو tool هدف Cloudflare Worker ما عنده.
 
-**الحل:** اتبع ما تقوله الرسالة. راجع [النشر](/ar/deployment).
+**الحل:** اتبع الرسالة. راجع [النشر](/ar/deployment).
 
-**مثال:** `lousho build --target node-server` من دون `--agent`.
+**مثال:** `lousho build --target node-server` بدون `--agent`.
 
-## الاختبارات والتقييمات
+## الاختبارات والـ evals {#tests-and-evals}
 
 ### LOUSHO_EVALS_INVALID
 
-**المعنى:** استُخدمت دالة مساعدة للتقييم استخدامًا خاطئًا: `defineEval()` خارج vitest، أو `t.judge()` قبل `t.send()` أو من دون مُحكِّم، أو `llmJudge()` خارج مشغِّل المُحكِّم.
+**المعنى:** مساعد eval انستخدم غلط: `defineEval()` خارج vitest، أو `t.judge()` قبل `t.send()` أو بدون judge، أو `llmJudge()` خارج الـ judge runner.
 
-**الحل:** اتبع ما تقوله الرسالة. راجع [التقييمات](/ar/evals).
+**الحل:** اتبع الرسالة. راجع [Evals](/ar/evals).
 
-**مثال:** استدعاء `t.judge('polite')` قبل `t.send('hi')`.
+**مثال:** نداء `t.judge('polite')` قبل `t.send('hi')`.
 
 ### LOUSHO_TEST_FAILED
 
-**المعنى:** لم يتحقق شرط تفحصه دالة مساعدة للاختبار: تقييم لم ينجح، أو بقيت في سيناريو `mockModel()` دورات غير مستخدمة عند النهاية.
+**المعنى:** فحص يسويه مساعد test ما انعقد: eval ما نجح، أو سكربت `mockModel()` ظل فيه turns غير مستخدمة بالنهاية.
 
-**الحل:** اقرأ الرسالة؛ ثم أصلح الوكيل أو احذف الدورات الزائدة من السيناريو. راجع [الاختبار](/ar/testing).
+**الحل:** اقرأ الرسالة؛ صلّح الـ agent أو احذف الـ turns الزائدة من السكربت. راجع [الاختبار](/ar/testing).
 
-**مثال:** `mockModel([...three turns])` والوكيل توقف بعد دورتين.
+**مثال:** `mockModel([...three turns])` والـ agent وقّف بعد turnين.
 
 ### LOUSHO_CASSETTE_INVALID
 
-**المعنى:** شريط تسجيل (cassette) خاص بالتسجيل وإعادة التشغيل مفقود، أو ليس JSON صالحًا، أو لا يطابق الطلب المسجَّل. تذكر الرسالة اسم الملف. ويصل عدم التطابق داخل التشغيل إلى `send()` على هيئة `CassetteMismatchError` نفسه (من `@lousho/build-ai-agent/testing`، مع `.cassette` و`.callNumber`) — فهو فشل في تجهيزات الاختبار، لذا لا يُضغَط أبدًا في `CompactedLLMProviderError`.
+**المعنى:** cassette للـ record/replay مفقود، أو ليس JSON صالح، أو ما يطابق الطلب المسجّل. الرسالة تسمّي الملف. وعدم التطابق داخل run يوصل `send()` كـ `CassetteMismatchError` نفسه (من `@lousho/build-ai-agent/testing`، مع `.cassette` و`.callNumber`) — هو فشل في تجهيزات الاختبار، فما ينضغط أبدًا في `CompactedLLMProviderError`.
 
 **الحل:** سجّله من جديد (`lousho eval --record <file>`، أو `recordReplay()` مع `mode: 'record'`). راجع [الاختبار](/ar/testing).
 
-**مثال:** `lousho eval --replay` لتقييم لم يُسجَّل قط.
+**مثال:** `lousho eval --replay` لـ eval ما اتسجّل أبدًا.
 
 ## عام
 
 ### LOUSHO_GENERIC_ERROR
 
-**المعنى:** خطأ `SDKError` أُنشئ من دون رمز.
+**المعنى:** `SDKError` مبني بدون `code`.
 
-**الحل:** اقرأ الرسالة؛ فهي تبيّن ما الذي فشل.
+**الحل:** اقرأ الرسالة؛ تقول لك إيش فشل.
 
 **مثال:** `new SDKError('Something failed')`.
 
 ### LOUSHO_AGENT_EXECUTION_FAILED
 
-**المعنى:** خطأ `AgentExecutionError`: فشل تشغيل وكيل.
+**المعنى:** `AgentExecutionError`: تشغيل agent فشل.
 
-**الحل:** افحص `error.cause` لمعرفة سبب الفشل الأصلي.
+**الحل:** افحص `error.cause` لسبب الفشل الأصلي.
 
 **مثال:** `new AgentExecutionError('Agent failed', agentId, cause)`.
 
 ### LOUSHO_FLOW_EXECUTION_FAILED
 
-**المعنى:** خطأ `FlowExecutionError`: فشلت خطوة في مسار عمل.
+**المعنى:** `FlowExecutionError`: خطوة في flow فشلت.
 
-**الحل:** افحص `error.step` و`error.cause`. راجع [مسارات العمل](/ar/flows).
+**الحل:** افحص `error.step` و`error.cause`. راجع [Flows](/ar/flows).
 
-**مثال:** خطوة في مسار عمل رمى وكيلها خطأ.
+**مثال:** خطوة في flow رمى الـ agent تبعها.
 
 ### LOUSHO_VALIDATION_FAILED
 
-**المعنى:** خطأ `ValidationError`: لم تجتز المدخلات التحقق.
+**المعنى:** `ValidationError`: الـ input ما عدّى الـ validation.
 
-**الحل:** أصلح الحقول المسرودة في `error.errors`.
+**الحل:** صلّح الحقول المسردة في `error.errors`.
 
 **مثال:** `new ValidationError('Validation failed', { email: ['Invalid email'] })`.
 
 ### LOUSHO_OPERATION_TIMEOUT
 
-**المعنى:** خطأ `TimeoutError`: عملية (`error.operation`) لم تكتمل خلال `error.timeoutMs`.
+**المعنى:** `TimeoutError`: عملية (`error.operation`) ما خلّصت ضمن `error.timeoutMs`.
 
-**الحل:** ارفع المهلة، أو اجعل العملية أسرع.
+**الحل:** ارفع المهلة، أو خلّي العملية أسرع.
 
-**مثال:** `retryWithTimeout()` تستغرق عمليته أطول من مهلته.
+**مثال:** `retryWithTimeout()` عمليته تاخذ أطول من مهلته.
 
 ### LOUSHO_OUTPUT_INVALID
 
-**المعنى:** رمز محجوز. الرد غير الصالح في المخرجات المنظَّمة لا يُرمى اليوم خطأً: ينتهي التشغيل بـ `finishReason: 'output-invalid'` ومعه `outputError`.
+**المعنى:** محجوز. الرد غير الصالح في الـ structured output ما يترمى اليوم: الـ run ينتهي بـ `finishReason: 'output-invalid'` و`outputError`.
 
-**الحل:** راجع [المخرجات المنظَّمة](/ar/structured-output).
+**الحل:** راجع [Structured output](/ar/structured-output).
 
-**مثال:** رد لا يطابق `output: zodSchema` بعد خطوة الإصلاح.
+**مثال:** رد ما يطابق `output: zodSchema` بعد خطوة الإصلاح.
 
 ### LOUSHO_BUDGET_EXCEEDED
 
-**المعنى:** تجاوز تشغيل أو جلسة أحد حدود الميزانية في `limits` (`maxTokens` أو `maxCostUsd` أو `maxDurationMs` أو غيرها) والخيار `onExceeded: 'throw'` مفعَّل. يحمل `BudgetExceededError` الخاصية `budget: { limit, value, max, scope }`. أما مع القيمة الافتراضية `onExceeded: 'stop'` فلا يُرمى شيء: ينتهي التشغيل بـ `finishReason: 'budget-exceeded'`.
+**المعنى:** ميزانية `limits` تبع run أو session (`maxTokens` أو `maxCostUsd` أو `maxDurationMs` وغيرها) تجاوزت الحد تحت `onExceeded: 'throw'`. `BudgetExceededError` يحمل `budget: { limit, value, max, scope }`. مع الافتراضي `onExceeded: 'stop'` ما يترمى شيء: الـ run ينتهي بـ `finishReason: 'budget-exceeded'`.
 
-**الحل:** ارفع الحد المذكور في الرسالة، أو احذف `onExceeded: 'throw'`. راجع [الميزانيات](/ar/configuration#الميزانيات).
+**الحل:** ارفع الحد اللي تسمّيه الرسالة، أو احذف `onExceeded: 'throw'`. راجع [الميزانيات](/ar/configuration#الميزانيات).
 
-**مثال:** `createAgent({ provider, limits: { maxCostUsd: 0.01, onExceeded: 'throw' } })` وتكلفة تشغيله تتجاوز سنتًا واحدًا.
+**مثال:** `createAgent({ provider, limits: { maxCostUsd: 0.01, onExceeded: 'throw' } })` والـ run تبعه يكلف أكثر من سنت.
 
 ### LOUSHO_GUARDRAIL_TRIPPED
 
-**المعنى:** أوقف حاجز حماية للمدخلات أو للمخرجات أو للأدوات تشغيلًا والخيار `onTripped: 'throw'` مفعَّل. يحمل `GuardrailError` الخاصية `guardrail: { name, kind, reason, toolName? }`. أما مع القيمة الافتراضية `onTripped: 'stop'` فلا يُرمى شيء: ينتهي التشغيل بـ `finishReason: 'guardrail'`.
+**المعنى:** guardrail للـ input أو output أو tool وقّف run تحت `onTripped: 'throw'`. `GuardrailError` يحمل `guardrail: { name, kind, reason, toolName? }`. مع الافتراضي `onTripped: 'stop'` ما يترمى شيء: الـ run ينتهي بـ `finishReason: 'guardrail'`.
 
-**الحل:** افحص `error.guardrail` لمعرفة أي حاجز حماية أوقف التشغيل ولماذا، أو احذف `onTripped: 'throw'`. راجع [حواجز حماية المدخلات والمخرجات](/ar/guardrails#حواجز-حماية-المدخلات-والمخرجات).
+**الحل:** افحص `error.guardrail` لتعرف أي guardrail وقّف وليش، أو احذف `onTripped: 'throw'`. راجع [guardrails الـ input والـ output](/ar/guardrails#input-و-output-guardrails).
 
-**مثال:** `createAgent({ provider, guardrails: { input: [maxLengthGuardrail({ maxChars: 10 })], onTripped: 'throw' } })` أُرسلت إليه رسالة أطول.
+**مثال:** `createAgent({ provider, guardrails: { input: [maxLengthGuardrail({ maxChars: 10 })], onTripped: 'throw' } })` انبعت له رسالة أطول.
 
 ## المصادقة
 
 ### LOUSHO_AUTH_CONFIG_INVALID
 
-**المعنى:** دالة مساعدة لمصادقة المسارات من `@lousho/build-ai-agent/auth` (`jwt()` أو `oidc()` أو `basic()` أو `apiToken()`) تلقّت خيارات لا تستطيع التحقق بها، فرفضتها عند إنشائها لا عند أول طلب. تذكر الرسالة الخيار: لا مصدر مفاتيح أو مصدران معًا، أو `secret` لـ HMAC أقصر من 32 بايت، أو خوارزمية لا تناسب المفتاح (`secret` مع `RS256`، أو مفتاح عام مع `HS256`)، أو لا `audience` (ولا `allowAnyAudience: true`)، أو `clockToleranceSec` فوق 300، أو عنوان مجموعة مفاتيح أو جهة إصدار ليس https، أو قائمة مستخدمين أو رمز وصول فارغ.
+**المعنى:** مساعد route auth من `@lousho/build-ai-agent/auth` (`jwt()` أو `oidc()` أو `basic()` أو `apiToken()`) أخذ خيارات ما يقدر يتحقق فيها، ورفضها وقت إنشائه، مو عند أول طلب. الرسالة تسمّي الخيار: لا مصدر مفاتيح أو مصدرين، أو `secret` HMAC أقصر من 32 بايت، أو خوارزمية ما تناسب المفتاح (`secret` مع `RS256`، أو مفتاح عام مع `HS256`)، أو لا `audience` (ولا `allowAnyAudience: true`)، أو `clockToleranceSec` فوق 300، أو URL مجموعة مفاتيح أو issuer ليس https، أو قائمة مستخدمين أو token فاضي.
 
-**الحل:** غيّر الخيار الذي تذكره الرسالة. راجع [مصادقة المسارات والهويات](/ar/auth).
+**الحل:** غيّر الخيار اللي تسمّيه الرسالة. راجع [Route auth والـ principals](/ar/auth).
 
-**مثال:** `jwt({ secret: process.env.JWT_SECRET! })` من دون `audience`.
+**مثال:** `jwt({ secret: process.env.JWT_SECRET! })` بدون `audience`.
 
 ## OAuth
 
 ### LOUSHO_TOKEN_KEY_MISSING
 
-**المعنى:** طُلب من مخزن ملف أو SQLite أو KV تخزين رمز OAuth أو عملية تسجيل دخول معلّقة أو عميل مسجَّل (أو قراءة واحد موجود)، وليس لديه مفتاح للرموز: لا الخيار `tokenKey` ولا متغير البيئة `LOUSHO_TOKEN_KEY` مضبوط. لا تُخزَّن الرموز إلا مشفّرة، ولا يوجد مفتاح افتراضي. أما قراءة سجلات غير موجودة فلا تحتاج إلى مفتاح.
+**المعنى:** store ملف أو SQLite أو KV طُلب منه يخزّن OAuth token أو sign-in معلّق أو client مسجّل (أو يقرا واحد موجود)، وما عنده مفتاح للـ tokens: لا خيار `tokenKey` ولا متغير البيئة `LOUSHO_TOKEN_KEY` مضبوطين. الـ tokens ما تنخزّن إلا مشفّرة، وما في مفتاح افتراضي. قراءة سجلات غير موجودة ما تحتاج مفتاح.
 
-**الحل:** ولّد مفتاحًا مرة واحدة بـ`generateTokenKey()` (32 بايتًا عشوائيًا بصيغة base64)، واحتفظ به سرًّا، ومرّره بالخيار `tokenKey` أو اضبط `LOUSHO_TOKEN_KEY`. وعلى Cloudflare Workers أضفه بالأمر `wrangler secret put LOUSHO_TOKEN_KEY`. راجع [تخزين الرموز](/ar/oauth#تخزين-الرموز).
+**الحل:** ولّد مفتاح مرة وحدة بـ `generateTokenKey()` (32 بايت عشوائي base64)، وخلّيه سرّي، ومرّره كـ `tokenKey` أو اضبط `LOUSHO_TOKEN_KEY`. وعلى Cloudflare Workers ضيفه بـ `wrangler secret put LOUSHO_TOKEN_KEY`. راجع [تخزين الـ tokens](/ar/oauth#تخزين-tokens).
 
-**مثال:** `new SqliteStore('./agent.db').tokens.set('github', { owner: 'app' }, token)` مع عدم ضبط `LOUSHO_TOKEN_KEY`.
+**مثال:** `new SqliteStore('./agent.db').tokens.set('github', { owner: 'app' }, token)` و`LOUSHO_TOKEN_KEY` غير مضبوط.
 
 ### LOUSHO_TOKEN_DECRYPT_FAILED
 
-**المعنى:** تعذّر فك تشفير سجل OAuth مخزَّن: إما أن مفتاح المخزن ليس الذي كُتب به السجل، أو أن السجل عُدِّل أو نُسخ إلى مالك آخر. تذكر الرسالة المزوّد ولا تذكر الرمز أبدًا.
+**المعنى:** سجل OAuth مخزّن ما انفك تشفيره: مفتاح الـ store ليس اللي انكتب فيه، أو السجل اتغيّر أو اتنسخ لمالك ثاني. الرسالة تسمّي الـ provider، الـ token ما تسمّيه أبدًا.
 
-**الحل:** استخدم المفتاح الذي كُتبت به الرموز. وأثناء التدوير اذكر المفتاح القديم بعد الجديد (`tokenKey: [newKey, oldKey]`، أو `LOUSHO_TOKEN_KEY="<new>,<old>"`). وإن فُقد المفتاح القديم فاحذف السجل (`tokens.delete(provider, owner)`) وسجّل الدخول من جديد. راجع [تخزين الرموز](/ar/oauth#تخزين-الرموز).
+**الحل:** استخدم المفتاح اللي انكتبت فيه الـ tokens. أثناء الـ rotation حط المفتاح القديم بعد الجديد (`tokenKey: [newKey, oldKey]`، أو `LOUSHO_TOKEN_KEY="<new>,<old>"`). ولو المفتاح القديم ضاع، احذف السجل (`tokens.delete(provider, owner)`) وسجّل الدخول من جديد. راجع [تخزين الـ tokens](/ar/oauth#تخزين-tokens).
 
-**مثال:** ملف `SqliteStore` كُتب بـ`tokenKey` وفُتح بمفتاح آخر.
+**مثال:** ملف `SqliteStore` انكتب بـ `tokenKey` وانفتح بمفتاح ثاني.
 
 ### LOUSHO_OAUTH_PRINCIPAL_REQUIRED
 
-**المعنى:** استدعت أداة `ctx.getToken()` (أو `requireAuth()`) لمزوّد تعود بيانات اعتماده إلى كل مستخدم (`credentialOwner: 'user'`، وهو الافتراضي)، لكن التشغيل بلا مبدأ (principal)، فلا يوجد مستخدم يملك الرمز. يفشل الاستدعاء بهذا الخطأ؛ ولا يتوقف التشغيل ولا يُصنع رابط لتسجيل الدخول.
+**المعنى:** tool نادت `ctx.getToken()` (أو `requireAuth()`) لـ provider الـ credential تبعه لكل مستخدم (`credentialOwner: 'user'`، الافتراضي)، بس الـ run بدون principal (هوية المستخدم)، فما في مستخدم يملك الـ token. النداء يفشل بهذا الخطأ؛ والـ run ما يوقف ولا يتعمل رابط sign-in.
 
-**الحل:** قدّم الوكيل خلف مصادقة المسارات أو قناة، فيكون لكل تشغيل مبدأ ([المصادقة](/ar/auth))، أو عرّف المزوّد بـ`credentialOwner: 'app'` حين تُراد بيانات اعتماد واحدة للجميع. راجع [أدوات تحتاج إلى تسجيل الدخول](/ar/oauth#أدوات-تحتاج-إلى-تسجيل-الدخول).
+**الحل:** قدّم الـ agent خلف route auth أو channel، عشان كل run يكون إله principal ([المصادقة](/ar/auth))، أو عرّف الـ provider بـ `credentialOwner: 'app'` لما تكون credential وحدة للكل. راجع [أدوات تحتاج sign-in](/ar/oauth#أدوات-تحتاج-تسجيل-دخول).
 
-**مثال:** `agent.send('List my repositories')` بلا `{ principal }`، مع أداة تستدعي `ctx.getToken(github)`.
+**مثال:** `agent.send('List my repositories')` بدون `{ principal }`، مع tool تنادي `ctx.getToken(github)`.
 
 ### LOUSHO_OAUTH_APP_SIGNIN_REQUIRED
 
-**المعنى:** طلبت أداة بيانات اعتماد التطبيق نفسه (`credentialOwner: 'app'`) ولا شيء مخزَّن (أو أُلغيت). لا يُرسَل رابط تسجيل دخول التطبيق إلى مستخدم دردشة أبدًا، فيفشل الاستدعاء بدل أن يتوقف.
+**المعنى:** tool طلبت credential التطبيق نفسه (`credentialOwner: 'app'`) وما في شيء مخزّن (أو انسحب). مستخدم الـ chat ما يوصله رابط sign-in التطبيق أبدًا، فالنداء يفشل بدل ما يوقف.
 
-**الحل:** سجّل دخول التطبيق مرة واحدة: افتح العنوان الذي تُرجعه `agent.oauth.signInUrl(provider)` ودع رد النداء يخزّن الرمز. راجع [بيانات اعتماد التطبيق](/ar/oauth#أدوات-تحتاج-إلى-تسجيل-الدخول).
+**الحل:** سجّل دخول التطبيق مرة وحدة: افتح الـ URL اللي ترجعه `agent.oauth.signInUrl(provider)` وخلّي الـ callback يخزّن الـ token. راجع [credentials التطبيق](/ar/oauth#أدوات-تحتاج-تسجيل-دخول).
 
-**مثال:** أداة `post_update` تستدعي `ctx.getToken(slackBot)` قبل أن يربط المشغّل Slack.
+**مثال:** أداة `post_update` تنادي `ctx.getToken(slackBot)` قبل ما المشغّل يربط Slack.
 
 ### LOUSHO_OAUTH_STORE_MISSING
 
-**المعنى:** استدعت أداة `ctx.getToken()`، أو استُخدمت `agent.oauth`، في وكيل بلا مخزن رموز، فلا مكان لقراءة رمز أو حفظه. يتوقف التشغيل بهذا الخطأ. وخادم MCP عبر HTTP مع `oauth` يحتاج إلى المخزن أيضًا: فالاتصال به (`ready()`، أو `connectMcp()` بلا `tokens`) يفشل بهذا الخطأ.
+**المعنى:** tool نادت `ctx.getToken()`، أو `agent.oauth` انستخدمت، على agent بدون token store، فما في مكان يتقرى أو ينحفظ فيه token. الـ run يوقف بهذا الخطأ. وسيرفر MCP على HTTP مع `oauth` يحتاج الـ store كمان: توصيله (`ready()`، أو `connectMcp()` بدون `tokens`) يفشل بهذا الخطأ.
 
-**الحل:** مرّر `createAgent({ store })` مع `tokens`: `memoryStore()` أو `fileStore()` أو `SqliteStore` أو `KVStore` (والدائمة منها تحتاج إلى `tokenKey`). راجع [تخزين الرموز](/ar/oauth#تخزين-الرموز).
+**الحل:** مرّر `createAgent({ store })` فيه `tokens`: `memoryStore()` أو `fileStore()` أو `SqliteStore` أو `KVStore` (الدائمة منها تحتاج `tokenKey`). راجع [تخزين الـ tokens](/ar/oauth#تخزين-tokens).
 
-**مثال:** `createAgent({ provider, tools: [listRepos] })` بلا `store`.
+**مثال:** `createAgent({ provider, tools: [listRepos] })` بدون `store`.
 
 ### LOUSHO_OAUTH_STATE_INVALID
 
-**المعنى:** تلقّت `agent.oauth.complete()` (مسار `/oauth/callback`) قيمة `state` غير معروفة، أو سبق استخدامها، أو مضى عليها أكثر من 10 دقائق، أو (مع طلب رد نداء موثَّق) تسجيل دخول بدأ لمستخدم آخر. ويجيب المسار بالحالة 400.
+**المعنى:** `agent.oauth.complete()` (مسار `/oauth/callback`) أخذت `state` مجهول، أو مستخدم قبل، أو أقدم من 10 دقائق، أو (مع طلب callback موثّق) sign-in بدأ لمستخدم ثاني. المسار يرد 400.
 
-**الحل:** ابدأ من جديد برابط جديد: لا توافق على شيء، ودع الأداة تطلب مرة أخرى (فللتوقف الجديد رابط جديد)، أو استدعِ `agent.oauth.signInUrl()` من جديد لتسجيل دخول التطبيق. راجع [مسار رد النداء](/ar/oauth#مسار-رد-النداء).
+**الحل:** ابدأ من جديد برابط جديد: لا توافق على شيء، ودع الـ tool تطلب مرة ثانية (الوقفة الجديدة إلها رابط جديد)، أو نادِ `agent.oauth.signInUrl()` من جديد لـ sign-in التطبيق. راجع [مسار الـ callback](/ar/oauth#مسار-callback).
 
-**مثال:** فتح إعادة توجيه المزوّد نفسها مرتين، أو بعد مرور 10 دقائق.
+**مثال:** فتح redirect الـ provider نفسه مرتين، أو بعد 10 دقائق.
 
 ### LOUSHO_SIGNIN_PENDING
 
-**المعنى:** استُدعيت `agent.approvals.resolve({ id, approved: true })` على توقف لتسجيل الدخول (`kind: 'sign-in'`) قبل أن يُخزَّن رمز المستخدم. يبقى التوقف كما كان. وعلى `POST /chat/:id/approvals/:approvalId` تكون الحالة HTTP 409.
+**المعنى:** `agent.approvals.resolve({ id, approved: true })` اننادت على وقفة sign-in (`kind: 'sign-in'`) قبل ما ينخزّن token المستخدم. الوقفة تبقى مثل ما هي. وعلى `POST /chat/:id/approvals/:approvalId` هذا HTTP 409.
 
-**الحل:** افتح رابط تسجيل الدخول أولًا ودع المزوّد يعيد التوجيه إلى رد النداء، ثم وافق مرة أخرى؛ أو وافق بـ`false` لإلغاء الاستدعاء. راجع [ما يراه المستخدم](/ar/oauth#ما-يراه-المستخدم).
+**الحل:** افتح رابط الـ sign-in أول ودع الـ provider يوجّهك للـ callback، وبعدين وافق مرة ثانية؛ أو وافق بـ `false` لإلغاء النداء. راجع [إيش يشوف المستخدم](/ar/oauth#ما-يراه-المستخدم).
 
-**مثال:** النقر على "I've signed in" قبل إنهاء صفحة المزوّد.
+**مثال:** الضغط على "I've signed in" قبل ما تخلص صفحة الـ provider.
 
 ### LOUSHO_OAUTH_TOKEN_EXCHANGE_FAILED
 
-**المعنى:** رفضت نقطة نهاية الرموز لدى المزوّد تبديل شيفرة التفويض (أو فشل طلب إليها)، أو جاء رد النداء بلا شيفرة، أو لا يوجد مزوّد باسم تسجيل الدخول المعلّق معرَّف في هذه العملية. تسمّي الرسالة المزوّد وحالة HTTP ورمز `error` الخاص بـOAuth، ولا تذكر الشيفرة ولا جسم الاستجابة أبدًا. ويجيب مسار رد النداء بالحالة 502. وفي خادم MCP مع `oauth` تسمّي الرسالة الخادم ورمز `error` الخاص بـOAuth.
+**المعنى:** نقطة نهاية الـ token عند الـ provider رفضت تبدّل الـ authorization code (أو طلب لها فشل)، أو الـ callback جاي بدون code، أو ما في provider باسم الـ sign-in المعلّق معرّف في هالعملية. الرسالة تسمّي الـ provider وحالة HTTP وكود `error` الخاص بـ OAuth، وأبدًا ما تسمّي الـ code ولا جسم الرد. مسار الـ callback يرد 502. ولسيرفر MCP مع `oauth` الرسالة تسمّي السيرفر وكود `error` الخاص بـ OAuth.
 
-**الحل:** افحص `tokenUrl` و`clientId` و`clientSecret` و`clientAuth`، وأن `redirectUri` يطابق تمامًا ما سُجّل لدى المزوّد، وأن الوحدة التي تعرّف المزوّد محمَّلة في العملية التي تخدم رد النداء. ثم سجّل الدخول من جديد. راجع [مسار رد النداء](/ar/oauth#مسار-رد-النداء).
+**الحل:** تأكد من `tokenUrl` و`clientId` و`clientSecret` و`clientAuth`، وأن `redirectUri` يطابق تمامًا اللي مسجّل عند الـ provider، وأن الوحدة اللي تعرّف الـ provider محمّلة في العملية اللي تخدم الـ callback. وبعدين سجّل الدخول من جديد. راجع [مسار الـ callback](/ar/oauth#مسار-callback).
 
 **مثال:** `invalid_client` من GitHub بعد تدوير سر العميل.
 
 ### LOUSHO_MCP_AUTH_REQUIRED
 
-**المعنى:** رفض خادم MCP عبر HTTP مع `oauth` الاتصال أو استدعاء أداة لأن التطبيق ليس لديه رمز صالح له: لم يسجّل أحد دخول التطبيق بعد، أو أُلغيت المنحة، أو تغيّر `url` الخادم منذ تسجيل الدخول (فالرمز لا يُرسَل إلا إلى العنوان الذي أُخذ له). تصبح حالة الخادم `'needs-auth'`. وعند الاتصال تفشل `ready()` (و`connectMcp()`) بهذا الخطأ؛ وأثناء التشغيل تكون نتيجة استدعاء الأداة هذا الخطأ ويستمر التشغيل. ولا يُطلب من مستخدم الدردشة تسجيل الدخول لخادم MCP أبدًا، ولا تحتوي الرسالة عنوان التفويض أبدًا.
+**المعنى:** سيرفر MCP على HTTP مع `oauth` رفض الاتصال أو tool call لأن التطبيق ما عنده token صالح له: لسّا ما حدا سجّل دخول التطبيق، أو الـ grant انسحبت، أو `url` السيرفر تغيّر منذ الـ sign-in (الـ token ينرسل بس للـ url اللي اتوخذ له). حالة السيرفر تصير `'needs-auth'`. عند التوصيل `ready()` (و`connectMcp()`) تفشل بهذا الخطأ؛ وأثناء run نتيجة الـ tool call هي هذا الخطأ والـ run يكمل. ومستخدم الـ chat ما يُطلب منه sign-in لسيرفر MCP أبدًا، والرسالة ما فيها authorization URL أبدًا.
 
-**الحل:** سجّل دخول التطبيق مرة واحدة: افتح العنوان الذي تُرجعه `agent.oauth.mcpSignInUrl('<server>')` ودع المزوّد يعيد التوجيه إلى مسار رد النداء. وسيستخدم الاتصال التالي أو استدعاء الأداة التالي الرمز المخزَّن. راجع [خوادم MCP مع OAuth](/ar/oauth#خوادم-mcp-مع-oauth).
+**الحل:** سجّل دخول التطبيق مرة وحدة: افتح الـ URL من `agent.oauth.mcpSignInUrl('<server>')` ودع الـ provider يوجّهك لمسار الـ callback. الاتصال الجاي أو الـ tool call الجاي يستخدم الـ token المخزّن. راجع [سيرفرات MCP مع OAuth](/ar/oauth#خوادم-mcp-مع-oauth).
 
-**مثال:** `createAgent({ mcpServers: { linear: { url, oauth: { redirectUri } } }, store })` ثم `await agent.ready()` قبل أن يسجّل المشغّل الدخول.
+**مثال:** `createAgent({ mcpServers: { linear: { url, oauth: { redirectUri } } }, store })` و`await agent.ready()` قبل ما المشغّل يسجّل الدخول.

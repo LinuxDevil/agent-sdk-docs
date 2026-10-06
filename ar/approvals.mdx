@@ -1,12 +1,12 @@
 ---
-title: "الموافقات"
+title: "Approvals"
 ---
 {/* Generated from docs/approvals.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-ضع على الأداة العلامة `needsApproval` فيتوقف التشغيل مؤقتًا قبل استدعائها، إلى أن
-يوافق إنسان (أو شيفرتك) على الاستدعاء أو يرفضه. يُحفظ التوقف المؤقت في
-`ApprovalStore`، فيمكن أن يأتي القرار بعد دقائق أو أيام، من طلب آخر
-أو من عملية أخرى، ثم يتابع التشغيل من حيث توقف.
+علّم الـ tool بـ `needsApproval` والـ run يوقف قبل ما ينفّذ الاستدعاء،
+حتى يوافق إنسان (أو الكود تبعك) على الـ call أو يرفضه. الوقفة محفوظة
+في `ApprovalStore`، يعني القرار يقدر يوصل بعد دقائق أو أيام، من request
+ثاني أو من process ثانية، والـ run يكمل من حيث وقف.
 
 ```ts
 import { createAgent, defineTool } from '@lousho/build-ai-agent';
@@ -29,10 +29,10 @@ if (paused.finishReason === 'awaiting-approval') {
 }
 ```
 
-## أي الاستدعاءات تتوقف مؤقتًا
+## أي الـ calls توقف
 
-قيمة `needsApproval` هي `true`، أو دالة شرطية تستقبل الوسائط بعد التحقق
-منها، وأنواعها مستمدة من `input` المعرَّف بـ zod للأداة:
+`needsApproval` تكون `true`، أو دالة تستقبل الـ args بعد الـ validation،
+typed من `input` الـ zod تبع الـ tool:
 
 ```ts
 import { defineTool } from '@lousho/build-ai-agent';
@@ -49,39 +49,41 @@ const sendEmail = defineTool({
 });
 ```
 
-يمكن للدالة الشرطية أيضًا أن تمنع الاستدعاء أو أن تطلب الموافقة عليه مرة واحدة فقط في كل جلسة؛ انظر
-[الموافقة أو المنع أو السؤال](#الموافقة-أو-المنع-أو-السؤال).
+الدالة تقدر كمان تمنع الـ call أو توافق عليه مرة وحدة بس في الـ session؛
+شوف [الموافقة أو المنع أو السؤال](#الموافقة-أو-المنع-أو-السؤال).
 
-حين يطلب النموذج عدة أدوات في دورة واحدة، يوقف أول استدعاء يحتاج إلى
-موافقة الدفعةَ كلها: الاستدعاءات التي قبله تُنفَّذ، ويتوقف التشغيل عنده، ثم
-تُنفَّذ الاستدعاءات التي بعده بعد البتّ فيه (انظر
-[الموافقات في منتصف دفعة أدوات](/ar/durable-execution#الموافقات-في-منتصف-دفعة-أدوات)).
+لما الـ model يطلب عدة أدوات في turn واحد، أول call يحتاج approval (موافقة)
+يوقف الدفعة: الـ calls اللي قبله تنفّذ، والـ run يوقف عليه، واللي بعده
+ينفّذ بعد ما ينحسم (شوف
+[الموافقات في منتصف دفعة أدوات](/ar/durable-execution#approval-في-منتصف-batch-من-tool-calls)).
 
-أدوات MCP تأخذ قيمة `needsApproval` من تعليقات الأداة التوصيفية (annotations) على الخادم: `readOnlyHint:
-true` تُنفَّذ مباشرة، أما `destructiveHint` بقيمة true أو غير المحدَّدة (وهو افتراضي MCP) فتطلب الموافقة. اختر
-السلوك لكل خادم عبر `approval: 'annotations' | 'always' | 'never'` أو دالة؛ انظر
-[موافقة أدوات MCP](/ar/mcp-integration#الموافقة-على-أدوات-mcp).
+أدوات MCP تاخذ `needsApproval` من الـ annotations تبع الـ tool على السيرفر:
+`readOnlyHint: true` ينفّذ، و`destructiveHint` بقيمة true أو غير موجود
+(افتراضي MCP) يسأل. اختر السلوك لكل سيرفر بـ `approval: 'annotations' | 'always' | 'never'`
+أو دالة؛ شوف [موافقة أدوات MCP](/ar/mcp-integration#الـ-approval-على-tools-mcp).
 
 ## سياسات الصلاحيات
 
-يضع `permissions` قواعد للوكيل كله بدل تحديدها أداةً أداة: قائمة من قواعد
-`{ tool, when?, action, reason? }` تُفحص بالترتيب عند كل استدعاء أداة
-قبل `needsApproval` الخاص بالأداة. وأول قاعدة تنطبق هي التي تحسم:
+`permissions` يحط قواعد للـ agent كله بدل ما تحدد tool بـ tool: قائمة
+قواعد `{ tool, when?, action, reason? }` تنفحص بالترتيب عند كل tool call،
+قبل `needsApproval` تبع الـ tool نفسه. أول قاعدة تنطبق هي اللي تحسم:
 
-- `allow` تنفّذ الاستدعاء، دون موافقة حتى لو كان `needsApproval` سيطلبها.
-  أما `needsApproval` الذي يمنع الاستدعاء فيبقى مانعًا له.
-- `deny` لا تنفّذه. يتلقى النموذج خطأ أداة فيه `kind: 'denied'`
-  و`reason` الخاص بالقاعدة (انظر [أخطاء الأدوات](/ar/tools))، ويظهر في البث
-  الحدث `tool.error`.
-- `ask` توقف التشغيل مؤقتًا بانتظار الموافقة، تمامًا مثل `needsApproval` (أو تسأل
-  دالة `approve`).
+- `allow` ينفّذ الـ call بدون approval، حتى لو `needsApproval` كان سيسأل.
+  بس `needsApproval` اللي يمنع الـ call يظل يمنعه.
+- `deny` ما ينفّذه. الـ model يستلم tool error فيه `kind: 'denied'`
+  و`reason` تبع القاعدة (شوف [أخطاء الأدوات](/ar/tools))، والـ streams
+  تشوف `tool.error`.
+- `ask` يوقف الـ run بانتظار approval، تمامًا مثل `needsApproval` (أو يسأل
+  الـ `approve` callback).
 
-وحين لا تنطبق أي قاعدة، يحسم `needsApproval` الخاص بالأداة، كما كان من قبل.
-`tool` اسم، أو قائمة أسماء، أو `RegExp` يُختبر على الاسم، أو
-`'*'` لكل الأدوات. و`when` يحصر القاعدة في بعض الاستدعاءات: يستقبل
-الوسائط بعد التحقق منها (بعد خطّافات `preToolCall`) و`{ toolName, toolCallId, sessionId, principal }` (`principal`: من يعمل التشغيل نيابةً عنه، ثابت؛ ويغيب حين لا توجد هوية — انظر [الهويات في الأدوات والموافقات](/ar/auth#الهويات-في-الأدوات-والموافقات))، ويجوز أن يكون غير متزامن؛ وإذا رمى خطأً فشل الاستدعاء بذلك
-الخطأ. الدوال `allow(tools)` و`deny(tools, reason?)` و`ask(tools)` تبني
-القواعد الشائعة.
+وإذا ما انطبقت أي قاعدة، `needsApproval` تبع الـ tool يحسم، مثل قبل.
+`tool` يكون اسم، أو قائمة أسماء، أو `RegExp` يُختبر على الاسم، أو
+`'*'` لكل الأدوات. و`when` يحصر القاعدة في بعض الـ calls: يستقبل
+الـ args بعد الـ validation (بعد `preToolCall` hooks) و`{ toolName, toolCallId,
+sessionId, principal }` (`principal`: اللي الـ run يشتغل بالنيابة عنه، ثابت؛
+ويغيب إذا ما فيه واحد — شوف [الهويات في الأدوات والموافقات](/ar/auth#principals-in-tools-and-approvals))،
+ويقدر يكون async؛ وإذا رمى، الـ call يفشل بنفس الـ error.
+`allow(tools)` و`deny(tools, reason?)` و`ask(tools)` تبني القواعد الشائعة.
 
 ```ts
 import { allow, ask, createAgent, defineTool, deny, type PermissionRule } from '@lousho/build-ai-agent';
@@ -115,50 +117,51 @@ const agent = createAgent({
 });
 ```
 
-`onPermissionDecision` هو سجل التدقيق: يُستدعى مرة لكل استدعاء أداة
-(عدا الاستدعاءات التي رُفضت أصلًا لعدم صلاحية وسائطها) مع
-`{ toolName, toolCallId, decision, rule?, args?, at }`. و`decision` هو
-إجراء القاعدة المنطبقة أو `'default'` حين لا تنطبق أي قاعدة، و`rule` هو
-`{ index, reason? }` لتلك القاعدة، و`at` طابع زمني بصيغة ISO، ويُحذف `args` حين
-يضبط التشغيل الخيار `redactContent`. ويتلقى البث المُدخَل نفسه في حدث `permission.decision`
-(انظر [البث](/ar/streaming)). ولا يُنتَج أيٌّ منهما إلا حين يضبط الوكيل
-`permissions` أو `onPermissionDecision`، أو وضع صلاحيات غير `'default'`.
+`onPermissionDecision` هو الـ audit log: يُستدعى مرة لكل tool call
+(ما عدا الـ calls المرفوضة أصلًا لأن الـ args غير صالحة) مع
+`{ toolName, toolCallId, decision, rule?, args?, at }`. الـ `decision` هو
+الـ `action` تبع القاعدة المنطبقة، أو `'default'` لما ما تنطبق أي قاعدة،
+و`rule` هو `{ index, reason? }` تبعها، و`at` طابع وقت ISO، و`args` يُترك
+لما الـ run يضبط `redactContent`. الـ streams تستلم نفس الإدخال كحدث
+`permission.decision` (شوف [البث](/ar/streaming)). والاثنين يُنتَجون بس لما
+الـ agent يضبط `permissions` أو `onPermissionDecision`، أو permission mode
+غير `'default'`.
 
-وللحصول على إعداد مسبق مسمّى فوق هذه القواعد - `plan` (انظر ولا تلمس)،
-أو `acceptEdits` أو `dontAsk`، ويمكن تبديله في منتصف الجلسة - راجع
+فوق القواعد هذي في presets جاهزة — `plan` (انظر ولا تلمس)، `acceptEdits`
+أو `dontAsk` — وتتبدل في نص الـ session. شوف
 [أوضاع الصلاحيات](/ar/permission-modes).
 
-الخياران متاحان أيضًا في `AgentExecutor.execute()` / `stream()` وفي
-`resumeAfterApproval()`. يرث الوكلاء الفرعيون قواعد الوكيل الرئيسي، وتُفحص
-قبل قواعد الوكيل الفرعي نفسه، ويبلّغون قراراتهم إلى
-`onPermissionDecision` الخاص بالوكيل الرئيسي.
+نفس الخيارين موجودين على `AgentExecutor.execute()` / `stream()` و
+`resumeAfterApproval()`. الـ sub-agents يرثون قواعد الـ lead agent، وتنفحص
+قبل قواعد الـ sub-agent نفسه، ويبلّغون قراراتهم لـ `onPermissionDecision`
+تبع الـ lead.
 
 ## الموافقة أو المنع أو السؤال
 
-يمكن لدالة `needsApproval` أن تُرجع أكثر من قيمة منطقية. تستقبل
-الوسائط بعد التحقق منها و`{ toolName, toolCallId, sessionId, messages, principal }`
-(`principal`: من يعمل التشغيل نيابةً عنه، انظر
-[المبادئ في الأدوات والموافقات](/ar/auth#الهويات-في-الأدوات-والموافقات))،
-وتُرجع (أو تُنجَز بـ):
+دالة `needsApproval` تقدر ترجع أكثر من boolean. تستقبل الـ args بعد
+الـ validation و`{ toolName, toolCallId, sessionId, messages, principal }`
+(`principal`: اللي الـ run يشتغل بالنيابة عنه، شوف
+[الهويات في الأدوات والموافقات](/ar/auth#principals-in-tools-and-approvals))،
+وترجع (أو resolve إلى):
 
-- `'ask'` أو `true`: التوقف المؤقت بانتظار الموافقة، كما كان من قبل.
-- `'approve'` أو `false`: تنفيذ الاستدعاء.
-- `'deny'` أو `{ deny: reason }`: لا يُنفَّذ الاستدعاء ولا يتوقف التشغيل. يتلقى النموذج
-  خطأ أداة فيه `kind: 'denied'` و`reason`، فيمكنه أن يجرّب
-  شيئًا آخر؛ ويظهر في البث الحدث `tool.error`، ويسجّل `onPermissionDecision`
-  القيمة `decision: 'deny'` مع `reason` (ومن دون `rule`).
+- `'ask'` أو `true`: وقفة بانتظار approval، مثل قبل.
+- `'approve'` أو `false`: نفّذ الـ call.
+- `'deny'` أو `{ deny: reason }`: لا تنفّذه ولا توقف. الـ model يستلم
+  tool error فيه `kind: 'denied'` والـ `reason`، فيقدر يجرب شيء ثاني؛
+  والـ streams تشوف `tool.error`، و`onPermissionDecision` يسجّل
+  `decision: 'deny'` مع الـ `reason` (وبدون `rule`).
 
-ثلاث دوال مساعدة تغطي السياسات الشائعة: `always()` (مثل `true`)،
-و`never()` (`false`) و`once()`. تسأل `once()` في أول مرة تُستدعى فيها الأداة
-في الجلسة؛ وبعد أن يوافق إنسان على استدعاء، تُنفَّذ الاستدعاءات اللاحقة لتلك الأداة في
-الجلسة نفسها دون سؤال. الرفض لا يُحفظ، والجلسة
-الجديدة تسأل من جديد. أما `once({ per: 'args' })` فتحفظ الموافقات لكل أداة مع
-وسائطها، فالاستدعاء بوسائط مختلفة يسأل من جديد. هذه الذاكرة
-محفوظة في سجل المحادثة (رسالة `tool` للاستدعاء الموافَق عليه تحمل
-`metadata.approval`)، فتُحفظ حيثما حُفظت الجلسة أو نقطة الحفظ أو
-لقطة الموافقة، وتبقى سارية بعد الاستئناف في عملية أخرى. ومن دون
-جلسة، كل `send()` سجل محادثة قائم بذاته. وإذا أزال ضغط السياق تلك الرسالة
-عادت الأداة إلى السؤال.
+في ثلاث helpers يغطون السياسات الشائعة: `always()` (نفس `true`)،
+و`never()` (`false`)، و`once()`. `once()` تسأل أول مرة يُستدعى فيها الـ tool
+في الـ session؛ بعد ما إنسان يوافق على call، الـ calls اللي بعدها لنفس الـ tool
+في نفس الـ session تنفّذ بدون سؤال. الرفض ما ينحفظ، والـ session الجديدة
+تسأل من جديد. `once({ per: 'args' })` تحفظ الـ approvals لكل tool مع
+الـ args تبعه بدل ذلك، فالـ call بـ args مختلفة يسأل من جديد. الذاكرة هذي
+تعيش في الـ transcript (رسالة `tool` تبع الـ call الموافَق عليه تحمل
+`metadata.approval`)، فتنحفظ أينما انحفظت الـ session أو الـ checkpoint أو
+الـ approval snapshot، وتظل شغالة بعد resume في process ثانية. بدون
+session، كل `send()` هو transcript قائم بحاله. وإذا الـ compaction شال
+الرسالة هذي، الـ tool يرجع يسأل.
 
 ```ts
 import { createAgent, defineTool, once } from '@lousho/build-ai-agent';
@@ -176,43 +179,44 @@ const agent = createAgent({ provider, instructions: 'You deploy services.', tool
 const chat = agent.session(); // the first staging deploy asks, later ones in this session run
 ```
 
-مع `permissions`، قاعدة `deny` تغلب دائمًا، ولا يُستدعى `needsApproval`
-الخاص بالأداة. وفيما عدا ذلك، `'deny'` (أو `{ deny }`) الصادر عن الأداة نفسها
-يمنع دائمًا، أيًّا كانت القاعدة المنطبقة. قاعدة `allow` تحل محل سؤال الأداة (فتتجاوز
-`'ask'` و`true` و`once()`)، وقاعدة `ask` توقف التشغيل مؤقتًا حتى لو كانت
-الأداة ستوافق. وإن لم تنطبق أي قاعدة، سرت نتيجة `needsApproval`
-الخاص بالأداة. ويعمل خطّاف `preToolCall` قبل هذا كله، ويمكنه أن يمنع الاستدعاء
-أولًا (انظر [نتائج الخطّافات](/ar/hooks#نتائج-الخطّافات)). أدوات MCP
-تحتفظ بقيمة `needsApproval` المستمدة من تعليقاتها التوصيفية (قيمة منطقية). ويقيّم الوكلاء الفرعيون
-`needsApproval` لأدواتهم بالطريقة نفسها، وموافقة `once()`
-الممنوحة عبر الوكيل الرئيسي تُحفظ لبقية مهمة ذلك الوكيل
-الفرعي.
+مع `permissions`، قاعدة `deny` تغلب دائمًا، و`needsApproval` تبع الـ tool
+ما يُستدعى. غير ذلك، الـ `'deny'` (أو `{ deny }`) من الـ tool نفسه يمنع
+دائمًا، مهما كانت القاعدة المنطبقة. قاعدة `allow` تاخذ مكان سؤال الـ tool
+(فتتخطى `'ask'` و`true` و`once()`)، وقاعدة `ask` توقف حتى لو الـ tool
+كان سيوافق. بدون قاعدة منطبقة، نتيجة `needsApproval` تبع الـ tool هي اللي
+تسري. `preToolCall` hook يشتغل قبل هذا كله ويقدر يمنع الـ call أولًا
+(شوف [نتائج الـ hooks](/ar/hooks#hook-outcomes)). أدوات MCP تحتفظ بـ
+`needsApproval` المشتق من الـ annotations تبعتها (boolean). والـ sub-agents
+يقيّمون `needsApproval` لأدواتهم بنفس الطريقة، والـ `once()` approval
+المعطاة عن طريق الـ lead agent تنحفظ لباقي مهمة الـ sub-agent.
 
 ## وكلاء `createAgent()`
 
-- `send()` المتوقف مؤقتًا يُنجَز (ولا يرمي خطأً) بـ
+- الـ `send()` الموقوف يُنجَز (ما يرمي error) بـ
   `finishReason: 'awaiting-approval'` ومعه `approvalId`.
-- `agent.approvals.list()` تُرجع الاستدعاءات المعلّقة التي توقف عندها هذا الوكيل في
-  هذه العملية، الأقدم أولًا: `{ id, toolCallId, toolName, args, createdAt }`،
-  مع `subagentPath` حين يكون الاستدعاء تابعًا لوكيل فرعي.
-- `agent.approvals.get(id)` تُرجع استدعاءً معلّقًا واحدًا دون أن تبتّ فيه:
-  مدخلات `list()` أولًا، ثم — مع `approvalStore` يطبّق
-  `load()` — توقفًا حُفظ قبل إعادة تشغيل، و`undefined` حين يكون المعرّف
-  غير معروف أو سبق البتّ فيه.
-- `agent.approvals.resolve({ id, approved, note? })` تنفّذ الاستدعاء (عند الموافقة)
-  أو تعطي النموذج رفضًا مع `note` الذي كتبته (عند الرفض)، ثم تتابع
-  التشغيل، وتُنجَز بنتيجة التشغيل المتابَع، وقد يتوقف مؤقتًا من جديد.
-  وترمي خطأً حين يكون `id` غير معروف أو سبق البتّ فيه.
-- التشغيل الذي توقف مؤقتًا داخل `agent.session()` يتابع في تلك الجلسة:
-  استدعاء الأداة ونتيجته والإجابة النهائية تنضم إلى سجل محادثة الجلسة.
-- `agent.stream()` و`session.stream()` ينتهيان عند التوقف المؤقت بحدث
-  `approval.requested` ثم `run.done` (`'awaiting-approval'`)؛ ويُبتّ فيه
-  بالطريقة نفسها.
+- `agent.approvals.list()` ترجع الـ calls المعلّقة اللي وقف عليها هذا الـ agent
+  في الـ process هذي، الأقدم أول: `{ id, toolCallId, toolName, args, createdAt }`،
+  زائد `subagentPath` لما الـ call تابع لـ sub-agent و`expiresAt` لما
+  للوقفة deadline (شوف [Approval expiry](#approval-expiry)). الإدخال اللي عدّى
+  `expiresAt` يظل مدرج حتى ينحسم — الـ run لا يزال واقف — بس اتخاذ القرار
+  فيه يرفض الـ call.
+- `agent.approvals.get(id)` ترجع call معلّق واحد بدون ما تحسمه:
+  إدخالات `list()` أول، بعدين — مع `approvalStore` يطبّق `load()` — وقفة
+  انحفظت قبل restart، و`undefined` إذا الـ id مجهول أو انحسم قبل.
+- `agent.approvals.resolve({ id, approved, note? })` تنفّذ الـ call (approved)
+  أو تعطي الـ model رفض مع الـ `note` تبعك (rejected)، وتكمل الـ run،
+  وتُنجَز بنتيجة الـ run المكمِّل، اللي ممكن يوقف مرة ثانية. وترمي error إذا
+  الـ `id` مجهول أو انحسم قبل.
+- الـ run اللي وقف داخل `agent.session()` يكمل في نفس الـ session: الـ
+  tool call ونتيجته والرد النهائي ينضمون لـ transcript الـ session.
+- `agent.stream()` و`session.stream()` ينتهون عند الوقفة بحدث
+  `approval.requested` و`run.done` (`'awaiting-approval'`)؛ احسمها بنفس
+  الطريقة.
 
-تُحفظ التوقفات المؤقتة في `InMemoryApprovalStore` خاص بكل وكيل ما لم تمرّر
-`approvalStore` أو `store` فيه `approvals`. وللبتّ في توقف مؤقت بعد إعادة
-التشغيل، أعطِ الوكيل مخزنًا دائمًا، مثل مخزن SQLite (انظر
-[اختيار المخزن](/ar/sessions#اختيار-المخزن)):
+الوقفات تنحفظ في `InMemoryApprovalStore` لكل agent، إلا إذا مرّرت
+`approvalStore` أو `store` فيه `approvals`. عشان تحسم وقفة بعد restart،
+أعط الـ agent durable store، مثل SQLite (شوف
+[اختيار المخزن](/ar/sessions#choosing-a-store)):
 
 ```ts
 import { createAgent } from '@lousho/build-ai-agent';
@@ -222,35 +226,85 @@ const store = new SqliteStore('./.lousho/agent.db');
 const agent = createAgent({ provider, tools: [emailTool], store }); // or approvalStore: store.approvals
 ```
 
-لا تعرف `list()` إلا التوقفات التي أحدثها كائن الوكيل هذا؛ وتجد
-`get(id)` أيضًا توقفًا ما زال المخزن الدائم يحتفظ به (مثل توقف حُفظ قبل
-إعادة تشغيل). فاحتفظ بـ `approvalId` (أو اقرأ المخزن) للبتّ في توقف مؤقت
-من مكان آخر. ولا ينضم التشغيل المتابَع إلى جلسة إلا حين يُبتّ فيه
-عبر الوكيل الذي يملك كائن تلك الجلسة.
+`list()` تعرف بس الوقفات اللي عملها كائن الـ agent هذا؛ `get(id)` تلاقي
+كمان وقفة لا يزال الـ durable store محتفظ فيها (مثل وحدة انحفظت قبل
+restart). خلّي الـ `approvalId` (أو اقرأ الـ store) عشان تحسم وقفة من مكان
+ثاني. والـ run المكمَّل ينضم لـ session بس إذا انحسم عن طريق الـ agent
+اللي يملك كائن الـ session.
 
-### الاستئناف بوكيل تغيّر
+### Approval expiry
 
-تحمل لقطة الموافقة بصمة الوكيل المتوقف، والبتّ فيها
-بوكيل يختلف نموذجه أو أدواته أو تعليماته يُصدر تحذيرًا (`'warn'`، وهو
-الافتراضي)، أو يُرفض بالخطأ `LOUSHO_AGENT_DRIFT` (`onAgentDrift: 'error'`، وتبقى
-الموافقة معلّقة)، أو يمضي دون اعتراض (`'ignore'`). والاستدعاء الموافَق عليه الذي لم تعد
-أداته موجودة يُرفض دائمًا بالخطأ `LOUSHO_RESUME_TOOL_MISSING`. انظر
-[الاستئناف بوكيل تغيّر](/ar/durable-execution#الاستئناف-بوكيل-تغيَّر).
+`createAgent({ approvalTtlMs })` يحط deadline على كل وقفة يعملها الـ agent:
+سجل الـ approval المعلّق يحفظ `expiresAt` (طابع وقت ISO-8601، مثل
+`createdAt`)، وحدث `approval.requested` في الـ stream يحمله كمان، فيقدر
+الـ UI يعرض الـ deadline. بعده، الوقفة ما تقدر تتوافَق — اتخاذ القرار فيها،
+متى وأين ما صار، يرفض الـ call: الـ model يستلم tool error بـ
+`kind: 'denied'` والسبب `'approval expired'` (الـ export
+`APPROVAL_EXPIRED_REASON`) والـ run يكمل، مثل الرفض. وقفة منتهية انحسمت
+بـ `approved: true` ما تشغّل الـ tool.
 
-عند استئناف استدعاء موافَق عليه تعمل خطّافات ما قبل الأداة من جديد، والوسائط التي
-تتركها (سواء عبر `{ input }` أو بتعديل `ctx.args` في موضعه) يجب أن تساوي
-ما وُوفق عليه، بصرف النظر عن ترتيب المفاتيح؛ وإلا رُفض الاستدعاء بخطأ أداة
-فيه `kind: 'validation'`. والخطّاف الذي يحجب أجزاءً من مدخلاته أو يوحّد صيغتها
-ينبغي أن يعمل في التشغيل المتوقف أيضًا، فيوافق الإنسان على المدخلات بعد الحجب.
+```ts
+import { createAgent, defineTool } from '@lousho/build-ai-agent';
+import { z } from 'zod';
 
-### اتخاذ القرار في الشيفرة
+const sendEmail = defineTool({
+  name: 'send_email',
+  description: 'Send an email',
+  input: z.object({ to: z.string() }),
+  needsApproval: true,
+  execute: async ({ to }) => `sent to ${to}`,
+});
+const agent = createAgent({
+  provider,
+  tools: [sendEmail],
+  approvalTtlMs: 5 * 60_000, // pauses die after five minutes unanswered
+});
+```
 
-مرّر `approve` للبتّ في كل استدعاء لحظة ظهوره بدل التوقف المؤقت: `true`
-تنفّذ الأداة، و`false` ترسل رفضًا إلى النموذج. يسري ذلك على `send()`
-والجلسات و`agent.approvals.resolve()`؛ أما `stream()` فيبقى ينتهي عند التوقف المؤقت.
-وقيمة `principal` في وسيطها هي صاحب الاستدعاء، و
-`agent.approvals.resolve(decision, { principal })` تسجّل من اتخذ القرار بوصفه
-`ctx.approval.by` للأداة (انظر [auth](/ar/auth#من-وافق)).
+- الـ expiry ينفحص لما تنحسم الوقفة، فيظل شغال عبر `approvalStore` دائم
+  (run مستأنَف في process ثانية أو بعد restart يشوف الرفض، مو approval
+  قديمة) وعبر `agent.approvals.resolve()` و`streamResolve()` على حد سواء.
+- إذا `approve` callback لا يزال منتظر عند الـ deadline، ينقطع: الـ
+  `send()` / turn في الـ session يستأنف مع الرفض.
+- `send(message, { approvalTtlMs })` يتجاوزه لـ run واحد.
+- `ttlMs` في قاعدة صلاحيات يحدّد بس وقفات القاعدة هذي ويغلب على افتراضي
+  الـ agent: `{ tool: 'deploy', action: 'ask', ttlMs: 30_000 }`، أو
+  `ask('deploy', { ttlMs: 30_000 })`.
+- الـ run اللي يحتفظ audit log يسجّل الـ expiry كقرار `deny` مع
+  `reason: 'approval expired'` (شوف `onPermissionDecision` فوق).
+- بدونه، الوقفات ما تنتهي أبدًا — نفس قبل.
+
+### الاستئناف بـ agent تغيّر
+
+الـ approval snapshot تحمل بصمة الـ agent الموقوف، واتخاذ القرار فيها بـ
+agent يختلف الـ model أو الـ tools أو الـ instructions تبعه يطلع تحذير
+(`'warn'`، الافتراضي)، أو يُرفض بـ `LOUSHO_AGENT_DRIFT` (`onAgentDrift: 'error'`،
+والـ approval تظل معلّقة)، أو يكمل (`'ignore'`). الـ call الموافَق عليه اللي
+ما عاد الـ tool تبعه موجود يُرفض دائمًا بـ `LOUSHO_RESUME_TOOL_MISSING`.
+شوف [الاستئناف بوكيل تغيّر](/ar/durable-execution#استئناف-run-بعد-ما-يتغير-الـ-agent).
+
+عند استئناف call موافَق عليه، الـ pre-tool hooks تشتغل مرة ثانية، والـ args
+اللي تخليها (سواء عبر `{ input }` أو بتغيير `ctx.args` في مكانه) يجب تساوي
+اللي انوافق عليه، ما عدا ترتيب المفاتيح؛ وإلا يُرفض الـ call بـ tool error
+فيه `kind: 'validation'`. الـ hook اللي يحجب أجزاء من مدخلاته أو يوحّدها
+يجب يشتغل على الـ run الموقوف كمان، عشان الإنسان يوافق على المدخلات بعد
+الحجب. إعادة التشغيل هذي تضبط `ctx.resumedAfterApproval: true`، فيقدر
+الـ hook اللي يجب يشتغل مرة وحدة بس لكل call (loop guard، عداد تدقيق)
+يتخطاه.
+
+### اتخاذ القرار في الكود
+
+مرّر `approve` عشان تحسم كل call لما يطلع بدل الوقفة: `true` تشغّل الـ
+tool، `false` ترسل للـ model رفض، ونص يوافق مع النص كـ note (رد على
+`ask_question`). القيمة الحرفية `'defer'` ما تحسم: الـ call يظل معلّق —
+مدرج في `agent.approvals.list()` وينحسم بـ `agent.approvals.resolve()` —
+والـ run يطلع الوقفة (`send()` تُنجَز بـ `finishReason: 'awaiting-approval'`)،
+تمامًا كأن الـ callback ما انسأل أصلًا. يعني الـ approver يقدر يحسم
+تلقائيًا الـ calls اللي يثق فيها ويسلّم الباقي لإنسان. يسري على `send()`
+والـ sessions و`agent.approvals.resolve()`؛ `stream()` لا يزال ينتهي عند
+الوقفة. والـ `principal` في وسيطها هو صاحب الـ call، و
+`agent.approvals.resolve(decision, { principal })` تسجّل من حسم كـ
+`ctx.approval.by` للـ tool (شوف [auth](/ar/auth#من-وافق)).
 
 ```ts
 import { createAgent } from '@lousho/build-ai-agent';
@@ -262,19 +316,19 @@ const trusted = createAgent({
 });
 ```
 
-### بث التشغيل المتابَع
+### Streaming للـ run المكمَّل
 
 `agent.approvals.streamResolve(decision, { signal })` و
-`agent.approvals.streamAnswer({ id, answer }, { signal })` تتابعان التشغيل
-مثل `resolve()` و`answer()`، لكنهما تُرجعان `AgentRun` نفسه الذي
-تُرجعه `agent.stream()` (انظر [البث](/ar/streaming#البث-بعد-الموافقة)):
-`run.start`، ثم `tool.resume` و`tool.done` للاستدعاء الذي بُتّ فيه (و`tool.error` عند
-الرفض؛ `tool.resume` لا `tool.start` ثانيًا، لأن التشغيل المتوقف قد أبلغ عن بدء
-ذلك الاستدعاء من قبل)، ثم أحداث المتابعة حتى `run.done`. و`run.result`
-هو ما تُنجَز به `resolve()`. والمتابعة التي تتوقف مؤقتًا من جديد تنتهي بـ
-`approval.requested` ثم `run.done` (`'awaiting-approval'`)، حتى مع وجود
-دالة `approve`، كما يفعل `stream()`. والتوقف المؤقت الذي حدث داخل جلسة
-يتابع في تلك الجلسة، ويأتي `run.done` بعد حفظ سجل المحادثة.
+`agent.approvals.streamAnswer({ id, answer }, { signal })` يكملون الـ run
+مثل `resolve()` و`answer()`، بس يرجعون نفس الـ `AgentRun` اللي ترجعه
+`agent.stream()` (شوف [البث](/ar/streaming#الـ-streaming-بعد-الـ-approval)):
+`run.start`، بعدين `tool.resume` و`tool.done` للـ call المحسوم
+(`tool.error` عند الرفض؛ `tool.resume` وليس `tool.start` ثاني، لأن الـ run
+الموقوف أصلًا بلّغ عن بدء الـ call)، بعدين أحداث الاستكمال حتى `run.done`.
+و`run.result` هو اللي تُنجَز به `resolve()`. الاستكمال اللي يوقف مرة ثانية
+ينتهي بـ `approval.requested` و`run.done` (`'awaiting-approval'`)، حتى مع
+`approve` callback، مثل `stream()`. والوقفة اللي صارت داخل session تكمل في
+نفس الـ session، و`run.done` يجي بعد ما الـ transcript ينحفظ.
 
 ```ts
 import { createAgent } from '@lousho/build-ai-agent';
@@ -290,28 +344,28 @@ if (paused.approvalId) {
 }
 ```
 
-## طرح سؤال على المستخدم
+## سؤال المستخدم
 
-`createAgent({ askQuestion: true })` يعطي الوكيل الأداة المضمّنة
-`ask_question` (معطّلة افتراضيًا؛ و`askQuestionTool()` تُرجع الأداة نفسها
-لتمرّرها في `tools` بنفسك). مدخلاتها هي
-`{ question: string; options?: string[]; allowFreeText?: boolean }`. واستدعاؤها
-يوقف التشغيل مؤقتًا عبر آلية الموافقات، فينتظر تمامًا كما تنتظر
-الموافقة: في الجلسات، وفي المخازن الدائمة، وعبر إعادة التشغيل.
+`createAgent({ askQuestion: true })` يعطي الـ agent الـ tool المدمج
+`ask_question` (مُعطّل افتراضيًا؛ `askQuestionTool()` ترجع نفس الـ tool عشان
+تمرّره في `tools` بنفسك). الـ input تبعه
+`{ question: string; options?: string[]; allowFreeText?: boolean }`. والـ call
+يوقف الـ run عبر آلية الـ approvals، فينتظر تمامًا مثل الـ approval: في الـ
+sessions، وفي الـ durable stores، وعبر الـ restart.
 
-- يحمل السجل المعلّق `kind: 'question'` و
+- السجل المعلّق فيه `kind: 'question'` و
   `question: { text, options?, allowFreeText? }`، في `agent.approvals.list()`
-  وفي دالة `approve` وفي الحدث `approval.requested`، فتستطيع واجهة المستخدم أن
-  تعرض سؤالًا بدل زر موافقة.
-- `agent.approvals.answer({ id, answer })` (وهي مثل
-  `resolve({ id, approved: true, note: answer })`) تتابع التشغيل. يتلقى
-  النموذج `{ answer, option? }`، حيث `option` هو فهرس العنصر المطابق
-  في `options` (دون تمييز بين حالة الأحرف). ومع `allowFreeText: false`، الإجابة
-  الخارجة عن الخيارات تصل إلى النموذج خطأَ أداة.
-- `resolve({ id, approved: false, note? })` تمتنع عن الإجابة: يتلقى النموذج
-  خطأ أداة فيه `kind: 'rejected'` يفيد بأن المستخدم امتنع عن الإجابة.
-- يجوز لدالة `approve` أن تُرجع نصًا للإجابة من الشيفرة، وهذا مفيد
-  في الاختبارات والوكلاء المُبرمَجة ردودهم سلفًا.
+  وفي الـ `approve` callback وعلى حدث `approval.requested`، فيقدر الـ UI
+  يعرض سؤال بدل زر موافقة.
+- `agent.approvals.answer({ id, answer })` (نفس
+  `resolve({ id, approved: true, note: answer })`) يكمل الـ run. الـ model
+  يستلم `{ answer, option? }`، و`option` هو index العنصر المطابق في
+  `options` (بدون حساسية لحالة الأحرف). مع `allowFreeText: false`، الرد
+  اللي خارج الخيارات يوصل للـ model كـ tool error.
+- `resolve({ id, approved: false, note? })` تمتنع: الـ model يستلم
+  tool error فيه `kind: 'rejected'` يقول إن المستخدم امتنع عن الإجابة.
+- `approve` callback يقدر يرجع نص عشان يجاوب من الكود، وهذا مفيد في
+  الاختبارات والـ agents اللي تشتغل بسكربت.
 
 ```ts
 import { createAgent } from '@lousho/build-ai-agent';
@@ -334,21 +388,21 @@ const scripted = createAgent({
 });
 ```
 
-قاعدة الصلاحيات التي تطبّق `allow` على `ask_question` تتجاوز التوقف المؤقت، فيفشل
-الاستدعاء بالرسالة "No answer"؛ فاترك الأداة على سلوكها الافتراضي.
+قاعدة `permissions` اللي تعمل `allow` لـ `ask_question` تتخطى الوقفة،
+فيفشل الـ call بـ "No answer"؛ خلّي الـ tool على الافتراضي.
 
-الأداة التي تحتاج إلى أن يسجّل المستخدم دخوله إلى مزوّد OAuth تتوقف مؤقتًا بالطريقة نفسها،
-مع `kind: 'sign-in'` والرابط في `signIn`؛ انظر
-[الأدوات التي تحتاج إلى تسجيل دخول](/ar/oauth#أدوات-تحتاج-إلى-تسجيل-الدخول).
+الـ tool اللي يحتاج المستخدم يسجّل دخوله لـ OAuth provider يوقف بنفس
+الطريقة، مع `kind: 'sign-in'` والرابط في `signIn`؛ شوف
+[الأدوات التي تحتاج إلى تسجيل دخول](/ar/oauth#أدوات-تحتاج-تسجيل-دخول).
 
-## متقدم: واجهة المنفّذ
+## متقدم: الـ executor API
 
-وكلاء `createAgent()` يستخدمون `agent.approvals` (انظر
-[وكلاء `createAgent()`](#وكلاء-createagent)). أما عند استخدام `AgentExecutor.execute()`
-مباشرة (انظر [واجهة المنفّذ](/ar/executor-api))، فمرّر `approvalStore`. عند استدعاء
-يتطلب موافقة يحفظ المنفّذ `ExecutionSnapshot` بدل استدعاء
-الأداة. استأنف لاحقًا، بعد إعادة تشغيل حقيقية إن شئت، عبر
-`resumeAfterApproval()`:
+وكلاء `createAgent()` يستخدمون `agent.approvals` (شوف
+[وكلاء `createAgent()`](#وكلاء-createagent)). لما تستخدم
+`AgentExecutor.execute()` مباشرة (شوف [الـ executor API](/ar/executor-api))،
+مرّر `approvalStore`. عند call يحتاج approval، الـ executor يحفظ
+`ExecutionSnapshot` بدل ما ينادي الـ tool. استأنف بعدين، حتى بعد restart
+حقيقي إذا أردت، بـ `resumeAfterApproval()`:
 
 ```ts
 import { AgentExecutor, resumeAfterApproval } from '@lousho/build-ai-agent/executor';
@@ -371,30 +425,29 @@ const result = await resumeAfterApproval(
 ```
 
 `resumeAfterApproval(decision, store, registry, provider, options?, checkpointStore?)`
-تقبل معظم خيارات التنفيذ في `execute()` (مثل `signal` و
-`onAgentEvent` و`exporter`). ومع `sessionId` + `checkpointStore`، تُسجَّل للتوقف المؤقت
-نقطة حفظ أيضًا، ويرمي `execute()` بذلك الـ `sessionId` الخطأ
-`SessionAwaitingApprovalError` إلى أن يُبتّ في الموافقة، فلا يمكن
-تجاوز موافقة معلّقة (انظر [التنفيذ المتين](/ar/durable-execution)).
-و`streamResumeAfterApproval()` تقبل الوسائط نفسها وتبث
-التشغيل المتابَع في `AgentRun` (انظر
-[البث بعد الموافقة](/ar/streaming#البث-بعد-الموافقة)).
+ياخد أغلب خيارات التنفيذ تبع `execute()` (مثل `signal` و`onAgentEvent`
+و`exporter`). مع `sessionId` + `checkpointStore`، الوقفة كمان تتسجّل كـ
+checkpoint، و`execute()` بنفس الـ `sessionId` يرمي
+`SessionAwaitingApprovalError` حتى ينحسم الـ approval، فما تقدر تتخطى
+approval معلّق (شوف [Durable execution](/ar/durable-execution)).
+و`streamResumeAfterApproval()` ياخد نفس الوسائط ويعمل stream للـ run
+المكمَّل كـ `AgentRun` (شوف [البث بعد الموافقة](/ar/streaming#الـ-streaming-بعد-الـ-approval)).
 
-| المخزن | أين يُحفظ التوقف المؤقت |
+| الـ store | أين تعيش الوقفة |
 | ----- | --------------------- |
-| `InMemoryApprovalStore` | هذه العملية فقط؛ وهو الافتراضي في `createAgent()`. |
+| `InMemoryApprovalStore` | الـ process هذي بس؛ الافتراضي لـ `createAgent()`. |
 | `StorageServiceApprovalStore(storage)` | ملفات JSON عبر `StorageService`. |
-| `fileStore(dir)` | ملف JSON واحد لكل توقف مؤقت، `<dir>/approvals/<id>.json`، على جهاز واحد؛ ولا يبتّ في الموافقة إلا عملية واحدة (انظر [اختيار المخزن](/ar/sessions#اختيار-المخزن)). |
-| `SqliteStore.approvals` | ملف SQLite واحد، تتشاركه عدة عمليات بأمان؛ ولا يبتّ في الموافقة إلا واحدة منها. |
+| `fileStore(dir)` | ملف JSON لكل وقفة، `<dir>/approvals/<id>.json`، على جهاز واحد؛ الـ approval ينحسم من process واحدة بس (شوف [اختيار المخزن](/ar/sessions#choosing-a-store)). |
+| `SqliteStore.approvals` | ملف SQLite واحد، تتشاركه عدة processes بأمان؛ الـ approval ينحسم من وحدة منهم بس. |
 
 ## في مواضع أخرى
 
-- **الوكلاء الفرعيون.** الأداة التي تتطلب موافقة داخل وكيل فرعي توقف تشغيل الوكيل الرئيسي مؤقتًا؛
-  ويُبتّ فيها عبر `agent.approvals` الخاص بالوكيل الرئيسي. انظر
-  [الموافقات داخل وكيل فرعي](/ar/sub-agents#الموافقات-داخل-وكيل-فرعي).
-- **أدوات مساحة العمل.** أداة الصدفة (shell) تتطلب موافقة افتراضيًا. انظر
+- **Sub-agents.** الـ tool اللي يحتاج approval داخل sub-agent يوقف run الـ
+  lead؛ `agent.approvals` تبع الـ lead يحسمه. شوف
+  [الموافقات داخل وكيل فرعي](/ar/sub-agents#approvals-inside-a-sub-agent).
+- **أدوات مساحة العمل.** الـ shell tool عليه approval افتراضيًا. شوف
   [أدوات مساحة العمل](/ar/workspace-tools).
-- **MCP.** الأدوات التي تتطلب موافقة لا يمكن الموافقة عليها عبر MCP؛ انظر
-  [تقديم وكيل عبر MCP](/ar/mcp-integration#تقديم-وكيل-عبر-mcp).
-- **Agent Forge** يعرض الموافقات المعلّقة بطاقاتٍ مضمّنة في محادثته؛ انظر
-  [Agent Forge](/ar/agent-forge).
+- **MCP.** الأدوات اللي عليها approval ما تقدر تتوافَق عبر MCP؛ شوف
+  [تقديم وكيل عبر MCP](/ar/mcp-integration#تشغيل-agent-كسيرفر-mcp).
+- **Agent Forge** يعرض الـ approvals المعلّقة كبطاقات داخل الشات تبعه؛
+  شوف [Agent Forge](/ar/agent-forge).

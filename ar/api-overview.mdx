@@ -1,7 +1,7 @@
 ---
-title: "نظرة عامة على الواجهة البرمجية"
-sidebarTitle: "نظرة عامة على الواجهة البرمجية"
-description: "يصدّر جذر الحزمة (@lousho/build-ai-agent) كل ما يرد أدناه. للحصول على المرجع الكامل المولَّد للواجهة البرمجية (كل عنصر مُصدَّر وكل توقيع وكل تعليق توثيقي)، ابنِ موقع TypeDoc:"
+title: "نظرة عامة على الـ API"
+sidebarTitle: "نظرة عامة على الـ API"
+description: "جذر الحزمة (@lousho/build-ai-agent) يصدّر كل شيء أدناه. للمرجع الكامل المولّد للـ API (كل export وكل signature وكل تعليق توثيقي)، ابنِ موقع TypeDoc:"
 ---
 {/* Generated from docs/api-overview.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
@@ -9,7 +9,7 @@ description: "يصدّر جذر الحزمة (@lousho/build-ai-agent) كل ما 
 npm run docs:build   # writes docs/api/index.html
 ```
 
-كيف تترابط المكوّنات:
+كيف تترابط القطع:
 
 ```text
 ┌─────────────────────────────────────┐
@@ -38,36 +38,37 @@ npm run docs:build   # writes docs/api/index.html
 └─────────────────────────────────────┘
 ```
 
-## بناء الوكلاء وتشغيلهم
+## بناء الـ agents وتشغيلها
 
-| العنصر المُصدَّر | الوصف |
+| Export                        | الوصف                                                                 |
 | ----------------------------- | --------------------------------------------------------------------------- |
-| `createAgent(config)`         | وكيل بواجهة `{ send(message) }` لا يحتاج إلى أي إعداد، يُنشأ من سلسلة `model` نصية أو من مزوّد (مع التعليمات والأدوات). |
-| `AgentBuilder` (من `@lousho/build-ai-agent/executor`) | بانٍ بأسلوب الاستدعاءات المتسلسلة (fluent builder) لإنشاء `AgentConfig` (`AgentBuilder.create().setName(...)...build()`). استخدام متقدم: انظر [واجهة المنفِّذ](/ar/executor-api). |
-| `AgentExecutor.execute(opts)` (من `@lousho/build-ai-agent/executor`) | منفّذ ساكن (static): يشغّل وكيلًا (النموذج مع حلقة استدعاء الأدوات) ويُحَلّ (resolve) بقيمة `ExecutionResult`. استخدام متقدم: انظر [واجهة المنفِّذ](/ar/executor-api). |
-| `resumeAfterApproval()` (من `@lousho/build-ai-agent/executor`) | استئناف تنفيذ متوقف مؤقتًا بانتظار موافقة بشرية. استخدام متقدم: انظر [واجهة المنفِّذ](/ar/executor-api). |
-| `InMemoryApprovalStore`       | مخزن `ApprovalStore` محلي داخل العملية؛ وهو المخزن الافتراضي للوكلاء المُنشأين بـ `createAgent()`. |
-| `StorageServiceApprovalStore`, `LocalStorageCheckpointStore` (من `/utils`) | مخزنان للموافقات ونقاط الحفظ (checkpoints) يعتمدان على الملفات فوق `StorageService` (انظر [الموافقات](/ar/approvals) و[التنفيذ المتين](/ar/durable-execution)). |
-| `SqliteStore` (من `/sqlite`) | الجلسات ونقاط الحفظ والموافقات في ملف SQLite واحد (انظر [الجلسات](/ar/sessions#اختيار-المخزن)). |
-| `fileStore(dir)`              | الجلسات ونقاط الحفظ والموافقات في ملفات JSON عادية تحت `dir` (انظر [الجلسات](/ar/sessions#اختيار-المخزن)). |
-| `KVStore`, `KVCheckpointStore` (من `/kv`) | مخازن فوق ارتباط Cloudflare Workers KV، لـ Worker تكتبه يدويًا (انظر [النشر](/ar/deployment)). |
-| `AgentStore`, `memoryStore()` | الخيار `createAgent({ store })`: `{ sessions?, checkpoints?, approvals?, tokens? }`، ومخزن جاهز يعمل في الذاكرة (انظر [الجلسات](/ar/sessions#اختيار-المخزن)؛ ويحفظ `tokens` رموز OAuth، انظر [OAuth](/ar/oauth)). |
-| `SessionAwaitingApprovalError` | يرميه `execute()` عندما تكون الجلسة ذات الـ `sessionId` المُمرَّر إليه متوقفة مؤقتًا بانتظار موافقة (انظر [التنفيذ المتين](/ar/durable-execution)). |
-| `SDKError`, `ERROR_CODES`    | الصنف الأساسي لأخطاء الـ SDK: `code` ثابت و`hint` ورابط `docs` (انظر [الأخطاء](/ar/errors)). |
+| `createAgent(config)`         | agent بدون إعدادات بواجهة `{ send(message) }`، من string في `model` أو من provider (مع instructions وtools). |
+| `AgentBuilder` (من `@lousho/build-ai-agent/executor`) | builder بأسلوب fluent لـ `AgentConfig` (`AgentBuilder.create().setName(...)...build()`). متقدم: راجع [واجهة الـ executor](/ar/executor-api). |
+| `AgentExecutor.execute(opts)` (من `@lousho/build-ai-agent/executor`) | executor ساكن (static): يشغّل agent (LLM + حلقة tool calls) ويرجّع `ExecutionResult`. متقدم: راجع [واجهة الـ executor](/ar/executor-api). |
+| `resumeAfterApproval()` (من `@lousho/build-ai-agent/executor`) | استئناف execution متوقف على approval (موافقة) بشري. متقدم: راجع [واجهة الـ executor](/ar/executor-api). |
+| `InMemoryApprovalStore`       | `ApprovalStore` محلي داخل الـ process؛ هو الـ store الافتراضي للـ agents التي تُنشأ بـ `createAgent()`. |
+| `StorageServiceApprovalStore`, `LocalStorageCheckpointStore` (من `/utils`) | stores للـ approvals والـ checkpoints مبنية على ملفات فوق `StorageService` (راجع [Approvals](/ar/approvals) و[Durable execution](/ar/durable-execution)). |
+| `SqliteStore` (من `/sqlite`) | sessions وcheckpoints وapprovals في ملف SQLite واحد (راجع [Sessions](/ar/sessions#choosing-a-store)). |
+| `fileStore(dir)`              | sessions وcheckpoints وapprovals كملفات JSON عادية تحت `dir` (راجع [Sessions](/ar/sessions#choosing-a-store)). |
+| `KVStore`, `KVCheckpointStore` (من `/kv`) | stores على binding من Cloudflare Workers KV، لـ Worker تكتبه بنفسك (راجع [النشر](/ar/deployment)). |
+| `AgentStore`, `memoryStore()` | خيار `createAgent({ store })`: `{ sessions?, checkpoints?, approvals?, tokens? }`، وواحد يشتغل في الذاكرة (راجع [Sessions](/ar/sessions#choosing-a-store)؛ `tokens` فيه tokens الـ OAuth، راجع [OAuth](/ar/oauth)). |
+| `SessionAwaitingApprovalError` | يرميه `execute()` إذا الـ `sessionId` الممرّر متوقف على approval (راجع [Durable execution](/ar/durable-execution)). |
+| `SDKError`, `ERROR_CODES`    | الكلاس الأساس لأخطاء الـ SDK: `code` ثابت و`hint` ورابط `docs` (راجع [الأخطاء](/ar/errors)). |
 
-### الإعداد الديناميكي
+### Dynamic config
 
-كلٌّ من `model` و`instructions` (أو `prompt`) و`tools` في `createAgent()` يقبل
-القيمة الثابتة أو دالة تأخذ سياق التشغيل، `(ctx) => value | Promise<value>`
-(النوع `PerRun<T>`). و`ctx` هو `{ sessionId?, input, metadata?, principal? }` (النوع
-`RunConfigContext`): أي `sessionId` المُمرَّر إلى `send()` / `stream()` أو معرّف
-`agent.session()`، ومدخلات المستخدم في هذا التشغيل، وخيار الاستدعاء `metadata` في
-`send()` و`stream()` و`session.send()` و`session.stream()`، والمُتصل الذي قبلته مصادقة التشغيل (`principal`، ويغيب حين لا يمرِّر الاستدعاء متصلًا). تُنفَّذ هذه الدوال
-مرة واحدة عند بدء التشغيل، قبل أول استدعاء للنموذج، ثم مرة أخرى في كل دورة من
-دورات الجلسة. وكل ما عدا ذلك يُطبَّق على ما تعيده: `fallbackModels`
-و`retry` و`projectInstructions` والذاكرة والمهارات والوكلاء الفرعيون وأدوات MCP
-والصلاحيات والموافقات وحواجز الحماية. والوكيل الديناميكي المستخدَم وكيلًا فرعيًا
-تُحسَب إعداداته باعتبار موجّه المهمة هو `input`.
+`model` و`instructions` (أو `prompt`) و`tools` في `createAgent()` كل خيار فيهم
+يقبل القيمة الثابتة أو دالة على الـ run: `(ctx) => value | Promise<value>`
+(النوع `PerRun<T>`). الـ `ctx` هو `{ sessionId?, input, metadata?, principal? }` (النوع
+`RunConfigContext`): فيه الـ `sessionId` الممرّر لـ `send()` / `stream()` أو معرّف
+`agent.session()`، وإدخال المستخدم في الـ run، وخيار الاستدعاء `metadata` في
+`send()` و`stream()` و`session.send()` و`session.stream()`، والمتصل اللي قبلته
+مصادقة الـ run (`principal`، يغيب إذا الاستدعاء ما مرّر متصل). الدوال تنفّذ
+مرة وحدة لما يبدأ الـ run، قبل أول model call، ومرة ثانية في كل turn في الـ
+session. وكل شيء ثاني ينطبق على اللي ترجعه: `fallbackModels` و`retry` و
+`projectInstructions` والـ memory والـ skills والـ sub-agents وtools الـ MCP
+والصلاحيات والـ approvals والـ guardrails. وإذا استخدمت agent ديناميكي كـ
+sub-agent، الـ `input` يكون هو task prompt.
 
 ```ts
 import { createAgent, defineTool } from '@lousho/build-ai-agent';
@@ -87,145 +88,148 @@ const agent = createAgent({
 await agent.send('Hi', { metadata: { tenant: 'Globex', role: 'admin' } });
 ```
 
-الدالة التي ترمي خطأً تُفشل التشغيل بالخطأ `LOUSHO_CONFIG_RESOLVER_FAILED`
-(يحمل `error.field` اسم الخيار، و`error.cause` هو الخطأ المرمي): يُرفَض وعد `send()`،
-وينتهي `stream()` بحدث `error`، وتحتفظ الجلسة بسجل محادثتها كما كان. والتشغيل
-المتوقف مؤقتًا بانتظار موافقة أو سؤال يحتفظ في لقطة التوقف بـ `ctx` وبالنموذج
-الذي انتهت إليه الدالة: فاستئنافه، ولو من عملية أخرى، يستخدم ذلك النموذج (لا
-يتبدّل النموذج أبدًا في منتصف الدورة) ويستدعي دالة `tools` من جديد بالـ `ctx`
-نفسه. أما التشغيل المستأنَف من نقطة حفظ بعد انهيار (`agent.resume(id)`) فتُحسَب
-إعداداته من جديد مع `input: []` ومن دون `metadata`. وإذا كانت القيم كلها ثابتة
-فلا يتغير شيء: يُبنى الوكيل مرة واحدة عند إنشائه.
+الدالة إذا رمت خطأ، الـ run يفشل بـ `LOUSHO_CONFIG_RESOLVER_FAILED`
+(`error.field` يسمّي الخيار، و`error.cause` هو الخطأ المرمي): `send()` يرفض،
+و`stream()` ينتهي بحدث `error`، والـ session تحتفظ بالـ transcript مثل ما كان.
+الـ run المتوقف على approval أو سؤال يحتفظ بالـ `ctx` وبالـ model اللي حسمه في
+snapshot التوقف: استئنافه، حتى من process ثانية، يستخدم ذلك الـ model (ما
+يتبدّل أبدًا في منتصف الـ turn) ويستدعي دالة `tools` مرة ثانية بنفس الـ `ctx`.
+أما الـ run المستأنف من checkpoint بعد crash (`agent.resume(id)`) فينحسب من
+جديد مع `input: []` وبدون `metadata`. وإذا كل القيم ثابتة، ما يتغير شيء: الـ
+agent يتبنّى مرة وحدة لما تنشئه.
 
-### الربط بواجهات المستخدم
+### UI bindings
 
-يصدّر `@lousho/build-ai-agent/react` الدالة `useLoushoAgent(source, options?)`، وهي
-خطّاف React يشغّل وكيلًا داخل العملية نفسها (`{ agent, sessionId? }`) أو عبر HTTP
-(`{ url }`) ويعيد `messages` و`status` و`pendingApproval` و`send()` و`stop()`
-و`approve()` و`reject()`. وتُصدَّر كذلك أجزاؤه المستقلة عن أي إطار عمل،
-`reduceAgentEvents()` و`parseEventStream()`. انظر
-[React](/ar/react). ويصدّر `@lousho/build-ai-agent/vue` الدالة
-`useLoushoAgent()` نفسها في صورة composable لـ Vue 3، مع الحالة في صورة refs. انظر
-[Vue](/ar/vue). ويصدّر `@lousho/build-ai-agent/svelte` الدالة `loushoAgent()`، وهي
-الحالة والإجراءات نفسها في صورة مخزن Svelte (`$agent`). انظر [Svelte](/ar/svelte).
+`@lousho/build-ai-agent/react` يصدّر `useLoushoAgent(source, options?)`، وهو
+React hook يشغّل agent داخل نفس الـ process (`{ agent, sessionId? }`) أو عبر HTTP
+(`{ url }`)، ويرجّع `messages` و`status` و`pendingApproval` و
+`send()` و`stop()` و`approve()` و`reject()`. أجزاؤه المحايدة عن الـ framework —
+`reduceAgentEvents()` و`parseEventStream()` — مُصدّرة أيضًا. راجع
+[React](/ar/react). `@lousho/build-ai-agent/vue` يصدّر نفس `useLoushoAgent()`
+كـ composable لـ Vue 3، والحالة فيه refs. راجع [Vue](/ar/vue). و
+`@lousho/build-ai-agent/svelte` يصدّر `loushoAgent()`، نفس الحالة والأفعال كـ
+Svelte store (`$agent`). راجع [Svelte](/ar/svelte).
 
-### الوكلاء الفرعيون
+### Sub-agents
 
-مرِّر `subagents: { researcher, writer }` (وكلاء من `createAgent()` لكل منهم
-`description`، أو فهرسًا بصيغة `{ list, resolve }`) إلى `createAgent()` أو
-`AgentExecutor.execute()`: فيحصل الوكيل الرئيسي على أداة `task` للتفويض، وعلى أدوات المهام الخلفية الثلاث
-`agent_status` و`agent_await` و`agent_cancel`، وعلى قائمة
-بالوكلاء الفرعيين في موجّهه، ويعمل كل وكيل فرعي على موجّه المهمة وحده، ويرث من
-تشغيل الوكيل الرئيسي الإشارة (signal) والخطّافات (`ctx.subagent`) والتتبّع ومخزن
-الموافقات ومستمعي الأحداث (`event.subagent`). ويحدّ `maxSubagentDepth` (الافتراضي 1)
-من عمق التداخل. انظر
-[الوكلاء الفرعيون](/ar/sub-agents).
+مرّر `subagents: { researcher, writer }` (agents من `createAgent()` لكل واحد فيهم
+`description`، أو catalog بصيغة `{ list, resolve }`) إلى `createAgent()` أو
+`AgentExecutor.execute()`. الـ agent الرئيسي يحصل على tool باسم `task` للتفويض،
+وعلى tools المهام الخلفية الثلاث `agent_status` و`agent_await` و`agent_cancel`،
+وعلى قائمة بالـ sub-agents في الـ prompt. كل sub-agent يشتغل على task prompt
+لوحده، ويرث من run الـ agent الرئيسي: الـ signal والـ hooks (`ctx.subagent`)
+والـ tracing وstore الـ approvals وevent listeners (`event.subagent`).
+`maxSubagentDepth` (الافتراضي 1) يحدّ عمق التداخل. راجع
+[Sub-agents](/ar/sub-agents).
 
-### الموافقات
+### Approvals
 
-الوكيل المُنشأ بـ `createAgent()` يتوقف مؤقتًا عند أداة تحمل `needsApproval` بدل أن يفشل:
-يُحَلّ `send()` (وكذلك `session.send()`) بـ `finishReason: 'awaiting-approval'`
-ومعه `approvalId`. يعيد `agent.approvals.list()` الاستدعاءات المعلّقة، أما
-`agent.approvals.resolve({ id, approved, note? })` فينفّذ الاستدعاء أو يرفضه ثم
-يُحَلّ بنتيجة التشغيل بعد متابعته (مواصلًا الجلسة التي توقف فيها). تُحفَظ حالات
-التوقف في `InMemoryApprovalStore` خاص بكل وكيل ما لم تمرِّر
-`approvalStore` (مثل `SqliteStore.approvals`) أو `store`؛ والخيار `approve: (request: PendingApproval) => boolean | string | Promise<boolean | string>`
-يبتّ في كل استدعاء برمجيًا من دون توقف (لكنّ `stream()` يظل ينتهي عند نقطة
-التوقف) — ويحمل `request` الاستدعاء مع `kind` و`principal`. ومع `askQuestion: true` يستطيع الوكيل أن يطرح سؤالًا على المستخدم
-(`kind: 'question'`)، ويُجاب عنه بـ `agent.approvals.answer({ id, answer })`.
-انظر [الموافقات](/ar/approvals).
+الـ agent اللي تبنيه بـ `createAgent()` يوقف مؤقتًا عند tool عليها `needsApproval`
+بدل ما يفشل: `send()` (و`session.send()`) يرجّع `finishReason: 'awaiting-approval'`
+مع `approvalId`. `agent.approvals.list()` يرجّع الاستدعاءات المعلّقة، و
+`agent.approvals.resolve({ id, approved, note? })` ينفّذ الاستدعاء أو يرفضه
+ويرجّع نتيجة الـ run بعد ما كمّل (يكمّل نفس الـ session اللي وقف فيها).
+التوقفات تنحفظ في `InMemoryApprovalStore` خاص بكل agent إلا إذا مرّرت
+`approvalStore` (مثل `SqliteStore.approvals`) أو `store`. والخيار
+`approve: (request: PendingApproval) => boolean | string | Promise<boolean | string>`
+يحسم كل استدعاء من الكود بدون توقف (`stream()` يظل ينتهي عند التوقف) —
+`request` يحمل الاستدعاء مع `kind` و`principal`. ومع `askQuestion: true` يقدر
+الـ agent يسأل المستخدم (`kind: 'question'`)، وتجاوب بـ
+`agent.approvals.answer({ id, answer })`. راجع [Approvals](/ar/approvals).
 
-### المخرجات المنظَّمة
+### Structured output
 
-مرِّر `output: zodSchema` إلى `createAgent()` (أو `AgentExecutor.execute()` /
-`stream()`): عندها يجب أن يكون الرد النهائي كائن JSON مطابقًا للمخطط، ويُحَلّ
-`send()` / `run.result` به بعد التحقق منه في `result.object`، بالنوع
-`z.output<typeof schema>` (ويحتفظ `result.text` بنص JSON الخام). وتُنفَّذ الأدوات
-أولًا كالمعتاد. يحمل كل استدعاء للنموذج التلميح `responseFormat: { type: 'json', schema }`،
-وتحوّله المزوّدات المبنية على `ai` SDK إلى وضع JSON. وإذا كان الرد غير صالح مُنح
-النموذج خطوة إصلاح واحدة تسرد المشكلات (وتُحتسَب من `maxSteps`)؛ فإن بقي غير
-صالح انتهى التشغيل بـ `finishReason: 'output-invalid'` و
-`outputError: { message, issues }`. انظر [المخرجات المنظَّمة](/ar/structured-output).
+مرّر `output: zodSchema` إلى `createAgent()` (أو `AgentExecutor.execute()` /
+`stream()`): الرد الأخير لازم يكون كائن JSON يطابق الـ schema، و
+`send()` / `run.result` يرجّعه بعد الـ validation كـ `result.object` بالنوع
+`z.output<typeof schema>` (`result.text` يحتفظ بـ JSON الخام). الـ tools
+تشتغل أول مثل العادة. كل model call يحمل hint باسم
+`responseFormat: { type: 'json', schema }`، وproviders الـ `ai` SDK يحوّلونه
+إلى JSON mode. الرد غير الصالح يحصل على خطوة repair وحدة تسرد المشاكل (تنحسب
+من `maxSteps`)؛ إذا ظل غير صالح، الـ run ينتهي بـ
+`finishReason: 'output-invalid'` و`outputError: { message, issues }`. راجع
+[Structured output](/ar/structured-output).
 
-### المهارات
+### Skills
 
-مرِّر `skills: [defineSkill({ name, description, content }), ...(await loadSkills(dir))]` إلى
-`createAgent()` أو `AgentExecutor.execute()`: فلا يدخل في موجّه النظام سوى الأسماء
-والأوصاف، ويحمّل النموذج محتوى المهارات عبر أداة `load_skill` تُسجَّل تلقائيًا.
-انظر [المهارات](/ar/skills).
+مرّر `skills: [defineSkill({ name, description, content }), ...(await loadSkills(dir))]`
+إلى `createAgent()` أو `AgentExecutor.execute()`: بس الأسماء والأوصاف تدخل الـ
+system prompt، والـ model يحمّل محتوى كل skill عبر tool باسم `load_skill`
+تتسجّل تلقائيًا. راجع [Skills](/ar/skills).
 
 ### الذاكرة
 
-مرِّر `memory: [defineMemory({ name, scope, provider })]` إلى `createAgent()`
-للاحتفاظ بعناصر عبر المحادثات: يستحضر كل تشغيل أحدث عناصر كل خانة (slot) إلى
-موجّه النظام عند أول استدعاء للنموذج، ويحصل النموذج على الأداتين
-`remember_<name>` / `recall_<name>`. و`scope` إما `'global'` أو `'session'`
-أو دالة تأخذ `{ sessionId, metadata }`؛ و`inMemoryMemory()` و
-`fileMemory({ dir })` هما المزوّدان المضمّنان. انظر [الذاكرة](/ar/memory).
+مرّر `memory: [defineMemory({ name, scope, provider })]` إلى `createAgent()`
+عشان تحتفظ بعناصر عبر المحادثات: كل run يستحضر أحدث عناصر كل slot في الـ
+system prompt عند أول model call، والـ model يحصل على tools باسم
+`remember_<name>` / `recall_<name>`. الـ `scope` إما `'global'` أو `'session'`
+أو دالة على `{ sessionId, metadata }`. `inMemoryMemory()` و
+`fileMemory({ dir })` هما الـ providers المدمجة. راجع [الذاكرة](/ar/memory).
 
-### التنفيذ المتين
+### Durable execution
 
-يجعل الخياران `sessionId` + `checkpointStore` التشغيل آمنًا من الانهيار والجلسة
-متعددة الدورات: تُسجَّل نقطة حفظ للتشغيل بعد كل رد من النموذج وكل نتيجة أداة
-وكل توقف مؤقت، واستدعاء `execute()` مرة أخرى بالـ `sessionId` نفسه
-يستأنف تشغيلًا لم يكتمل (من دون إعادة استدعاء النموذج من أجل دورة حصل عليها من
-قبل)، أو يواصل محادثة منتهية بالمدخلات الجديدة، أو يرمي
-`SessionAwaitingApprovalError` ما دامت هناك موافقة معلّقة. وتُنفَّذ الأدوات مرة
-واحدة على الأقل (at-least-once) عند وقوع انهيار؛ ويتلقى `execute` المعرّف
-`toolCallId` الخاص بالاستدعاء لاستخدامه مفتاحًا لمنع التكرار (idempotency key). انظر
-[التنفيذ المتين](/ar/durable-execution) لمعرفة الضمانات بدقة.
+مع `sessionId` + `checkpointStore` يصير الـ run آمن من الـ crash والـ session
+متعددة الـ turns: الـ run ينحط له checkpoint بعد كل رد من الـ model وكل نتيجة
+tool وكل توقف مؤقت، واستدعاء `execute()` مرة ثانية بنفس الـ `sessionId` يكمّل
+run ما خلص (بدون ما يعيد الـ model call لـ turn صار عنده)، أو يواصل محادثة
+منتهية بالإدخال الجديد، أو يرمي `SessionAwaitingApprovalError` ما دام في
+approval معلّق. الـ tools تنفّذ at-least-once عبر الـ crash، و`execute`
+يستقبل `toolCallId` الخاص بالاستدعاء لتستخدمه كـ idempotency key. راجع
+[Durable execution](/ar/durable-execution) للضمانات بالضبط.
 
-كيف ينتهي التشغيل (أسباب الانتهاء)، وكيف يُلغى، وكيف تُنفَّذ استدعاءات الأدوات بالتوازي: انظر [التشغيلات](/ar/runs).
+كيف ينتهي الـ run (أسباب الإنهاء)، وكيف تلغي واحد، وكيف تنفّذ الـ tool calls
+بالتوازي: راجع [Runs](/ar/runs).
 
-## ملفات المواصفات التصريحية
+## Declarative specs
 
-| العنصر المُصدَّر | الوصف |
+| Export             | الوصف                                                    |
 | ------------------ | -------------------------------------------------------------- |
-| `loadSpec(path)`   | تحميل ملف `AgentSpec` بصيغة `.yaml`/`.yml`/`.json` والتحقق منه. |
-| `agentSpecSchema`  | مخطط zod الخاص بـ `AgentSpec`. |
-| `specToAgent(spec)` | تحويل `AgentSpec` إلى وكيل `createAgent()` حيّ. |
+| `loadSpec(path)`   | يحمّل ملف `AgentSpec` بصيغة `.yaml`/`.yml`/`.json` ويتحقق منه. |
+| `agentSpecSchema`  | الـ zod schema لـ `AgentSpec`. |
+| `specToAgent(spec)` | يحوّل `AgentSpec` إلى agent `createAgent()` شغّال. |
 
-## المزوّدون
+## Providers
 
-| العنصر المُصدَّر | الوصف |
+| Export                          | الوصف                                                  |
 | ------------------------------- | ------------------------------------------------------------ |
-| `resolveProvider('p/model')`    | بناء مزوّد حقيقي من بيانات اعتماد مأخوذة من متغيرات البيئة. |
-| `LLMProviderRegistry`           | سجل لمصانع المزوّدين (`create`، `register`، `has`). |
-| `OpenAIProvider`, `AnthropicProvider`, `OllamaProvider`, `OpenRouterProvider` | أصناف المزوّدين. |
-| `createMockProvider()`, `MockLLMProvider` | مزوّد وهمي حتمي للاختبارات والعروض التوضيحية. |
-| `withRetry(provider, opts?)`, `withFallback(providers, opts?)` | إعادة محاولة إخفاقات المزوّد العابرة مع تراجع زمني (backoff)؛ والانتقال إلى المزوّد التالي بديلًا احتياطيًا. انظر [الإعدادات](/ar/configuration#إعادة-المحاولة-والبديل-الاحتياطي-لدى-المزوّد). |
-| `textOf(message)`               | نص الرسالة: `content` إن كان سلسلة نصية، أو أجزاؤها النصية مجتمعةً. |
+| `resolveProvider('p/model')`    | يبني provider حقيقي من credentials في env vars. |
+| `LLMProviderRegistry`           | registry لـ factories الـ providers (`create` و`register` و`has`). |
+| `OpenAIProvider`, `AnthropicProvider`, `OllamaProvider`, `OpenRouterProvider` | كلاسات الـ providers. |
+| `createMockProvider()`, `MockLLMProvider` | mock provider محدّد النتائج (deterministic) للاختبارات والديمو. |
+| `withRetry(provider, opts?)`, `withFallback(providers, opts?)` | retry لأخطاء الـ provider العابرة مع backoff، أو fallback للـ provider اللي بعده. راجع [Configuration](/ar/configuration#الـ-retry-والـ-fallback-عند-الـ-provider). |
+| `textOf(message)`               | نص الرسالة: `content` إذا كان string، أو أجزاؤه النصية مجموعة. |
 
-`Message.content` سلسلة نصية أو قائمة من عناصر `ContentPart` (`text`، `image`،
-`file`)؛ والمزوّدون المضمّنون يرسلون أجزاء الصور في رسائل المستخدم. انظر
-[المدخلات متعددة الوسائط](/ar/providers#الإدخال-متعدد-الوسائط).
+`Message.content` إما string أو قائمة `ContentPart` (`text`، `image`،
+`file`)؛ الـ providers المدمجة ترسل أجزاء الصور في رسائل المستخدم. راجع
+[Multimodal input](/ar/providers#إدخال-multimodal).
 
-انظر [المزوّدون](/ar/providers) لمعرفة كيف تُفسَّر سلسلة النموذج النصية وأيّ نموذج يُشغَّل.
+راجع [Providers](/ar/providers) لتعرف كيف ينحلّ الـ model string وأي model
+يشتغل.
 
 ## الاختبار
 
-تُصدَّر من `@lousho/build-ai-agent/testing` (انظر [اختبار الوكلاء](/ar/testing)).
+مُصدَّرة من `@lousho/build-ai-agent/testing` (راجع [اختبار الـ agents](/ar/testing)).
 
-| العنصر المُصدَّر | الوصف |
+| Export                | الوصف                                                                              |
 | --------------------- | ---------------------------------------------------------------------------------------- |
-| `mockModel(script)`   | `LLMProvider` حتمي يتبع نصًّا مُعدًّا مسبقًا ويسجّل كل طلب (`calls`، `lastCall`، `reset()`، `assertExhausted()`). |
-| `recordReplay(options)` | مزوّد تسجيل وإعادة تشغيل (VCR) يقدّم ردود النموذج من شريط تسجيل (cassette). |
+| `mockModel(script)`   | `LLMProvider` سكربتي وdeterministic يسجّل كل request (`calls`، `lastCall`، `reset()`، `assertExhausted()`). |
+| `recordReplay(options)` | provider بأسلوب record/replay (VCR) يقدّم ردود الـ model من cassette. |
 
-## الأدوات
+## Tools
 
-| العنصر المُصدَّر | الوصف |
+| Export                                       | الوصف                                   |
 | -------------------------------------------- | --------------------------------------------- |
-| `defineTool({ name, description, input, execute, ... })` | تعريف أداة؛ تُستنتَج أنواع وسائط `execute`/`needsApproval` من `input` المعرَّف بـ zod. تقبلها `createAgent({ tools: [...] })` و`ToolRegistry.register(tool)` و`AgentBuilder.addTool(tool)`. |
-| `ToolInput<typeof t>`, `ToolOutput<typeof t>` | نوعا الوسائط والنتيجة لأداة معرَّفة. |
-| `ToolRegistry` (من `@lousho/build-ai-agent/tools` أو `@lousho/build-ai-agent/executor`) | يحتفظ بالأدوات التي يشير إليها إعداد الوكيل (استخدام متقدم: `register(tool)` أو `register(name, descriptor)`). |
-| `httpTool`, `currentDateTool`, `dayNameTool` | أدوات مضمّنة. |
-| `createFsTools(fs, options?)`, `createShellTool(shell, options?)` | أدوات مساحة العمل (`read_file`، `write_file`، `edit_file`، `list_dir`، `glob`، `grep`، `shell`) فوق `FsProvider` / `ShellProvider`. انظر [أدوات مساحة العمل](/ar/workspace-tools). |
-| `NodeWorkspace`, `MemoryWorkspace`, `SandboxShell` | مزوّدو مساحة العمل: مجلد حقيقي (المسارات محصورة داخل `root`، وبيئة shell بأقل قدر من المتغيرات)، وشجرة في الذاكرة مع `exec` مُعدّ مسبقًا للاختبارات، و`ShellProvider` فوق `SandboxAdapter` (Docker). |
-| `createTodoTools({ store?, onChange? })`     | الأداتان `todo_write` / `todo_read` (مع `getTodos()`) ليتمكن الوكلاء من تخطيط الأعمال متعددة الخطوات ومتابعتها؛ انظر [أدوات قائمة المهام](/ar/tools#أدوات-قائمة-المهام). |
-| `connectMcp(servers, options?)`             | الاتصال بخوادم MCP انطلاقًا من الإعداد (stdio أو HTTP) وتحميل أدواتها؛ انظر [مشاركة الخوادم عبر `connectMcp()`](/ar/mcp-integration#مشاركة-الخوادم-عبر-connectmcp). |
-| `loadMcpTools(client, connectionName)`       | تحميل أدوات خادم MCP متصل في صورة `ToolDescriptor`. متاحة من جذر الحزمة ومن `@lousho/build-ai-agent/tools` و`@lousho/build-ai-agent/mcp`. |
+| `defineTool({ name, description, input, execute, ... })` | تعريف tool؛ وسائط `execute` و`needsApproval` تأخذ typesها من الـ `input` بـ zod. تقبلها `createAgent({ tools: [...] })` و`ToolRegistry.register(tool)` و`AgentBuilder.addTool(tool)`. |
+| `ToolInput<typeof t>`, `ToolOutput<typeof t>` | types الوسائط والنتيجة لـ tool معرّفة. |
+| `ToolRegistry` (من `@lousho/build-ai-agent/tools` أو `@lousho/build-ai-agent/executor`) | يمسك الـ tools اللي يشير لها config الـ agent (متقدم: `register(tool)` أو `register(name, descriptor)`). |
+| `httpTool`, `currentDateTool`, `dayNameTool` | tools مدمجة. |
+| `createFsTools(fs, options?)`, `createShellTool(shell, options?)` | tools للـ workspace (`read_file`، `write_file`، `edit_file`، `list_dir`، `glob`، `grep`، `shell`) فوق `FsProvider` / `ShellProvider`. راجع [tools الـ workspace](/ar/workspace-tools). |
+| `NodeWorkspace`, `MemoryWorkspace`, `SandboxShell` | providers للـ workspace: مجلد حقيقي (المسارات محصورة داخل `root`، وبيئة shell فيها الحد الأدنى)، وشجرة في الذاكرة مع `exec` سكربتي للاختبارات، و`ShellProvider` فوق `SandboxAdapter` (Docker). |
+| `createTodoTools({ store?, onChange? })`     | tools باسم `todo_write` / `todo_read` (مع `getTodos()`) تخلّي الـ agents يخططون الشغل متعدد الخطوات ويتابعونه؛ راجع [tools الـ todo](/ar/tools#todo-tools). |
+| `connectMcp(servers, options?)`             | يتصل بسيرفرات MCP من الـ config (stdio أو HTTP) ويحمّل tools حقّهم؛ راجع [مشاركة السيرفرات عبر `connectMcp()`](/ar/mcp-integration#مشاركة-السيرفرات-عبر-connectmcp). |
+| `loadMcpTools(client, connectionName)`       | يحمّل tools سيرفر MCP متصل كـ `ToolDescriptor`. متاحة من جذر الحزمة ومن `@lousho/build-ai-agent/tools` و`@lousho/build-ai-agent/mcp`. |
 
-انظر [الأدوات](/ar/tools) للاطلاع على دليل تعريف الأدوات وتسجيلها.
+راجع [Tools](/ar/tools) لدليل تعريف الـ tools وتسجيلها.
 
 ```ts
 import { defineTool } from '@lousho/build-ai-agent';
@@ -242,16 +246,16 @@ const sendEmail = defineTool({
 });
 ```
 
-الحقول الاختيارية: `displayName` و`needsApproval` (قيمة منطقية أو دالة شرطية)
-و`requiresSandbox` و`sandboxExecute`. تعريف الأداة يتحقق فورًا من اسمها ووصفها
-و`input` المعرَّف بـ zod؛ وتسجيل أداتين بالاسم نفسه يرمي خطأً يذكر موضع
+الحقول الاختيارية: `displayName` و`needsApproval` (boolean أو predicate)
+و`requiresSandbox` و`sandboxExecute`. تعريف الـ tool يتحقق فورًا من اسمها
+ووصفها والـ `input` بـ zod، وتسجيل tool بنفس الاسم مرتين يرمي خطأ يذكر موضع
 التعارض.
 
-الأداة المعرَّفة تحمل مخططها في `inputSchema` (وهو مخطط zod نفسه الموجود في
-`input`) وتحمل دالة `execute` مباشرة. هذان هما الحقلان المعتمَدان في
-`ToolDescriptor`؛ أما الكائن `.tool` (وهو `{ description, parameters,
-execute }` بصيغة `ai` v4) فقديم، وما زال يُبنى حفاظًا على التوافق، ولا يُستخدَم إلا مع
-الواصفات التي لا تحدّد `inputSchema` / `execute`.
+الـ tool المعرّفة تحمل الـ schema في `inputSchema` (نفس الـ zod schema في
+`input`) ودالة `execute` مباشرة. هذان الحقلان هما المعتمدان في
+`ToolDescriptor`. أما كائن `.tool` (`{ description, parameters, execute }` بصيغة
+`ai` v4) فهو legacy: يُبنى للتوافق فقط، ويُستخدم بس مع descriptors التي ما
+تحدد `inputSchema` / `execute`.
 
 ```ts
 import { loadMcpTools } from '@lousho/build-ai-agent/mcp';
@@ -259,24 +263,24 @@ import { loadMcpTools } from '@lousho/build-ai-agent/mcp';
 const tools = await loadMcpTools(mcpClient, 'my-server');
 ```
 
-**دعم المخططات.** يُحوَّل `inputSchema` (بصيغة JSON Schema) الخاص بكل أداة إلى
-مخطط zod، ويُتحقَّق من وسائط النموذج وفقه قبل استدعاء الخادم. يعالج المحوِّل
-`type` (بما فيه المصفوفات مثل `["string", "null"]`)، و`enum` بأنواع مختلطة،
-و`const`، و`anyOf` / `oneOf` (اتحاد؛ و`anyOf: [X, { type: "null" }]` يصبح
-`X.nullable()`)، و`allOf` (دمج / تقاطع)، و`$ref` المحلي إلى `$defs` / `definitions`،
-و`properties` / `required`، و`additionalProperties` (قيمة منطقية أو مخطط)، و`items`،
+**دعم الـ schema.** `inputSchema` (بصيغة JSON Schema) لكل tool يتحوّل إلى zod
+schema، ووسائط الـ model تُفحَص مقابله قبل استدعاء السيرفر. المحوّل يعالج
+`type` (منها المصفوفات مثل `["string", "null"]`)، و`enum` بأنواع مختلطة، و`const`،
+و`anyOf` / `oneOf` (union؛ `anyOf: [X, { type: "null" }]` تصير `X.nullable()`)،
+و`allOf` (دمج / intersection)، و`$ref` المحلي داخل `$defs` / `definitions`،
+و`properties` / `required`، و`additionalProperties` (boolean أو schema)، و`items`،
 و`default`، والقيود `minimum` و`maximum` و`exclusiveMinimum`
-و`exclusiveMaximum` و`minLength` و`maxLength` و`pattern` و`minItems`
-و`maxItems`. وحيث يكون JSON Schema ملتبسًا يكون التحويل متساهلًا: الكلمات
-المفتاحية غير المعروفة والمخططات الفارغة و`items` بصيغة الصفوف (tuple) والمراجع
-التي يتعذّر حلّها تصبح `z.any()`، و`$ref` التعاودي يُوسَّع مرة واحدة ويُستخدَم
-`z.any()` للموضع الداخلي، ويُتجاهَل التعبير النمطي غير الصالح في `pattern`،
-وتحتفظ الكائنات بالخصائص الإضافية ما لم يكن `additionalProperties` مساويًا
-`false`. ولا يرمي المحوِّل خطأً أبدًا بسبب محتوى المخطط.
+و`exclusiveMaximum` و`minLength` و`maxLength` و`pattern` و`minItems` و
+`maxItems`. ولما يكون JSON Schema ملتبس، يكون التحويل متساهل: الكلمات المفتاحية
+غير المعروفة والـ schemas الفارغة و`items` بصيغة tuple والـ refs التي ما تنحلّ
+تصير `z.any()`، والـ `$ref` التعاودي يتوسّع مرة وحدة ويُستخدم `z.any()` للموضع
+الداخلي، وregex غير صالح في `pattern` يتخطّى، والكائنات تحتفظ بخصائص إضافية
+إلا إذا `additionalProperties` كان `false`. المحوّل ما يرمي خطأ أبدًا بسبب
+محتوى الـ schema.
 
-**الأدوات المتخطّاة.** إذا تعذّر مع ذلك تحويل أداة ما فتُتخطّى تلك الأداة
-وحدها؛ وتُحمَّل بقية أدوات الخادم. مرِّر `logger` لتتلقى تحذيرًا يذكر الخادم
-والأداة والسبب، و`onSkip` لتجمع ما استُبعد:
+**الـ tools المتخطّاة.** إذا tool وحدة ما قدرت تتحوّل، هي بس اللي تتخطّى؛ باقي
+tools السيرفر تتحمّل. مرّر `logger` عشان يوصلك تحذير يذكر السيرفر والـ tool
+والسبب، و`onSkip` عشان تجمع اللي انترك:
 
 ```ts
 import { loadMcpTools, type SkippedMcpTool } from '@lousho/build-ai-agent/mcp';
@@ -288,56 +292,59 @@ const tools = await loadMcpTools(mcpClient, 'my-server', {
 });
 ```
 
-**النتائج.** نتيجة MCP التي تحمل `isError: true` هي إخفاق أداة عادي: يتلقى
-النموذج `{ "error": "McpToolError", "toolName": "...", "message": "..." }`
-حيث `message` هو المحتوى النصي الوارد من الخادم. والنتائج الناجحة قابلة للتسلسل
-بصيغة JSON: إذا أعاد الخادم `structuredContent` فهو كائن النتيجة؛ وإلا فالنتيجة
-`{ text, content }`، حيث يجمع `text` كل الأجزاء النصية ويحتفظ `content` بكل
-الأجزاء بترتيبها (`text`، `image`، `audio`، `resource`، `resource_link`؛ والجزء
-الذي لا يُعرَف نوعه يُحتفَظ به في صورة `{ type: 'unknown', raw }`). وعندما يرد
-`structuredContent` مع أجزاء غير نصية تكون النتيجة
-`{ structuredContent, text, content }` ويضم `content` الأجزاء غير النصية فقط،
-فلا تُسقَط الصور ولا الصوت ولا الموارد أبدًا.
+**النتائج.** نتيجة MCP التي فيها `isError: true` هي فشل tool عادي: الـ model
+يستقبل `{ "error": "McpToolError", "toolName": "...", "message": "..." }` و
+`message` فيه المحتوى النصي اللي رجّعه السيرفر. النتائج الناجحة قابلة للتسلسل
+كـ JSON: إذا السيرفر رجّع `structuredContent`، هو كائن النتيجة؛ وإلا النتيجة
+`{ text, content }`، بحيث `text` يجمع كل الأجزاء النصية و`content` يحتفظ بكل
+جزء بترتيبه (`text`، `image`، `audio`، `resource`، `resource_link`؛ والجزء
+اللي نوعه غير معروف ينحتفظ به كـ `{ type: 'unknown', raw }`). وإذا وصل
+`structuredContent` مع أجزاء غير نصية، تصير النتيجة
+`{ structuredContent, text, content }` و`content` فيه بس الأجزاء غير النصية،
+عشان الصور والصوت والموارد ما تنرمي أبدًا.
 
-أدوات قائمة المهام وأخطاء الأدوات: انظر [الأدوات](/ar/tools#أدوات-قائمة-المهام).
+tools الـ todo وأخطاء الـ tools: راجع [Tools](/ar/tools#todo-tools).
 
-## النماذج والرموز والتكلفة
+## الـ models والـ tokens والتكلفة
 
-تقديرات الرموز (tokens)، وجدول أسعار النماذج، واستهلاك التشغيل وتكلفته: انظر [النماذج والرموز والتكلفة](/ar/models-and-cost). أما ضغط السياق فله [صفحته الخاصة](/ar/compaction).
+تقديرات الـ tokens، وجدول أسعار الـ models، واستهلاك الـ run وتكلفته: راجع
+[الـ models والـ tokens والتكلفة](/ar/models-and-cost). الـ context compaction
+له [صفحة خاصة](/ar/compaction).
 
-## مسارات العمل والتقييمات والمراقبة والأمان
+## Flows وevals وobservability والأمان
 
-- `FlowBuilder` / `FlowExecutor` (`@lousho/build-ai-agent/flows`) - مخططات بيانية (graphs) لمسارات عمل متعددة الخطوات؛ انظر [مسارات العمل](/ar/flows).
-- `WebhookTriggerAdapter` و`SlackTriggerAdapter` و`CronTriggerAdapter` و`TriggerRegistry`
-  (`@lousho/build-ai-agent/triggers`) - توقظ الوكيل عند ورود webhook أو رسالة Slack
-  أو حلول موعد في جدول زمني؛ انظر [المُشغِّلات](/ar/triggers).
+- `FlowBuilder` / `FlowExecutor` (`@lousho/build-ai-agent/flows`) - graphs
+  لمسارات شغل متعددة الخطوات؛ راجع [Flows](/ar/flows).
+- `WebhookTriggerAdapter` و`SlackTriggerAdapter` و`CronTriggerAdapter` و
+  `TriggerRegistry` (`@lousho/build-ai-agent/triggers`) - توقظ الـ agent من
+  webhook أو رسالة Slack أو جدول زمني؛ راجع [Triggers](/ar/triggers).
 - `jwt()` و`oidc()` و`basic()` و`apiToken()` و`anonymous()` و`routeAuth()`
-  (`@lousho/build-ai-agent/auth`) - مصادقة المسارات في صورة قائمة مرتّبة؛ والمستدعي
-  الذي تقبله يصل إلى التشغيل بوصفه `principal`؛ انظر [مصادقة المسارات والهويات](/ar/auth).
-- `defineEval()`، ودوال التقييم (scorers) مثل `exactMatch` و`toolCallOrder` و`budget`، والفحوص
-  مثل `includes` و`atLeast`، و`llmJudge()` - تقييمات للوكلاء تُشغَّل تحت vitest
-  أو `lousho eval`؛ انظر [التقييمات](/ar/evals).
-- `withSpan()` و`TraceExporter` - التتبّع لـ `AgentExecutor.execute()`.
-  و`TraceExporter` واجهة تأتي أنت بمصدِّرها (لا يأتي مع الحزمة أي مصدِّر
-  افتراضيًا)؛ وللحصول على مقاطع تتبّع (spans) حقيقية في OpenTelemetry، استورد
-  `createOtelTraceExporter()` من المسار الفرعي `@lousho/build-ai-agent/otel`
-  (يتطلب الاعتمادية النظيرة الاختيارية `@opentelemetry/api`)
-  بدل أن تكتب جسر OTel بنفسك - انظر
-  `examples/tracing/run-otel.ts`. تتبع المقاطع الاصطلاحات الدلالية لـ GenAI في
-  OpenTelemetry (ومسارات العمل تُتتبَّع أيضًا)؛ انظر
-  [المراقبة](/ar/observability).
-- `NoopSandbox` / `SubprocessSandbox` - العزل للأدوات التي تختاره عبر
-  `requiresSandbox`؛ و`runPatchChecks()` وفحوص الرقع مثل
+  (`@lousho/build-ai-agent/auth`) - auth على الـ routes كقائمة مرتبة؛ المتصل
+  اللي تقبله يوصل الـ run كـ `principal`؛ راجع
+  [Route auth and principals](/ar/auth).
+- `defineEval()`، وscorers مثل `exactMatch` و`toolCallOrder` و`budget`، وفحوص
+  مثل `includes` و`atLeast`، و`llmJudge()` - evals للـ agents تشتغل تحت vitest
+  أو `lousho eval`؛ راجع [Evals](/ar/evals).
+- `withSpan()` و`TraceExporter` - tracing لـ `AgentExecutor.execute()`.
+  `TraceExporter` واجهة BYO: الحزمة ما تشحن مع أي exporter افتراضي. ولـ spans
+  حقيقية في OpenTelemetry، استورد `createOtelTraceExporter()` من الـ subpath
+  `@lousho/build-ai-agent/otel` (يحتاج الـ peer dependency الاختيارية
+  `@opentelemetry/api`) بدل ما تكتب جسر OTel بنفسك - راجع
+  `examples/tracing/run-otel.ts`. الـ spans تتبع الـ GenAI semantic conventions
+  الخاصة بـ OpenTelemetry (والـ flows تتتبّع أيضًا)؛ راجع
+  [observability](/ar/observability).
+- `NoopSandbox` / `SubprocessSandbox` - sandbox للـ tools التي تختاره عبر
+  `requiresSandbox`؛ و`runPatchChecks()` وفحوص الـ patch مثل
   `createCommandCheck()` و`createDiffSizeCheck()` و
-  `secretScanCheck`. انظر [حواجز الحماية والعزل](/ar/guardrails).
+  `secretScanCheck`. راجع [Guardrails وsandboxing](/ar/guardrails).
 - `HookRegistry` و`AgentHook` و`HookContext` و`ToolCallHookContext` و
-  `GenerateHookContext` - خطّافات تراقب استدعاءات الأدوات واستدعاءات النموذج أو ترفضها
-  أو تعيد كتابتها أو تحجب أجزاء منها. انظر [الخطّافات](/ar/hooks).
+  `GenerateHookContext` - hooks تراقب الـ tool calls والـ model calls أو ترفضها
+  أو تعيد كتابتها أو تحجب أجزاء منها. راجع [Hooks](/ar/hooks).
 - `EncryptionUtils` و`sha256` و`StorageService`
-  (`@lousho/build-ai-agent/utils`) - أدوات مساعدة داعمة؛ انظر
-  [الأدوات المساعدة](/ar/utilities).
+  (`@lousho/build-ai-agent/utils`) - أدوات مساعدة داعمة؛ راجع
+  [Utilities](/ar/utilities).
 
 ## النشر
 
 - `DeploymentAdapter` و`registerAdapter()` و`getAdapter()` و`listAdapters()` -
-  سجل المحوِّلات الذي يقوم عليه `lousho build` (انظر [النشر](/ar/deployment)).
+  registry الـ adapters اللي وراء `lousho build` (راجع [النشر](/ar/deployment)).

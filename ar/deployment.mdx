@@ -3,52 +3,54 @@ title: "النشر"
 ---
 {/* Generated from docs/deployment.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-يحوّل `lousho build` ملف مواصفات الوكيل (انظر [الإعدادات](/ar/configuration)) إلى ناتج بناء قابل للنشر على منصة مستهدفة واحدة:
+`lousho build` يأخذ ملف spec للـagent (راجع [الإعداد](/ar/configuration)) ويطلع منه artifact جاهز للنشر على منصة واحدة:
 
 ```bash
 npx lousho build --target=<target> --agent=agent.yaml [--out=<dir>]
 ```
 
-يشغّل مهايئ (adapter) الهدف عبر ثلاث خطوات: **الهيكلة (scaffold)** (كتابة نقطة الدخول وملفات المنصة في `--out`، والافتراضي `.lousho/build/<target>`)، و**البناء (build)** (التحزيم بـ`tsup`)، و**الوصف (describe)** (طباعة الأمر الذي يشغّل الناتج أو ينشره). يجب أن يكون `tsup` مثبّتًا (`npm install --save-dev tsup`).
+يشغّل الأمر الـadapter تبع الـtarget على ثلاث خطوات: **scaffold** يكتب نقطة الدخول وملفات المنصة داخل `--out` (الافتراضي `.lousho/build/<target>`)، **build** يعمل bundle بـ`tsup`، و**describe** يطبع الأمر اللي يشغّل الناتج أو ينشره. لازم `tsup` يكون مثبت (`npm install --save-dev tsup`).
 
-| الهدف               | المخرجات                                                 | الأمر المطبوع                                                          |
+| Target              | Output                                                   | Printed command                                                        |
 | ------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------- |
 | `node-server`       | `server.ts`, `agent.config.js`, `package.json`, `dist/server.js` | `node dist/server.js`                                                  |
-| `docker`            | كل ما يكتبه `node-server`، إضافةً إلى `Dockerfile`       | `docker build -t lousho-agent . && docker run -p 3000:3000 lousho-agent` |
+| `docker`            | كل اللي يكتبه `node-server`، زائد `Dockerfile`           | `docker build -t lousho-agent . && docker run -p 3000:3000 lousho-agent` |
 | `cloudflare-worker` | `worker.ts`, `agent.config.js`, `wrangler.toml`, `dist/worker.js` | `wrangler deploy`                                                      |
 
-كل هدف يجيب عن `GET /health` (`200 ok`) ويقدّم [واجهة HTTP](#واجهة-http) الكاملة أدناه: الجلسات، والبث عبر SSE، والموافقات، والمصادقة برمز الوصول (bearer token).
+كل target يرد على `GET /health` (`200 ok`) ويقدّم [HTTP API](#http-api) الكامل تحت: sessions، وSSE streaming، وapprovals، وbearer auth.
 
-## مجلدات الوكيل
+## مجلدات الـagent
 
-تقبل الأهداف الثلاثة أيضًا [مجلد وكيل](/ar/agent-directories) بدل ملف المواصفات (يمكن تمرير المسار وسيطًا موضعيًا أو عبر `--agent`):
+الأهداف الثلاثة تقبل كمان [مجلد agent](/ar/agent-directories) بدل ملف spec (المسار يجي positional أو عبر `--agent`):
 
 ```bash
 npx lousho build ./my-agent --target=node-server
 node .lousho/build/node-server/dist/server.js
 ```
 
-يستدعي `server.ts` المولَّد `resolveAgentDir()` على `dist/agent` ثم `createDeployedServer(agent, { schedules, channels })`، فتبدأ العملية [الجداول الزمنية](/ar/schedules) الخاصة بالمجلد حين تبدأ الاستماع، وتركّب [قنواته](/ar/channels) تحت `/channels` (وهي تتحقق من طلباتها بنفسها؛ أما مسارات المحادثة فتبقى محمية برمز الوصول)، وتكتب في السجل `schedules: ...; channels: ...`. تُحزَّم ملفات الشيفرة في المجلد مسبقًا في خطوة tsup ضمن البناء إلى `dist/agent/**.js` (بناء ESM واحد يتشارك نسخة واحدة من SDK، فالاستيراد `from '@lousho/build-ai-agent'` في أداة ما يشير إلى SDK نفسها التي يشغّلها الخادم)، ويُنسخ باقي المجلد؛ ولا شيء يحتاج إلى محمِّل TypeScript وقت التشغيل. ويصبح `dist/` عندئذ ESM (وهذا ما يصرّح به `dist/package.json`). وتنسخه صورة Docker كما في السابق. البيئة المعزولة (sandbox) الاختيارية `dockerode` لا تُحزَّم (فهي تُحمَّل عند الحاجة فقط)، فالمجلد الذي يستخدم `SubprocessSandbox` يجب أن يثبّتها حيث يعمل.
+الـ`server.ts` المولّد ينادي `resolveAgentDir()` على `dist/agent` وبعدين `createDeployedServer(agent, { schedules, channels })`. يعني العملية تشغّل [schedules](/ar/schedules) تبع المجلد لما تبلش تسمع، وتركّب [channels](/ar/channels) تحت `/channels` — الـchannels تتحقق من طلباتها بنفسها، ومسارات الشات تظل محمية بالـbearer token — وتطبع في اللوج `schedules: ...; channels: ...`.
 
-يبني هدف Cloudflare Worker إعدادات المجلد و`instructions.md` و`tools/` و`skills/`؛ ويرفض `subagents/` و`schedules/` و`channels/` و`memory/` و`projectInstructions` وأي `model` يكون مزوّده غير متاح في Worker، مع تسمية ما يجب إزالته. تعمل الأدوات داخل Worker بصلاحياته، ولا يجوز أن تستورد إلا الجزء الصالح للعمل في Worker من `@lousho/build-ai-agent` (التفاصيل في [Cloudflare Workers](/ar/cloudflare-workers#البناء-والنشر)):
+ملفات الكود في المجلد تتحزم مسبقًا في خطوة tsup وتطلع في `dist/agent/**.js`. البناء ESM واحد يشارك نسخة وحدة من الـSDK، فلو tool فيها `from '@lousho/build-ai-agent'` فهو نفس الـSDK اللي الخادم شغال عليه. باقي المجلد ينتسخ كما هو، وما في شي محتاج TypeScript loader وقت التشغيل. `dist/` يصير ESM (`dist/package.json` يصرّح بهذا). صورة Docker تنسخه زي قبل. الـsandbox الاختياري `dockerode` ما بينحزم (بينحمل lazily)، فالمجلد اللي يستخدم `SubprocessSandbox` لازم يثبّته وين ما يشتغل.
+
+هدف `cloudflare-worker` يبني config المجلد و`instructions.md` و`tools/` و`skills/`، ويرفض `subagents/` و`schedules/` و`channels/` و`memory/` و`projectInstructions` وأي `model` الـprovider تبعه مش موجود في الـWorker — ويذكر لك بالاسم اللي لازم تشيله. الـtools تشتغل جوّا الـWorker بصلاحياته، ومسموح لها تستورد بس الجزء الآمن للـWorker من `@lousho/build-ai-agent` (التفاصيل في [Cloudflare Workers](/ar/cloudflare-workers#build-and-deploy)):
 
 ```bash
 npx lousho build ./my-agent --target=cloudflare-worker
 ```
 
-## واجهة HTTP
+## HTTP API
 
-كل هدف يقدّم بروتوكول `/chat` نفسه الذي يقدّمه `lousho dev` ([واجهة سطر الأوامر](/ar/cli#lousho-dev))، ومن الشيفرة نفسها (`src/server/fetchRoutes.ts` المبنية على Fetch مباشرة، ويستدعيها خادم Node وWorker معًا)، فالصفحة أو السكربت المكتوب للعمل مع خادم التطوير يعمل مع الخادم المنشور.
+كل target يقدّم نفس بروتوكول `/chat` اللي يقدمه `lousho dev` (راجع [CLI](/ar/cli#lousho-dev))، ومن نفس الكود: `src/server/fetchRoutes.ts` مبني على Fetch مباشرة، وخادم Node والـWorker كلاهما يناديه. يعني صفحة أو سكربت مكتوبة ضد dev server تشتغل ضد المنشور.
 
-| نقطة النهاية | ما تفعله |
+| Endpoint | ما يفعله |
 | -------- | ------------ |
-| `GET /health` | `200 ok`. لا تحتاج إلى مصادقة أبدًا: وجِّه إليها موازِنات الحمل وفحوص سلامة الحاويات. |
-| `POST /chat` `{ "sessionId", "input" }` | تشغّل دورة من الجلسة `sessionId` (من 1 إلى 128 محرفًا من `A-Za-z0-9_-`؛ المعرّف الجديد يبدأ محادثة، والمعروف يواصلها) وتبثّها بصيغة SSE: سطر `data: <AgentEvent JSON>` لكل حدث ([البث](/ar/streaming))، ثم `event: done`. و`input` سلسلة نصية أو مصفوفة من أجزاء المحتوى. |
-| `GET /chat/:sessionId` | سجل محادثة الجلسة: `{ sessionId, messages, pending }`. |
-| `POST /chat/:sessionId/approvals/:id` `{ "approved", "note"? }` أو `{ "answer" }` | تبتّ في موافقة أداة معلّقة، أو تجيب عن `ask_question`، وتبثّ الدورة المتواصلة مباشرةً بصيغة SSE، بالتأطير وأنواع الأحداث نفسها التي في `POST /chat` (`tool.resume` / `tool.done` أو `tool.error` للاستدعاء المبتوت فيه، وأجزاء النص المتتابعة، و`approval.requested` إن توقفت مرة أخرى، و`run.done`)، من `agent.approvals.streamResolve()` / `streamAnswer()`. تعيد `404` حين لا يكون `id` معلّقًا. |
-| `POST /chat` `{ "message" }` | صيغة قديمة: دورة واحدة بلا سجل محادثة ولا بث؛ تعيد `ExecutionResult` الخاص بالوكيل بصيغة JSON، مع الترويسة `Deprecation: true`. |
+| `GET /health` | `200 ok`. ما يحتاج auth أبدًا: وجّه عليه الـload balancers وفحوص صحة الحاويات. |
+| `POST /chat` `{ "sessionId", "input" }` | يشغّل turn للـsession `sessionId` (من 1 لـ128 حرف من `A-Za-z0-9_-`؛ id جديد يفتح محادثة، وid معروف يكملها) ويبثها SSE: سطر `data: <AgentEvent JSON>` لكل event ([Streaming](/ar/streaming))، وبعدين `event: done`. `input` نص أو array من content parts. |
+| `GET /chat/:sessionId` | transcript الـsession: `{ sessionId, messages, pending }`. |
+| `POST /chat/:sessionId/approvals/:id` `{ "approved", "note"? }` أو `{ "answer" }` | يحسم tool approval معلّق، أو يجاوب على `ask_question`، ويبث الـturn المكمّل live كـSSE بنفس الـframing وأنواع الأحداث تبع `POST /chat` (`tool.resume` / `tool.done` أو `tool.error` للـcall المحسوم، text deltas، `approval.requested` لو وقّف مرة ثانية، `run.done`)، من `agent.approvals.streamResolve()` / `streamAnswer()`. يرجع `404` لو `id` مش pending. |
+| `POST /chat` `{ "message" }` | صيغة legacy: turn واحد بلا history وبلا streaming؛ يرجع `ExecutionResult` للـagent كـJSON مع header `Deprecation: true`. |
 
-الأجسام التي تتجاوز 1MB تحصل على `413`، وJSON غير الصالح يحصل على `400`.
+البودي اللي أكبر من 1MB ياخذ `413`، والـJSON غير الصالح ياخذ `400`.
 
 ```bash
 curl -N http://127.0.0.1:3000/chat \
@@ -58,26 +60,26 @@ curl -N http://127.0.0.1:3000/chat \
 
 ### المصادقة
 
-عيّن `LOUSHO_API_TOKEN` (وعلى هدف Worker يكون سرًّا: `npx wrangler secret put LOUSHO_API_TOKEN`) فيشترط كل مسار عدا `/health` الترويسة `Authorization: Bearer <token>`؛ وأي طلب آخر يحصل على `401` مع خطأ بصيغة JSON (يُقارَن الرمز في زمن ثابت). ومن دونه يكون الخادم مفتوحًا: لا بأس بذلك على `127.0.0.1`، لكن **اعتبر الرمز إلزاميًا لكل ما ليس على localhost** (يسجّل الخادم تحذيرًا حين يستمع على واجهة شبكة أخرى بلا رمز، وصورة `docker` تستمع على جميع الواجهات). أنهِ اتصال TLS أمام الخادم، لأن رمز الوصول ينتقل نصًا صريحًا عبر HTTP غير المشفَّر. مرّر الرمز وقت التشغيل (`docker run -e LOUSHO_API_TOKEN=...`).
+عيّن `LOUSHO_API_TOKEN` (في الـWorker كـsecret: `npx wrangler secret put LOUSHO_API_TOKEN`) وكل route غير `/health` بيطلب `Authorization: Bearer <token>`. أي شي ثاني ياخذ `401` مع خطأ JSON (التوكن يتقارن constant time). بدونه الخادم مفتوح: عادي على `127.0.0.1`، بس **اعتبر التوكن إلزامي لأي شي مش على localhost** (الخادم يطبع warning لو سمع على interface ثاني بدون توكن، وصورة `docker` تسمع على كل الـinterfaces). اعمل terminate للـTLS قدام الخادم، لأن bearer token يمشي نص صريح فوق HTTP عادي. مرّر التوكن وقت التشغيل (`docker run -e LOUSHO_API_TOKEN=...`).
 
-برمجيًا، يضمّن `adapter.scaffold(agentPath, outDir, { auth: { token } })` رمزًا داخل خادم `node-server` أو `docker` المبني، يُستخدم حين لا يكون المتغير معيّنًا. الأولوية للمتغير، والرمز المضمَّن مقروء في `dist/server.js`، ففضِّل المتغير. أما Worker فيقرأ الرمز من ارتباطه (binding) `LOUSHO_API_TOKEN` فقط.
+برمجيًا: `adapter.scaffold(agentPath, outDir, { auth: { token } })` يخبز توكن جوّا خادم `node-server` أو `docker` المبني، لوقت ما يكون المتغير مش معيّن. المتغير يكسب، والتوكن المخبوز مقروء في `dist/server.js`، فخليك على المتغير. الـWorker يقرا التوكن من الـbinding `LOUSHO_API_TOKEN` تبعه بس.
 
-للمصادقة عبر JWT أو OpenID Connect أو Basic، ولمعرفة من يستدعي الخادم، يأخذ هدفا `node-server` و`docker` قائمة مصادقة مرتّبة من ملف `auth.ts` في مجلد الوكيل، ويُلحَق بها `LOUSHO_API_TOKEN`: انظر [مصادقة المسارات والهويات](/ar/auth).
+لـJWT أو OpenID Connect أو Basic auth، ولتعرف مين بيكلّم الخادم، هدفا `node-server` و`docker` ياخذون قائمة auth مرتبة من `auth.ts` في مجلد الـagent، و`LOUSHO_API_TOKEN` يلحق فيها. راجع [مصادقة الـroutes والهويات](/ar/auth).
 
-### الجلسات والمخزن
+### الـsessions والـstore
 
-يحدّد `LOUSHO_STORE` مكان حفظ الجلسات ونقاط الحفظ (checkpoints) والموافقات:
+`LOUSHO_STORE` يحدد وين تعيش الـsessions والـcheckpoints والـapprovals:
 
-| القيمة | المخزن |
+| القيمة | الـstore |
 | ----- | ----- |
-| `memory` (الافتراضي) | `memoryStore()`: يزول عند إعادة تشغيل العملية، ولا يُشارَك بين النسخ العاملة. |
-| `sqlite:<path>` | ملف [`SqliteStore`](/ar/sessions) (يُنشأ مع مجلده): تبقى الجلسات بعد إعادة التشغيل. يحتاج إلى Node 22 (`node:sqlite`)؛ وصورة `docker` تستخدم `node:22-slim`. اربط مجلد الملف كوحدة تخزين (volume). |
+| `memory` (الافتراضي) | `memoryStore()`: يطير مع restart العملية، ومش مشترك بين الـinstances. |
+| `sqlite:<path>` | ملف [`SqliteStore`](/ar/sessions) (بينعمل مع مجلده): الـsessions تظل بعد إعادة التشغيل. يحتاج Node 22 (`node:sqlite`)، وصورة `docker` تستخدم `node:22-slim`. اعمل mount لمجلد الملف كـvolume. |
 
-SQLite ملف واحد على قرص واحد، فشغّل نسخة واحدة فقط لكل ملف قاعدة بيانات.
+SQLite ملف واحد على قرص واحد، فشغّل instance واحد لكل ملف قاعدة بيانات.
 
 ## `node-server`
 
-الملف `dist/server.js` حزمة واحدة مكتفية بذاتها (تتضمن SDK واعتمادياتها)، فيعمل بلا `npm install`:
+`dist/server.js` bundle واحد مكتفي بذاته (الـSDK واعتمادياته داخله)، فيشتغل بدون `npm install`:
 
 ```bash
 cd .lousho/build/node-server
@@ -85,11 +87,11 @@ node dist/server.js                   # http://127.0.0.1:3000
 node dist/server.js --port=8080 --host=0.0.0.0
 ```
 
-مثل `lousho dev`، يرتبط الخادم بـ`127.0.0.1` ما لم تختر صراحةً واجهة أخرى بـ`--host=<h>` (أو `HOST=<h>`)؛ والمنفذ يأتي من `--port` أو `PORT`، وإلا فالافتراضي `3000`. وإشارتا SIGINT/SIGTERM تغلقان الوكيل قبل الخروج. تُقرأ بيانات اعتماد المزوّد من متغيرات البيئة نفسها المستخدمة في كل مكان آخر (`OPENAI_API_KEY`، ...).
+زي `lousho dev`، بيرتبط بـ`127.0.0.1` إلا لو اخترت interface ثاني بـ`--host=<h>` (أو `HOST=<h>`). الـport يجي من `--port` أو `PORT`، وإلا الافتراضي `3000`. SIGINT/SIGTERM يسكّرون الـagent قبل الخروج. بيانات اعتماد الـprovider تنقرا من نفس متغيرات البيئة المعتادة (`OPENAI_API_KEY`، ...).
 
 ## `docker`
 
-يعيد استخدام هيكل `node-server` وحزمته ويضيف `Dockerfile` مبنيًا على `node:22-slim` ينسخ `dist/` ويشغّل `node dist/server.js` على المنفذ 3000. تعيّن الصورة `HOST=0.0.0.0`، إذ يجب أن يستمع الخادم داخل الحاوية على جميع الواجهات ليصل إليه `docker run -p`. مرّر بيانات اعتماد المزوّد وقت التشغيل:
+يعيد استخدام scaffold وbundle تبع `node-server` ويضيف `Dockerfile` مبني على `node:22-slim` ينسخ `dist/` ويشغّل `node dist/server.js` على port 3000. الصورة تعيّن `HOST=0.0.0.0` — جوّا container لازم الخادم يسمع على كل الـinterfaces عشان `docker run -p` يوصل له. مرّر بيانات اعتماد الـprovider وقت التشغيل:
 
 ```bash
 cd .lousho/build/docker
@@ -99,18 +101,18 @@ docker run -p 3000:3000 -e OPENAI_API_KEY=... lousho-agent
 
 ## `cloudflare-worker`
 
-يولّد Worker بصيغة الوحدة (`export default { fetch }`) وملف `wrangler.toml` والملف `dist/worker.js`، محزَّمًا كوحدة ES لمنصة المتصفح؛ ويفشل البناء إذا انتهى أي استيراد `node:` داخل الحزمة. يحتاج إلى `tsup` و`wrangler`، ويقدّم [واجهة HTTP](#واجهة-http) المذكورة أعلاه. وله أضيق حدود بين الأهداف الثلاثة:
+يولّد Worker بصيغة module (`export default { fetch }`) و`wrangler.toml` و`dist/worker.js`، محزوم كـES module لمنصة المتصفح. البناء يفشل لو أي `node:` import طلع في الـbundle. يحتاج `tsup` و`wrangler`، ويقدّم [HTTP API](#http-api) اللي فوق. وعنده أضيق حدود بين الأهداف الثلاثة:
 
-- ملفات المواصفات، ومجلدات الوكيل التي فيها إعدادات وتعليمات وأدوات TypeScript ومهارات (بلا وكلاء فرعيين ولا جداول زمنية ولا قنوات ولا خانات ذاكرة من المجلد، وبلا أدوات تعمل في بيئة معزولة)؛
-- المزوّدون `mock` و`openai` و`anthropic` و`openrouter`؛ والأدوات المدمجة `current-date` و`day-name` و`http` (تصل `http` فقط إلى أسماء المضيفين المدرجة في الارتباط `LOUSHO_HTTP_ALLOW`)؛
-- الجلسات ونقاط الحفظ والموافقات في فضاء أسماء KV واحد؛ ومُشغِّلات cron بتوقيت UTC.
+- ملفات spec، ومجلدات agent فيها config وinstructions وأدوات TypeScript وskills (بلا sub-agents ولا schedules ولا channels ولا memory slots من المجلد، وبلا أدوات sandboxed)؛
+- الـproviders `mock` و`openai` و`anthropic` و`openrouter`؛ والأدوات المدمجة `current-date` و`day-name` و`http` (`http` توصل بس لأسماء الـhosts المدرجة في الـbinding `LOUSHO_HTTP_ALLOW`)؛
+- sessions وcheckpoints وapprovals في KV namespace واحد؛ cron triggers بتوقيت UTC.
 
-تجد في [Cloudflare Workers](/ar/cloudflare-workers) جدول الحدود، وأوامر البناء والنشر، والارتباطات، ومخازن KV، والتشغيل المجدول، وفحوص الحزمة.
+في [Cloudflare Workers](/ar/cloudflare-workers) تلاقي جدول الحدود، أوامر البناء والنشر، الـbindings، مخازن KV، التشغيل المجدول، وفحوص الـbundle.
 
-### الاعتماديات النظيرة الاختيارية في بناءي node وdocker
+### الـpeer dependencies الاختيارية في builds تبع node وdocker
 
-يحزّم `dist/server.js` الـSDK لكنه يُبقي اعتمادياتها النظيرة الاختيارية (مدخلات `peerDependenciesMeta` في package.json الخاص بها: حزم المزوّدين، و`dockerode`، وMCP SDK، و`prompts`، ...) خارج الحزمة، فلا يحتاج أي بناء إلى اعتمادية لا تستخدمها. وملف `package.json` المولَّد يدرج أصلًا ما يحتاج إليه الوكيل حيث يعمل الخادم — `@lousho/build-ai-agent` (مثبَّتًا على الإصدار الذي بناه)، وحزمة المزوّد التي يسمّيها ملف المواصفات (بنطاق يواكب الإصدار الرئيسي من `ai` الذي بُني به، مثل `@ai-sdk/openai` لوكيل OpenAI)، و`@modelcontextprotocol/sdk` حين يحوي ملف المواصفات `mcpServers` — فيثبّتها `npm install --omit=dev` في صورة docker، أو `npm install` بجوار ناتج node-server. وما عداها (استيرادات مجلد الوكيل نفسه، و`dockerode` للأدوات المعزولة) تضيفه بنفسك؛ ومسار الشيفرة الذي يحتاج إلى اعتمادية مفقودة يرمي خطأ SDK ذا الرمز الخاص بالاعتمادية النظيرة المفقودة. ومُشغِّلات cron في ملف المواصفات تعمل على هدفي node-server وdocker كما تعمل على Workers ([الجداول الزمنية](/ar/schedules#على-خادم-node)).
+`dist/server.js` يحزم الـSDK بس يخلّي الـpeer dependencies الاختيارية برّا (مدخلات `peerDependenciesMeta` في الـpackage.json تبعها: حزم الـproviders، و`dockerode`، وMCP SDK، و`prompts`، ...)، فما في build يحتاج اعتمادية ما بتستخدمها. `package.json` المولّد أصلاً مدرج فيه اللي الـagent يحتاجه وين ما الخادم يشتغل: `@lousho/build-ai-agent` (مثبت على الإصدار اللي بناه)، وحزمة الـprovider اللي الـspec يسميها (بنطاق يوافق الـmajor تبع `ai` اللي انبنى عليه، مثل `@ai-sdk/openai` لـagent تبع OpenAI)، و`@modelcontextprotocol/sdk` لو الـspec فيه `mcpServers`. يعني `npm install --omit=dev` في صورة docker، أو `npm install` جنب ناتج node-server، بتثبتهم. أي شي ثاني — استيرادات مجلد الـagent نفسه، أو `dockerode` للأدوات الـsandboxed — تضيفه إنت بنفسك. مسار كود يحتاج اعتمادية ناقصة يرمي خطأ الـSDK المرمّز تبع الـpeer المفقود. وcron triggers تبع الـspec تشتغل على node-server وdocker كمان، مش بس على Workers (راجع [Schedules](/ar/schedules#على-سيرفر-node)).
 
-## الأهداف المخصَّصة
+## الـtargets المخصصة
 
-الأهداف كائنات `DeploymentAdapter` (`scaffold`، `build`، `describe`) تُسجَّل بالاسم عبر `registerAdapter()`؛ وكلاهما مصدَّر من جذر الحزمة.
+الـtargets عبارة عن objects من نوع `DeploymentAdapter` (`scaffold` و`build` و`describe`) تتسجّل بالاسم عبر `registerAdapter()`؛ والاتنين مُصدَّرين من جذر الحزمة.

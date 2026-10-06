@@ -1,27 +1,37 @@
 ---
-title: "السجل"
+title: "Registry"
 ---
-
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/registry).
-</Warning>
 
 {/* Generated from docs/registry.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-يثبّت `lousho add` أداة أو مهارة أو قناة أو جدولًا زمنيًا أو خانة ذاكرة في [مجلد وكيل](/ar/agent-directories) من سجل. السجل مجرد JSON ثابت: فهرس ومستند لكل عنصر يحمل محتويات ملفاته. تُنسخ الملفات إلى مشروعك شيفرةً مصدرية تملكها وتستطيع تعديلها. لا يوجد محمِّل إضافات في وقت التشغيل، ولا يُنفَّذ أو يُستورد أي شيء من السجل أثناء الإضافة.
+`lousho add` يثبّت tool أو skill أو channel أو schedule أو خانة memory أو kit
+داخل [agent directory](/ar/agent-directories) من registry. عنصر الـ`kit` هو
+agent directory كامل: تثبيته يوزّع `agent.*` و`instructions.md` وtools وskills
+وسub-agents، فالهدف يصير (أو يكبر ليصير) agent directory بنفسه. الـregistry
+مجرد JSON ثابت: index إضافة إلى مستند لكل عنصر يحمل محتوى ملفاته. الملفات
+تُنسخ إلى مشروعك كودًا مصدريًا تملكه وتقدر تعدّله. ما في plugin loader في
+الـruntime، ولا شيء من الـregistry يُنفَّذ أو يُستورد أثناء الإضافة.
 
-يعمل `lousho add` دون إعداد: فمن دون `--registry` أو `LOUSHO_REGISTRY` يقرأ السجل الافتراضي في `https://registry.lousho.com/index.json`، وهو مجلد `registry/dist/` في مستودع الـSDK مقدَّمًا ملفات JSON ثابتة. وتوجّه `--registry` و`LOUSHO_REGISTRY` الأمر إلى سجل آخر، والقيمة `none` (في أيٍّ منهما) تعطّل السجل كليًا — فيفشل `lousho add` حينها بالخطأ `LOUSHO_CONFIG_INVALID`، وهو ما يناسب الاستخدام دون اتصال أو البيئات المقيَّدة.
+`lousho add` يشتغل بدون أي إعداد: بدون `--registry` أو `LOUSHO_REGISTRY` يقرأ
+الـregistry الافتراضي على `https://registry.lousho.com/index.json`، وهو مجلد
+`registry/dist/` في مستودع الـSDK مُقدَّم كـJSON ثابت. `--registry`
+و`LOUSHO_REGISTRY` توجّهه إلى registry ثاني، والقيمة `none` (في أي منهما)
+تعطّل الـregistry بالكامل — ساعتها `lousho add` يفشل بـ`LOUSHO_CONFIG_INVALID`،
+وهذا يناسب الاستخدام offline أو البيئات المقفولة.
 
-يحمل السجل الافتراضي حاليًا خمسة عناصر:
+الـregistry الافتراضي فيه حاليًا تسعة عناصر:
 
 | الاسم | النوع | الصلاحيات التي يطلبها |
 | ---- | ---- | ----------------------- |
-| `changelog` | مهارة | لا شيء |
-| `code-review` | مهارة | لا شيء |
-| `generic-webhook` | قناة | `WEBHOOK_SECRET` |
-| `github-issues` | أداة (سرد المشكلات وإنشاؤها؛ والإنشاء يطلب موافقة) | `api.github.com` و`GITHUB_TOKEN` |
-| `open-meteo-weather` | أداة | `api.open-meteo.com` و`geocoding-api.open-meteo.com` |
+| `changelog` | skill | لا شيء |
+| `code-review` | skill | لا شيء |
+| `coding-kit` | kit (الـcoding harness كاملًا كـagent directory) | `exec`, `fs-write` |
+| `coding-pi` | kit (الـcoding harness على مزوّد Pi مع coding sub-agent من Pi) | `exec`, `fs-write`, `api.openrouter.ai`, `OPENROUTER_API_KEY` |
+| `generic-webhook` | channel | `WEBHOOK_SECRET` |
+| `github-issues` | tool (يسرد الـissues وينشئها؛ الإنشاء يطلب approval أي موافقة) | `api.github.com`, `GITHUB_TOKEN` |
+| `inbox-triage` | kit (agent directory لفرز الرسائل: tools للـinbox والـoutbox، pipeline ردود محكوم بـapproval، channel للـwebhook، schedule للاستطلاع، وذاكرة لكل مرسل) | `fs-write`, `INBOX_TRIAGE_HOME`, `INBOUND_TOKEN`, `INBOX_TRIAGE_AUTO_APPROVE`, `OPENROUTER_API_KEY` |
+| `incident-response` | kit (agent directory للاستجابة للحوادث بنمط SRE: webhook تنبيهات متحقق بـHMAC، approvals للمعالجة حسب مستوى الخطورة، وtimeline للتدقيق) | `fs-write`, `INCIDENT_WEBHOOK_SECRET`, `INCIDENT_TIMELINE_FILE` |
+| `open-meteo-weather` | tool | `api.open-meteo.com`, `geocoding-api.open-meteo.com` |
 
 ```bash
 lousho add --list                       # the default registry's items
@@ -33,21 +43,26 @@ lousho add --list --registry none       # fails: the registry is disabled
 
 | الخيار | المعنى |
 | ---- | ------- |
-| `--registry <url-or-path>` | الفهرس: عنوان `http(s)` أو مسار محلي (ويُستخدم `LOUSHO_REGISTRY` عند غيابه، وإلا السجل الافتراضي). والقيمة `none` تعطّل السجل. |
-| `--dir <agent-dir>` | مجلد الوكيل الذي يُكتب فيه (الافتراضي: المجلد الحالي؛ ويجب أن يكون موجودًا). |
-| `--yes`، `-y` | لا تطلب تأكيدًا. مطلوب حين لا يكون stdin طرفية. لا يمنح الصلاحيات المرتفعة بمفرده (انظر `--allow`). |
-| `--allow <list>` | مع `--yes`، الصلاحيات المرتفعة التي تمنحها، مفصولة بفواصل: `exec` و`fs-write` و`network` و`env`. يُرفض العنصر الذي يطلب صلاحية لم تسمّها. |
-| `--overwrite` | استبدل الملفات الموجودة (ودونه يكون الملف الموجود خطأ `LOUSHO_REGISTRY_FILE_EXISTS`). |
-| `--dry-run` | اطبع بيان الصلاحيات والملفات، ولا تكتب شيئًا، واخرج بالرمز 0. |
-| `--list` | اطبع عناصر السجل ثم اخرج. |
+| `--registry <url-or-path>` | الـindex: رابط `http(s)` أو مسار محلي (`LOUSHO_REGISTRY` إذا لم يُعطَ، وإلا الـregistry الافتراضي). القيمة `none` تعطّل الـregistry. |
+| `--dir <agent-dir>` | الـagent directory الذي يُكتب فيه (الافتراضي: المجلد الحالي، ولازم يكون موجودًا). |
+| `--yes`, `-y` | لا يسأل عن تأكيد. مطلوب لما stdin ما يكون terminal. لا يمنح الصلاحيات المرتفعة بنفسه (شوف `--allow`). |
+| `--allow <list>` | مع `--yes`، الصلاحيات المرتفعة التي تمنحها، مفصولة بفواصل: `exec` و`fs-write` و`network` و`env`. العنصر الذي يطلب واحدة ما سمّيتها يُرفض. |
+| `--overwrite` | يستبدل الملفات الموجودة (بدونه الملف الموجود يعطي `LOUSHO_REGISTRY_FILE_EXISTS`). |
+| `--dry-run` | يطبع الـmanifest والملفات، لا يكتب شيئًا، ويخرج 0. |
+| `--list` | يطبع عناصر الـregistry ويخرج. |
 
-قبل أن يكتب أي شيء، يطبع `lousho add` بيان الصلاحيات (manifest) والملفات التي سيكتبها، ويفحص شيفرة العنصر مقابل البيان، ثم يسأل `[y/N]`. وبعد الكتابة يسجّل العنصر في `lousho-registry.json`.
+قبل ما يكتب أي شيء، `lousho add` يطبع الـmanifest والملفات التي سيكتبها، ويفحص
+كود العنصر مقابل الـmanifest، ثم يسأل `[y/N]`. بعد الكتابة يسجّل العنصر في
+`lousho-registry.json`.
 
 ## الصيغة
 
-الفهرس هو `{ items: [{ name, type, description, url | path }] }`. و`type` أحد القيم `tool` أو `skill` أو `channel` أو `schedule` أو `memory`. يحدّد `url` / `path` موقع مستند العنصر؛ والمسار النسبي يُحلّ نسبةً إلى موقع الفهرس نفسه.
+الـindex هو `{ items: [{ name, type, description, url | path }] }`. قيمة `type`
+واحدة من `tool` أو `skill` أو `channel` أو `schedule` أو `memory` أو `kit`.
+و`url` / `path` يحددان مكان مستند العنصر؛ المسار النسبي يُحلّ بالنسبة لموقع
+الـindex نفسه.
 
-كل مستند عنصر يكون بهذا الشكل:
+كل مستند عنصر بهذا الشكل:
 
 ```json
 {
@@ -81,53 +96,134 @@ lousho add --list --registry none       # fails: the registry is disabled
 }
 ```
 
-استضف الاثنين ملفات ثابتة في أي مكان (مجلد في مستودع، أو مخزن كائنات، أو خادم ويب). يجب أن يطابق `name` و`type` في المستند مدخله في الفهرس، ويبدأ الاسم بحرف أو رقم، تتبعه أحرف وأرقام و`.` و`_` و`-`. المستند الذي لا يطابق الصيغة يُعطي الخطأ `LOUSHO_REGISTRY_INVALID`، مع ذكر الحقول المعنية.
+استضف الاثنين كملفات ثابتة في أي مكان: مجلد في repo، أو object store، أو web
+server. `name` و`type` في المستند لازم يطابقا مدخلهما في الـindex. الاسم يبدأ
+بحرف أو رقم، وبعدها أحرف وأرقام و`.` و`_` و`-`. المستند الذي لا يطابق الصيغة
+يرجع `LOUSHO_REGISTRY_INVALID` مع ذكر الحقول.
 
-وللمساهمة بعنصر في السجل الافتراضي، أضف مجلد `registry/<name>/` إلى مستودع الـSDK: ملف `item.json` (فيه `name` و`type` و`description` و`permissions` و`dependencies`) وملفات العنصر مرتَّبة كما ينبغي أن تصل إلى مجلد الوكيل (`tools/x.ts` و`skills/<name>/SKILL.md` و`channels/x.ts`). ويتحقق `npm run registry:build` من كل عنصر مقابل القواعد نفسها التي يفرضها `lousho add` (المخطط والمسارات وفحص الشيفرة/البيان) ويعيد بناء `registry/dist/`؛ فأدرج النتيجة في الالتزام. ويشغّل CI الأمر `npm run registry:check` الذي يفشل حين تكون `registry/dist/` قديمة.
+لتساهم بعنصر في الـregistry الافتراضي، أضف مجلد `registry/<name>/` في مستودع
+الـSDK: ملف `item.json` (فيه `name` و`type` و`description` و`permissions`
+و`dependencies`) وملفات العنصر مرتبة كما لازم توصل في الـagent directory
+(`tools/x.ts` و`skills/<name>/SKILL.md` و`channels/x.ts`؛ وملفات الـ`kit`
+تكوّن agent directory كامل، مثل `agent.json` و`instructions.md` و`hooks.ts`
+و`tools/` و`subagents/<name>/`). الأمر `npm run registry:build` يتحقق من كل
+عنصر بنفس القواعد التي يفرضها `lousho add` (الـschema والمسارات وفحص الكود
+مقابل الـmanifest) ويعيد بناء `registry/dist/`؛ اعمل commit للنتيجة. الـCI
+يشغّل `npm run registry:check` ويفشل إذا كانت `registry/dist/` قديمة.
 
 ## بيان الصلاحيات
 
-يصرّح `permissions` بما يستطيع العنصر فعله، لتقرر قبل تثبيته. كله اختياري؛ وما يغيب يُعرض بالقيمة "none" / "no".
+`permissions` يصرّح بما يقدر العنصر يعمله، فتقرر قبل ما تثبّته. كله اختياري؛
+الذي يغيب يظهر كـ"none" / "no".
 
 | الحقل | المعنى |
 | ----- | ------- |
-| `network` | الخوادم (hosts) التي يتصل بها. |
-| `env` | متغيرات البيئة التي يقرؤها. |
+| `network` | الـhosts التي يناديها. |
+| `env` | متغيرات البيئة التي يقرأها. |
 | `filesystem` | `none` أو `read` أو `write`. |
-| `exec` | `true` حين ينفّذ أوامر. |
-| `needsApproval` | `true` حين تطلب أدواته [موافقة](/ar/approvals) قبل أن تعمل. |
+| `exec` | `true` إذا كان يشغّل أوامر. |
+| `needsApproval` | `true` إذا كانت أدواته تطلب [approval](/ar/approvals) قبل ما تشتغل. |
 
-ما يفرضه `lousho add` قبل أن يكتب أي شيء:
+ما يفرضه `lousho add` قبل ما يكتب أي شيء:
 
-- **الشيفرة تطابق البيان.** يُفحص كل ملف JavaScript وTypeScript في العنصر، بعد حذف التعليقات، بحثًا عمّا يلجأ إليه ظاهريًا:
-  - `exec: true` عند استيراد `child_process` (بـ`node:` أو دونها) أو `execa` أو `shelljs`، أو عند استخدام `createShellTool` أو `runShellCommand` أو `SubprocessSandbox` من SDK؛
-  - `filesystem: "read"` (أو `"write"`) عند استيراد `fs` (بما فيها `fs/promises` وصيغ `node:`) أو `fs-extra` أو `graceful-fs`، أو `createFsTools` من SDK، و`"write"` عند استدعاء `writeFile` أو `appendFile` أو `createWriteStream` أو `mkdir` أو `mkdtemp` أو `rm` أو `rmdir` أو `unlink` أو `rename` أو `copyFile` أو `cp` (وصيغها `Sync`)؛
-  - `network` غير فارغ عند `fetch(` أو استخدام `createHttpTool` من SDK أو استيراد `http` أو `https` أو `http2` أو `net` أو `tls` أو `dgram` أو `undici` أو `axios` أو `node-fetch` أو `ws`، ويجب أن يطابق كل مضيف `http(s)://` أو `ws(s)://` في أي سلسلة نصية أحد مدخلات `network` (أما المضيف الذي يُبنى وقت التشغيل، مثل `` `https://${host}/` ``، فيحتاج إلى `network` غير فارغ ويُطبع ملاحظةً لأنه لا يمكن فحصه)؛
-  - يجب إدراج كل `process.env.NAME` و`process.env['NAME']` في `env`.
+- **الكود يطابق الـmanifest.** كل ملف JavaScript وTypeScript في العنصر يُفحص،
+  بعد حذف التعليقات، عما يصل إليه بشكل ظاهر:
+  - `exec: true` عند import لـ`child_process` (بـ`node:` أو بدونها) أو `execa`
+    أو `shelljs`، أو عند استخدام `createShellTool` أو `runShellCommand` أو
+    `SubprocessSandbox` من الـSDK؛
+  - `filesystem: "read"` (أو `"write"`) عند import لـ`fs` (بما فيها
+    `fs/promises` وصيغ `node:`) أو `fs-extra` أو `graceful-fs`، أو
+    `createFsTools` من الـSDK، و`"write"` عند استدعاء `writeFile` أو
+    `appendFile` أو `createWriteStream` أو `mkdir` أو `mkdtemp` أو `rm` أو
+    `rmdir` أو `unlink` أو `rename` أو `copyFile` أو `cp` (وصيغها الـ`Sync`)؛
+  - `network` غير فارغ عند `fetch(` أو استخدام `createHttpTool` من الـSDK أو
+    import لـ`http` أو `https` أو `http2` أو `net` أو `tls` أو `dgram` أو
+    `undici` أو `axios` أو `node-fetch` أو `ws`، وكل host بصيغة `http(s)://`
+    أو `ws(s)://` داخل string لازم يطابق أحد مدخلات `network` (الـhost الذي
+    يُبنى وقت التشغيل، مثل `` `https://${host}/` ``، يحتاج `network` غير فارغ
+    ويُطبع كملاحظة، لأنه لا يمكن فحصه)؛
+  - كل `process.env.NAME` و`process.env['NAME']` لازم يكون مدرجًا في `env`.
 
-  وتُرفض دائمًا `eval(` و`new Function(` و`process.env[name]` المحسوب و`process.env` المستخدم كاملًا، وأي `import()` أو `require()` لما ليس سلسلة نصية حرفية، و`require` المستخدم قيمةً (`const r = require`). وعدم المطابقة يعطي `LOUSHO_REGISTRY_MANIFEST_MISMATCH` مع كل ملاحظة بالشكل `<file>:<line>: <what> (<fix>)`؛ ويبلّغ عنه `--dry-run` أيضًا. أما ملفات Markdown وغيرها مما ليس شيفرة (مثل `SKILL.md` في المهارة) فلا تُفحص. ويجب أن تكون مدخلات `network` أسماء مضيفين أو أنماطًا بديلة تبدأ بـ`*.` (`api.example.com` و`*.example.com` — والنمط البديل يطابق النطاقات الفرعية فقط لا المضيف المجرّد)، ومدخلات `env` أسماء متغيرات (`SEARCH_KEY`)؛ وغير ذلك يعطي `LOUSHO_REGISTRY_INVALID`.
-- **الموافقة تغطي الصلاحيات المرتفعة.** يوسَم كل من `exec: true` و`filesystem: "write"` و`network` غير الفارغ و`env` غير الفارغ بالعلامة `[elevated: ...]` في البيان المطبوع. ويسردها السؤال التفاعلي قبل `[y/N]`. ومع `--yes` يجب تسمية كل منها في `--allow` (`--allow network,env` للمثال أعلاه)، لأن `--yes` هو الطريقة التي تشغّل بها السكربتات والوكلاء الأمر `lousho add` ولا ينبغي أن يمنح تنفيذ الأوامر بصمت.
-- **إيصال بما ثُبِّت.** بعد الكتابة يحدّث `lousho add` الملف `lousho-registry.json` في جذر مجلد الوكيل (بجانب `instructions.md`). يحتوي مدخل كل عنصر على `type` و`registry` الذي جاء منه و`installedAt` و`permissions` و`path` و`sha256` لكل ملف، لتعرف لاحقًا هل عُدّل ملف ما. ويستبدل `--overwrite` المدخل؛ ولا يكتب `--dry-run` شيئًا. والإيصال الذي ليس JSON صالحًا يوقف التثبيت قبل كتابة أي ملف. والإيصال هو ما يفرضه `loadAgentDir` عند التحميل ووقت التشغيل (أدناه).
+  تُرفض دائمًا `eval(` و`new Function(` و`process.env[name]` المحسوب
+  و`process.env` مستخدمة كاملة، وأي `import()` أو `require()` لغير string
+  literal، و`require` مستخدمة كقيمة (`const r = require`). عدم المطابقة يرجع
+  `LOUSHO_REGISTRY_MANIFEST_MISMATCH` مع كل ملاحظة بالشكل `<file>:<line>:
+  <what> (<fix>)`؛ و`--dry-run` يبلّغ عنها أيضًا. ملفات Markdown وغيرها مما
+  ليس كود (مثل `SKILL.md` في الـskill) لا تُفحص. مدخلات `network` لازم تكون
+  أسماء host أو wildcards تبدأ بـ`*.` (`api.example.com` و`*.example.com` —
+  الـwildcard يطابق الـsubdomains فقط، لا الـhost المجرّد)، ومدخلات `env`
+  أسماء متغيرات (`SEARCH_KEY`)؛ أي شيء آخر يرجع `LOUSHO_REGISTRY_INVALID`.
+- **الموافقة تغطي الصلاحيات المرتفعة.** `exec: true` و`filesystem: "write"`
+  و`network` غير الفارغ و`env` غير الفارغ تُوسم `[elevated: ...]` في
+  الـmanifest المطبوع. السؤال التفاعلي يسردها قبل `[y/N]`. ومع `--yes` لازم
+  تسمّي كل واحدة في `--allow` (`--allow network,env` للمثال أعلاه)، لأن
+  `--yes` هو الطريقة التي تشغّل بها السكربتات والـagents الأمر `lousho add`،
+  وما ينبغي يمنح تنفيذ أوامر بصمت.
+- **إيصال بما ثُبِّت.** بعد الكتابة، `lousho add` يحدّث `lousho-registry.json`
+  في جذر الـagent directory (بجانب `instructions.md`). مدخل كل عنصر فيه
+  `type` و`registry` الذي جاء منه و`installedAt` و`permissions` و`path`
+  و`sha256` لكل ملف، فتقدر لاحقًا تعرف إذا اتعدّل ملف. `--overwrite` يستبدل
+  المدخل؛ `--dry-run` لا يكتب شيئًا. الإيصال غير الصالح كـJSON يوقف التثبيت
+  قبل كتابة أي ملف. والإيصال هو ما يفرضه `loadAgentDir` عند التحميل ووقت
+  التشغيل (أدناه).
 
-ما يفرضه `loadAgentDir`، انطلاقًا من الإيصال، حين يُحمَّل الوكيل وتعمل أدوات العنصر:
+وما يفرضه `loadAgentDir`، انطلاقًا من الإيصال، لما الـagent يُحمَّل وأدوات
+العنصر تشتغل:
 
-- **السلامة.** يُعاد حساب بصمة كل ملف يسرده الإيصال. والملف الذي عُدّل أو حُذف منذئذ يجعل عنصره *غير مُصدَّق* (unattested): يذكر تحذيرٌ العنصرَ والملفات المتغيرة، ويبلّغ `resolveAgentDir()` عن ذلك نفسه في `manifest.registry` (`status: 'attested' | 'unattested'`، إضافةً إلى مسارات `modified` و`missing`). ولا يُرفَض التحميل — فالملفات ملكك تعدّلها — والإيصال الذي يتعذّر قراءته تحذير لا خطأ.
-- **الموافقة.** أدوات العنصر المصرَّح فيه `exec: true` أو `needsApproval: true` — وأدوات أي عنصر غير مُصدَّق لم يعد إيصاله القديم يشهد للشيفرة المعدَّلة — تنتظر [الموافقة](/ar/approvals) دائمًا؛ ويبقى `deny` الصادر من `needsApproval` الخاصة بالأداة رافضًا.
-- **الشبكة.** أثناء عمل أداة لعنصر له إيصال، يقتصر `fetch` على الخوادم التي يصرّح بها `network`: فيُرفض المضيف الذي لا يدرجه البيان، والعنصر الذي لا يصرّح بأي `network` لا يستطيع الجلب أصلًا.
-- **البيئة.** وأثناء عملها لا يعرض `process.env` للأداة إلا الأسماء التي يصرّح بها `env`.
-- **الأدوات المعزولة.** تحصل الأداة التي تعلن `requiresSandbox` على محوّل مضيَّق: يُرفض `run()` دون `exec`، و`writeFile()` دون `filesystem: "write"`، وبيئة الأمر هي الأساس المعتاد غير السري مضافًا إليه المتغيرات المصرَّح بها فقط.
+- **السلامة.** كل ملف يسرده الإيصال يُعاد حساب هاشه. الملف الذي اتعدّل أو
+  انحذف منذها يجعل عنصره *unattested* (غير مُصدَّق): تحذير يذكر العنصر
+  والملفات المتغيرة، و`resolveAgentDir()` يبلّغ عن نفس الشيء في
+  `manifest.registry` (`status: 'attested' | 'unattested'`، إضافة إلى مسارات
+  `modified` و`missing`). التحميل لا يُرفض — الملفات ملكك تعدّلها — والإيصال
+  الذي يتعذّر قراءته تحذير، مو خطأ.
+- **الـapproval.** أدوات العنصر المصرِّح فيه بـ`exec: true` أو
+  `needsApproval: true` — وأدوات أي عنصر unattested لم يعد إيصاله القديم
+  يشهد للكود المعدَّل — تنتظر [approval](/ar/approvals) دائمًا؛ و`deny` من
+  `needsApproval` الخاصة بالأداة نفسها يظل رافضًا.
+- **الشبكة.** أثناء عمل أداة لعنصر له إيصال، `fetch` يقتصر على الـhosts التي
+  يصرّح بها `network`: الـhost غير المدرج في الـmanifest يُرفض، والعنصر الذي
+  لا يصرّح بأي `network` لا يقدر يعمل fetch أصلًا.
+- **البيئة.** وأثناء عملها، `process.env` يعرض للأداة فقط الأسماء التي يصرّح
+  بها `env`.
+- **أدوات الـsandbox.** الأداة التي تعلن `requiresSandbox` تحصل على adapter
+  مضيَّق: `run()` يُرفض بدون `exec`، و`writeFile()` بدون
+  `filesystem: "write"`، وبيئة الأمر هي الأساس المعتاد غير السري زائد
+  المتغيرات المصرَّح بها فقط.
 
-يبقى التقييد على الأقل بضيق البيان الذي قُبل عند التثبيت، مُصدَّقًا كان الإيصال أم لا: فتعديل ملف مثبَّت يوسمه، ويطلب موافقة على استدعاءاته، ولا يوسّع شيئًا، إلى أن يثبّت `lousho add <name> --overwrite` الملفات الحالية ويصدّقها من جديد.
+التقييد يظل بضيق الـmanifest الذي قُبل عند التثبيت على الأقل، سواء كان العنصر
+مُصدَّقًا أم لا: تعديل ملف مثبَّت يوسمه ويطلب approval على استدعاءاته ولا
+يوسّع شيئًا، إلى أن يثبّت `lousho add <name> --overwrite` الملفات الحالية
+ويصدّقها من جديد.
 
-ما لا يفعله: فحص وقت التثبيت يقرأ الشيفرة كما هي مكتوبة، والتقييد وقت التشغيل لا يغطي إلا ما يستطيع الـSDK اعتراضه — استدعاءات `fetch` وقراءات `process.env` التي تتم أثناء عمل الأداة، والمحوّل المسلَّم إلى أداة معزولة. أما الطلبات عبر `http`/`net`/`axios`، والوصول إلى الملفات، والمرجع المحفوظ في نطاق الوحدة (`const f = fetch`)، والعمل المنفَّذ عند استيراد الملف، وسياسة الشبكة الخاصة بالحاوية نفسها (`{ allow }` في `SubprocessSandbox` خاصية للبيئة المعزولة لا للعنصر)، فكلها خارجه؛ وكذلك الشيفرة التي تُخفي ما تفعله (محارف الهروب في السلاسل، والأسماء المستعارة، والحمولات المشفَّرة، واعتمادية تؤدي العمل) عن الفحص الساكن. اقرأ الملفات التي يسردها (يعرضها `--dry-run`) كما تقرأ أي اعتمادية قبل تشغيلها.
+ما لا يفعله: فحص وقت التثبيت يقرأ الكود كما هو مكتوب، وتقييد وقت التشغيل يغطي
+فقط ما يقدر الـSDK يعترضه — استدعاءات `fetch` وقراءات `process.env` أثناء عمل
+الأداة، والـadapter المسلَّم لأداة sandbox. الطلبات عبر `http`/`net`/`axios`،
+والوصول للملفات، ومرجع محفوظ في module scope (`const f = fetch`)، والعمل
+المنفَّذ عند استيراد الملف، وسياسة الشبكة الخاصة بالحاوية نفسها (`{ allow }`
+في `SubprocessSandbox` خاصية للـsandbox لا للعنصر) — كل هذا خارجه. وكذلك
+الكود الذي يخفي ما يفعله (string escapes وaliasing وحمولات مشفَّرة
+وdependency تؤدي العمل) عن الفحص الساكن. اقرأ الملفات التي يسردها (يعرضها
+`--dry-run`) كما تقرأ أي dependency قبل تشغيلها.
 
 ## قواعد الأمان
 
-- كل `files[].path` يجب أن يكون نسبيًا ومطبَّعًا (normalized) وبشرطات مائلة أمامية: لا `..`، ولا مسار مطلق، ولا حرف قرص (`C:`)، ولا شرطات مائلة عكسية، ولا مقاطع فارغة أو `.`. وبعد حلّ الروابط الرمزية (symlinks) يجب أن يبقى داخل مجلد الوكيل، ولا يُكتب أبدًا عبر رابط رمزي إلى هدفه.
-- يجب أن يكون الملف داخل المجلد الذي يسمح به نوع عنصره: `tool` في `tools/`، و`skill` في `skills/<name>/`، و`channel` في `channels/`، و`schedule` في `schedules/`، و`memory` في `memory/`.
-- لا تُستبدل الملفات الموجودة دون `--overwrite`. تُفحص كل الملفات قبل كتابة أي منها، فالعنصر المعيب لا يكتب شيئًا. وكل إخفاق من هذه يكون `LOUSHO_REGISTRY_UNSAFE_PATH` أو `LOUSHO_REGISTRY_FILE_EXISTS`.
-- الحد الأقصى للملف 256 KiB وللعنصر 1 MiB؛ ولمستند السجل مليونا حرف.
-- لا تُقرأ إلا عناوين `http(s)` والمسارات المحلية، بمهلة 15 ثانية لكل عملية جلب (وإلا `LOUSHO_REGISTRY_UNREACHABLE`).
-- تُطبع `dependencies` في صورة سطر `npm install ...` لتنفّذه أنت. الأمر لا يثبّت حزمًا أبدًا.
+- كل `files[].path` لازم يكون نسبيًا وnormalized وبشرطات أمامية: لا `..`، لا
+  مسار مطلق، لا حرف قرص (`C:`)، لا backslashes، لا مقاطع فارغة أو `.`. وبعد
+  حل الـsymlinks لازم يظل داخل الـagent directory، ولا يُكتب أبدًا عبر symlink
+  إلى هدفه.
+- الملف لازم يكون داخل المجلد الذي يسمح به نوع عنصره: `tool` في `tools/`،
+  و`skill` في `skills/<name>/`، و`channel` في `channels/`، و`schedule` في
+  `schedules/`، و`memory` في `memory/`. الـ`kit` هو الاستثناء الوحيد: لأنه
+  agent directory كامل، ملفاته يمكن تجلس في أي مسار نسبي (تظل normalized
+  وداخل الهدف حسب القاعدة أعلاه).
+- الملفات الموجودة لا تُستبدل بدون `--overwrite`. كل الملفات تُفحص قبل كتابة
+  أي منها، فالعنصر المعيب لا يكتب شيئًا. كل إخفاق من هذه هو
+  `LOUSHO_REGISTRY_UNSAFE_PATH` أو `LOUSHO_REGISTRY_FILE_EXISTS`.
+- الحد الأقصى للملف 256 KiB وللعنصر 1 MiB؛ ومستند الـregistry مليونا حرف كحد
+  أقصى.
+- تُقرأ فقط روابط `http(s)` والمسارات المحلية، بمهلة 15 ثانية لكل fetch (وإلا
+  `LOUSHO_REGISTRY_UNREACHABLE`).
+- `dependencies` تُطبع كسطر `npm install ...` لتشغّله إنت. الأمر لا يثبّت
+  حزمًا أبدًا.
 
-الأخطاء مسرودة في [الأخطاء](/ar/errors#السجل). وواجهة سطر الأوامر كلها في [CLI](/ar/cli).
+الأخطاء مسردة في [الأخطاء](/ar/errors#السجل). والـCLI كامل في [CLI](/ar/cli).

@@ -1,12 +1,13 @@
 ---
-title: "النماذج والرموز والتكلفة"
-sidebarTitle: "النماذج والتكلفة"
+title: "الـ models والـ tokens والتكلفة"
+sidebarTitle: "الـ models والتكلفة"
 ---
 {/* Generated from docs/models-and-cost.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-## النماذج وجدول الأسعار
+## الـ models وجدول الأسعار
 
-دوال مساعدة بلا اعتماديات لقرارات الميزانية والسياق.
+
+دوال مساعدة بدون dependencies، لقرارات الميزانية والسياق.
 
 ```ts
 import { estimateTokens, estimateCost, getModelInfo, registerModel } from '@lousho/build-ai-agent';
@@ -25,16 +26,16 @@ const info = getModelInfo('openai/gpt-4o-mini'); // exact id, `provider/id`, or 
 const usd = estimateCost({ inputTokens: used, outputTokens: 500 }, 'my-llama'); // undefined if unpriced
 ```
 
-- `estimateTokens(input, { model?, estimator? })` تقدير تقريبي (نحو 4 محارف لكل رمز في الإنجليزية، وأكثر في الصينية واليابانية والكورية وغيرها من أنظمة الكتابة، إضافةً إلى كلفة إضافية لكل رسالة وJSON استدعاءات الأدوات). توقّع خطأً يقارب 15-20% في الإنجليزية: يكفي لضغط السياق والميزانيات، ولا يصلح للفوترة. ويمكنك توصيل مُرمِّز (tokenizer) حقيقي بـ`setTokenEstimator(fn)` أو بـ`options.estimator`.
-- `getModelInfo(id)` يطابق المعرّف كما هو أولًا، ثم `provider/id`، ثم اللقطات المؤرَّخة (`gpt-4o-mini-2024-07-18` تُحلّ إلى `gpt-4o-mini`). والنماذج غير المعروفة تُرجع `undefined`. (وفي سلاسل `createAgent({ model })` و`resolveProvider()` تختار بادئة النموذج `vendor/` المزوّد؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>`، مثل `openrouter/openai/gpt-4o-mini`.)
-- `registerModel(info)` يضيف مدخلًا أو يتغلّب على مدخل موجود؛ والتسجيل الأحدث هو الذي يسري.
-- `estimateCost(usage, model)` يُرجع التكلفة بالدولار الأمريكي، أو `undefined` (لا `0`) حين يكون النموذج أو أسعاره غير معروفة.
+- `estimateTokens(input, { model?, estimator? })` هو heuristic تقريبي: حوالي 4 محارف لكل token في الإنجليزية، وأكثر للـ CJK وباقي أنظمة الكتابة، زائد overhead لكل رسالة ولـ JSON الخاص بالـ tool calls. توقّع خطأ بحوالي 15-20% في الإنجليزية — يكفي للـ compaction (ضغط السياق) والميزانيات، لكنه لا يصلح للفوترة. وصّل tokenizer حقيقي عبر `setTokenEstimator(fn)` أو `options.estimator`.
+- `getModelInfo(id)` يطابق الـ id كما هو أولًا، ثم `provider/id`، ثم الـ snapshots المؤرخة (`gpt-4o-mini-2024-07-18` ترجع `gpt-4o-mini`). الـ models غير المعروفة ترجع `undefined`. (في سلاسل `createAgent({ model })` و`resolveProvider()`، بادئة `vendor/` هي التي تختار الـ provider؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>`، مثل `openrouter/openai/gpt-4o-mini`.)
+- `registerModel(info)` يضيف مدخلًا جديدًا أو يكتب فوق مدخل موجود، وآخر تسجيل هو الذي يُعتمد.
+- `estimateCost(usage, model)` يرجع التكلفة بالدولار (USD)، أو `undefined` (وليس `0`) إذا كان الـ model أو أسعاره غير معروفة.
 
-نوافذ السياق والأسعار المضمَّنة لقطة مؤرَّخة (انظر تاريخ الجلب والمصادر في أعلى `src/models/modelData.ts`). تغيّر المزوّدون أسعارهم ونماذجهم، فتغلّب على المدخلات بـ`registerModel` حين تحتاج إلى أرقام بمستوى الفوترة.
+الـ context windows والأسعار المضمّنة snapshot مؤرخة (تاريخ الجلب والمصادر في أعلى `src/models/modelData.ts`). الـ providers يغيّرون أسعارهم والـ models، فإذا تحتاج أرقامًا بدقة الفوترة اكتب فوق المدخلات بـ`registerModel`.
 
-## استهلاك التشغيل وتكلفته
+## الـ usage وتكلفة الـ run
 
-تحمل كل `ExecutionResult` (ونتيجة `agent.send()`) الحقل `usage`، وهو المجموع الجاري للتشغيل كله:
+كل `ExecutionResult` (ونتيجة `agent.send()`) تحمل `usage`، وهو المجموع التراكمي للـ run كله:
 
 ```ts
 import { createAgent, formatUsage } from '@lousho/build-ai-agent';
@@ -49,16 +50,16 @@ result.stepUsage?.[0]; // { step, model, usage, estimated, costUsd? } per model 
 console.log(formatUsage(result.usage)); // 1,234 in / 567 out tokens · $0.0042 (2 model calls)
 ```
 
-- **المُبلَّغ عنه مقابل المقدَّر.** يبلّغ المزوّدون عن `promptTokens`/`completionTokens`؛ وتمرّر المزوّدات المضمَّنة أيضًا `cachedInputTokens`/`reasoningTokens` حين تحملها البيانات الوصفية لمزوّد حزمة 'ai' SDK (ولا يظهر `usage.cachedInputTokens` و`usage.reasoningTokens` إلا حينئذ). والواجهة الخلفية التي لا تبلّغ عن شيء تعطي استهلاكًا `undefined`، لا أصفارًا أبدًا. وفي تلك الخطوة يعود المنفِّذ إلى `estimateTokens` ويعيّن `usage.estimated` (تظهر `~` في بداية الناتج من `formatUsage`). والمزوّد المخصَّص ينبغي أن يترك `GenerateResult.usage` غير معيّن بدل أن يملأه بأصفار.
-- **التكلفة.** `costUsd` هو مجموع `estimateCost` لكل نموذج. وهو `undefined`، ولا يكون أبدًا مجموعًا جزئيًا مضلِّلًا، بمجرد أن يكون سعر أي نموذج مستخدَم غير معروف؛ ويبيّن `byModel` أيَّها له سعر. ويطبع `formatUsage` التكلفة بأربع خانات عشرية تحت الدولار الواحد (وبخانتين عند دولار فأكثر)، فتظهر التشغيلة التي تقل عن $0.00005 بصيغة `$0.0000`.
-- **الأدوات المستضافة.** تحصي `usage.hostedToolCalls` الاستدعاءات التي شغّلها المزوّد لـ[الأدوات المستضافة](/ar/hosted-tools) لكل اسم أداة (مثل `{ web_search: 2 }`). ويحاسب المزوّد نفسه على رسوم الاستدعاء، وهي غير مضمَّنة في `costUsd`.
-- **التفويض.** يُضاف استهلاك الابن المفوَّض إلى مجاميع الأب و`byModel`، ويظهر أيضًا منفردًا في `usage.delegated` (`{ inputTokens, outputTokens, totalTokens, costUsd, modelCalls, estimated, runs }`). أما استهلاك [الوكيل الفرعي البعيد](/ar/sub-agents#الوكلاء-الفرعيون-عن-بُعد) فهو ما يبلّغ عنه الوكيل البعيد، ويُسجَّل تحت `byModel['remote:<name>']` مع `costUsd` الخاصة بالوكيل البعيد.
-- **الاستئناف.** التشغيل المستأنَف من نقطة حفظ، أو بعد موافقة، يتابع من المجاميع المحفوظة بدل أن يبدأ من الصفر. ونقاط الحفظ التي كتبتها إصدارات أقدم تبدأ من أعداد الرموز المحفوظة فيها وبتكلفة غير معروفة.
-- **الأحداث والتتبّع.** يحمل الحدث `finish` (وكل حدث دورة حياة كان يحمل `usage`) الآن المجاميع الجارية؛ ويحمل `text-complete` أيضًا `stepUsage`، ويتلقى `onLLMResponse` استهلاك الاستدعاء وسيطًا ثالثًا. وتستخدم سمات `gen_ai.usage.*` في المقطع (span) `chat` الأرقام نفسها، مع تعيين `lousho.usage.estimated` إلى `true` حين تكون تقديرات.
-- **البث.** تحمل أحداث `agent.stream()` المحاسبة نفسها: في `step.done` و`run.done` الحقل `usage` ويضم `inputTokens` و`outputTokens` و`estimated` و`costUsd` (وعلى مستوى التشغيل أيضًا `modelCalls`)، إلى جانب `promptTokens`/`completionTokens` الأقدم.
-- يبقى `promptTokens` و`completionTokens` في `usage` اسمين بديلين مُهمَلين لـ`inputTokens` و`outputTokens`.
+- **reported مقابل estimated.** الـ providers يبلّغون عن `promptTokens`/`completionTokens`. والـ providers المضمّنون يمرّرون أيضًا `cachedInputTokens`/`reasoningTokens` إذا حملتها الـ metadata الخاصة بالـ provider في حزمة 'ai' SDK — `usage.cachedInputTokens` و`usage.reasoningTokens` لا يظهران إلا في تلك الحالة. الـ backend الذي لا يبلّغ عن شيء يعطي `usage` بقيمة `undefined`، لا أصفارًا أبدًا. في تلك الخطوة يستعمل الـ executor الدالة `estimateTokens` كـ fallback ويضبط `usage.estimated` (تظهر `~` في بداية ناتج `formatUsage`). والـ provider المخصص يجب أن يترك `GenerateResult.usage` غير مضبوط بدل أن يملأه بأصفار.
+- **التكلفة.** `costUsd` هو مجموع `estimateCost` لكل model. يصير `undefined` — لا مجموعًا جزئيًا مضللًا — بمجرد أن يكون أي model مستخدم بلا سعر معروف، و`byModel` يوضح أيها مسعَّر. `formatUsage` يطبع التكلفة بأربع خانات عشرية تحت $1 (وخانتين عند $1 فأكثر)، فالـ run الذي يقل عن $0.00005 يظهر `$0.0000`.
+- **hosted tools.** `usage.hostedToolCalls` يحسب الاستدعاءات التي شغّلها الـ provider للـ [hosted tools](/ar/hosted-tools) لكل اسم tool (مثل `{ web_search: 2 }`). رسوم الاستدعاء يحاسب عليها الـ provider نفسه وهي ليست ضمن `costUsd`.
+- **التفويض.** يُضاف الـ usage الخاص بالـ child المفوَّض إلى مجاميع الأب و`byModel`، ويظهر أيضًا منفردًا في `usage.delegated` (`{ inputTokens, outputTokens, totalTokens, costUsd, modelCalls, estimated, runs }`). أما الـ usage الخاص بالـ[remote sub-agent](/ar/sub-agents#remote-sub-agents) فهو ما يبلّغ عنه الـ agent البعيد، ويُسجَّل تحت `byModel['remote:<name>']` مع `costUsd` الخاصة به.
+- **الاستئناف.** الـ run الذي يُستأنف من checkpoint أو بعد موافقة يكمل من المجاميع المحفوظة بدل أن يبدأ من الصفر. الـ checkpoints التي كتبتها إصدارات أقدم تبدأ من أعداد الـ tokens المحفوظة فيها وبتكلفة غير معروفة.
+- **الأحداث والـ tracing.** الحدث `finish` (وكل lifecycle event كان يحمل `usage`) يحمل الآن المجاميع التراكمية. و`text-complete` يحمل أيضًا `stepUsage`، و`onLLMResponse` يستقبل الـ usage الخاص بالاستدعاء كوسيط ثالث. سمات `gen_ai.usage.*` في الـ span `chat` تستخدم نفس الأرقام، مع `lousho.usage.estimated` مضبوطة على `true` إذا كانت الأرقام تقديرية.
+- **streaming.** أحداث `agent.stream()` تحمل نفس المحاسبة: `step.done` و`run.done` فيها `usage` يضم `inputTokens` و`outputTokens` و`estimated` و`costUsd` (وعلى مستوى الـ run أيضًا `modelCalls`)، إلى جانب `promptTokens`/`completionTokens` الأقدم.
+- يبقى `promptTokens` و`completionTokens` على `usage` اسمين بديلين deprecated لـ`inputTokens` و`outputTokens`.
 
-تأتي الأسعار من سجل النماذج أعلاه، فللحصول على تكلفة نموذج مخصَّص أو مضبوط بدقة (fine-tuned) سجّله بالمعرّف الذي تمرّره بوصفه النموذج:
+الأسعار تأتي من الـ model registry أعلاه، فإذا أردت تكلفة لـ model مخصص أو fine-tuned، سجّله بنفس الـ id الذي تمرّره كـ model:
 
 ```ts
 import { registerModel } from '@lousho/build-ai-agent';

@@ -3,21 +3,32 @@ title: "Agent Forge"
 ---
 {/* Generated from docs/agent-forge.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-Agent Forge (`apps/agent-forge`) هي لوحة التحكم المرئية المرافقة لهذه الـ SDK: تبني فيها الرسم البياني (graph) للوكيل على لوحة رسم (canvas)، وتشغّله، وتراقب تنفيذه في وحدة تصحيح حيّة (debug console)، وتحاوره، وتكتب خطّافات قبلية وبعدية تعمل في بيئة معزولة، وكل ذلك بقراءة وكتابة ملف `AgentSpec` بصيغة YAML نفسه الذي يستخدمه `lousho dev` و`lousho build`. تُشغَّل بأمر واحد هو `lousho studio`، وتأتي ضمن حزمة npm الخاصة بهذه الـ SDK.
+Agent Forge (`apps/agent-forge`) هو الـ dashboard المرئي المرافق لهذه الـ
+SDK. تبني فيه graph الـ agent على canvas (لوحة الرسم)، تشغّله، وتتابع
+تنفيذه في debug console حي. تقدر كمان تحاوره وتكتب pre/post hooks تشتغل
+داخل sandbox (بيئة معزولة) — وكل هذا يقرأ ويكتب نفس ملف `AgentSpec` YAML
+اللي يستخدمه `lousho dev` و`lousho build`. تشغّله بأمر واحد:
+`lousho studio`، ويأتي ضمن حزمة npm للـ SDK نفسها.
 
-يغطي هذا المستند: التثبيت، والبدء السريع مع `lousho studio`، وجولة لبناء أول وكيل، وكتابة الخطّافات، والسفر عبر الزمن (إعادة تشغيلٍ انطلاقًا من خطوة سابقة)، وكيف يعمل ربط الإعدادات والأسرار والنشر.
+هذه الصفحة تغطي: التثبيت، الـ quickstart مع `lousho studio`، جولة أول
+agent، كتابة hooks، الـ time travel (إعادة run من خطوة سابقة)، وكيف تشتغل
+إعدادات الـ secrets والـ deploy.
 
 ## التثبيت
 
-تأتي Agent Forge داخل `@lousho/build-ai-agent` نفسها، فلا توجد حزمة منفصلة تثبّتها:
+Agent Forge يأتي داخل `@lousho/build-ai-agent` نفسه — ما في حزمة منفصلة
+تثبّتها:
 
 ```bash
 npm install @lousho/build-ai-agent
 ```
 
-هذا كل شيء. يشغّل `lousho studio` (أدناه) نسخة مبنية مسبقًا من التطبيق؛ ولا تحتاج إلى الشيفرة المصدرية لـ `apps/agent-forge` ولا إلى اعتمادياتها التطويرية (Vite و`tsx` وغيرهما) كي تستخدمها.
+هذا كل شي. `lousho studio` (تحت) يشغّل نسخة جاهزة من التطبيق، فما تحتاج
+كود `apps/agent-forge` المصدري ولا الـ devDependencies الخاصة به (Vite،
+`tsx`، غيرها) حتى تستخدمه.
 
-أما إذا كنت تعمل داخل المستودع الأحادي (monorepo) لهذه الـ SDK نفسها (أي تساهم في Agent Forge ذاتها)، فانظر [وضع التطوير](#وضع-التطوير) أدناه.
+إذا كنت تشتغل داخل الـ monorepo الخاص بالـ SDK نفسها (تساهم في Agent Forge
+ذاته)، انظر [وضع التطوير](#وضع-التطوير) تحت.
 
 ## البدء السريع
 
@@ -25,9 +36,12 @@ npm install @lousho/build-ai-agent
 npx lousho studio
 ```
 
-يشغّل هذا الأمر خادمًا محليًا واحدًا ويطبع عنوانه (الافتراضي `http://127.0.0.1:4750`). افتحه في المتصفح، فترى لوحة الرسم، والشريط الأيسر (وكلاؤك المحفوظون مع لوحة العُقد والخطّافات)، وInspector (على اليمين)، ودرجًا سفليًا فيه التبويبات Chat/Logs/Trace/Output/Settings.
+الأمر يشغّل سيرفر محلي واحد ويطبع الرابط (الافتراضي
+`http://127.0.0.1:4750`). افتحه في المتصفح وتشوف الـ canvas، والشريط
+الأيسر (الـ agents المحفوظين + لوحة nodes وhooks)، والـ Inspector على
+اليمين، وdrawer سفلي فيه tabs Chat/Logs/Trace/Output/Settings.
 
-خيارات مفيدة:
+flags مفيدة:
 
 ```bash
 npx lousho studio --port 5000       # pick a different port
@@ -36,60 +50,121 @@ npx lousho studio --prod            # force production mode (see below)
 npx lousho studio --dev             # force dev mode (monorepo only)
 ```
 
-تُخزَّن ملفات مواصفات الوكلاء وحالة التشغيل تحت `.lousho/` في المجلد الذي شغّلت منه `lousho studio` (ملفات YAML للوكلاء تحت `.lousho/agents/`، وبجوارها نقاط الحفظ والموافقات)، وهو تخطيط `.lousho/` نفسه الذي يستخدمه `lousho dev` و`lousho build`.
+`lousho studio` يحفظ ملفات specs الـ agents وحالة الـ runs تحت `.lousho/`
+في المجلد اللي شغّلته منه: ملفات YAML للـ agents تحت `.lousho/agents/`،
+وبجانبها الـ checkpoints (نقاط الحفظ) والـ approvals. نفس ترتيب `.lousho/`
+اللي يستخدمه `lousho dev` و`lousho build`.
 
-### وضع الإنتاج ووضع التطوير
+### وضع production ووضع dev
 
-للأمر `lousho studio` وضعان، وهو يختار المناسب منهما تلقائيًا:
+`lousho studio` عنده وضعين ويختار المناسب منهم تلقائيًا:
 
-- **الإنتاج** (الافتراضي بعد بناء Agent Forge): خادم Express واحد يقدّم واجهة REST/WebSocket البرمجية *و*العميل المبني مسبقًا (تطبيق React) كملفات ثابتة، على منفذ واحد. هذا ما يعمل حين تثبّت الحزمة المنشورة بـ `npm install`: لا خادم تطوير Vite منفصل ولا محمِّل TypeScript.
-- **التطوير** (يُلجأ إليه إذا لم يُجرَ البناء بعد، أي داخل نسخة مصدرية من هذا المستودع الأحادي): يعمل خادم الواجهة البرمجية مباشرة من شيفرته المصدرية بلغة TypeScript عبر `tsx`، إلى جانب خادم تطوير Vite حقيقي (مع إعادة تحميل فوري للوحدات) يمرّر طلبات الواجهة البرمجية إليه. عمليتان، ومنفذان داخليًا، وأمر واحد.
+- **Production** (الافتراضي بعد ما يُبنى Agent Forge): سيرفر Express واحد
+  يقدّم الـ REST/WebSocket API *و* الـ client الجاهز (تطبيق React) كملفات
+  static على port واحد. هذا اللي يشتغل لما تثبّت الحزمة المنشورة بـ
+  `npm install` — ما في Vite dev server منفصل ولا TypeScript loader.
+- **Dev** (يرجع له إذا البناء ما صار بعد، يعني داخل نسخة source من هذا الـ
+  monorepo): الـ API server يشتغل مباشرة من كود TypeScript عن طريق `tsx`،
+  ومعه Vite dev server حقيقي (مع hot-module reload) يمرّر له طلبات الـ
+  API. عمليتين، portين داخليًا، أمر واحد.
 
-يفرض `--prod` أو `--dev` أحد الوضعين؛ وإذا شغّلت `lousho studio` دون أي منهما اكتشف الوضع تلقائيًا بحسب وجود `apps/agent-forge/dist-server`.
+`--prod` و`--dev` يفرضون واحد من الوضعين. شغّل بدون أي flag منهم
+و`lousho studio` يكتشف الوضع بنفسه حسب وجود
+`apps/agent-forge/dist-server`.
 
-## جولة بناء أول وكيل
+## جولة أول agent
 
-1. **أنشئ وكيلًا.** في تبويب "Agents" في الشريط الأيسر، انقر **New**، وأعطِ الوكيل اسمًا، واختر قالب بداية. القالب **Blank graph** (عقدة LLM واحدة تستخدم المزوّد المدمج `mock`) هو أسرع طريقة للتجربة دون أي مفاتيح API. تنشئ Agent Forge الوكيل وتفتحه على لوحة الرسم.
-2. **انظر إلى الرسم البياني.** الوكيل الفارغ عقدة `llm` واحدة. اسحب عُقدًا أخرى من لوحة العناصر في الشريط الأيسر (**Trigger** و**LLM step** و**Tool call** و**Approval gate** و**Response / output**) واربط بينها بالسحب بين مقابضها. انقر عقدة لتعديل إعداداتها (الموجّه، المزوّد/النموذج، الأدوات، نقاط التوقف) في Inspector على اليمين.
-3. **شغّله.** انقر **Run** في الشريط العلوي. مع المزوّد `mock` لا شيء يحتاج إلى إعداد: فهو يعيد مخرجات جاهزة حتمية، وهذا هو المقصود تمامًا لتجربة بقية الواجهة دون الحاجة إلى مفتاح API لنموذج LLM حقيقي. يتابع مؤشر الحالة في الشريط العلوي التشغيلَ (`running` → `idle`/`error`/`awaiting approval`).
-4. **راقبه في وحدة التصحيح.** افتح تبويب **Logs** في الدرج السفلي لترى سجلًا حيًّا قابلًا للتصفية لأحداث التشغيل (أحداث trigger/llm/tool/sandbox/checkpoint/approval)، أو تبويب **Trace** لترى مخططًا شلاليًا لمقاطع التتبّع (spans). فعّل **Debug** في الشريط العلوي (أو ضع نقطة توقف على عقدة في Inspector) لإيقاف التشغيل مؤقتًا عند حدود استدعاءات LLM والأدوات والتقدّم فيه خطوة خطوة بزرَّي **Step**/**Continue** في شريط التصحيح؛ ووسّع "Live message array" هناك لتفحص قائمة الرسائل الجارية. يعرض تبويب **Output** كائن `ExecutionResult` كاملًا (الرسائل، استدعاءات الأدوات، الاستهلاك، الخطوات) على هيئة شجرة JSON قابلة للطي عند انتهاء التشغيل أو توقفه مؤقتًا.
+1. **أنشئ agent.** في tab "Agents" بالشريط الأيسر، اضغط **New**، سمّه،
+   واختر قالب بداية. أسرع طريق للتجربة بدون مفاتيح API هو **Blank
+   graph** — node `llm` واحد يستخدم الـ `mock` provider المدمج. Agent
+   Forge ينشئ الـ agent ويفتحه على الـ canvas.
+2. **شوف الـ graph.** الـ agent الفارغ هو node `llm` واحد. اسحب nodes
+   إضافية من اللوحة في الشريط الأيسر (**Trigger**، **LLM step**، **Tool
+   call**، **Approval gate**، **Response / output**) ووصّلهم ببعض بالسحب
+   بين الـ handles. اضغط على node لتعدّل إعداداته (prompt،
+   provider/model، tools، breakpoints) في الـ Inspector على اليمين.
+3. **شغّله.** اضغط **Run** في الشريط العلوي. مع الـ `mock` provider ما
+   في شي يحتاج إعداد — يرجّع مخرجات جاهزة وثابتة، وهذا بالضبط المطلوب
+   حتى تجرب باقي الواجهة بدون مفتاح API لـ LLM حقيقي. الـ status pill في
+   الشريط العلوي يتتبع الـ run (`running` → `idle`/`error`/`awaiting
+   approval`).
+4. **تابعه في الـ debug console.** افتح tab **Logs** في الـ drawer
+   السفلي لسجل حي تقدر تفلتره لأحداث الـ run
+   (trigger/llm/tool/sandbox/checkpoint/approval)، أو **Trace** لـ
+   waterfall (مخطط شلالي) للـ spans. فعّل **Debug** من الشريط العلوي —
+   أو ضع breakpoint على node في الـ Inspector — حتى توقّف الـ run عند
+   حدود الـ LLM والـ tool وتتقدم فيه خطوة خطوة بأزرار **Step** و
+   **Continue** في شريط الـ debug. وسّع "Live message array" هناك لتفحص
+   قائمة الرسائل الجارية. tab **Output** يعرض `ExecutionResult` كامل
+   (messages، tool calls، usage، steps) كشجرة JSON قابلة للطي أول ما الـ
+   run يخلص أو يتوقف.
 
-   **سجل التتبّع.** يُحفظ كل تشغيل أيضًا في ملف تتبّع، فيحتفظ تبويب
-   **Trace** بتشغيلات الوكيل بعد إعادة تحميل الصفحة أو إعادة تشغيل الخادم. تعرض
-   قائمة على اليسار تشغيلات الوكيل السابقة، الأحدث أولًا (وقت البدء، والمدة،
-   واستدعاءات النموذج، والرموز الداخلة والخارجة، والتكلفة، والحالة)، ويتصدّرها
-   عنصر **Live** ما دام تشغيل نشطًا؛ اختر واحدًا لتفتح مقاطعه في المخطط الشلالي
-   نفسه، مع نوع كل مقطع (`internal` أو `client`) ولون الخطأ للمقاطع الفاشلة.
-   وتُحدَّث القائمة حين ينتهي تشغيل. والملفات هي نفسها التي يقرؤها
-   `lousho traces`، في
-   `.lousho/agents/<agent id>/traces/<day>/<trace id>.jsonl` تحت المجلد الذي
-   بدأ منه `lousho studio` (انظر
-   [التتبّعات المحلية](/ar/observability#التتبّعات-المحلية)):
-   يعرض الأمر `npx lousho traces --dir .lousho/agents/<agent id>/traces` التشغيلات
-   نفسها في الطرفية، وحذف مجلد الوكيل يحذف تتبّعاته. ويعرض التبويب ما تحويه
-   المقاطع: أسماء النماذج والأدوات، وأعداد الرموز، والتكلفة، والمدد، ورسائل
-   الأخطاء، ومع التلميح (tooltip) الخاص بالمقطع تظهر السمات، وهي تحمل محتوى
-   الموجّه والأدوات. ولا يقرأ الخادم التتبّعات إلا من ذلك المجلد (المعرّف الذي
-   فيه فاصل مسار يُرفض بالرمز 400)، ولا يرسل مسار الملف إلى المتصفح أبدًا.
-   أبقِ `.lousho/` خارج نظام التحكم في الإصدارات.
-5. **حاوره.** تبويب **Chat** قناة محادثة مستقلة (`POST /agents/:id/message`، ويُبَث الرد عبر اتصال WebSocket نفسه المستخدم لكل شيء آخر): أرسل إليه رسالة فيرد في المحادثة، بمعزل عن زر "Run" الخاص بالرسم البياني أعلاه. يحتفظ كل وكيل بسجل محادثاته الخاص (يبدأ `+ New chat` جلسة جديدة؛ وتبقى الجلسات القديمة قابلة للتصفح).
-6. **وافق على استدعاء أداة متوقف.** أضف عقدة **Tool call**، وافتحها في Inspector، واختر أداة. بعض الأدوات (أو سياسة الوكيل نفسه) قد تشترط موافقة بشرية قبل التنفيذ. حين يصل تشغيل أو محادثة إلى أداة كهذه، تظهر بطاقة موافقة مضمّنة (في الشريط العلوي لتشغيل الرسم البياني، أو كفقاعة رسالة في محادثة Chat) تعرض اسم الأداة ووسائطها. انقر **Approve** للسماح بالمتابعة أو **Reject** لإلغاء ذلك الاستدعاء؛ ويُستأنف التشغيل تلقائيًا في الحالتين.
+   **سجل الـ traces.** كل run ينحفظ كملف trace، فtab **Trace** يحتفظ بـ
+   runs الـ agent حتى بعد reload للصفحة أو إعادة تشغيل السيرفر. قائمة
+   على اليسار تعرض الـ runs السابقة للـ agent، الأحدث أول (وقت البداية،
+   المدة، model calls، tokens داخلة وخارجة، التكلفة، الحالة)، وفوقها
+   عنصر **Live** طالما في run شغال. اختر واحد وتشوف الـ spans الخاصة به
+   في نفس الـ waterfall، مع نوع كل span (`internal` أو `client`) والـ
+   spans الفاشلة بلون الخطأ. القائمة تتحدث لما run يخلص. الملفات هي
+   نفسها اللي يقرأها `lousho traces`، في
+   `.lousho/agents/<agent id>/traces/<day>/<trace id>.jsonl` تحت المجلد
+   اللي بدأت `lousho studio` منه (انظر
+   [التتبّعات المحلية](/ar/observability#local-traces)):
+   `npx lousho traces --dir .lousho/agents/<agent id>/traces` يعرض نفس
+   الـ runs في الـ terminal، وحذف مجلد الـ agent يحذف الـ traces الخاصة
+   به. الـ tab يعرض محتوى الـ spans: أسماء الـ models والـ tools، أعداد
+   الـ tokens، التكلفة، المدد، ورسائل الخطأ؛ ومن الـ tooltip للـ span
+   تطلع الـ attributes اللي تحمل محتوى الـ prompt والـ tools. السيرفر
+   يقرأ الـ traces من هذا المجلد فقط (id فيه فاصل مسار = 400)، وأبدًا ما
+   يرسل مسار الملف للمتصفح. خلّ `.lousho/` خارج الـ version control.
+5. **حاوره.** tab **Chat** هو transport محادثة منفصل (`POST
+   /agents/:id/message`، والرد يوصل streaming عبر نفس الـ WebSocket اللي
+   يخدم كل شي ثاني) — أرسل له رسالة ويرد لك في الـ thread، مستقل عن زر
+   "Run" للـ graph فوق. كل agent يحتفظ بتاريخ محادثاته (`+ New chat`
+   يبدأ session (جلسة) جديدة، والقديمة تبقى قابلة للتصفح).
+6. **وافق على tool call متوقف.** أضف node **Tool call**، افتحه في الـ
+   Inspector، واختر tool — بعض الـ tools (أو policy الـ agent نفسه)
+   تقدر تطلب approval (موافقة بشرية) قبل التشغيل. لما run أو chat يوصل
+   لواحدة، تظهر بطاقة approval مدمجة — في الشريط العلوي إذا كان run من
+   الـ graph، أو كفقاعة رسالة في الـ chat — تعرض اسم الـ tool والـ
+   arguments الخاصة به. اضغط **Approve** حتى يكمل أو **Reject** حتى
+   تلغي هذا الـ call، والـ run يرجع يكمل تلقائيًا في الحالتين.
 
-## الخطّافات
+## Hooks
 
-الخطّافات (hooks) دوال صغيرة تعمل في بيئة معزولة، وتُنفَّذ مباشرة قبل استدعاء أداة أو استدعاء `generate` لنموذج LLM أو بعده. هي الآلية نفسها التي يوفّرها قلب الـ SDK باسم `HookRegistry`/`AgentHook` (انظر [نظرة عامة على الواجهة البرمجية](/ar/api-overview))، لكنها هنا تُكتب مرئيًا وتُرفق بعقدة محددة على لوحة الرسم.
+الـ hooks دوال صغيرة تشتغل داخل sandbox، وتشتغل مباشرة قبل أو بعد tool
+call أو `generate` لـ LLM — نفس الآلية اللي يعرضها قلب الـ SDK باسم
+`HookRegistry`/`AgentHook` (انظر [نظرة عامة على الـ
+API](/ar/api-overview))، بس مكتوبة بشكل مرئي ومرتبطة بـ node محدد على الـ
+canvas.
 
-لإرفاق خطّاف:
+لإرفاق hook:
 
-1. اختر عقدة `llm` أو `tool` على لوحة الرسم (لا تنطبق الخطّافات إلا على هاتين، فهما النقطتان اللتان يستدعي عندهما `AgentExecutor` الخارج فعلًا).
-2. افتح قسم **Hooks** في Inspector. اسحب عنصر **Pre-hook** أو **Post-hook** من لوحة العناصر في الشريط الأيسر إلى العقدة (أو أفلته مباشرة في قسم Hooks) لإرفاق خطّاف جديد؛ وستُعرض عليك قوالب بداية (`redact-pii` و`rate-limit` و`audit-log` و`inject-context`) تتخذها نقطة انطلاق قابلة للتعديل.
-3. انقر شارة الخطّاف لاختياره، ثم عدّل شيفرته في محرر CodeMirror. الشيفرة هي **جسم** دالة غير متزامنة تُستدعى بالشكل `hook(ctx)` داخل عملية فرعية معزولة (`server/hookSandbox.ts`)، وليس في المتصفح ولا في عملية خادم الواجهة البرمجية نفسها أبدًا:
-   - في خطّاف استدعاء الأداة، يكون `ctx` هو `{ toolName, args, result?, error? }`. يستطيع الخطّاف القبلي تعديل `ctx.args`؛ ويستطيع الخطّاف البعدي فحص `ctx.result`/`ctx.error` أو تعديلهما. أعِد `ctx`.
-   - في خطّاف توليد LLM، يكون `ctx` هو `{ messages, model }`. عدّل `ctx.messages` أو أضف إليها ثم أعِد `ctx`.
-   - **رمي استثناء يلغي الخطوة**: خطّاف تحديد المعدّل مثلًا يرمي استثناءً ليمنع استدعاء الأداة تمامًا بدل أن يتركه يُنفَّذ.
-4. بدّل المفتاح على شارة الخطّاف لتفعيله أو تعطيله دون إزالته، أو استخدم زر **x** لإزالته كليًا. الخطّافات المفعّلة وحدها تُصرَّف ضمن التشغيل.
+1. اختر node `llm` أو `tool` على الـ canvas — الـ hooks تنطبق على هذين
+   النوعين فقط، لأنهما النقطتان الوحيدتان اللي `AgentExecutor` يستدعي
+   فيهما الخارج فعليًا.
+2. افتح قسم **Hooks** في الـ Inspector. اسحب **Pre-hook** أو
+   **Post-hook** من لوحة الشريط الأيسر وأفلته على الـ node — أو أفلته
+   مباشرة في قسم Hooks — لإرفاق hook جديد. يعطيك اختيار من قوالب بداية
+   (`redact-pii`، `rate-limit`، `audit-log`، `inject-context`) تبدأ منها
+   وتعدلها.
+3. اضغط على chip الـ hook لتحدده، وعدّل كوده في محرر CodeMirror. الكود
+   هو **جسم** دالة async، والسيرفر يستدعيها بـ `hook(ctx)` داخل
+   subprocess معزولة (`server/hookSandbox.ts`) — أبدًا في المتصفح ولا في
+   عملية الـ API server نفسها:
+   - لـ hook خاص بـ tool call: `ctx` هو `{ toolName, args, result?,
+     error? }`. الـ pre-hook يقدر يعدّل `ctx.args`، والـ post-hook يقدر
+     يفحص أو يعدّل `ctx.result` و`ctx.error`. رجّع `ctx`.
+   - لـ hook خاص بـ `generate` لـ LLM: `ctx` هو `{ messages, model }`.
+     عدّل `ctx.messages` أو أضف عليها، ورجّع `ctx`.
+   - **رمي exception يلغي الخطوة** — hook الـ rate-limit مثلًا يرمي
+     exception حتى يمنع الـ tool call نهائيًا بدل ما يخليه ينفذ.
+4. بدّل الـ switch على chip الـ hook لتفعيله أو تعطيله بدون إزالته، أو
+   اضغط **x** لإزالته كليًا. الـ hooks المفعّلة فقط هي اللي تدخل في الـ
+   run.
 
-مثال: خطّاف قبلي لحجب البيانات الشخصية (PII) على عقدة أداة (وهو قالب البداية `redact-pii`):
+مثال: pre-hook يخفي الـ PII على node من نوع tool — وهذا قالب البداية
+`redact-pii`:
 
 ```js
 const PII = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi;
@@ -101,33 +176,57 @@ for (const key of Object.keys(ctx.args || {})) {
 return ctx;
 ```
 
-حفظ الوكيل يخزّن هذه الخطّافات في `spec.policy.hooks` ضمن ملف YAML الخاص بالوكيل؛ ويصرّف الخادم الخطّافات المفعّلة إلى `HookRegistry` حقيقي للتشغيل (`server/compileHooks.ts`)، وتمر عبر `SandboxAdapter` نفسه الذي تستخدمه الأداة المعزولة.
+لما تحفظ الـ agent، هذي الـ hooks تنخزن كـ `spec.policy.hooks` في ملف الـ
+YAML الخاص به، والسيرفر يعمل compile للـ hooks المفعّلة إلى
+`HookRegistry` حقيقي للـ run (`server/compileHooks.ts`)، ويوجّهها عبر نفس
+الـ `SandboxAdapter` اللي تستخدمه الـ tool داخل sandbox.
 
-## السفر عبر الزمن
+## Time travel
 
-تحتفظ Agent Forge بنقاط الحفظ (checkpoints) كلها لكل تشغيل، لا بالأخيرة فقط: فمخزنها الملفي (`server/checkpointStore.ts`) يحتفظ بالسجل المحدود نفسه الذي يحتفظ به `LocalStorageCheckpointStore` في الـ SDK (أحدث 50 عملية حفظ لكل تشغيل، تحت `.lousho/agents/<id>/checkpoint-history/`؛ انظر [سجل نقاط الحفظ](/ar/durable-execution#السجل-التاريخي-لنقاط-الحفظ)). ومن هذا السجل تستطيع تفريع تشغيل عند أي خطوة، وتغيير ما جرى فيها، وإعادة تشغيله بجوار الأصل، ويتولى العمل [`AgentExecutor.fork()`](/ar/durable-execution#التفريع-وإعادة-التشغيل) و`compareTrajectories()`.
+Agent Forge يحتفظ بكل الـ checkpoints لكل run، لا الأخيرة فقط. الـ file
+store الخاص به (`server/checkpointStore.ts`) يحتفظ بنفس السجل المحدود اللي
+يحتفظ به `LocalStorageCheckpointStore` في الـ SDK — أحدث 50 حفظة لكل run،
+تحت `.lousho/agents/<id>/checkpoint-history/` (انظر [سجل الـ
+checkpoints](/ar/durable-execution#checkpoint-history)). من هذا
+السجل تقدر تعمل fork (تفريع) لـ run عند أي خطوة، تغيّر اللي صار فيها،
+وتعيد تشغيله بجانب الأصل —
+[`AgentExecutor.fork()`](/ar/durable-execution#fork-و-replay)
+و`compareTrajectories()` هما اللي يقومون بالشغل.
 
-### تبويب History
+### tab History
 
-1. شغّل الوكيل (زر **Run** في الشريط العلوي، أو رسالة في Chat).
-2. افتح تبويب **History** في الدرج السفلي. يسرد خطوات التشغيل: رقم الخطوة، والحالة، وسبب انتهاء النموذج، واستدعاءات الأدوات التي جرت، وعدد الرموز (tokens) وتكلفة استدعاء النموذج في الخطوة عند توفّرهما.
-3. انقر **Edit and replay from here** على إحدى الخطوات. اختر **Append a user message** واكتب رسالة، أو اختر أحد استدعاءات الأدوات في الخطوة لتعديل نتيجته (يُملأ الحقل مسبقًا بالنتيجة المسجَّلة؛ والنص الذي يصح تحليله كـ JSON يُرسَل كـ JSON).
-4. انقر **Fork and replay**. يُفرَّع التشغيل عند تلك الخطوة مع تعديلك ويبدأ كتشغيل جديد باسم `<id>.fork-<n>`.
-5. يُفتح الفرع بجوار الأصل في عرض لمسارَي التنفيذ جنبًا إلى جنب: كل دورة نموذج في التشغيلين (النص، واستدعاءات الأدوات ونتائجها)، مع إبراز أول دورة يختلفان فيها بوسم **diverged**، وتحتها عناصر الانحراف (ترتيب الأدوات، الوسائط، عدد الخطوات، سبب الانتهاء). ويُحدَّث العرض عند انتهاء الفرع.
+1. شغّل الـ agent — زر **Run** في الشريط العلوي أو رسالة في الـ Chat.
+2. افتح tab **History** في الـ drawer السفلي. يسرد خطوات الـ run: رقم
+   الخطوة، الحالة، سبب إنهاء الـ model، الـ tool calls اللي صارت، وعدد
+   الـ tokens وتكلفة استدعاء الـ model في الخطوة لما تكون معروفة.
+3. اضغط **Edit and replay from here** على خطوة. اختر **Append a user
+   message** واكتب رسالة، أو اختر واحد من الـ tool calls في الخطوة وعدّل
+   نتيجته — الحقل يكون معبّأ مسبقًا بالنتيجة المسجلة، وإذا النص يصلح
+   JSON يُرسل كـ JSON.
+4. اضغط **Fork and replay**. النظام يعمل fork للـ run عند تلك الخطوة مع
+   تعديلك ويبدأه كـ run جديد باسم `<id>.fork-<n>`.
+5. الـ fork ينفتح بجانب الأصل في عرض trajectory جنبًا إلى جنب: كل model
+   turn من الـ runين — النص، الـ tool calls ونتائجها — وأول turn
+   يختلفان فيه مظلّل بوسم **diverged**، وتحته عناصر الـ drift (ترتيب الـ
+   tools، الـ arguments، عدد الخطوات، سبب الإنهاء). العرض يتحدث لما الـ
+   fork يخلص.
 
-### المسارات
+### Routes
 
-معرّف التشغيل هو معرّف جلسة نقاط الحفظ الخاصة به: معرّف الوكيل لتشغيلات الوكيل نفسه، و`<id>.fork-<n>` لفرع من التشغيل `<id>`. لدى خادم التحكم في وقت التشغيل ثلاثة مسارات له (يستخدمها تبويب History)، ومساران آخران لتتبّعات الوكيل المحفوظة (يستخدمهما تبويب Trace):
+معرّف الـ run هو الـ checkpoint session id الخاص به: id الـ agent للـ
+runs الخاصة بالـ agent نفسه، و`<id>.fork-<n>` لـ fork من الـ run `<id>`.
+سيرفر التحكم بالـ runtime عنده ثلاث routes لها (tab History يستخدمها)،
+ورouteين ثانيين للـ traces المحفوظة للـ agent (tab Trace يستخدمهم):
 
-| المسار | ما يفعله |
+| Route | وظيفته |
 | --- | --- |
-| `GET /runs/:id/history` | `{ runId, steps }`: مدخل واحد لكل خطوة من أحدث تنفيذ للتشغيل (أحدث نقطة حفظ حُفظت عند تلك الخطوة)، من الأقدم إلى الأحدث، مع `status` و`savedAt` و`finishReason` و`toolCalls` (`{ id, name, args, result? }`)، و`tokens` / `costUsd` لاستدعاء النموذج في الخطوة عند توفّرهما. يعيد 404 حين لا تكون للتشغيل نقاط حفظ. |
-| `POST /runs/:id/fork` | الجسم `{ fromStep, patch? }`، حيث `patch` هو `{ toolResult?: { toolCallId, result }, appendInput?, businessState? }`. يفرّع التشغيل عند `fromStep`، ثم يبدأ الفرع عبر سجل التشغيلات بملف مواصفات التشغيل الأصلي. يعيد 202 مع `{ runId, fromStep, status }`؛ ويُبَث الفرع على `WS /agents/<runId>/stream` ويُبلَّغ عن حالته على `GET /agents/<runId>/status` كأي تشغيل. يعيد 400 لجسم غير صالح أو `toolCallId` غير معروف، و404 لتشغيل غير معروف أو خطوة بلا نقطة حفظ. |
-| `GET /agents/:id/traces?limit=N` | `{ traces }`: تشغيلات الوكيل المحفوظة من `.lousho/agents/<id>/traces`، الأحدث أولًا (القيمة الافتراضية لـ `limit` هي 20 وحدّها الأقصى 200)، ولكل منها `traceId` و`name` و`startTime` و`durationMs` و`status` و`modelCalls` و`toolCalls` و`inputTokens` و`outputTokens` و`costUsd` عند توفّرها. الوكيل الذي لا تشغيلات له يعطي قائمة فارغة؛ و404 لوكيل غير معروف. |
-| `GET /agents/:id/traces/:traceId` | `{ traceId, spans }`: مقاطع تشغيل محفوظ واحد مرتبة بوقت البدء، ولكل مقطع `id` و`parentId` و`name` و`kind` و`status` و`startTime` و`endTime` و`attributes`. يجوز أن يكون `traceId` بادئة فريدة. يعيد 400 لمعرّف ليس من حروف وأرقام وشرطات أو لبادئة تطابق عدة تشغيلات، و404 لوكيل أو تتبّع غير معروف. |
-| `GET /runs/compare?a=&b=` | ناتج `compareTrajectories(a, b)` لأحدث نقطتَي حفظ لتشغيلين: دورات النموذج لكل تشغيل، و`divergedAt` (أول دورة تختلف) وعناصر `drift`. يعيد 404 حين لا تكون لأحد التشغيلين نقطة حفظ. |
+| `GET /runs/:id/history` | `{ runId, steps }`: مدخل لكل خطوة من آخر تنفيذ للـ run — أحدث checkpoint محفوظة عند تلك الخطوة — مرتبة من الأقدم للأحدث، مع `status` و`savedAt` و`finishReason` و`toolCalls` (`{ id, name, args, result? }`)، و`tokens`/`costUsd` لاستدعاء الـ model في الخطوة إذا معروفة. يرجع 404 إذا الـ run ما عنده checkpoints. |
+| `POST /runs/:id/fork` | الـ body هو `{ fromStep, patch? }`، و`patch` يكون `{ toolResult?: { toolCallId, result }, appendInput?, businessState? }`. يعمل fork للـ run عند `fromStep`، ثم يبدأ الـ fork عبر الـ run registry بنفس spec الـ run الأصلي. يرجع 202 `{ runId, fromStep, status }`. الـ fork يبث على `WS /agents/<runId>/stream` ويبلّغ عن حالته على `GET /agents/<runId>/status` مثل أي run ثاني. يرجع 400 إذا الـ body غلط أو `toolCallId` غير معروف، و404 لـ run غير معروف أو خطوة بدون checkpoint. |
+| `GET /agents/:id/traces?limit=N` | `{ traces }`: الـ runs المحفوظة للـ agent من `.lousho/agents/<id>/traces`، الأحدث أول. `limit` افتراضيًا 20 وأقصى قيمة 200. كل عنصر فيه `traceId` و`name` و`startTime` و`durationMs` و`status` و`modelCalls` و`toolCalls` و`inputTokens` و`outputTokens` و`costUsd` إذا معروفة. agent بدون runs يرجع قائمة فارغة، وagent غير معروف يرجع 404. |
+| `GET /agents/:id/traces/:traceId` | `{ traceId, spans }`: الـ spans لـ run محفوظ واحد مرتبة بوقت البداية، وكل span فيه `id` و`parentId` و`name` و`kind` و`status` و`startTime` و`endTime` و`attributes`. `traceId` يجوز يكون prefix فريد. يرجع 400 لـ id فيه غير حروف وأرقام وشرطات، أو prefix يطابق أكثر من run، و404 لـ agent أو trace غير معروف. |
+| `GET /runs/compare?a=&b=` | ناتج `compareTrajectories(a, b)` على أحدث checkpoint لكل من الـ runين: الـ model turns لكل run، و`divergedAt` (أول turn يختلف) وعناصر `drift`. يرجع 404 إذا واحد من الـ runين ما عنده checkpoint. |
 
-تسلسل العمل، لوكيل اسمه `weather` شُغِّل مرة واحدة:
+التسلسل لـ agent اسمه `weather` شغّلته مرة واحدة:
 
 ```bash
 curl localhost:4750/runs/weather/history
@@ -141,15 +240,26 @@ curl 'localhost:4750/runs/compare?a=weather&b=weather.fork-1'
 # {"a":[...],"b":[...],"divergedAt":2,"drift":[{"field":"steps","committed":"1","current":"2"}]}
 ```
 
-الفرع تشغيل قائم بذاته: نقاط حفظ التشغيل الأصلي وحالته ومحادثته تبقى دون تغيير.
+الـ fork هو run مستقل بذاته: checkpoints وحالة وchat الـ run الأصلي تبقى
+مثل ما هي.
 
-## الإعدادات والأسرار وربط النشر
+## الإعدادات وsecrets وربط الـ deploy
 
-في الدرج السفلي تبويب **Settings** من ثلاثة أجزاء: مفاتيح API للمزوّدين (OpenAI وAnthropic، تُخزَّن مشفّرة تحت `.lousho/` ولا تُعرض مرة أخرى أبدًا)، وملفات إعدادات مسمّاة (المزوّد، مهايئ النشر، مهلة الخطّاف، مفتاح تفعيل OpenTelemetry؛ وتُحفظ في `.lousho/settings.json` الذي لا يحوي أسرارًا)، وقسم **Deploy** يختار مهايئًا (`node-server` أو `docker` أو `cloudflare-worker`) ويشغّل `lousho build` للوكيل المحدد. أما بقية المزوّدين فما زالوا يقرؤون متغيرات البيئة الخاصة بهم، كما يفعل `lousho dev` و`lousho build` (انظر [الإعداد](/ar/configuration))، والمزوّد `mock` لا يحتاج إلى بيانات اعتماد.
+في الـ drawer السفلي tab **Settings** من ثلاث أجزاء: مفاتيح API للـ
+providers (OpenAI وAnthropic) — Agent Forge يخزنها مشفّرة تحت `.lousho/`
+وما يعرضها ثانية أبدًا — وprofiles إعدادات مسمّاة (provider، deploy
+adapter، timeout للـ hook، toggle لـ OpenTelemetry، تُحفظ في
+`.lousho/settings.json` اللي ما فيه secrets)، وقسم **Deploy** يختار
+adapter — `node-server` أو `docker` أو `cloudflare-worker` — ويشغّل
+`lousho build` للـ agent المحدد. باقي الـ providers يقرؤون الـ env vars
+الخاصة بهم، نفس طريقة `lousho dev` و`lousho build` (انظر
+[الإعداد](/ar/configuration))، والـ `mock` provider ما يحتاج credentials.
 
 ## وضع التطوير
 
-إذا كنت تعمل داخل المستودع الأحادي لهذه الـ SDK نفسها (تساهم في Agent Forge ذاتها، لا تستخدمها فحسب)، فإن `lousho studio` ينتقل إلى وضع التطوير تلقائيًا ما دام `apps/agent-forge/dist-server` لم يُبنَ بعد:
+إذا كنت تشتغل داخل الـ monorepo الخاص بالـ SDK نفسها — تساهم في Agent
+Forge ذاته، لا تستخدمه فقط — `lousho studio` يرجع لوضع dev تلقائيًا طالما
+`apps/agent-forge/dist-server` ما بُني بعد:
 
 ```bash
 git clone https://github.com/LinuxDevil/agent-sdk.git
@@ -158,7 +268,10 @@ npm install
 npx lousho studio --dev   # or just `npx lousho studio` before building
 ```
 
-يشغّل هذا خادم الواجهة البرمجية مباشرة من TypeScript (`tsx`) وخادم تطوير Vite حقيقيًا مع إعادة تحميل فوري للوحدات لملفات `apps/agent-forge/src/**`، كعمليتين شقيقتين. ولبناء حزمة الإنتاج التي يستخدمها الجميع سواك (وللتحقق مما يُشحن فعلًا):
+هذا يشغّل الـ API server مباشرة من TypeScript (`tsx`)، ومعه Vite dev
+server حقيقي مع hot-module reload لـ `apps/agent-forge/src/**`، كعمليتين
+تشتغلان جنب بعض. وحتى تبني حزمة الـ production اللي يستخدمها الباقي —
+وتتحقق من اللي يُشحن فعلًا:
 
 ```bash
 npm run build:studio   # builds apps/agent-forge/dist (client) and
@@ -166,14 +279,25 @@ npm run build:studio   # builds apps/agent-forge/dist (client) and
 npx lousho studio       # now runs in production mode
 ```
 
-يعمل `npm run build:studio` تلقائيًا أيضًا ضمن سكربت `prepublishOnly` في جذر المستودع، فلا يمكن لعملية `npm publish` أن تنشر استوديو قديمًا أو غير مبني.
+`npm run build:studio` يشتغل تلقائيًا أيضًا ضمن سكربت `prepublishOnly` في
+جذر الـ repo، فـ `npm publish` ما يقدر يشحن studio قديم أو غير مبني
+أبدًا.
 
-## اختبار دخاني شامل (E2E)
+## E2E smoke test
 
-`apps/agent-forge/e2e/studio.spec.ts` اختبار Playwright بلا واجهة (headless) يقود `lousho studio` الحقيقي المبني (خادم الإنتاج `dist-server/index.cjs` نفسه، لا خادم Vite في وضع التطوير) عبر متصفح: ينشئ وكيلًا من القالب "Support bot"، ويعيد توجيه عقدة الأداة فيه إلى أداة `demo-approval` محلية في الخادم (قيمتها دائمًا `needsApproval: true`؛ انظر تعليق التوثيق في `server/buildAgent.ts` لمعرفة سبب وجودها، إذ لا تشترط أي من أدوات الـ SDK المدمجة التي يمكن تحديدها من ملف المواصفات موافقةً)، ويرسل إليه رسالة محادثة تثير منطق استدعاء الأدوات التقريبي في المزوّد الوهمي، وينتظر توقف التشغيل عند بوابة الموافقة، ويوافق عليه من بطاقة الموافقة المضمّنة في تبويب Chat، ثم يتحقق من اكتمال التشغيل. شغّله بالأمر:
+`apps/agent-forge/e2e/studio.spec.ts` هو اختبار Playwright headless يقود
+`lousho studio` الحقيقي المبني — نفس سيرفر الـ production
+`dist-server/index.cjs`، لا Vite dev server — عبر متصفح. ينشئ agent من
+قالب "Support bot"، يوجّه الـ tool node فيه لـ tool اسمها
+`demo-approval` محلية على السيرفر (`needsApproval: true` دائمًا — انظر
+تعليق التوثيق في `server/buildAgent.ts` لتعرف سبب وجودها، لأن أي tool
+مدمجة في الـ SDK قابلة للتحديد من الـ spec ما تطلب approval)، يرسل له
+رسالة chat تفعّل الـ tool-call heuristic في الـ `mock` provider، ينتظر
+توقف الـ run عند الـ approval gate، يوافق عليه من بطاقة الـ approval
+المدمجة في tab Chat، وثم يتحقق إن الـ run يكتمل. شغّله بالأمر:
 
 ```bash
 npm run test:e2e:studio   # from the repo root, or apps/agent-forge/
 ```
 
-يبني هذا Agent Forge أولًا (`build:studio`)، ثم يشغّل Playwright عليها.
+هذا يبني Agent Forge أول (`build:studio`)، ثم يشغّل Playwright عليه.

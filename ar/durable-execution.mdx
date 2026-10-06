@@ -1,9 +1,9 @@
 ---
-title: "التنفيذ المتين"
+title: "Durable execution"
 ---
 {/* Generated from docs/durable-execution.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-امنح `createAgent()` خيار `store` ومرّر `sessionId` إلى `send()` فيصمد التشغيل أمام تعطّل، أو إعادة تشغيل، أو إيقاف (abort)، أو موافقة بشرية تستغرق أيامًا. لا شيء هنا يعتمد على مستضيف بعينه: أي `CheckpointStore` (`memoryStore()`، أو `SqliteStore`، أو مخزن Cloudflare KV الذي يجهّزه بناء `cloudflare-worker`، أو تنفيذك الخاص المكوَّن من ثلاث دوال) وأي `ApprovalStore` يعملان بالطريقة نفسها.
+مرّر `store` لـ`createAgent()` ومرّر `sessionId` لـ`send()`، والـ run يكمل رغم crash، أو restart، أو abort، أو approval (موافقة) من إنسان ياخد أيام. ولا شيء هنا يعتمد على host معيّن: أي `CheckpointStore` — `memoryStore()`، أو `SqliteStore`، أو store الـ Cloudflare KV اللي يوصّله build `cloudflare-worker`، أو تنفيذك الخاص بثلاث دوال — وأي `ApprovalStore` يشتغلون بنفس الطريقة.
 
 ```ts
 import { createAgent } from '@lousho/build-ai-agent';
@@ -21,35 +21,35 @@ await agent.send('Make it 3 people', { sessionId: 'chat-42' });
 const finished = await agent.resume('chat-42');
 ```
 
-يتولى خيار `store` التجهيز: يحتفظ `store.checkpoints` بنقاط حفظ (checkpoints) التشغيل، ويحتفظ `store.approvals` بحالات التوقف بانتظار الموافقة، وتواصل `agent.approvals.resolve()` حفظ نقاط الحفظ للتشغيل تحت `sessionId` الخاص به. وتقبل `stream()` أيضًا `sessionId`. والجلسات تُحفظ لها نقاط حفظ أيضًا: `agent.session({ id })` تحفظ نقطة حفظ لكل دورة، و`agent.resume(id)` (أو `session.resume()`) تُكمل الدورة التي انقطعت، انظر [الجلسات المتينة](/ar/sessions#الجلسات-المتينة).
+خيار `store` هو اللي يسوي التوصيل كله: `store.checkpoints` يحمل checkpoints الـ run، و`store.approvals` يحمل توقفات الـ approval، و`agent.approvals.resolve()` تكمل تكتب checkpoints للـ run تحت `sessionId` حقه. `stream()` تاخذ `sessionId` أيضًا. والـ sessions (الجلسات) لها checkpoints هي كذلك: `agent.session({ id })` تحفظ checkpoint لكل turn، و`agent.resume(id)` (أو `session.resume()`) تنهي session انقطعت — شوف [durable sessions](/ar/sessions#durable-sessions).
 
-في الأسفل، تشغّل `createAgent()` الدالة `AgentExecutor.execute()` مع `sessionId` و`checkpointStore`؛ والسلوك الموصوف أدناه هو سلوك المنفِّذ، ويعرض [القسم المتقدم](#متقدم-واجهة-المنفِّذ) استدعاءات المنفِّذ.
+تحت الغطاء، `createAgent()` تشغّل `AgentExecutor.execute()` مع `sessionId` و`checkpointStore`. السلوك الموصوف تحت هو سلوك الـ executor، و[القسم المتقدم](#متقدم-executor-api) يورّيك استدعاءاته.
 
-## ما الذي يُحفظ في نقطة الحفظ، ومتى
+## ماذا يُحفَظ في الـ checkpoint، ومتى
 
-نقطة الحفظ هي سجل محادثة التشغيل كاملًا مع عدد خطواته، واستهلاكه، و`businessState`، وقيمة `status`. وتكتبها `send()` (و`stream()`) تحت `sessionId`:
+الـ checkpoint هو كامل transcript الـ run، زائد عدد خطواته و`usage` و`businessState` و`status`. `send()` (و`stream()`) تكتبه تحت `sessionId`:
 
 | اللحظة | `status` |
 | ------ | -------- |
-| مباشرة بعد كل رد من النموذج يطلب أدوات، قبل تنفيذ أي أداة | `'in-progress'` |
-| في كل مرة تُسجَّل فيها نتيجة أداة (تُسجَّل النتائج بترتيب الاستدعاء) | `'in-progress'` |
-| عند إيقاف التشغيل (`signal`) | `'in-progress'` |
-| عند توقف التشغيل مؤقتًا بانتظار موافقة (على استدعاء أداة خاص به، أو خاص بـ[وكيل فرعي](/ar/sub-agents)، وكذلك حين يتوقف وكيل فرعي مستأنف مرة أخرى) | `'awaiting-approval'` (مع `approvalId`) |
-| عند انتهاء التشغيل (توقف النموذج عن استدعاء الأدوات، أو استُنفد `maxSteps`) | `'finished'` |
+| مباشرة بعد كل رد من الـ model يطلب tools، وقبل ما تشتغل أي tool | `'in-progress'` |
+| كل مرة تتسجل نتيجة tool (النتائج تتسجل بترتيب الاستدعاء) | `'in-progress'` |
+| لما يتوقف الـ run بـ abort (`signal`) | `'in-progress'` |
+| لما يوقف الـ run على approval (لـ tool call خاصة فيه، أو خاصة بـ[sub-agent](/ar/sub-agents)، وأيضًا لما sub-agent مستأنف يوقف مرة ثانية) | `'awaiting-approval'` (مع `approvalId`) |
+| لما يخلص الـ run (الـ model وقف ينادي tools، أو خلص `maxSteps`) | `'finished'` |
 
-التشغيل الذي ينتهي بخطأ (خطأ من المزوّد، أو خطّاف يرمي خطأً، أو `PropagatingToolError`، أو تعطّل العملية) يحتفظ بآخر نقطة حفظ له بالحالة `'in-progress'`.
+الـ run اللي يفشل (خطأ من الـ provider، أو hook يرمي خطأ، أو `PropagatingToolError`، أو crash في الـ process) يحتفظ بآخر checkpoint بـ`'in-progress'`.
 
-## ما الذي يحدث حين ترسل مرة أخرى بالـ`sessionId` نفسه
+## ماذا يصير لو ترسل مرة ثانية بنفس `sessionId`
 
-يتوقف استدعاء `send()` مرة أخرى بالـ`sessionId` نفسه (أو `execute()` على المنفِّذ) على قيمة `status` المخزَّنة:
+نتيجة نداء `send()` مرة ثانية بنفس `sessionId` (أو `execute()` عند الـ executor) تعتمد على `status` المحفوظة:
 
-- **تشغيل غير مكتمل** (`'in-progress'`: تعطّل، أو أُوقف، أو فشلت كتابة في المخزن). يُستأنف التشغيل (وتفعل `agent.resume(sessionId)` الشيء نفسه دون مدخل جديد). إذا كانت دورة النموذج الأخيرة فيه تتضمن استدعاءات أدوات بلا نتيجة، تُنفَّذ تلك الاستدعاءات بعينها أولًا، عبر مسار الأدوات المعتاد (التحقق من المعطيات، والخطّافات، و`needsApproval`، و`toolConcurrency`)، **من دون استدعاء النموذج من جديد**. ثم تستمر الحلقة بما تبقّى من ميزانية `maxSteps`؛ ويستمر `usage` من الإجماليات المحفوظة في نقطة الحفظ (والأمر نفسه بعد `agent.approvals.resolve()`، انطلاقًا من اللقطة).
-  - يُضاف `input` الجديد كرسالة مستخدم بعد نتائج تلك الأدوات. ولا يوضع أبدًا بين دورة استدعاء أدوات ونتائجها، فيبقى سجل المحادثة صالحًا لدى كل مزوّد. وهذا ما يتيح للمستخدم أن يقاطع تشغيلًا (بإيقافه) ويعيد توجيهه برسالة جديدة.
-  - الـ`input` الذي يعيد إرسال الرسالة التي بدأ منها التشغيل (وهو التصرف الطبيعي: «أعد الطلب نفسه بعد تعطّل») يُعامَل كإعادة محاولة ولا يُضاف مرة أخرى. و`input: []` كذلك يستأنف فحسب.
-- **تشغيل منتهٍ** (`'finished'`). تستمر الجلسة كمحادثة: تبقى الرسائل المخزَّنة ويصبح `input` دورة المستخدم التالية. مرّر الرسالة أو الرسائل الجديدة فقط؛ وإذا أعدت إرسال السجل المخزَّن متبوعًا برسائل جديدة، يُتعرَّف على السجل ولا يُكرَّر. وتُحتسب `steps` و`usage` و`toolCalls` في النتيجة من الصفر للتشغيل الجديد؛ أما `messages` فهي المحادثة كاملة.
-- **متوقف بانتظار موافقة** (`'awaiting-approval'`). ترمي `send()` الخطأ `SessionAwaitingApprovalError` (مع `sessionId` و`approvalId`) ولا تستدعي النموذج ولا أي أداة: فلا يجوز أن يتجاوز مدخل جديد قرارًا معلّقًا. احسمه أولًا بـ`agent.approvals.resolve()`، ثم أرسل الرسالة الجديدة.
+- **run غير مكتمل** (`'in-progress'`: صار crash، أو انقطع بـ abort، أو كتابة في الـ store فشلت). الـ run يستأنف (`agent.resume(sessionId)` تسوي نفس الشيء بدون input جديد). لو آخر turn للـ model فيها tool calls بدون نتيجة، هي بالضبط اللي تشتغل أول، عبر مسار الـ tools العادي (validation للـ arguments، hooks، `needsApproval`، `toolConcurrency`)، **بدون ما تنادي الـ model مرة ثانية**. بعدها تكمل الحلقة باللي باقي من ميزانية `maxSteps`، و`usage` يكمل من الإجماليات المحفوظة في الـ checkpoint (نفس الشيء بعد `agent.approvals.resolve()`، من الـ snapshot).
+  - الـ `input` الجديد ينضاف كرسالة user بعد نتائج الـ tools هذي. وما ينحط أبدًا بين turn فيها tool calls ونتائجها، فيبقى الـ transcript صالح لكل provider. هذا اللي يخلي الـ user يقاطع run (بـ abort) ويوجّهه برسالة جديدة.
+  - `input` يعيد إرسال نفس الرسالة اللي بدأ منها الـ run — وهذا الطبيعي لما تبغى retry لنفس الطلب بعد crash — ينعامل كـ retry وما ينضاف مرة ثانية. و`input: []` كمان بس يستأنف.
+- **run مكتمل** (`'finished'`). الـ session تكمل كمحادثة: الرسائل المحفوظة تبقى، و`input` يصير turn الـ user التالية. مرّر بس الرسائل الجديدة؛ لو أعدت إرسال السجل المحفوظ وبعده رسائل جديدة، السجل يتعرف عليه وما يتكرر. `steps` و`usage` و`toolCalls` في النتيجة تعد من صفر للـ run الجديد؛ `messages` هي المحادثة كلها.
+- **موقوف على approval** (`'awaiting-approval'`). `send()` ترمي `SessionAwaitingApprovalError` (فيها `sessionId` و`approvalId`) وما تنادي الـ model ولا أي tool: input جديد ما يجوز يتخطى قرار معلّق. احسمه أول بـ`agent.approvals.resolve()`، بعدين أرسل الرسالة الجديدة.
 
-تُتجاهَل رسائل النظام في `input` حين يُضاف إلى جلسة مخزَّنة (فالجلسة لها موجّه النظام الخاص بها أصلًا). ولإنهاء جلسة والبدء من جديد بالمعرّف نفسه، استدعِ `store.checkpoints.delete(sessionId)`.
+رسائل الـ system في `input` تتجاهل لما ينضاف `input` لـ session محفوظة (عندها الـ system prompt حقها أصلًا). لو تريد تنهي session وتبدأ من جديد بنفس الـ id، نادِ `store.checkpoints.delete(sessionId)`.
 
 ```ts
 import { createAgent, memoryStore, SessionAwaitingApprovalError } from '@lousho/build-ai-agent';
@@ -65,13 +65,13 @@ try {
 }
 ```
 
-## الموافقات في منتصف دفعة أدوات
+## approval في منتصف batch من tool calls
 
-حين تطلب دورة نموذج واحدة عدة أدوات وتحتاج إحداها إلى موافقة، تُنفَّذ الاستدعاءات التي تسبقها وتُسجَّل، ويتوقف التشغيل عندها. وتسجّل لقطة الموافقة (snapshot) الاستدعاءات التي تليها (`remainingToolCalls`). ثم تقوم `agent.approvals.resolve()` (ومن تحتها الدالة المُصدَّرة `resumeAfterApproval()`) بما يلي:
+لما turn واحدة للـ model تطلب عدة tools ووحدة منها تحتاج approval، الـ calls اللي قبلها تشتغل وتتسجل، والـ run يوقف عندها. الـ approval snapshot يسجل الـ calls اللي بعدها (`remainingToolCalls`). بعدها `agent.approvals.resolve()` — وتحتها الدالة المصدّرة `resumeAfterApproval()` — تسوي:
 
-1. تسجّل نتيجة الاستدعاء المتوقف: نتيجة الأداة إن وُوفق عليه، أو نتيجة رفض منظَّمة `{ error, note }` إن رُفض؛
-2. تنفّذ الاستدعاءات المتبقية بمنطق الدفعة نفسه: فقد تُنفَّذ، أو تفشل في التحقق، أو توقف التشغيل مرة أخرى عند موافقة أخرى (`approvalId` جديد؛ احسمه بالطريقة نفسها، وبعدد المرات اللازم)؛
-3. تستدعي النموذج حالما يصبح لكل استدعاء في الدورة نتيجة واحدة بالضبط.
+1. تسجل نتيجة الـ call الموقوفة: نتيجة الـ tool لو انوافق عليها، أو نتيجة رفض منظمة `{ error, note }` لو انرفضت؛
+2. تشغّل الـ calls الباقية بنفس منطق الـ batch: يمكن تشتغل، أو تفشل في الـ validation، أو توقف الـ run مرة ثانية على approval ثاني (`approvalId` جديد؛ احسمه بنفس الطريقة، وكرر قد ما لزم)؛
+3. تنادي الـ model أول ما يصير لكل call في الـ turn نتيجة واحدة بالضبط.
 
 ```ts
 import { createAgent, memoryStore } from '@lousho/build-ai-agent';
@@ -87,18 +87,18 @@ if (paused.finishReason === 'awaiting-approval') {
 }
 ```
 
-يستخدم التشغيل المستأنف `approvalStore` نفسه لأي موافقة لاحقة ما لم تمرّر مخزنًا آخر في الخيارات.
+الـ run المستأنف يستخدم نفس `approvalStore` لأي approval لاحق، إلا لو مررت واحد ثاني في الخيارات.
 
 ## الضمانات
 
-- **يحصل كل استدعاء أداة على نتيجة واحدة بالضبط، بترتيب الاستدعاء**، بعد أي تتابع من حالات التعطّل والإيقاف والتوقف المؤقت والاستئناف. (الاستدعاء الذي أُوقف يحصل على نتيجة «أُلغي»؛ والاستدعاء المرفوض يحصل على نتيجة رفض.)
-- **النتيجة المسجَّلة لا يُعاد تنفيذها أبدًا.** تُحفظ النتائج في نقاط الحفظ كلما امتدّت سلسلة الاستدعاءات المكتملة المتتالية بترتيبها؛ والتشغيل المستأنف لا ينفّذ إلا الاستدعاءات التي ليست لها نتيجة مسجَّلة.
-- **دورة النموذج المحفوظة في نقطة حفظ لا تُولَّد من جديد أبدًا.** إذا توقفت العملية بعد أن أجاب النموذج، ينفّذ التشغيل المستأنف استدعاءات الأدوات الواردة في تلك الإجابة بدل سؤال النموذج مرة أخرى (فلا تكلفة إضافية ولا خطة مختلفة).
-- **يتلقى المزوّد دائمًا سجل محادثة صالحًا**: نتائج الأدوات تأتي مباشرة بعد دورة استدعاء الأدوات الخاصة بها، ومدخل المستخدم الجديد يأتي بعدها.
+- **كل tool call تاخذ نتيجة واحدة بالضبط، بترتيب الاستدعاء**، مهما تتابعت الـ crashes والـ aborts والتوقفات والاستئنافات. (الـ call اللي انقطعت بـ abort تاخذ نتيجة "cancelled"؛ والـ call المرفوضة تاخذ نتيجة رفض.)
+- **ما في call بنتيجة مسجلة يتعاد تنفيذه أبدًا.** النتائج تنحفظ في الـ checkpoints كلما طالت سلسلة الـ calls المخلّصة بالترتيب؛ والـ run المستأنف يشغّل بس الـ calls اللي ما عندها نتيجة مسجلة.
+- **turn الـ model المحفوظ في checkpoint ما يتولّد من جديد أبدًا.** لو الـ process ماتت بعد ما الـ model رد، الـ run المستأنف ينفذ الـ tool calls اللي في الرد بدل ما يسأل الـ model مرة ثانية (ولا تكلفة زيادة ولا خطة مختلفة).
+- **الـ provider يستقبل دائمًا transcript صالح**: نتائج الـ tools تجي مباشرة ورا turn الـ tool calls حقها، ورسائل الـ user الجديدة تجي بعدها.
 
-## الأدوات تُنفَّذ مرة واحدة على الأقل: اجعل الآثار الجانبية آمنة عند التكرار
+## At-least-once tools: خلّي الـ side effects idempotent
 
-الأداة التي كانت **قيد التنفيذ** حين توقفت العملية ليست لها نتيجة مسجَّلة، فتُنفَّذ من جديد عند الاستئناف. فتنفيذ الأدوات إذن «مرة واحدة على الأقل» (at-least-once) لا «مرة واحدة بالضبط» (exactly-once). أما الأدوات ذات الآثار الجانبية (خصم مبلغ من بطاقة، أو إرسال بريد إلكتروني) فإما أن تقيّدها بـ`needsApproval` وإما أن تجعلها آمنة عند التكرار (idempotent). يُمرَّر `toolCallId` الخاص بكل استدعاء (وهو معرّف النموذج للاستدعاء، ولا يتغير حين يُعاد تنفيذه عند الاستئناف) إلى `execute`، فيصلح مفتاحًا لمنع التكرار (idempotency key):
+الـ tool اللي كانت **شغّالة** لما ماتت الـ process ما عندها نتيجة مسجلة، فتشتغل من جديد عند الاستئناف. يعني تنفيذ الـ tools هو at-least-once، وليس exactly-once. الـ tools اللي لها side effects (سحب مبلغ من بطاقة، إرسال إيميل): إما تحطها ورا `needsApproval` وإما تخليها idempotent. `toolCallId` حق كل call — وهو id الـ model للـ call، وما يتغير لما يعاد تنفيذه في الاستئناف — ينمرّر لـ`execute`، فيشتغل كـ idempotency key:
 
 ```ts
 import { defineTool } from '@lousho/build-ai-agent';
@@ -115,25 +115,25 @@ const chargeCard = defineTool({
 });
 ```
 
-(يُعيَّن `toolCallId` في كل تنفيذ لأداة، ومنها الأدوات التي تمرّ عبر `sandboxExecute`.)
+(`toolCallId` يتعين في كل run لـ tool، بما فيها الـ tools اللي تمر عبر `sandboxExecute`.)
 
-## السجل التاريخي لنقاط الحفظ
+## Checkpoint history
 
-قيد نقطة الحفظ يُستبدل عند كل حفظ، فتزول خطوات التشغيل السابقة حالما يتقدّم. ويمكن للمخزن أيضًا أن يحتفظ بسجل تاريخي محدود لكل جلسة: كل `save()` يضيف القيد إلى حلقة دوّارة (أحدث `historyLimit` عملية حفظ، والافتراضي 50؛ وتُسقَط الأقدم)، وعلى ذلك تقوم إعادة تشغيل (replay) تشغيلٍ ما أو تفريعه (fork) من خطوة سابقة.
+سجل الـ checkpoint يتكتب فوقه مع كل save، فخطوات الـ run الأقدم تروح أول ما يتقدم. الـ store يقدر أيضًا يحتفظ بـ history محدود لكل session: كل `save()` يضيف السجل لـ ring (أحدث `historyLimit` حفظة، والافتراضي 50؛ الأقدم ينحذف). وهذا اللي تتبني عليه إعادة replay لـ run أو عمل fork له من خطوة أقدم.
 
-المخازن التي تحتفظ بسجل تاريخي:
+الـ stores اللي تحتفظ بـ history:
 
-| المخزن | السجل التاريخي | الخيار |
+| Store | History | الخيار |
 | --- | --- | --- |
 | `memoryStore()` | نعم | `memoryStore({ historyLimit })` |
 | `SqliteStore` | نعم (جدول `checkpoint_history`) | `new SqliteStore(path, { historyLimit })` |
 | `LocalStorageCheckpointStore` | نعم | `new LocalStorageCheckpointStore(storage, { historyLimit })` |
 | `fileStore(dir)` (ملفات JSON) | نعم (`checkpoint-history/<id>.json`) | `fileStore(dir, { historyLimit })` |
-| `KVCheckpointStore` / `KVStore` (Cloudflare Workers KV، من `@lousho/build-ai-agent/kv`) | نعم (انظر أدناه) | `new KVStore(kv, { historyLimit })` |
-| `FileCheckpointStore` الخاص بـ Agent Forge | نعم | `new FileCheckpointStore(dir, { historyLimit })` |
-| `CheckpointStore` مخصَّص | فقط إذا نفّذ `history()` | - |
+| `KVCheckpointStore` / `KVStore` (Cloudflare Workers KV، من `@lousho/build-ai-agent/kv`) | نعم (شوف تحت) | `new KVStore(kv, { historyLimit })` |
+| `FileCheckpointStore` حق Agent Forge | نعم | `new FileCheckpointStore(dir, { historyLimit })` |
+| `CheckpointStore` مخصص | بس لو ينفذ `history()` | - |
 
-مثلًا، مع المخزن الذي يعمل في الذاكرة:
+مثال، مع store الذاكرة:
 
 ```ts
 import { getCheckpointHistory, memoryStore } from '@lousho/build-ai-agent';
@@ -151,15 +151,15 @@ for (const { step, savedAt, status, checkpoint } of history ?? []) {
 await checkpoints.delete('chat-42', { keepHistory: true });
 ```
 
-- تعيد `history(sessionId, { limit? })` مدخلات بالشكل `{ step, savedAt, status, checkpoint }`، الأحدث أولًا (`step` هو `checkpoint.stepIndex`، و`savedAt` طابع زمني بصيغة ISO، و`status` يكون `'in-progress'` لنقطة حفظ لا تحمل حالة). يحفظ المنفِّذ بعد كل دورة نموذج وكل دفعة أدوات، فللجلسة مدخل واحد لكل عملية حفظ؛ والمدخلات تحتوي نقاط حفظ كاملة، فاخفض `historyLimit` لسجلات المحادثة الطويلة. والجلسة غير المعروفة تعطي `[]`.
-- الدالة `history` اختيارية في `CheckpointStore`: المخزن المخصَّص الذي لا يوفّرها يواصل العمل، وتعيد له `getCheckpointHistory()` القيمة `undefined` بدل أن ترمي خطأً.
-- يحتفظ `KVCheckpointStore` بمفتاح فهرس واحد لكل جلسة (`<prefix><sessionId>#history`، وفيه معرّفات المدخلات من الأقدم إلى الأحدث) وبمفتاح واحد لكل مدخل (`<prefix><sessionId>#history/<id>`)، فلا تكبر أي قيمة مع نمو السجل التاريخي؛ وتبقى أحدث نقطة حفظ عند `<prefix><sessionId>`، فالمخزن المكتوب قبل وجود السجل التاريخي يُحمَّل كما كان. عملية الحفظ تكتب نقطة الحفظ، ثم المدخل، ثم الفهرس، ثم تحذف المدخلات التي أسقطتها: فالتعطّل بين كتابتين يترك في أسوأ الأحوال مدخلًا غير مدرج في الفهرس (تنتهي صلاحيته مع TTL)، ولا يترك أبدًا مخزنًا تتعذّر قراءته. لا يدعم KV المعاملات (transactions)، فقد تفقد عمليتا حفظ متزامنتان لجلسة واحدة تحديثًا واحدًا للفهرس (فيغيب ذلك المدخل عن `history()`)، وقد يغيب مدخل لبعض الوقت في موقع طرفي (edge) آخر (اتساق نهائي؛ و`history()` تتخطاه). وجِّه طلبات الجلسة إلى موقع واحد حين يكون ذلك مهمًا. كل عملية حفظ تكلّف عملية `get` واحدة وعمليتي `put` إضافية؛ و`historyLimit: 0` يعطّل ذلك.
-- مخزن الملفات في Agent Forge يكتب السجل التاريخي ملفًا واحدًا لكل جلسة (`.lousho/agents/<id>/checkpoint-history/<session>.json`، ويُستبدل استبدالًا ذرّيًا)؛ والملف الذي أتلفه تعطّل يُقرأ كأنه بلا سجل تاريخي ويعيد الحفظ التالي بناءه.
-- يحتفظ `SqliteStore` بالسجل التاريخي في جدول جديد `checkpoint_history`، يُضاف عند فتح ملف قاعدة بيانات موجود؛ و`prune()` تزيل أيضًا مدخلات السجل التاريخي الأقدم من حدّها الزمني.
+- `history(sessionId, { limit? })` ترجع مدخلات `{ step, savedAt, status, checkpoint }`، الأحدث أول (`step` هو `checkpoint.stepIndex`، `savedAt` timestamp بصيغة ISO، و`status` تكون `'in-progress'` لـ checkpoint ما عنده حالة). الـ executor يحفظ بعد كل turn للـ model وكل batch من الـ tools، فكل session عندها مدخل لكل save. المدخلات فيها checkpoints كاملة، فخفّض `historyLimit` للـ transcripts الطويلة. session غير معروفة ترجع `[]`.
+- `history` اختيارية في `CheckpointStore`: store مخصص بدونها يكمل يشتغل، و`getCheckpointHistory()` ترجع له `undefined` بدل ما ترمي.
+- `KVCheckpointStore` يحتفظ بمفتاح index واحد لكل session (`<prefix><sessionId>#history`، وفيه ids المدخلات من الأقدم للأحدث) وبمفتاح واحد لكل مدخل (`<prefix><sessionId>#history/<id>`)، فما في قيمة تكبر مع الـ history. أحدث checkpoint يبقى عند `<prefix><sessionId>`، فـ store مكتوب قبل ما يوجد الـ history يتحمّل عادي. الـ save يكتب الـ checkpoint، بعدين المدخل، بعدين الـ index، بعدين يحذف المدخلات اللي أسقطها: crash بين كتابتين يترك بالأسوأ مدخل ما هو مدرج في الـ index (تنتهي صلاحيته مع الـ TTL)، وما يترك أبدًا store غير قابل للقراءة. KV ما عنده transactions، فحفظتين متزامنتين لنفس الـ session يمكن تضيّع تحديث واحد للـ index (المدخل يغيب عن `history()`)، ويمكن مدخل يغيب فترة في edge location ثانية (eventual consistency؛ و`history()` تتخطاه). وجّه طلبات الـ session لموقع واحد لما هذا يفرق. كل save يكلف `get` واحدة و`put`ين إضافية؛ و`historyLimit: 0` يطفيها.
+- الـ file store حق Agent Forge يكتب الـ history ملف واحد لكل session (`.lousho/agents/<id>/checkpoint-history/<session>.json`، والاستبدال atomic). الملف اللي تلف من crash يتقري كأنه بدون history، والـ save التالية تبنيه من جديد.
+- `SqliteStore` يحتفظ بالـ history في جدول جديد `checkpoint_history` يُضاف لما ينفتح ملف database موجود. و`prune()` تشيل مدخلات الـ history الأقدم من الـ cutoff حقها.
 
-## التفريع وإعادة التشغيل
+## Fork و replay
 
-تبدأ `agent.fork(sessionId, { fromStep, patch? })` جلسة جديدة من خطوة في السجل التاريخي لجلسة أخرى: «ماذا لو أعادت الأداة شيئًا آخر في الخطوة 1؟» تأخذ أحدث مدخل في السجل التاريخي للخطوة `fromStep`، وتطبّق `patch`، وتحفظ الناتج نقطةَ حفظ بالحالة `'in-progress'` للجلسة الجديدة عبر `store.checkpoints`، وتعيد `{ sessionId, step, checkpoint }`. استأنف التفريعة كأي تشغيل غير مكتمل بـ`agent.resume(fork.sessionId)`:
+`agent.fork(sessionId, { fromStep, patch? })` تبدأ session جديدة من خطوة في history لـ session ثانية: «ماذا لو الـ tool أعادت شيء ثاني في الخطوة 1؟». تاخذ أحدث مدخل في الـ history للخطوة `fromStep`، تطبق `patch`، تحفظ الناتج كـ checkpoint بـ`'in-progress'` للـ session الجديدة على `store.checkpoints`، وترجع `{ sessionId, step, checkpoint }`. استأنف الـ fork مثل أي run غير مكتمل بـ`agent.resume(fork.sessionId)`:
 
 ```ts
 import { createAgent, compareTrajectories, memoryStore } from '@lousho/build-ai-agent';
@@ -180,33 +180,29 @@ if (original && replayed) {
 }
 ```
 
-`AgentExecutor.fork()` هي العملية نفسها على المنفِّذ؛ انظر [القسم المتقدم](#متقدم-واجهة-المنفِّذ).
+`AgentExecutor.fork()` هي نفس العملية على الـ executor؛ شوف [القسم المتقدم](#متقدم-executor-api).
 
-تفرّع `agent.fork()` تشغيلًا واحدًا بحسب سجل نقاط حفظه. ولتفريع محادثة
-`agent.session()` متعددة الدورات استخدم `session.history()` و
-`session.fork({ fromStep })`، وهما يعملان من السجل المحفوظ للجلسة مع أي
-مخزن (الدورات المنتهية لا تحتفظ بسجل نقاط حفظ)؛ انظر
-[تفريع جلسة](/ar/sessions#تفريع-جلسة).
+`agent.fork()` تسوي fork لـ run واحد من الـ checkpoint history حقه. لو تريد تفرّع محادثة `agent.session()` متعددة الـ turns، استخدم `session.history()` و`session.fork({ fromStep })`، والاثنين يشتغلون من الـ transcript المحفوظ للـ session مع أي store (الـ turns المنتهية ما تحتفظ بـ checkpoint history)؛ شوف [عمل fork للـ session](/ar/sessions#forking-a-session).
 
-- يُطبَّق `patch` بهذا الترتيب: `messages(messages)` تعيد كتابة سجل المحادثة؛ و`businessState` يحلّ محلّ القيمة المحفوظة؛ و`toolResult: { toolCallId, result }` يستبدل نتيجة ذلك الاستدعاء في مكانها (الموضع نفسه ومعرّف الاستدعاء نفسه واسم الأداة نفسه، فيبقى سجل المحادثة صالحًا لدى كل مزوّد)، أو يسجّلها حين لا تكون للاستدعاء نتيجة بعد؛ و`appendInput` يضع رسالة مستخدم في الانتظار، تُرسل بعد أي استدعاءات أدوات ما زالت معلّقة.
-- تحتفظ التفريعة بعدد خطوات نقطة الحفظ المصدر وباستهلاكها، فينطبق عليها ما تبقّى من ميزانية `maxSteps`. نتائج الأدوات المسجَّلة لا يُعاد تنفيذها؛ واستدعاءات الأدوات التي بلا نتيجة تُنفَّذ أولًا، كما في أي استئناف (فتفريعة من مدخل بالحالة `'awaiting-approval'` تمرّ عبر `needsApproval` من جديد؛ ولا يُنقل `approvalId` القديم).
-- يسمّي `newSessionId` التفريعة؛ والافتراضي `<sessionId>.fork-<n>` حيث `n` أول عدد ليست له نقطة حفظ. ويُرفض `newSessionId` الذي له نقطة حفظ أصلًا.
-- الخطوة غير الموجودة في السجل التاريخي (الجلسة غير معروفة، أو الخطوة لم تُنفَّذ قط، أو أُسقطت لتجاوزها `historyLimit`) ترمي `SDKError` برمز الخطأ [`LOUSHO_CHECKPOINT_NOT_FOUND`](/ar/errors#lousho_checkpoint_not_found)، ورسالته تسرد الخطوات المحفوظة. والمخزن الذي بلا `history()` لا يمكن التفريع منه (`ConfigurationError`).
-- تأخذ `compareTrajectories(a, b)` نقطتي حفظ أو سجلَّي محادثة وتعيد خطوات كل تشغيل (خطوة لكل دورة للمساعد: نصها واستدعاءات أدواتها مع نتائجها)، و`divergedAt` (أول خطوة تختلف، بصرف النظر عن معرّفات استدعاءات الأدوات)، و`drift`، وهو الفروق في ترتيب الأدوات والمعطيات وعدد الخطوات وسبب الانتهاء، بالبنية نفسها التي يخرجها `lousho eval --drift`.
+- `patch` يتطبق بهذا الترتيب: `messages(messages)` يعيد كتابة الـ transcript؛ `businessState` يستبدل القيمة المحفوظة؛ `toolResult: { toolCallId, result }` يستبدل نتيجة هالـ call في مكانها — نفس الموضع ونفس الـ call id ونفس اسم الـ tool، فيبقى الـ transcript صالح لكل provider — أو يسجلها لو الـ call ما عندها نتيجة إلى الآن؛ `appendInput` يضع رسالة user في الانتظار، تترسل بعد أي tool calls ما زالت معلقة.
+- الـ fork يحتفظ بعدد خطوات الـ checkpoint المصدر و`usage` حقها، فينطبق عليه اللي باقي من ميزانية `maxSteps`. نتائج الـ tools المسجلة ما تتعاد؛ والـ tool calls اللي بدون نتيجة تشتغل أول، مثل أي استئناف (يعني fork لمدخل `'awaiting-approval'` يمر على `needsApproval` من جديد؛ و`approvalId` القديم ما ينتقل).
+- `newSessionId` يسمي الـ fork؛ الافتراضي `<sessionId>.fork-<n>`، و`n` أول رقم ما عنده checkpoint. `newSessionId` اللي عنده checkpoint أصلًا يُرفض.
+- خطوة ما هي موجودة في الـ history — الـ session غير معروفة، أو الخطوة ما اشتغلت أبدًا، أو انحذفت بعد ما تجاوزت `historyLimit` — ترمي `SDKError` بكود [`LOUSHO_CHECKPOINT_NOT_FOUND`](/ar/errors#lousho_checkpoint_not_found)، ورسالته تعدّد الخطوات المحفوظة. وstore بدون `history()` ما يقدر يسوي fork (`ConfigurationError`).
+- `compareTrajectories(a, b)` تاخذ checkpointين أو transcriptين وترجع خطوات كل run — خطوة لكل turn للـ assistant: نصها وtool callsها مع نتائجها — و`divergedAt` (أول خطوة تختلف، بغض النظر عن ids الـ tool calls)، و`drift`، وهو فروق ترتيب الـ tools والـ arguments وعدد الخطوات وسبب الإنهاء، بنفس شكل `lousho eval --drift`.
 
-## الاستئناف بوكيل تغيَّر
+## استئناف run بعد ما يتغير الـ agent
 
-كل نقطة حفظ وكل لقطة موافقة تحمل **بصمة الوكيل** (agent fingerprint): معرّف النموذج، واسم كل أداة مع تجزئة (hash) لمخطط JSON الخاص بمدخلها، وتجزئة لتعليمات النظام (إضافةً إلى SHA-256 قصير محسوب عليها كلها باستخدام Web Crypto). الدوال والقيم الأخرى التي لا يمكن تحويلها إلى بيانات متسلسلة (`execute` الخاصة بالأداة، والخطّافات، ودوال رد النداء) ليست جزءًا منها، فتغيير الشيفرة وحدها لا يُعدّ تغييرًا أبدًا. وتُخزَّن الأجزاء كلٌّ على حدة ليتمكن عدم التطابق من بيان ما الذي تغيّر.
+كل checkpoint وكل approval snapshot يحمل **fingerprint للـ agent** (بصمة): id الـ model، واسم كل tool مع hash للـ JSON input schema حق مدخلها، وhash لتعليمات النظام — زائد SHA-256 قصير على كل الأجزاء، محسوب بـ Web Crypto. الدوال والقيم اللي ما تنسلسل (`execute` حق الـ tool، الـ hooks، الـ callbacks) ما هي جزء منها، فتعديل الكود بس ما ينحسب تغيير أبدًا. الأجزاء تنحفظ كل واحد لحاله، حتى الـ mismatch يقدر يقول بالضبط ماذا تغيّر.
 
-حين يُستأنف تشغيل (`agent.resume(id)`، أو `session.resume()`، أو استدعاء لاحق لـ`execute()` على `sessionId` غير مكتمل، أو `agent.approvals.resolve()`، والصيغ المبثوثة منها)، تُقارَن بصمة الوكيل المستأنِف بالبصمة المحفوظة، قبل أي استدعاء للنموذج أو تنفيذ لأداة. ويحدّد `onAgentDrift` في `createAgent()` (وفي `AgentExecutor.execute()` / الدالة المُصدَّرة `resumeAfterApproval()`) ما يترتب على الاختلاف:
+لما يستأنف run — `agent.resume(id)`، أو `session.resume()`، أو `execute()` لاحقة على `sessionId` غير مكتمل، أو `agent.approvals.resolve()` والنسخ الـ streamed — fingerprint الـ agent اللي يستأنف تتقارن بالمحفوظة، قبل أي نداء للـ model أو تشغيل tool. و`onAgentDrift` على `createAgent()` (وعلى `AgentExecutor.execute()` / الدالة المصدّرة `resumeAfterApproval()`) يقرر ماذا يسوي الاختلاف:
 
-| `onAgentDrift` | عند اختلاف النموذج أو الأدوات أو التعليمات |
+| `onAgentDrift` | لو الـ model أو الـ tools أو التعليمات اختلفت |
 | -------------- | ------------------------------------------- |
-| `'warn'` (الافتراضي) | تحذير عبر `console.warn` يسمّي ما تغيّر وحدث `agent.drift` (`model`، `toolsAdded`، `toolsRemoved`، `toolsChanged`، `instructions`)؛ ويستمر التشغيل. |
-| `'error'` | يُرفض بالخطأ [`LOUSHO_AGENT_DRIFT`](/ar/errors#lousho_agent_drift). تبقى نقطة الحفظ كما كانت؛ وتُعاد الموافقة إلى مكانها، فيستطيع الوكيل الصحيح أن يحسمها لاحقًا. |
+| `'warn'` (الافتراضي) | `console.warn` يسمي اللي تغير وحدث `agent.drift` (`model`، `toolsAdded`، `toolsRemoved`، `toolsChanged`، `instructions`)؛ والـ run يكمل. |
+| `'error'` | يرفض بـ[`LOUSHO_AGENT_DRIFT`](/ar/errors#lousho_agent_drift). الـ checkpoint يبقى مثل ما كان؛ والـ approval ترجع مكانها، فيقدر الـ agent الصحيح يحسمها بعدين. |
 | `'ignore'` | لا شيء. |
 
-استدعاء الأداة المعلّق الذي لم تعد أداته موجودة (استدعتها دورة النموذج الأخيرة وليست لها نتيجة بعد، أو وافق عليها الإنسان) يُرفض دائمًا بالخطأ [`LOUSHO_RESUME_TOOL_MISSING`](/ar/errors#lousho_resume_tool_missing)، أيًّا كان الخيار.
+tool call معلّقة الـ tool حقها ما عادت موجودة — آخر turn للـ model نادتها وما لها نتيجة إلى الآن، أو الإنسان وافق عليها — ترفض دائمًا بـ[`LOUSHO_RESUME_TOOL_MISSING`](/ar/errors#lousho_resume_tool_missing)، مهما كان الخيار.
 
 ```ts
 import { createAgent, memoryStore } from '@lousho/build-ai-agent';
@@ -221,16 +217,16 @@ const result = await agent.resume('job-1');
 
 ملاحظات:
 
-- نقاط الحفظ واللقطات المكتوبة قبل وجود هذه الميزة ليست لها بصمة، وتُستأنف تمامًا كما في السابق، بلا تحذير.
-- تشغيل [وكيل ديناميكي](/ar/api-overview#الإعداد-الديناميكي) يحفظ `ctx` والنموذج الذي اختاره في نقطة الحفظ (`runConfig`)، ويستخدمهما الاستئناف بعد تعطّل: النموذج المحفوظ، وأدوات وتعليمات تُحسب من جديد بالـ`ctx` المحفوظ (وكان الحساب قبل ذلك يجري بـ`input: []` وبلا `metadata`).
-- تغطي البصمة أدوات الوكيل نفسه ونموذجه وتعليماته، لا الأدوات التي تضيفها `subagents` و`skills`. والوكيل الفرعي الذي يتوقف بانتظار موافقة له بصمته الخاصة في لقطته المتداخلة. وعند الاستئناف يُقارَن كل مستوى متوقف (الوكيل الرئيسي، والوكيل الفرعي، والوكيل الفرعي لذلك الوكيل الفرعي) بتعريفه الحالي من `subagents`، وفق `onAgentDrift` الخاص بالوكيل الرئيسي. ومع `'warn'` يحمل الحدث `agent.drift` الحقل `subagent`. وحين يُرفض فحص وكيل فرعي، تُعاد موافقة الوكيل الرئيسي ونقطة حفظه بالحالة `'awaiting-approval'` إلى مكانها، فيمكن إصلاح الوكيل الفرعي ثم الحسم مرة أخرى. أما [الوكيل الفرعي البعيد](/ar/sub-agents#الوكلاء-الفرعيون-عن-بُعد) فلا يُقارَن: إذ يبقى توقفه محفوظًا على الطرف البعيد.
-- التشغيل المستأنف بعد موافقة يواصل بالتعليمات التي بدأ بها (فهي في سجل محادثته)، ولذلك تسجّل نقاط حفظه اللاحقة تلك التعليمات.
+- checkpoints وsnapshots مكتوبة قبل ما توجد هذه الميزة ما عندها fingerprint، وتستأنف بالضبط مثل قبل، بدون تحذير.
+- run لـ[dynamic agent](/ar/api-overview#dynamic-config) يحفظ `ctx` والـ model اللي اختاره في الـ checkpoint (`runConfig`)، والاستئناف بعد crash يستخدمهما: الـ model المحفوظ، وtools وتعليمات تتحسب من جديد بالـ`ctx` المحفوظ (قبل كان الحساب يصير بـ`input: []` وبدون `metadata`).
+- الـ fingerprint تغطي tools الـ agent نفسه والـ model والتعليمات حقه، وليس الـ tools اللي تضيفها `subagents` و`skills`. الـ sub-agent اللي يوقف على approval عنده fingerprint خاصة فيه في الـ snapshot المتداخلة. وعند الاستئناف، كل مستوى موقوف — الـ lead، والـ sub-agent، وsub-agent تابع لذلك الـ sub-agent — يتقارن بتعريفه الحالي من `subagents`، تحت `onAgentDrift` حق الـ lead. مع `'warn'` حدث `agent.drift` يحمل `subagent`. ولما فحص sub-agent يرفض، approval الـ lead وcheckpoint الـ`'awaiting-approval'` حقه يرجعون مكانهم، فينفع تصلّح الـ sub-agent وتحسم من جديد. أما [remote sub-agent](/ar/sub-agents#remote-sub-agents) فما يتقارن: توقفه يبقى محفوظ عند الطرف البعيد.
+- الـ run اللي يستأنف بعد approval يكمل بالتعليمات اللي بدأ فيها (هي في الـ transcript حقه)، فالـ checkpoints اللي تجي بعد تسجل نفس التعليمات.
 
-## متقدم: واجهة المنفِّذ
+## متقدم: executor API
 
-بُنيت `createAgent()` فوق `AgentExecutor`، وهو يظل متاحًا حين تريد أن تتولى التجهيز بنفسك: فالمزوّد و`ToolRegistry` والمخازن واستدعاءات الاستئناف كلها صريحة (انظر [واجهة المنفِّذ](/ar/executor-api)). ويذكر كل مقتطف أدناه استدعاء `createAgent()` الذي يقابله.
+`createAgent()` مبنية فوق `AgentExecutor`، وهو يبقى متاح لما تريد تمسك التوصيل بنفسك: الـ provider والـ `ToolRegistry` والـ stores ونداءات الـ resume كلها صريحة (شوف [executor API](/ar/executor-api)). كل snippet تحت يقول استدعاء `createAgent()` اللي يقابله.
 
-الدالة `AgentExecutor.execute()` مع `sessionId` و`checkpointStore` هي `agent.send(message, { sessionId })`:
+`AgentExecutor.execute()` مع `sessionId` و`checkpointStore` هي `agent.send(message, { sessionId })`:
 
 ```ts
 import { AgentExecutor } from '@lousho/build-ai-agent/executor';
@@ -245,7 +241,7 @@ await AgentExecutor.execute({ agent, input: 'Book a table for 2 tonight', provid
 await AgentExecutor.execute({ agent, input: 'Make it 3 people', provider, sessionId: 'chat-42', checkpointStore: checkpoints });
 ```
 
-وهي ترمي `SessionAwaitingApprovalError` على جلسة متوقفة، كما تفعل `send()`:
+وهي ترمي `SessionAwaitingApprovalError` على session موقوفة، مثل ما تسوي `send()`:
 
 ```ts
 import { AgentExecutor } from '@lousho/build-ai-agent/executor';
@@ -262,7 +258,7 @@ try {
 }
 ```
 
-الدالة المُصدَّرة `resumeAfterApproval()` هي ما تستدعيه `agent.approvals.resolve()`:
+الدالة المصدّرة `resumeAfterApproval()` هي اللي تناديها `agent.approvals.resolve()`:
 
 ```ts
 import { AgentExecutor, resumeAfterApproval } from '@lousho/build-ai-agent/executor';
@@ -285,7 +281,7 @@ if (paused.finishReason === 'awaiting-approval') {
 }
 ```
 
-و`AgentExecutor.fork()` هي `agent.fork()`؛ وتنفيذ `execute()` مع `input: []` على `sessionId` الخاص بالتفريعة هو `agent.resume(fork.sessionId)`:
+`AgentExecutor.fork()` هي `agent.fork()`؛ و`execute()` مع `input: []` على `sessionId` الـ fork هي `agent.resume(fork.sessionId)`:
 
 ```ts
 import { AgentExecutor } from '@lousho/build-ai-agent/executor';
@@ -312,14 +308,14 @@ if (original && replayed) {
 ```
 
 
-## التوافق مع البيانات المخزَّنة
+## التوافق مع البيانات المخزنة
 
-- نقاط الحفظ المكتوبة قبل وجود `status` تُعامَل على أنها `'in-progress'` (فقبل هذا التغيير كانت التشغيلات المنتهية تحذف نقطة حفظها، فلم يكن يُخزَّن إلا التشغيلات غير المكتملة).
-- الجلسات المحفوظة قبل أن يحتفظ المخزن بسجل تاريخي يبقى سجلها التاريخي فارغًا حتى الحفظ التالي.
-- لقطات الموافقة المكتوبة قبل وجود `remainingToolCalls` تُستأنف كما كانت تُستأنف: لا تُنفَّذ الاستدعاءات التي تلي الاستدعاء المتوقف. ويحصل كل منها على نتيجة خطأ تفيد بأنه لم يُنفَّذ، فيبقى سجل المحادثة صالحًا.
+- checkpoints مكتوبة قبل ما توجد `status` تنعامل كـ`'in-progress'` (قبل هذا التغيير، الـ runs المنتهية كانت تحذف الـ checkpoint حقها، فما كان ينحفظ إلا runs غير مكتملة).
+- sessions محفوظة قبل ما الـ store يحتفظ بـ history يكون الـ history حقها فاضي لين الـ save التالية.
+- approval snapshots مكتوبة قبل ما يوجد `remainingToolCalls` تستأنف مثل ما كانت: الـ calls اللي بعد الموقوفة ما تشتغل. كل واحدة منها تاخذ نتيجة خطأ تقول إنها ما اشتغلت، فيبقى الـ transcript صالح.
 
 ## القيود
 
-- يعرّف `sessionId` محادثة منطقية واحدة؛ وتشغيل استدعاءين لـ`send()` (أو استدعاءين لـ`execute()`) على المعرّف نفسه في الوقت نفسه غير مدعوم.
-- إذا استدعيت `resumeAfterApproval()` (الدالة التي تقوم عليها `agent.approvals.resolve()`) من دون `checkpointStore`، تحتفظ الجلسة بعلامة `'awaiting-approval'` وتظل استدعاءات `send()` (أو `execute()`) اللاحقة ترمي `SessionAwaitingApprovalError`؛ مرّر المخزن (أو احذف نقطة الحفظ). أما `agent.approvals.resolve()` فتمرّره عنك.
-- Workers KV متّسق اتساقًا نهائيًا (eventual consistency) عبر المواقع؛ انظر [النشر](/ar/deployment) لمعرفة تفاصيل هذا التحفّظ.
+- `sessionId` يعرّف محادثة منطقية واحدة؛ تشغيل نداءين `send()` (أو نداءين `execute()`) على نفس الـ id بنفس الوقت غير مدعوم.
+- لو ناديت `resumeAfterApproval()` (الدالة اللي ورا `agent.approvals.resolve()`) بدون `checkpointStore`، الـ session تحتفظ بعلامة `'awaiting-approval'` ونداءات `send()` (أو `execute()`) اللاحقة تظل ترمي `SessionAwaitingApprovalError`؛ مرّر الـ store (أو احذف الـ checkpoint). `agent.approvals.resolve()` تمرره عنك.
+- Workers KV عنده eventual consistency عبر المواقع — شوف [النشر](/ar/deployment) لتفاصيل هذا التحفّظ.

@@ -1,21 +1,22 @@
 ---
-title: "التسليم بين الوكلاء"
-description: "التسليم (handoff) يمرّر المحادثة كاملة إلى وكيل آخر. يقرأ وكيل الفرز طلب المستخدم ويسلّمه إلى وكيل متخصص؛ ويجيب المتخصص المستخدم مباشرة، وفي الجلسة يبقى هو من يتولى المحادثة في الدورات اللاحقة."
+title: "Handoffs"
+description: "الـ handoff يمرّر المحادثة كلها لـ agent ثاني. الـ triage agent يقرأ طلب المستخدم ويسلّمه لمتخصص. المتخصص يجاوب المستخدم مباشرة، وفي الـ session (الجلسة) يبقى هو صاحب المحادثة في الدورات التالية."
 ---
 {/* Generated from docs/handoffs.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-## تسليمات أم وكلاء فرعيون؟
+## handoffs ولا sub-agents؟
 
-| استخدم | ماذا يحدث |
+| استخدم | ما الذي يحدث |
 | --- | --- |
-| **التسليمات** | يتولى الهدف الأمر. يرى المحادثة (أو ما يُبقي عليه `inputFilter`)، ويجيب المستخدم بنفسه، ويظل الوكيل النشط في الجلسة إلى أن يسلّم إلى وكيل آخر أو يعيد التسليم. أما الوكيل الذي سلّم فلا يرى الإجابة. |
-| **[الوكلاء الفرعيون](/ar/sub-agents)** | يبقى الوكيل الرئيسي هو المسؤول. لا يرى الوكيل الفرعي إلا موجّه المهمة الذي كتبه الوكيل الرئيسي، وينجز العمل، ويعيد نتيجة إلى الوكيل الرئيسي، فيجيب هو المستخدم بعدها. |
+| **Handoffs** | الـ target يتولى الأمور. يشوف المحادثة (أو ما يبقيه `inputFilter`)، يجاوب المستخدم بنفسه، ويظل الـ agent النشط في الـ session إلى أن يسلّم لغيره أو يرجّع. الـ agent الذي سلّم ما يشوف الرد. |
+| **[Sub-agents](/ar/sub-agents)** | الـ lead يظل هو المسؤول. الـ sub-agent يشوف فقط الـ task prompt الذي كتبه الـ lead، ينفذ الشغل، ويرجع نتيجة للـ lead، والـ lead هو الذي يجاوب المستخدم. |
 
-## البدء السريع
+## البداية السريعة
 
-أعطِ كل هدف `name` و`description` (يقرأ النموذج الوصف ليقرر متى يسلّم)،
-ثم مرّرها إلى وكيل الفرز في `handoffs`. تختار بادئة النموذج `vendor/` المزوّد؛
-ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`):
+أعطِ كل target `name` و`description` (الـ model يقرأ الـ description ليقرر
+متى يسلّم)، وبعدها مرّرها للـ triage agent في `handoffs`. بادئة `vendor/`
+في الـ model تختار الـ provider. مع OpenRouter استخدم
+`openrouter/<vendor>/<model>` (مثال `openrouter/openai/gpt-4o-mini`):
 
 ```ts
 import { createAgent, defineTool } from '@lousho/build-ai-agent';
@@ -54,19 +55,19 @@ const result = await triage.send('I was charged twice for my subscription.');
 console.log(result.agentName, result.text); // 'billing', the billing desk's answer
 ```
 
-يُعرض كل هدف على النموذج أداةً واحدة اسمها `transfer_to_<name>`
-(`transfer_to_billing` و`transfer_to_tech-support`). حين يستدعيها النموذج،
-يتابع التشغيل بصفة الهدف ضمن استدعاء `send()` / `stream()` نفسه.
-و`result.agentName` هو اسم الوكيل الذي أنتج الرد النهائي.
+كل target يُعرض على الـ model كـ tool واحدة اسمها `transfer_to_<name>`
+(`transfer_to_billing` و`transfer_to_tech-support`). لما الـ model يستدعيها،
+يكمل الـ run كـ target داخل نفس استدعاء `send()` / `stream()`.
+و`result.agentName` هو اسم الـ agent الذي أنتج الرد الأخير.
 
-يجب أن يأتي الهدف من `createAgent()` وأن يكون له `name` (فريد بين
-التسليمات) و`description` (أو `description` في `handoff()`)؛ وإلا يرمي
-`createAgent()` الخطأ `LOUSHO_CONFIG_INVALID`. ولا يجوز أن يشارك
-اسم أداة التسليم اسمَ إحدى أدوات الوكيل.
+الـ target لازم يجي من `createAgent()` ويكون له `name` (فريد بين الـ
+handoffs) و`description` (أو `description` داخل `handoff()`). وإلا يرمي
+`createAgent()` الخطأ `LOUSHO_CONFIG_INVALID`. واسم أداة الـ handoff ما
+يجوز يطابق اسم أي tool من tools الـ agent.
 
 ## خيارات `handoff()`
 
-غلّف الهدف بـ `handoff()` لضبطه:
+غلّف الـ target بـ `handoff()` لتضبطه:
 
 ```ts
 import { createAgent, handoff, handoffFilters } from '@lousho/build-ai-agent';
@@ -90,26 +91,30 @@ const triage = createAgent({
 });
 ```
 
-| الخيار | القيمة الافتراضية | ماذا يفعل |
+| الخيار | الافتراضي | ما الذي يفعله |
 | --- | --- | --- |
-| `toolName` | `transfer_to_<name>` | الأداة التي يستدعيها النموذج. |
-| `description` | `description` الخاص بالهدف | وصف الأداة. |
-| `input` | `{ reason?: string }` | الوسائط التي يمرّرها النموذج (مخطط zod أو أي Standard Schema). الوسائط التي لا تطابقه تعطي النموذج خطأ أداة، ولا يحدث تسليم. |
-| `inputFilter` | كل شيء | ما يراه الهدف (انظر [مرشحات الإدخال](#مرشحات-الإدخال)). |
-| `onHandoff` | لا شيء | يُستدعى مع `{ messages, from, to, args, sessionId }` بعد حسم التسليم وقبل أول استدعاء للنموذج من الهدف. |
-| `isEnabled` | `true` | هل يُعرض التسليم؛ والدالة تتلقى `{ input, metadata, principal, sessionId }` الخاصة بالتشغيل. أداة التسليم المعطَّلة لا تُرسل إلى النموذج. |
+| `toolName` | `transfer_to_<name>` | الـ tool الذي يستدعيه الـ model. |
+| `description` | `description` الخاص بالـ target | وصف الـ tool. |
+| `input` | `{ reason?: string }` | الوسائط التي يمرّرها الـ model (zod schema أو أي Standard Schema). وسائط لا تطابق تعطي الـ model خطأ tool، ولا يحدث handoff. |
+| `inputFilter` | كل شيء | ما يشوفه الـ target (انظر [Input filters](#input-filters)). |
+| `onHandoff` | لا شيء | يُستدعى مع `{ messages, from, to, args, sessionId }` بمجرد ما ينحسم الـ handoff، قبل أول استدعاء model من الـ target. |
+| `isEnabled` | `true` | هل يُعرض الـ handoff؛ الدالة تستلم `{ input, metadata, principal, sessionId }` الخاصة بالـ run. أداة الـ handoff المعطّلة لا تُرسل للـ model. |
 
-## مرشحات الإدخال
+## Input filters
 
-يرى الهدف المحادثة كما يعيدها `inputFilter`، تحت موجّه النظام الخاص به
-(موجّه النظام للوكيل الذي سلّم يُستبدل ولا يُحتفظ به أبدًا). يتلقى
-المرشح `{ messages, from, to, args }`؛ و`messages` هي السجل حتى تلك
-اللحظة بلا موجّه النظام، وتنتهي باستدعاء التسليم ونتيجته. يوجد مرشحان
-مضمَّنان:
+الـ target يشوف المحادثة كما يرجعها `inputFilter`، تحت الـ system prompt
+الخاص به (system prompt الـ agent الذي سلّم يُستبدل، ولا يُحفظ أبدًا). الـ
+filter يستلم `{ messages, from, to, args }`. و`messages` هي السجل حتى تلك
+اللحظة بدون الـ system prompt، وتنتهي باستدعاء الـ handoff ونتيجته
+و**routing note**: رسالة system يضيفها الـ run حتى يعرف الـ target مَن
+حُوِّل وأي `args` اجتازت الـ validation
+(`[routing note - not from the user] handoff triage -> billing: reason="..."`).
+الرسالة موسومة بـ `metadata.handoff`، فيقدر الـ filter يتعرف عليها. احذفها
+أو استبدلها وشكّل سياق الـ target بنفسك. في فلترين جاهزين:
 
-- `handoffFilters.removeToolCalls`: يُبقي نص المستخدم والمساعد، ويحذف
-  استدعاءات الأدوات ونتائجها.
-- `handoffFilters.lastUserMessage`: يُبقي آخر رسالة للمستخدم فقط.
+- `handoffFilters.removeToolCalls`: يبقي نصوص المستخدم والـ assistant
+  (والـ routing note)، ويحذف الـ tool calls ونتائجها.
+- `handoffFilters.lastUserMessage`: يبقي آخر رسالة من المستخدم فقط.
 
 ```ts
 import { handoffFilters, type HandoffInputData } from '@lousho/build-ai-agent';
@@ -118,33 +123,40 @@ import { handoffFilters, type HandoffInputData } from '@lousho/build-ai-agent';
 const recent = (data: HandoffInputData) => handoffFilters.removeToolCalls(data).slice(-4);
 ```
 
-ما يعيده المرشح يصبح سجل التشغيل: ويستمر كل من `result.messages` وسجل
-الجلسة منه. ويجب أن يُبقي المرشح رسالة واحدة على الأقل. أما الموافقات
-التي جرى تذكّرها بـ `once()` في الجزء الأسبق من السجل فتُسقَط عند التسليم،
-فتعود أدوات الهدف إلى طلب الموافقة.
+ما يرجعه الـ filter يصير سجل الـ run: `result.messages` وتاريخ الـ session
+يكملان منه. الـ filter لازم يبقي رسالة واحدة على الأقل. الـ approvals
+(الموافقات) المتذكَّرة بـ `once()` في الجزء الأقدم من السجل تُسقط عند الـ
+handoff، فترجع tools الـ target تطلب الموافقة من جديد.
 
-## ما الذي يتبدل وما الذي يبقى
+## ماذا يتغيّر وماذا يبقى
 
-| عند التسليم، ما يخص الهدف نفسه | ما يخص التشغيل، طوال مدته |
+| عند الـ handoff، ما يخص الـ target نفسه | ما يخص الـ run، طوال مدته |
 | --- | --- |
-| التعليمات (موجّه النظام) والنموذج والمزوّد | `hooks` و`limits` والإنفاق حتى الآن (ميزانية واحدة) |
-| الأدوات والأدوات المستضافة والمهارات والوكلاء الفرعيون | `maxSteps`، ويُحسب عبر الوكلاء كلهم |
-| `reasoning` | إشارة الإلغاء |
-| `handoffs` الخاصة به | مخازن الموافقات ونقاط الحفظ والرموز |
-| حواجز الحماية وقواعد الصلاحيات: تُطبَّق قواعد الوكيل الرئيسي أولًا ثم قواعد الهدف نفسه | `onEvent` و`exporter` |
-| | `output`: تُحدَّد نوعية النتيجة بمخطط الوكيل الرئيسي (`output` الخاص بالهدف لا يُستخدم) |
-| | وضع الصلاحيات والمُنفِّذ (principal، أي من يعمل التشغيل نيابةً عنه) |
+| الـ instructions (الـ system prompt) والـ model والـ provider | `hooks` و`limits` والإنفاق حتى الآن (ميزانية واحدة) |
+| الـ tools والـ hosted tools والـ skills والـ sub-agents | `maxSteps`، ويُحسب عبر الـ agents كلهم |
+| `reasoning` | إشارة الإلغاء (abort signal) |
+| `handoffs` الخاصة به | الـ stores الخاصة بالـ approval والـ checkpoint والـ token |
+| الـ guardrails وقواعد الصلاحيات: قواعد الـ lead أولًا ثم قواعد الـ target | `onEvent` و`exporter` |
+| | `output`: نتيجة الـ run تكون typed حسب schema الـ lead (`output` الخاص بالـ target لا يُستخدم) |
+| | وضع الصلاحيات والـ principal (مَن يعمل الـ run نيابة عنه) |
+| | إعداد الـ approval: `approve` و`approvalStore` و`approvalTtlMs` و`onPermissionDecision` |
 
-الوكيل الذي بدأ به التشغيل هو الوكيل الرئيسي. لا يحصل الهدف على أي من أدوات
-الوكيل الرئيسي أو وكلائه الفرعيين أو خانات [الذاكرة](/ar/memory) الخاصة به؛
-ولا تُستخدم خانات الذاكرة الخاصة بالهدف أيضًا (كما في الوكيل الفرعي). وتُضاف
-تعليمات `output` الخاصة بالوكيل الرئيسي إلى موجّه النظام لكل هدف.
+الـ agent الذي بدأ به الـ run هو الـ lead. الـ target لا يحصل على tools
+الـ lead ولا sub-agents ولا خانات [memory](/ar/memory)؛ وخانات الـ memory
+الخاصة به نفسها لا تُستخدم أيضًا (مثل الـ sub-agent). وتعليمات `output`
+الخاصة بالـ lead تُضاف إلى system prompt كل target.
 
-## الجلسات
+ولأن الـ approvals على مستوى الـ run، خيارات مثل `approve` و`approvalStore`
+و`permissionMode` و`approvalTtlMs` و`store` على الـ target لا تُقرأ أبدًا
+بعد الـ handoff. `createAgent()` يحذّر مرة واحدة (لكل target) إذا كان
+target يمكن الوصول إليه قد أُنشئ بها. اضبطها على الـ agent الذي تبدأ به
+الـ runs.
 
-في الجلسة، الوكيل النشط هو الذي سلّم إليه السجل آخر مرة (قيمة `to` في
-آخر علامة `metadata.handoff`)، فيشغّل الاستدعاء التالي
-`session.send()` / `session.stream()` ذلك الوكيل:
+## Sessions
+
+في الـ session، الـ agent النشط هو آخر واحد استلم المحادثة (قيمة `to` في
+آخر علامة `metadata.handoff`). فالـ `session.send()` /
+`session.stream()` التالي يشغّل ذلك الـ agent:
 
 ```ts
 import { createAgent } from '@lousho/build-ai-agent';
@@ -158,11 +170,11 @@ const next = await session.send('Can you refund one?'); // billing answers again
 console.log(next.agentName); // 'billing'
 ```
 
-أما `agent.send()` بلا جلسة فيبدأ دائمًا من الوكيل الرئيسي.
+`agent.send()` بدون session يبدأ دائمًا من الـ lead.
 
-يعيد الهدف التسليم عبر `handoffs` الخاصة به. ولأن الوكيل الرئيسي يُنشأ بعد
-أهدافه، أعطِ الهدف مصفوفة ثم أضف إليها الوكيل الرئيسي لاحقًا (تُقرأ
-المصفوفة عند كل تشغيل):
+الـ target يرجّع المحادثة عبر `handoffs` الخاصة به. ولأن الـ lead يُنشأ
+بعد الـ targets، أعطِ الـ target مصفوفة وأضف الـ lead إليها لاحقًا
+(المصفوفة تُقرأ في كل run):
 
 ```ts
 import { createAgent, handoff, type Handoff } from '@lousho/build-ai-agent';
@@ -184,28 +196,36 @@ const triage = createAgent({
 billingHandoffs.push(handoff(triage));
 ```
 
-الأسماء هي التي تحدد الوكلاء: يجب أن يكون لكل وكيل يمكن الوصول إليه عبر
-`handoffs` اسمه الخاص. وإذا لم يعد الوكيل الذي يذكره السجل قابلًا للوصول،
-يعمل الوكيل الرئيسي.
+الأسماء هي التي تعرّف الـ agents: كل agent يمكن الوصول إليه عبر `handoffs`
+لازم يكون له اسمه الخاص. إذا الـ agent الذي يذكره السجل لم يعد reachable،
+يشتغل الـ lead.
 
-## الموافقات والاستئناف بعد التسليم
+## Approvals والاستئناف بعد handoff
 
-أداة الهدف التي تحتاج إلى موافقة توقف التشغيل في مخزن الموافقات الخاص
-بالوكيل الرئيسي؛ ويتابعه `agent.approvals.resolve()` على الوكيل الرئيسي
-بصفة الهدف. والتشغيل ذو نقاط الحفظ (`send(message, { sessionId })` أو جلسة
-لها مخزن) الذي تعطّل بعد تسليم يُستأنف بصفة الهدف عبر `agent.resume(id)` أو
-`session.resume()`. ويقارن فحص الانجراف عند الاستئناف (`onAgentDrift`، انظر
-[التنفيذ المتين](/ar/durable-execution#الاستئناف-بوكيل-تغيَّر))
-ببصمة الهدف المحفوظة.
+tool تابعة للـ target تحتاج approval توقف الـ run في الـ approval store
+الخاص بالـ lead، و`agent.approvals.resolve()` على الـ lead يكمله كـ
+target. الـ run الذي له checkpoint (`send(message, { sessionId })` أو
+session لها store) إذا وقع بعد handoff يُستأنف كـ target بـ
+`agent.resume(id)` أو `session.resume()`. وفحص الـ drift عند الاستئناف
+(`onAgentDrift`، انظر [Durable execution](/ar/durable-execution#استئناف-run-بعد-ما-يتغير-الـ-agent))
+يقارن مع بصمة الـ target المحفوظة.
 
-وحين تحتوي خطوة على استدعاء تسليم بجانب استدعاء يتوقف انتظارًا لموافقة،
-ينتظر التسليم: يتوقف التشغيل بصفة الوكيل الذي سلّم، ويحدث التسليم بعد البتّ
-في الموافقة وتنفيذ الاستدعاءات الأخرى في الخطوة.
+إذا كانت الخطوة فيها استدعاء handoff بجانب استدعاء يتوقف بانتظار approval،
+الـ handoff ينتظر: الـ run يتوقف بصفة الـ agent الذي سلّم، ويحدث الـ
+handoff بعد ما تُحسم الـ approval وتنفّذ بقية الاستدعاءات في الخطوة.
+
+استدعاء `transfer_to_*` نفسه يمر بنفس بوابة أي tool call. قواعد
+`permissions` تنطبق عليه: `deny` تعطي الـ model خطأ tool من نوع
+`kind: 'denied'` ولا يحدث handoff، و`ask` توقف الـ run لأجل approval
+وبعد حسمها الاستدعاء إما يسلّم أو يبلّغ الرفض. و`preToolCall` hooks تقدر
+ترفضه أو تعيد كتابة وسائطه، والـ routing note والـ target يشوفان المدخل
+المعدّل. والقرار يُوثَّق في `onPermissionDecision` / `permission.decision`
+مثل أي tool call.
 
 ## الأحداث
 
-يُبلَّغ عن التسليم بين `tool.start` / `tool.done` الخاصين باستدعاء التسليم
-وأول `step.start` للهدف:
+الـ run يبلّغ عن الـ handoff بين `tool.start` / `tool.done` الخاصين
+باستدعاء الـ handoff وأول `step.start` للـ target:
 
 ```ts
 import { createAgent } from '@lousho/build-ai-agent';
@@ -218,26 +238,26 @@ for await (const event of triage.stream('I was charged twice.')) {
 }
 ```
 
-يحمل `handoff` الحقول `from` و`to` و`toolCallId`. وللتشغيل `run.start`
-واحد و`run.done` واحد مهما بلغ عدد التسليمات. انظر
-[مخطط الأحداث](/ar/stream-events).
+`handoff` يحمل `from` و`to` و`toolCallId`. وللـ run حدث `run.start` واحد
+و`run.done` واحد مهما كثرت الـ handoffs. انظر الـ
+[event schema](/ar/stream-events).
 
 ## القيود
 
-- تسليم واحد فقط في الدورة الواحدة للنموذج: حين تستدعي الدورة عدة أدوات
-  تسليم، يُنفَّذ الأول وتحصل الباقية على خطأ أداة.
-- `maxHandoffs` (خيار في `createAgent()`، وقيمته الافتراضية 5) يحدّ عدد
-  تسليمات التشغيل الواحد، لمنع الوكلاء من تمرير المحادثة ذهابًا وإيابًا. أي
-  استدعاء تسليم يتجاوز الحد يحصل على خطأ أداة ويجيب الوكيل بنفسه. والتشغيل
-  الذي يُستأنف بعد موافقة أو بعد تعطل يبدأ العدّ من الصفر مجددًا.
-- لا يمكن أن تكون الوكلاء البعيدة (`remoteAgent()`) أهدافًا للتسليم؛
-  استخدمها وكلاء فرعيين.
-- لا يعيد الهدف التسليم من تلقاء نفسه في نهاية دورته؛ أعطِه تسليمًا إلى
-  الوكيل الرئيسي (انظر [الجلسات](#الجلسات)).
+- handoff واحد فقط في الدورة الواحدة للـ model: إذا استدعت الدورة عدة
+  tools تسليم، يُنفَّذ الأول وتحصل البقية على خطأ tool.
+- `maxHandoffs` (خيار في `createAgent()`، الافتراضي 5) يحد عدد handoffs
+  الـ run الواحد، لمنع الـ agents من تمرير المحادثة ذهابًا وإيابًا. أي
+  استدعاء handoff يتجاوز الحد يحصل على خطأ tool والـ agent يجاوب بنفسه.
+  الـ run الذي يُستأنف بعد approval أو بعد سقوط يعد من الصفر من جديد.
+- الـ remote agents (`remoteAgent()`) لا يمكن أن تكون targets للـ handoff؛
+  استخدمها كـ sub-agents.
+- الـ target لا يرجّع التسليم من نفسه في نهاية دورته؛ أعطِه handoff إلى
+  الـ lead (انظر [Sessions](#sessions)).
 
-## واجهة المنفِّذ البرمجية
+## executor API
 
-يقبل `AgentExecutor.execute()` الخيارين `handoffs` (`ResolvedHandoff[]`:
-`name` و`toolName` و`description` و`input` و`spec(input)` الذي يحدد إعداد
-تشغيل الهدف وتسليماته الخاصة، و`inputFilter` و`onHandoff`) و`maxHandoffs`.
-يبنيها `createAgent()`؛ ولا تمرّرها بنفسك إلا حين تشغّل المنفِّذ مباشرة.
+`AgentExecutor.execute()` يستلم `handoffs` (`ResolvedHandoff[]`: `name`
+و`toolName` و`description` و`input` و`spec(input)` الذي يرجع إعداد run
+الـ target وhandoffs الخاصة به، و`inputFilter` و`onHandoff`) و`maxHandoffs`.
+`createAgent()` يبنيها. مرّرها بنفسك فقط لما تشغّل الـ executor مباشرة.

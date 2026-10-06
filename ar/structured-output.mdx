@@ -1,9 +1,9 @@
 ---
-title: "المخرجات المنظَّمة"
+title: "Structured output"
 ---
 {/* Generated from docs/structured-output.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-أعطِ الوكيل مخطط zod في الخيار `output` فيصبح رده النهائي كائنًا محدَّد النوع ومُتحقَّقًا منه: `result.object`. ويبقى بإمكان الوكيل أن يستدعي الأدوات أولًا؛ فالإجابة النهائية وحدها هي التي يجب أن تطابق المخطط. بادئة النموذج `vendor/` هي التي تختار المزوّد؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`).
+مرّر للـ agent zod schema في الخيار `output`، والرد النهائي يصير object typed وصالح حسب الـ schema: `result.object`. الـ agent يقدر يعمل tool calls أولًا عادي؛ الإجابة النهائية فقط لازم تطابق الـ schema. بادئة `vendor/` في اسم الـ model هي التي تحدد الـ provider؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثال: `openrouter/openai/gpt-4o-mini`).
 
 ```ts
 import { z } from 'zod';
@@ -23,9 +23,9 @@ if (result.object) {
 }
 ```
 
-نوع `result.object` هو `z.output<typeof schema>`، ولذلك تُطبَّق القيم الافتراضية والتحويلات (transforms) في zod. أما `result.text` فيحتفظ بنص JSON الخام الذي كتبه النموذج.
+نوع `result.object` هو `z.output<typeof schema>`، فيطبّق zod عليه الـ defaults والـ transforms. أما `result.text` فيحتفظ بنص JSON الخام الذي كتبه الـ model.
 
-يمكن أن يأتي المخطط من zod 3 أو zod 4: يُحوَّل إلى JSON Schema بالدالة `z.toJSONSchema` في zod 4 وبمحوِّل حزمة `ai` SDK في zod 3، ويُتحقَّق منه في الحالتين بالدالة `safeParse` الخاصة بالمخطط نفسه. نوع `output` هو Standard Schema، مثل `defineTool({ input })` تمامًا، ولذلك يُستنتج نوع `result.object` دون تحويل نوع صريح (cast) سواء كان المخطط من zod 3، أو من zod 4 (`zod/v4` في zod 3.25، أو zod 4 نفسه)، أو أي Standard Schema آخر يستطيع إنتاج JSON Schema:
+الـ schema ممكن يكون zod 3 أو zod 4: يتحوّل إلى JSON Schema بـ`z.toJSONSchema` في zod 4 وبمحوّل `ai` SDK في zod 3، والـ validation في الحالتين يصير بـ`safeParse` الخاصة بالـ schema نفسه. نوع `output` هو Standard Schema، نفس `defineTool({ input })`، فيستنتج TypeScript نوع `result.object` بدون cast سواء كان الـ schema من zod 3، أو zod 4 (`zod/v4` على zod 3.25، أو zod 4 نفسه)، أو أي Standard Schema آخر يقدر ينتج JSON Schema:
 
 ```ts
 import { z } from 'zod/v4';
@@ -36,9 +36,9 @@ const { object } = await agent.send('Where is the Eiffel Tower?');
 console.log(object?.city); // typed: string
 ```
 
-## الجلسات
+## Sessions
 
-استدعاء `agent.session()` على وكيل له `output` يُعيد جلسة تحمل فيها نتيجةُ `send()` (وكذلك `result` في `stream()`) الكائنَ `object` محدَّد النوع لكل دورة. لا يمكن تغيير `output` لاستدعاء بعينه: المخطط هو مخطط الوكيل.
+`agent.session()` على agent له `output` يرجّع session نتيجة `send()` فيها (وكذلك `result` في `stream()`) تحمل الـ`object` typed لكل turn. ما فيه `output` مختلف لكل نداء: الـ schema هو schema الـ agent.
 
 ```ts
 import { z } from 'zod';
@@ -50,11 +50,11 @@ const { object } = await session.send('Weather in Paris?');
 console.log(object?.tempC); // typed: number
 ```
 
-## الوكلاء الفرعيون
+## Sub-agents
 
-الوكيل الفرعي المُنشأ بمخطط `output` خاص به يجيب الوكيل الرئيسي بكائنه المُتحقَّق منه. نتيجة الأداة `task` (وكذلك `result` في `agent_await` للمهمة العاملة في الخلفية) هي الكائن بصيغة JSON، يليه سطر فارغ ثم التذييل المعتاد `[sub-agent '<name>': ... taskId '<id>']`، فيرى نموذج الوكيل الرئيسي الكائن نفسه لا صياغة نثرية له. وإذا بقي رد الوكيل الفرعي غير صالح بعد خطوة الإصلاح، فشل استدعاء `task` بخطأ الأداة المنظَّم (`kind: 'execution'`، ورسالة تذكر مشكلات المخطط) ويستطيع الوكيل الرئيسي أن يعيد المحاولة أو يتكيّف.
+الـ sub-agent الذي له `output` schema خاص يرد على الـ lead بالـ object بعد الـ validation. نتيجة الـ tool `task` (وكذلك `result` في `agent_await` لمهمة تعمل في الخلفية) هي الـ object كـ JSON، بعده سطر فارغ ثم الـ footer المعتاد `[sub-agent '<name>': ... taskId '<id>']`، فالـ lead model يقرأ الـ object نفسه بدل صياغة نثرية عنه. وإذا ظل رد الـ sub-agent غير صالح بعد خطوة الإصلاح، يفشل نداء `task` بخطأ tool منظم (`kind: 'execution'` ورسالة تذكر مشاكل الـ schema)، والـ lead يقدر يعمل retry أو يغيّر طريقته.
 
-الوكيل الفرعي **لا** يرث `output` الوكيل الرئيسي: مخرجات كل وكيل خاصة به، والوكيل الفرعي الذي ليس له `output` يُعيد نصًا كما كان من قبل. و[`remoteAgent()`](/ar/sub-agents#الوكلاء-الفرعيون-عن-بُعد) الذي يملك وكيله المنشور مخطط `output` يُعيد الكائن البعيد بالطريقة نفسها (JSON ثم تذييله)، مقروءًا من `object` في الحدث `run.done` من البث البعيد.
+الـ sub-agent **لا** يرث `output` الخاص بالـ lead: مخرجات كل agent خاصة فيه، والـ sub-agent بدون `output` يرجّع نص كالمعتاد. وإذا كان الـ agent المنشور وراء [`remoteAgent()`](/ar/sub-agents#remote-sub-agents) له `output` schema، يرجّع الـ object البعيد بنفس الطريقة (JSON ثم الـ footer)، مقروء من `object` في حدث `run.done` في الـ stream البعيد.
 
 ```ts
 import { z } from 'zod';
@@ -70,21 +70,21 @@ const result = await lead.send('What is the weather in Paris?');
 console.log(result.text);
 ```
 
-## كيف يعمل
+## كيف يشتغل
 
-1. يُضاف إلى موجّه النظام قسم `## Output format` يطلب أن تكون الإجابة النهائية كائن JSON فقط يطابق المخطط، معروضًا بصيغة JSON Schema.
-2. يحمل كل استدعاء للنموذج `responseFormat: { type: 'json', schema }` في `GenerateOptions`. وهو تلميح: المزوّدون المضمَّنون المبنيون على `ai`-SDK يفعّلون وضع JSON في النموذج (مع المخطط، في النماذج التي تدعم المخرجات المنظَّمة)؛ أما المزوّد المخصَّص فله أن يستخدمه أو يتجاهله.
-3. عندما يرد النموذج دون استدعاءات أدوات، يُحلَّل الرد بوصفه JSON (ويُقبل أن يكون محاطًا بسياج شيفرة ```` ```json ````) ثم يُتحقَّق منه وفق المخطط.
-4. إذا كان غير صالح، يحصل النموذج على خطوة إصلاح واحدة: رسالة مستخدم تبدأ بـ`[output-invalid]` وتسرد المشكلات، مثل `1 issue (tempC: Expected number, received string)`. تُحتسب خطوة الإصلاح من `maxSteps`، ولا تُمنح إذا استُنفدت الميزانية.
-5. إذا بقي غير صالح، يُحسم التشغيل (ولا يُرفض) بـ`finishReason: 'output-invalid'`، دون `object`، ومع `outputError`: `{ message, issues: [{ path, message }] }`.
+1. الـ system prompt يأخذ قسم `## Output format` يطلب الإجابة النهائية كـ JSON object فقط يطابق الـ schema، معروض كـ JSON Schema.
+2. كل نداء للـ model يحمل `responseFormat: { type: 'json', schema }` في `GenerateOptions`. هو مجرد hint: الـ providers المدمجين المبنيين على `ai`-SDK يفعّلون JSON mode في الـ model (مع الـ schema في الـ models التي تدعم structured outputs)، والـ custom provider يقدر يستخدمه أو يتجاهله.
+3. لما الـ model يرد بدون tool calls، يتحلّل الرد كـ JSON (ووجود code fence ```` ```json ```` حوله مسموح) ثم يصير validation عليه بالـ schema.
+4. إذا كان غير صالح، الـ model يأخذ خطوة إصلاح واحدة: رسالة user تبدأ بـ`[output-invalid]` وتعدّد المشاكل، مثلا `1 issue (tempC: Expected number, received string)`. خطوة الإصلاح تنحسب من `maxSteps`، وما فيه خطوة إذا خلصت الميزانية.
+5. وإذا ظل غير صالح، الـ run يعمل resolve (ليس reject) مع `finishReason: 'output-invalid'`، بدون `object`، ومع `outputError`: `{ message, issues: [{ path, message }] }`.
 
-## البث
+## Streaming
 
-يعمل `agent.stream()` بالطريقة نفسها: يُحسم `run.result` ومعه `object`، ويحمل الحدث النهائي `run.done` الكائن `object` (مرمَّزًا بصيغة JSON) إذا كان الرد صالحًا. وتظهر خطوة الإصلاح زوجًا إضافيًا من `step.start` / `step.done`. راجع [البث](/ar/streaming).
+`agent.stream()` يشتغل بنفس الطريقة: `run.result` يعمل resolve ومعه `object`، والحدث الأخير `run.done` يحمل `object` (مرمّز كـ JSON) إذا كان الرد صالح. خطوة الإصلاح تظهر كزوج زيادة من `step.start` / `step.done`. شوف [Streaming](/ar/streaming).
 
-## متقدم: واجهة المنفِّذ
+## متقدم: executor API
 
-يقبل `AgentExecutor.execute()` و`AgentExecutor.stream()` الخيار `output` نفسه. هناك يكون نوع `result.object` هو `unknown`؛ حلّله مرة أخرى بمخططك، أو استخدم `createAgent()` للحصول على النوع المستنتَج.
+`AgentExecutor.execute()` و`AgentExecutor.stream()` يأخذون نفس خيار `output`. هناك نوع `result.object` هو `unknown`؛ حلّله مرة ثانية بالـ schema، أو استخدم `createAgent()` إذا تريد النوع المستنتج.
 
 ```ts
 import { z } from 'zod';
@@ -97,9 +97,9 @@ const result = await AgentExecutor.execute({ agent, input: 'The app crashes on l
 const ticket = result.object === undefined ? undefined : Ticket.parse(result.object);
 ```
 
-## الاختبار
+## Testing
 
-مع `mockModel`، اكتب سلفًا نص JSON الذي كان النموذج سيكتبه:
+مع `mockModel`، جهّز مسبقًا نص JSON الذي سيكتبه الـ model:
 
 ```ts
 import { z } from 'zod';

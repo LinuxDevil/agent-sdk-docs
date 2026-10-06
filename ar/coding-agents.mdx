@@ -1,25 +1,20 @@
 ---
-title: "Lousho مع وكلاء البرمجة"
-description: "قدّم توثيق الـ SDK إلى Claude Code أو Cursor أو أي وكيل برمجة آخر بصيغة يستطيع قراءتها، ليكتب شيفرة تطابق الواجهة البرمجية الفعلية."
+title: "Lousho مع coding agents"
+description: "أعطِ Claude Code أو Cursor أو أي coding agent آخر توثيق الـ SDK بصيغة يقدر يقرأها، ليكتب كود على الـ API الفعلي."
 ---
 
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/coding-agents).
-</Warning>
+أي coding agent يكتب كود Lousho أحسن لما يقرأ التوثيق الحالي بدل التخمين من بيانات التدريب. الـ SDK يأتي بتوثيقه في ملفين machine-readable، وهذا الموقع يقدّم كل صفحة بصيغة Markdown.
 
-يكتب وكيل البرمجة شيفرة Lousho أفضل حين يقرأ التوثيق الحالي بدل أن يخمّن اعتمادًا على بيانات تدريبه. تأتي حزمة الـ SDK بتوثيقها في ملفين قابلين للقراءة الآلية، وهذا الموقع يقدّم كل صفحة بصيغة Markdown.
+## التوثيق كملفات
 
-## التوثيق في صورة ملفات
-
-تحتوي حزمة npm على الملفين كليهما، بجوار ملف `README.md` الخاص بها:
+حزمة npm تحتوي الملفين، بجانب `README.md` الخاص بها:
 
 | الملف | ما هو |
 | ---- | ---------- |
-| `node_modules/@lousho/build-ai-agent/llms.txt` | فهرس وفق [llmstxt.org](https://llmstxt.org): سطر واحد لكل صفحة من التوثيق، مع ملخص ورابط |
-| `node_modules/@lousho/build-ai-agent/llms-full.txt` | ملف README وكل صفحات التوثيق في ملف واحد، بروابط مطلقة |
+| `node_modules/@lousho/build-ai-agent/llms.txt` | فهرس [llmstxt.org](https://llmstxt.org): سطر واحد لكل صفحة توثيق، مع ملخص ورابط |
+| `node_modules/@lousho/build-ai-agent/llms-full.txt` | الـ README وكل صفحات التوثيق في ملف واحد، بروابط مطلقة |
 
-يُولَّد الملفان من التوثيق نفسه الذي يُبنى منه هذا الموقع، ويُتحقَّق منهما في نظام التكامل المستمر (CI) الخاص بالـ SDK، ولذلك يطابقان الإصدار المثبَّت لديك. أخبر وكيل البرمجة بمكانهما، مثلًا في ملف `AGENTS.md` أو `CLAUDE.md` في مشروعك:
+الملفان مولّدان من نفس توثيق هذا الموقع، والـ CI الخاص بالـ SDK يتحقق منهما. يعني يطابقان النسخة المثبتة عندك. أخبر الـ coding agent بمكانهما، مثلًا في `AGENTS.md` أو `CLAUDE.md` في مشروعك:
 
 ```markdown
 ## Lousho SDK
@@ -31,22 +26,24 @@ Tests must run offline: use mockModel from @lousho/build-ai-agent/testing.
 
 ## التوثيق من هذا الموقع
 
-في أعلى كل صفحة هنا زر **نسخ الصفحة (Copy page)**، ينسخ الصفحة بصيغة Markdown لتلصقها في محادثة. ومن القائمة نفسها يمكنك فتح الصفحة في ChatGPT أو Claude.
+في أعلى كل صفحة هنا زر **Copy page**، ينسخ الصفحة بصيغة Markdown لتلصقها في محادثة. ومن نفس القائمة تقدر تفتح الصفحة في ChatGPT أو Claude.
 
-## دع وكيل البرمجة يتحقق من عمله
+## دع الـ coding agent يتحقق من عمله
 
-في الـ SDK جزءان يسهّلان التحقق من عمل الوكيل دون مفتاح API:
+جزءان في الـ SDK يسهّلان التحقق من عمل الـ agent بدون مفتاح API:
 
-- [الاختبار](/ar/testing): `mockModel` يحدّد ردود النموذج سلفًا، فيستطيع الاختبار أن يتحقق من استدعاءات الأدوات ومن النص النهائي وأن يعمل دون اتصال في CI.
-- [التقييمات](/ar/evals): `defineEval()` يتحقق من مسار التنفيذ (أي الأدوات استُدعيت، وبأي ترتيب، وبأي معاملات)، و`lousho eval` يُخرج النتيجة بصيغة JUnit.
+- [Testing](/ar/testing): `mockModel` يحدد ردود الـ model مسبقًا، فيقدر الاختبار يتحقق من الـ tool calls ومن النص النهائي ويشتغل offline في CI.
+- [Evals](/ar/evals): `defineEval()` يتحقق من مسار التنفيذ (أي tools، بأي ترتيب، وبأي معاملات)، و`lousho eval` يطلع النتيجة بصيغة JUnit.
 
-يفحص الأمر `npx lousho doctor` إصدار Node والاعتماديات النظيرة ومفاتيح API، ويطبع طريقة إصلاح كل ما ينقص. وهو أمر مفيد يبدأ به وكيل البرمجة في نسخة جديدة من المستودع.
+الأمر `npx lousho doctor` يفحص نسخة Node والـ peer dependencies ومفاتيح API، ويطبع طريقة إصلاح أي نقص. وهو أول أمر مفيد يشغّله الـ coding agent في checkout جديد.
 
-## وكيل Lousho الذي تبنيه وكيلَ برمجة
+## الـ agent الذي تبنيه بـ Lousho كـ coding agent
 
-الاتجاه المعاكس مدعوم أيضًا. فالوكيل الذي تبنيه بالـ SDK يستطيع هو نفسه أن يعمل على الشيفرة:
+الاتجاه المعاكس متغطى أيضًا. الـ agent الذي تبنيه بالـ SDK يقدر هو نفسه يشتغل على الكود:
 
-- [بناء وكيل برمجة](/ar/build-a-coding-agent): شرح خطوة بخطوة لوكيل برمجة يعمل في الطرفية، بأدوات للملفات والصدفة (shell) وموافقات وأسئلة متابعة.
-- [أدوات مساحة العمل](/ar/workspace-tools): أدوات لنظام الملفات والصدفة (shell) محصورة في مجلد جذر، مع إخضاع الصدفة للموافقة.
-- [المحررات (ACP)](/ar/acp): الأمر `lousho acp ./my-agent` يقدّم وكيلك إلى Zed وغيره من المحررات التي تدعم Agent Client Protocol.
-- [تعليمات المشروع](/ar/configuration#تعليمات-المشروع): الخيار `projectInstructions` يُلحق ملف `AGENTS.md` في مستودعك بتعليمات الوكيل.
+- [Build a coding agent](/ar/build-a-coding-agent): شرح خطوة بخطوة لـ coding agent يشتغل في الطرفية، مع tools للملفات والـ shell، وapprovals وأسئلة متابعة.
+- [Registry kits](/ar/registry): `lousho add coding-kit` (أو `coding-pi`، نفس الـ harness على الـ Pi provider مع Pi coding sub-agent) يثبّت coding agent ببنية production — checkpoints وقواعد صلاحيات وloop guard وسقف تكلفة — كمجلد واحد.
+- [Pi coding sub-agents](/ar/sub-agents#pi-coding-agent-sub-agents-piagent): `piAgent()` يفوّض مهام implementation محددة النطاق لـ Pi coding agent. له قواعد صلاحيات خاصة به، ويوقّف الـ approval ويستأنفه بشكل durable.
+- [Workspace tools](/ar/workspace-tools): tools لنظام الملفات والـ shell محصورة في مجلد جذر، والـ shell يتطلب approval.
+- [Editors (ACP)](/ar/acp): `lousho acp ./my-agent` يقدّم الـ agent لـ Zed وباقي محررات Agent Client Protocol.
+- [Project instructions](/ar/configuration#تعليمات-المشروع): `projectInstructions` يلحق ملف `AGENTS.md` الموجود في مستودعك بتعليمات الـ agent.

@@ -1,14 +1,9 @@
 ---
 title: "أمثلة"
-description: "أمثلة قابلة للتشغيل من مستودع الـ SDK. معظمها يستخدم المزوّد الوهمي المضمَّن، فلا يحتاج إلى مفتاح API."
+description: "أمثلة جاهزة للتشغيل من مستودع الـ SDK. معظمها يشتغل على mock provider مدمج، فلا تحتاج مفتاح API."
 ---
 
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/examples).
-</Warning>
-
-توجد الأمثلة في المجلد [`examples/`](https://github.com/LinuxDevil/agent-sdk/tree/main/examples) من مستودع الـ SDK. انسخ المستودع، وثبّت الاعتماديات، ثم شغّل أي مثال بالأمر المبيَّن أمامه:
+الأمثلة موجودة في مجلد [`examples/`](https://github.com/LinuxDevil/agent-sdk/tree/main/examples) داخل مستودع الـ SDK. اعمل clone للمستودع، ثبّت الاعتماديات، وشغّل أي مثال بالأمر المكتوب بجانبه:
 
 ```bash
 git clone https://github.com/LinuxDevil/agent-sdk.git
@@ -19,24 +14,30 @@ npm install
 ## المثال الأبرز
 
 <Card title="ops-pipeline" icon="siren" href="https://github.com/LinuxDevil/agent-sdk/tree/main/examples/ops-pipeline" horizontal>
-  يصل تنبيه من نظام المراقبة إلى وكيل مراقبة، فيفوّض مهمة الإصلاح بعد بوابة موافقة بشرية. زر "Fix it" في Slack يستأنف التشغيل المتوقف مؤقتًا، ثم يكتب وكيل الإصلاح رقعة (patch)، وتفحص حواجز الحماية الرقعة قبل فتح طلب سحب (pull request) على GitHub. يعمل افتراضيًا على خدمات وهمية: `npm run pipeline:demo`.
+  تنبيه مراقبة يوصل إلى monitor agent، فيفوّض الإصلاح خلف بوابة approval (موافقة) بشرية. زر "Fix it" في Slack يستأنف الـ run المتوقف، وfixer agent يكتب patch، والـ guardrails تفحص الـ patch قبل فتح pull request على GitHub. يشتغل على mocks افتراضيًا: `npm run pipeline:demo`.
 </Card>
 
-## نقاط انطلاق
+## نقاط البداية
 
-| المثال | ما يوضّحه | تشغيله |
+| المثال | ما يعرضه | الأمر |
 | ------- | ------------- | ------ |
-| [agent-dir](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/agent-dir) | وكيل معرَّف في صورة مجلد (`instructions.md` و`tools/` و`skills/` و`agent.json`) ويُحمَّل بالدالة `loadAgentDir()` | `npm run example:agent-dir` |
-| [support-bot](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/support-bot) | وكيل دعم عملاء في أبسط صورة | `npm run example:support-bot` |
-| [research-assistant](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/research-assistant) | وكيل بحث يستخدم الأداة المضمَّنة `http` | `npm run example:research-assistant` |
-| [doc-qa](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/doc-qa) | الإجابة عن الأسئلة ضمن حدود مستند واحد | `npm run example:doc-qa` |
-| [workflow-router](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/workflow-router) | تصنيف الطلب ضمن مجموعة ثابتة من الفئات | `npm run example:workflow-router` |
-| [slack-notifier](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/slack-notifier) | تحويل وصف خام لحدث إلى إشعار قصير على Slack | `npm run example:slack-notifier` |
-| [tracing](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/tracing) | تشغيل موصول بمصدِّرات تتبّع إلى الطرفية (console) وإلى OpenTelemetry | `npm run example:tracing:console` |
-| [openrouter](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/openrouter) | `OpenRouterProvider`: التوليد، والبث، واستدعاء الأدوات، وعرض قائمة النماذج. يحتاج إلى `OPENROUTER_API_KEY` | `npm run example:openrouter` |
+| [coding-harness](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/coding-harness) | coding agent بمواصفات production: أدوات workspace مع checkpoints، قواعد صلاحيات، loop guard، وسقف تكلفة، ويُشحن على شكل registry kits باسم `coding-kit` و`coding-pi` | `npx tsx examples/coding-harness/index.ts` |
+| [deep-research](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/deep-research) | نمط الـ multi-agent للبحث: coordinator يوزّع استدعاءات `task` متوازية على researcher sub-agents، ثم يجمّع تقريرًا موثّقًا بالمصادر | `npm run example:deep-research` |
+| [support-desk](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/support-desk) | agent للفرز يحوّل المحادثة بـ `handoff()` إلى متخصصين في الفوترة والتقنية، مع أداة refund محمية بـ approval | `npm run example:support-desk` |
+| [evaluator-loop](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/evaluator-loop) | نمط الكاتب/الناقد: `llmCritique()` يقيّم المسودة، والكاتب يراجعها حسب ملاحظاته حتى تنجح | `npm run example:evaluator-loop` |
+| [data-analyst](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/data-analyst) | تحويل نص إلى SQL فوق `node:sqlite` مع فرض قراءة-فقط على أكثر من طبقة — `DELETE`/`DROP` مستحيل تشتغل | `npm run example:data-analyst` |
+| [plan-mode](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/plan-mode) | coding agent يقرأ ويقترح في وضع `plan`، ثم يطبّق التعديلات بعد `session.setPermissionMode('acceptEdits')` | `npm run example:plan-mode` |
+| [agent-dir](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/agent-dir) | agent معرّف كمجلد (`instructions.md` و`tools/` و`skills/` و`agent.json`) ويُحمَّل بـ `loadAgentDir()` | `npm run example:agent-dir` |
+| [support-bot](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/support-bot) | أبسط agent لدعم العملاء | `npm run example:support-bot` |
+| [research-assistant](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/research-assistant) | agent للبحث يستخدم أداة `http` المدمجة | `npm run example:research-assistant` |
+| [doc-qa](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/doc-qa) | الرد على الأسئلة في حدود مستند واحد | `npm run example:doc-qa` |
+| [workflow-router](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/workflow-router) | يصنّف الطلب ضمن مجموعة ثابتة من الفئات | `npm run example:workflow-router` |
+| [slack-notifier](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/slack-notifier) | يحوّل وصف حدث خام إلى إشعار Slack قصير | `npm run example:slack-notifier` |
+| [tracing](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/tracing) | run موصول بمصدّرات trace إلى الـ console وإلى OpenTelemetry | `npm run example:tracing:console` |
+| [openrouter](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/openrouter) | `OpenRouterProvider`: توليد، streaming، tool calling، وعرض قائمة الـ models. يحتاج `OPENROUTER_API_KEY` | `npm run example:openrouter` |
 
 ## أدلة ذات صلة
 
-- [مجلدات الوكيل](/ar/agent-directories) تشرح البنية التي يستخدمها المثال `agent-dir`.
-- [الموافقات](/ar/approvals) و[حواجز الحماية](/ar/guardrails) تغطيان البوابتين في `ops-pipeline`.
-- [التتبّع](/ar/observability) يسرد مقاطع التتبّع (spans) والخصائص التي يطبعها المثال `tracing`.
+- [Agent directories](/ar/agent-directories) يشرح البنية التي يستخدمها مثال `agent-dir`.
+- [Approvals](/ar/approvals) و[Guardrails](/ar/guardrails) يغطّيان البوابتين في `ops-pipeline`.
+- [Tracing](/ar/observability) يسرد الـ spans والـ attributes التي يطبعها مثال `tracing`.

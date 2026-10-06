@@ -1,9 +1,9 @@
 ---
-title: "المُشغِّلات"
+title: "Triggers"
 ---
 {/* Generated from docs/triggers.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-يحوّل مهايئ المُشغِّل (trigger adapter) آلية إيقاظ واحدة إلى تشغيل للوكيل: webhook وارد، أو مؤقّت زمني، أو حدث Slack. **`WebhookTriggerAdapter` و`SlackTriggerAdapter` و`CronTriggerAdapter` مُهمَلة** وستُزال في إصدار رئيسي قادم: استخدم بدلًا منها `webhookChannel()` و`slackChannel()` و`defineSchedule()` (في كل قسم أدناه مقتطف للترحيل). أما `TriggerAdapter` و`TriggerRegistry` فهما نقطة التوسعة وهما غير مُهمَلتين. استوردها من المسار الفرعي `@lousho/build-ai-agent/triggers`: `WebhookTriggerAdapter` و`SlackTriggerAdapter` و`CronTriggerAdapter` و`TriggerRegistry`. اربط أيًّا منها بالدالة `listen(agent, onEvent)`، حيث تشغّل `onEvent` الوكيل، واستدعِ `stop()` على المقبض المُعاد لإيقاف المهايئ.
+الـtrigger adapter يحوّل آلية تنبيه واحدة إلى run للـagent: webhook وارد، ساعة، أو حدث من Slack. **`WebhookTriggerAdapter` و`SlackTriggerAdapter` و`CronTriggerAdapter` صارت deprecated** وستُحذف في إصدار major قادم: استخدم بدلها `webhookChannel()` و`slackChannel()` و`defineSchedule()` (كل قسم أدناه فيه مقتطف migration). أما `TriggerAdapter` و`TriggerRegistry` فهما نقطة التوسعة وليسا deprecated. استوردها من الـsubpath `@lousho/build-ai-agent/triggers`: `WebhookTriggerAdapter` و`SlackTriggerAdapter` و`CronTriggerAdapter` و`TriggerRegistry`. اربط أيًّا منها بـ`listen(agent, onEvent)`، حيث `onEvent` هي التي تشغّل الـagent، واستدعِ `stop()` على الـhandle الذي يرجعه `listen` لإيقاف الـadapter.
 
 ```ts
 import { createAgent, createMockProvider } from '@lousho/build-ai-agent';
@@ -22,15 +22,15 @@ const handle = cron.listen(agent, (input) => agent.send(input));
 await handle.stop();
 ```
 
-## الاختيار بين المُشغِّلات والقنوات والجداول الزمنية
+## الاختيار بين triggers وchannels وschedules
 
-| | استخدمه من أجل | نقاط الدخول |
+| | استخدمها من أجل | نقاط الدخول |
 |---|---|---|
-| المُشغِّلات | نقطة التوسعة لآلية الإيقاظ الخاصة بك. المهايئات الثلاثة المضمَّنة مُهمَلة. | `TriggerAdapter` و`TriggerRegistry` (المُهمَلة: `WebhookTriggerAdapter` و`SlackTriggerAdapter` و`CronTriggerAdapter`) |
-| [القنوات](/ar/channels) | واجهة يتحدث الناس إليها. تُربط كل محادثة بجلسة، وتعود إلى الواجهة الموافقات والأسئلة التي يتوقف الوكيل عندها. | `defineChannel()` و`mountChannels()` و`httpChannel()` و`webhookChannel()` |
-| [الجداول الزمنية](/ar/schedules) | cron لمجلدات الوكلاء وخادم node، مع دعم في الأهداف المنشورة. | `defineSchedule()` و`startSchedules()` |
+| Triggers | نقطة التوسعة لآلية التنبيه الخاصة بك. الـadapters الثلاثة الجاهزة deprecated. | `TriggerAdapter` و`TriggerRegistry` (deprecated: `WebhookTriggerAdapter` و`SlackTriggerAdapter` و`CronTriggerAdapter`) |
+| [Channels](/ar/channels) | واجهة يتكلم معها الناس. كل محادثة ترتبط بـsession (جلسة)، والـapprovals (الموافقات) والأسئلة التي يتوقف عندها الـagent ترجع إلى الواجهة. | `defineChannel()` و`mountChannels()` و`httpChannel()` و`webhookChannel()` |
+| [Schedules](/ar/schedules) | cron لمجلدات الـagents ولـnode server، مع دعم في الـdeployment targets. | `defineSchedule()` و`startSchedules()` |
 
-لكل مهايئ مُهمَل بديل مرتبط بالجلسات والموافقات ومجلدات الوكلاء و`lousho build`: بديل Slack هو `slackChannel()`، وبديل webhook هو `webhookChannel()` (وكلاهما يُركَّب بـ`mountChannels()`)، وبديل cron هو `defineSchedule()` مع `startSchedules()`. تبقى المهايئات المُهمَلة تعمل إلى أن تُزال.
+كل adapter deprecated له بديل مربوط بالـsessions والـapprovals ومجلدات الـagents و`lousho build`: بديل Slack هو `slackChannel()`، وبديل webhooks هو `webhookChannel()` (وكلاهما تركّبه بـ`mountChannels()`)، وبديل cron هو `defineSchedule()` مع `startSchedules()`. الـadapters الـdeprecated تظل تعمل إلى أن تُحذف.
 
 ## واجهة TriggerAdapter
 
@@ -45,11 +45,11 @@ interface TriggerAdapter<TChannel = unknown> {
 }
 ```
 
-تأخذ `listen` كلًّا من `agent` و`onEvent` عن قصد. فـ`agent` هو الواجهة البسيطة "موجّه يدخل ونص يخرج"، و`onEvent` هي نقطة الدخول التي يستدعيها المهايئ عند انطلاق مُشغِّله: يمرّر المستدعي البسيط `(input) => agent.send(input)`، بينما يمرّر المستدعي الذي يستخدم نقاط الحفظ أو بوابات الموافقة أو التحكم في الإلغاء دالة `onEvent` تغلّف ذلك كله.
+`listen` تأخذ `agent` و`onEvent` معًا بقصد. الـ`agent` هو الواجهة البسيطة: prompt يدخل ونص يطلع. والـ`onEvent` هي نقطة الدخول التي يناديها الـadapter عندما ينطلق الـtrigger: الـcaller البسيط يمرّر `(input) => agent.send(input)`، والـcaller الذي عنده checkpointing أو approval gates أو تحكم بالإلغاء يمرّر `onEvent` تغلّف هذا كله.
 
-تختلف دلالات الرد من مهايئ إلى آخر. يكتب webhook النتيجةَ التي تعيدها بوصفها ردّ HTTP، فلا تكون له `reply()`. ولا ينتظر cron أي مستدعٍ، فيسلّم النتيجة إلى الخيار `onResult`. ويرسل Slack الجواب عبر `reply()`.
+دلالات الرد تختلف بين adapter وآخر. الـwebhook يكتب النتيجة التي ترجعها كرد HTTP، فلا يحتاج `reply()`. والـcron لا ينتظره مستدعٍ، فيسلّم النتيجة إلى خيار `onResult`. أما Slack فينشر الجواب عبر `reply()`.
 
-اكتب مهايئك الخاص بإعادة مقبض من `listen`:
+اكتب adapter خاص بك بإرجاع handle من `listen`:
 
 ```ts
 import { createAgent, createMockProvider } from '@lousho/build-ai-agent';
@@ -69,13 +69,13 @@ const handle = everyTenSeconds.listen(agent, (input) => agent.send(input));
 handle.stop();
 ```
 
-يحتفظ `TriggerRegistry` بالمهايئات بأسمائها: `register(name, adapter)` و`registerMany()` و`get()` و`has()` و`list()` و`getAll()` و`unregister()` و`clear()` و`size()`. و`globalTriggerRegistry` نسخة مشتركة.
+يحفظ `TriggerRegistry` الـadapters بالاسم: `register(name, adapter)` و`registerMany()` و`get()` و`has()` و`list()` و`getAll()` و`unregister()` و`clear()` و`size()`. و`globalTriggerRegistry` هو instance مشترك.
 
 ## Webhook
 
-### مصادقة Webhook
+### مصادقة webhook
 
-**مُهمَل.** استُبدلت `WebhookTriggerAdapter` بالدالة `webhookChannel()` المركَّبة بـ`mountChannels()` (راجع [القنوات](/ar/channels))، وهي تأخذ خيار `auth` نفسه وتضيف الجلسات والموافقات. تبقى أشكال `WebhookAuth` أدناه مرجعًا لـ`webhookChannel({ auth })`.
+**Deprecated.** بدل `WebhookTriggerAdapter` صار `webhookChannel()` المُركَّب بـ`mountChannels()` (راجع [Channels](/ar/channels))، ويأخذ نفس خيار `auth` ويضيف sessions وapprovals. تبقى أشكال `WebhookAuth` أدناه وهي مرجع `webhookChannel({ auth })`.
 
 ```ts
 import { createAgent, createMockProvider, mountChannels, webhookChannel } from '@lousho/build-ai-agent';
@@ -88,7 +88,7 @@ const handler = mountChannels(agent, [
 ]);
 ```
 
-تُشغِّل `WebhookTriggerAdapter` خادم HTTP. **اضبط `auth` دائمًا لأي webhook يمكن الوصول إليه من خارج جهازك**: فبدونها يستطيع كل من يصل إلى المنفذ تشغيل وكيلك (وإنفاق رموزك (tokens)). وإذا استمعت على مضيف غير loopback دون `auth`، يسجّل المهايئ تحذيرًا لمرة واحدة عبر `options.logger`.
+`WebhookTriggerAdapter` يشغّل خادم HTTP. **اضبط `auth` دائمًا لأي webhook يمكن الوصول إليه من خارج جهازك**: بدونه، أي شخص يصل إلى الـport يستطيع تشغيل الـagent الخاص بك (وإنفاق الـtokens الخاصة بك). وإذا استمعت على host غير loopback بدون `auth`، يسجّل الـadapter تحذيرًا مرة واحدة عبر `options.logger`.
 
 ```ts
 import { createAgent, createMockProvider } from '@lousho/build-ai-agent';
@@ -123,13 +123,13 @@ new WebhookTriggerAdapter({
 });
 ```
 
-خيارات HMAC: `header` (الافتراضي `x-signature-256`) و`algorithm` (`sha256` أو `sha1`، والافتراضي `sha256`) و`prefix` (الافتراضي `sha256=`؛ و`''` للتوقيع المجرّد) و`timestampHeader` و`toleranceSeconds`. تُقارَن التواقيع ورموز bearer في زمن ثابت. والطلب الذي تفشل مصادقته يحصل على رد عام `401 {"error":"Unauthorized"}` - فلا يذكر الرد أبدًا أي فحص فشل - ويُسجَّل السبب (دون أي سر أو توقيع) بمستوى `warn`. قدّم الـwebhooks عبر HTTPS (أنهِ TLS أمام المهايئ) كي لا تُرسل الرموز والحمولات نصًا صريحًا.
+خيارات HMAC: `header` (الافتراضي `x-signature-256`)، `algorithm` (`sha256` أو `sha1`، الافتراضي `sha256`)، `prefix` (الافتراضي `sha256=`؛ `''` لـdigest مجرّد)، `timestampHeader` و`toleranceSeconds`. التواقيع وbearer tokens تُقارَن في زمن ثابت. والطلب الذي تفشل مصادقته يأخذ ردًّا عامًّا `401 {"error":"Unauthorized"}` — الرد لا يذكر أي فحص فشل — والسبب، دون أي سر أو توقيع، يُسجَّل بمستوى `warn`. قدّم الـwebhooks عبر HTTPS (أنهِ TLS أمام الـadapter) حتى لا تُرسَل الـtokens والـpayloads نصًّا صريحًا.
 
 ## Slack
 
 ### تواقيع طلبات Slack
 
-**مُهمَل.** استُبدلت `SlackTriggerAdapter` بالدالة `slackChannel()` المركَّبة بـ`mountChannels()` (راجع [Slack في القنوات](/ar/channels#slack)): جلسة واحدة لكل سلسلة رسائل في Slack، وأزرار موافقة، وفحص التوقيع مضمَّن. تبقى `verifySlackSignature()` وهي غير مُهمَلة.
+**Deprecated.** بدل `SlackTriggerAdapter` صار `slackChannel()` المُركَّب بـ`mountChannels()` (راجع [Slack في Channels](/ar/channels#slack)): session واحدة لكل Slack thread، وأزرار approval، وفحص التوقيع مدمج. تبقى `verifySlackSignature()` وهي ليست deprecated.
 
 ```ts
 import { createAgent, createMockProvider, mountChannels, slackChannel } from '@lousho/build-ai-agent';
@@ -144,7 +144,7 @@ const handler = mountChannels(agent, [
 ]);
 ```
 
-تعالج `SlackTriggerAdapter.handleRequest({ headers, rawBody })` طلبًا خامًا من Slack Events API وتعيد `{ status, body }` المطلوب إرساله. **اضبط `signingSecret` لأي نقطة وصول يمكن بلوغها من خارج جهازك**: فبدونه يستطيع كل من يصل إلى النقطة تشغيل وكيلك، وتسجّل `listen()` تحذيرًا لمرة واحدة عبر `options.logger`. ومعه يُتحقق من كل طلب [وفق توثيق Slack](https://docs.slack.dev/authentication/verifying-requests-from-slack) قبل تحليل المحتوى: HMAC-SHA256 على `v0:{X-Slack-Request-Timestamp}:{raw body}`، يُقارَن في زمن ثابت مع `X-Slack-Signature` (`v0=<hex>`)، وتُرفض الطلبات التي مضى عليها أكثر من خمس دقائق. وتحصل حالات الفشل على `401 {"error":"Unauthorized"}` عام؛ ويُسجَّل السبب (دون أي سر أو توقيع) بمستوى `warn`. ويُجاب عن مصافحة `url_verification` الموقَّعة بعد التحقق.
+`SlackTriggerAdapter.handleRequest({ headers, rawBody })` تعالج طلب Slack Events API خامًّا وترجع `{ status, body }` التي ترسلها جوابًا. **اضبط `signingSecret` لأي endpoint يمكن الوصول إليه من خارج جهازك**: بدونه، أي شخص يصل إلى الـendpoint يستطيع تشغيل الـagent الخاص بك، و`listen()` تسجّل تحذيرًا مرة واحدة عبر `options.logger`. ومعه، يُتحقَّق من كل طلب [كما يوثّقه Slack](https://docs.slack.dev/authentication/verifying-requests-from-slack) قبل تحليل الـbody: HMAC-SHA256 على `v0:{X-Slack-Request-Timestamp}:{raw body}`، يُقارَن في زمن ثابت مع `X-Slack-Signature` (`v0=<hex>`)، والطلبات الأقدم من خمس دقائق تُرفَض. حالات الفشل تأخذ `401 {"error":"Unauthorized"}` عامًّا؛ والسبب، دون أي سر أو توقيع، يُسجَّل بمستوى `warn`. ومصافحة `url_verification` الموقَّعة تُجاب بعد التحقق.
 
 ```ts
 import { createAgent, createMockProvider } from '@lousho/build-ai-agent';
@@ -175,13 +175,13 @@ const authentic = verifySlackSignature({
 });
 ```
 
-تجيب `handleRequest` Slack بعد انتهاء الوكيل؛ وتتوقع Slack ردًّا خلال ثلاث ثوانٍ، فللوكلاء البطيئين أرسل إقرارًا أولًا ثم شغّل الوكيل في الخلفية.
+`handleRequest` ترد على Slack بعد انتهاء الـagent؛ وSlack تتوقع ردًّا خلال ثلاث ثوانٍ، فإذا كان الـagent بطيئًا فأرسل acknowledge أولًا وشغّل الـagent في الخلفية.
 
 ## Cron
 
-### جداول cron الزمنية
+### جداول cron
 
-**مُهمَل.** استُبدلت `CronTriggerAdapter` بالدالة `defineSchedule()` مع `startSchedules()` (راجع [الجداول الزمنية](/ar/schedules))، وهي تعمل أيضًا من `schedules/` في مجلد الوكيل ومن مُشغِّلات cron في ملف المواصفات. تبقى `parseCronExpression()` و`CronExpressionError`. لا يوجد في الجداول الزمنية `intervalMs`: اكتب تعبير cron المكافئ (`*/5 * * * *` لكل خمس دقائق)، أو أبقِ `setInterval` تستدعي `agent.send()`.
+**Deprecated.** بدل `CronTriggerAdapter` صار `defineSchedule()` مع `startSchedules()` (راجع [Schedules](/ar/schedules))، ويعمل أيضًا من `schedules/` في مجلد الـagent ومن الـcron triggers في ملف الـspec. ويبقى `parseCronExpression()` و`CronExpressionError`. الـschedules ليس فيها `intervalMs`: اكتب تعبير cron المكافئ (`*/5 * * * *` لكل خمس دقائق)، أو أبقِ `setInterval` تنادي `agent.send()`.
 
 ```ts
 import { createAgent, createMockProvider, defineSchedule, startSchedules } from '@lousho/build-ai-agent';
@@ -198,7 +198,7 @@ const running = startSchedules(agent, [queue]);
 running.stop();
 ```
 
-تقبل `CronTriggerAdapter` إما `intervalMs` ثابتة أو تعبير cron حقيقيًا:
+تأخذ `CronTriggerAdapter` إما `intervalMs` ثابتة أو تعبير cron حقيقيًّا:
 
 ```ts
 import { createAgent, createMockProvider } from '@lousho/build-ai-agent';
@@ -214,6 +214,6 @@ new CronTriggerAdapter({
 }).listen(agent, (input) => agent.send(input));
 ```
 
-الصياغة المدعومة: `*` والقوائم (`1,15`) والمدى (`1-5`) والخطوات (`*/15` و`10-40/10`) وأسماء الأشهر (`JAN`) وأسماء أيام الأسبوع (`MON`)، مع كون `0` و`7` كليهما الأحد، إضافةً إلى الاختصارات `@hourly` و`@daily` (أو `@midnight`) و`@weekly` و`@monthly` و`@yearly` (أو `@annually`). وكما في cron التقليدي، إذا قُيِّد يوم الشهر ويوم الأسبوع معًا فإن اليوم يطابق إن طابق أحدهما. ويرمي التعبير غير الصالح `CronExpressionError` تسمّي الحقل وتعرض مثالًا صالحًا. وتُصدَّر `parseCronExpression(expr, timezone).nextRun(after)` إن احتجت إلى وقت الإطلاق التالي.
+الصياغة المدعومة: `*`، القوائم (`1,15`)، النطاقات (`1-5`)، الخطوات (`*/15` و`10-40/10`)، أسماء الأشهر (`JAN`) وأسماء أيام الأسبوع (`MON`)، و`0` و`7` كلاهما يعني الأحد. وفيها أيضًا اختصارات `@hourly` و`@daily` (أو `@midnight`) و`@weekly` و`@monthly` و`@yearly` (أو `@annually`). وكما في cron الكلاسيكي، إذا قيّدت يوم الشهر ويوم الأسبوع معًا فاليوم يطابق إن طابق أحدهما. التعبير غير الصالح يرمي `CronExpressionError` يذكر الحقل ويعرض مثالًا صالحًا. و`parseCronExpression(expr, timezone).nextRun(after)` مُصدَّرة إذا احتجت وقت الإطلاق التالي.
 
-عند تغيّر التوقيت الصيفي، يُتخطّى في ذلك اليوم الوقت غير الموجود (التقديم)، ويُطلَق مرة واحدة الوقت الذي يقع مرتين (التأخير)؛ وتواصل الجداول الزمنية كل ساعة الإطلاق كل ساعة. ويُعاد ضبط المؤقت بعد كل تشغيل انطلاقًا من الوقت المجدول (بلا انحراف ولا إطلاق مزدوج)، وتمسحه `stop()`.
+حول تغيّر التوقيت الصيفي، الوقت الذي لا يوجد (عند تقديم الساعة) يُتخطّى في ذلك اليوم، والوقت الذي يحدث مرتين (عند إرجاع الساعة) يُطلَق مرة واحدة؛ والجدول الذي يعمل كل ساعة يستمر يُطلَق كل ساعة. والـtimer يُعاد ضبطه بعد كل run انطلاقًا من الوقت المجدول (بلا drift وبلا إطلاق مزدوج)، و`stop()` تمسحه.

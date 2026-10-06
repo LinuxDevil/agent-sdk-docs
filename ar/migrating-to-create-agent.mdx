@@ -4,13 +4,13 @@ sidebarTitle: "الانتقال إلى createAgent()"
 ---
 {/* Generated from docs/migrating-to-create-agent.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-هذه الصفحة موجّهة إلى الشيفرة التي تستخدم `AgentBuilder` و`AgentExecutor` و`ToolRegistry` و`resumeAfterApproval()`: أي واجهة المستوى الأدنى التي بدأ بها SDK. أصبحت هذه الصادرات الآن في `@lousho/build-ai-agent/executor` ولن تزول؛ وإن بقيت عليها فانظر [واجهة المنفِّذ](/ar/executor-api). سبب الانتقال أن استدعاءً واحدًا لـ`createAgent()` يربط الأدوات والمخازن والموافقات والجلسات وإعادة المحاولة وضغط السياق، بينما يطلب منك المنفِّذ (executor) تجميع كل واحد منها بنفسك وتمريره إلى كل استدعاء.
+هذه الصفحة للكود الذي يستخدم `AgentBuilder` و`AgentExecutor` و`ToolRegistry` و`resumeAfterApproval()`: الـ API الأدنى مستوى الذي بدأ به الـ SDK. هذه الـ exports انتقلت إلى `@lousho/build-ai-agent/executor` ولن تُحذف. إذا بقيت عليها، راجع [واجهة الـ executor](/ar/executor-api). سبب الانتقال أن استدعاء `createAgent()` واحد يربط الـ tools والـ stores والـ approvals (موافقات) والـ sessions (جلسات) والـ retries (إعادة المحاولة) والـ compaction (ضغط سياق المحادثة)، بينما الـ executor يجعلك تجمع كل واحد منها بنفسك وتمرره في كل استدعاء.
 
-لا يقبل `createAgent()` كل الخيارات التي يقبلها المنفِّذ حتى الآن؛ راجع [ما لا يقبله createAgent() بعد](#ما-لا-يقبله-createagent-بعد) قبل أن تبدأ.
+ما يزال `createAgent()` لا يقبل كل الخيارات التي يقبلها الـ executor. راجع [ما لا يقبله createAgent() حتى الآن](#ما-لا-يقبله-createagent-حتى-الآن) قبل أن تبدأ.
 
 ## قبل وبعد
 
-وكيل واحد له أداة تحتاج إلى موافقة، أولًا بواجهة المنفِّذ ثم بـ`createAgent()`. كلاهما يستخدم نموذجًا مبرمجًا مسبقًا، فيعملان دون اتصال وينتهيان بالنص نفسه `Sent the report to Sam.` بعد التوقف نفسه.
+agent واحد مع tool يتطلب approval: أولًا بـ executor API، ثم بـ `createAgent()`. كلاهما يستخدم model بردود جاهزة مسبقًا، فيعملان دون اتصال وينتهيان بنفس النص `Sent the report to Sam.` بعد نفس التوقف.
 
 ```ts
 import {
@@ -91,58 +91,58 @@ const result = await mailer.approvals.resolve({ id: paused.approvalId!, approved
 console.log(result.text); // 'Sent the report to Sam.'
 ```
 
-الأداة هي نتيجة `defineTool()` نفسها في الحالتين. يحتفظ الوكيل بسجل الأدوات ومخزن الموافقات والمزوّد الخاصة به، فلا يلزم للبتّ في التوقف سوى معرّف الموافقة.
+الـ tool هو ناتج `defineTool()` نفسه في الحالتين. الـ agent يحتفظ بالـ registry والـ approval store والـ provider الخاصة به، فيكفي معرّف الـ approval لاستكمال التوقف.
 
-## المقابلات
+## Mapping
 
 | القديم | `createAgent()` |
 | ------ | --------------- |
-| `AgentBuilder.create().setName(n).setPrompt(p).build()` | `createAgent({ name, instructions })` (و`prompt` اسم بديل لـ`instructions`). |
-| `addTool(key, config)` في الباني، مع `ToolRegistry.register(tool)` | `tools: [defineTool(...)]`. لا يوجد سجل تبنيه؛ انظر [الأدوات](/ar/tools). |
-| `AgentExecutor.execute({ agent, input, provider })` | `agent.send(message)`. النموذج هو `model` (سلسلة بصيغة `provider/model`) أو `provider`. |
-| `AgentExecutor.stream(...)` | `agent.stream(message)`؛ انظر [البث](/ar/streaming). |
-| `onAgentEvent` | `onEvent` في `createAgent()`؛ ويعطي `stream()` الأحداث نفسها. |
-| `onEvent` مع `ExecutionEvent` (مُهمَل) | مستمعو `AgentEvent`؛ انظر [الانتقال من `onEvent` / `ExecutionEvent`](/ar/streaming#الانتقال-من-onevent-/-executionevent). |
-| `sessionId` + `checkpointStore` | `store` في `createAgent()` و`agent.send(message, { sessionId })`؛ وأكمل تشغيلًا مقطوعًا بـ`agent.resume(sessionId)`. انظر [التنفيذ المتين](/ar/durable-execution). |
-| `approvalStore` | `approvalStore`، أو `store` مع `approvals`. وإن لم يوجد أيٌّ منهما فمخزن `InMemoryApprovalStore` خاص بكل وكيل. |
-| `resumeAfterApproval(decision, store, registry, provider)` | `agent.approvals.resolve({ id, approved, note? })`؛ و`agent.approvals.answer()` للإجابة عن سؤال. انظر [الموافقات](/ar/approvals). |
+| `AgentBuilder.create().setName(n).setPrompt(p).build()` | `createAgent({ name, instructions })` (`prompt` اسم بديل لـ`instructions`). |
+| `addTool(key, config)` في الـ builder، مع `ToolRegistry.register(tool)` | `tools: [defineTool(...)]`. لا يوجد registry تبنيه؛ راجع [Tools](/ar/tools). |
+| `AgentExecutor.execute({ agent, input, provider })` | `agent.send(message)`. الـ model تحدده بـ`model` (سلسلة بصيغة `provider/model`) أو `provider`. |
+| `AgentExecutor.stream(...)` | `agent.stream(message)`؛ راجع [Streaming](/ar/streaming). |
+| `onAgentEvent` | `onEvent` في `createAgent()`؛ و`stream()` يعطي نفس الأحداث. |
+| `onEvent` مع `ExecutionEvent` (deprecated) | `AgentEvent` listeners؛ راجع [الانتقال من `onEvent` / `ExecutionEvent`](/ar/streaming#الانتقال-من-onevent-executionevent). |
+| `sessionId` + `checkpointStore` | `store` في `createAgent()` و`agent.send(message, { sessionId })`؛ واستأنف run انقطع بـ`agent.resume(sessionId)`. راجع [Durable execution](/ar/durable-execution). |
+| `approvalStore` | `approvalStore`، أو `store` مع `approvals`. وبدون أي منهما، `InMemoryApprovalStore` خاص بكل agent. |
+| `resumeAfterApproval(decision, store, registry, provider)` | `agent.approvals.resolve({ id, approved, note? })`؛ و`agent.approvals.answer()` للرد على سؤال. راجع [Approvals](/ar/approvals). |
 | `streamResumeAfterApproval(...)` | `agent.approvals.streamResolve(...)` و`streamAnswer(...)`. |
 | `AgentExecutor.fork(...)` | `agent.fork(sessionId, { fromStep, patch })`. |
 | `hooks: HookRegistry` | `hooks: AgentHook[]`. |
 | `signal` | `agent.send(message, { signal })`. |
-| `maxSteps` و`limits` و`guardrails` و`toolConcurrency` و`onAgentDrift` و`reasoning` و`output` | الأسماء نفسها في `createAgent()`؛ ويمكن أيضًا تعيين `reasoning` لكل استدعاء `send()`. |
-| `exporter` و`captureContent` و`redactContent` | الأسماء نفسها في `createAgent()`. |
-| `skills` و`subagents` | الأسماء نفسها في `createAgent()`، الذي يقبل أيضًا `mcpServers` و`memory`. |
-| `inputQueue` | `run.enqueue()` على تشغيل مبثوث، أو `agent.session({ turnPolicy })`؛ انظر [المدخلات المصطفّة](/ar/queue-and-steer#المدخلات-المصطفّة). |
-| `sessionBudget` | `agent.session({ id, limits })`؛ انظر [الجلسات](/ar/sessions). |
+| `maxSteps` و`limits` و`guardrails` و`toolConcurrency` و`onAgentDrift` و`reasoning` و`output` | نفس الأسماء في `createAgent()`؛ ويمكن تعيين `reasoning` لكل `send()` أيضًا. |
+| `exporter` و`captureContent` و`redactContent` | نفس الأسماء في `createAgent()`. |
+| `skills` و`subagents` | نفس الأسماء في `createAgent()`، الذي يقبل أيضًا `mcpServers` و`memory`. |
+| `inputQueue` | `run.enqueue()` في run مع streaming، أو `agent.session({ turnPolicy })`؛ راجع [Queued input](/ar/queue-and-steer#queued-input). |
+| `sessionBudget` | `agent.session({ id, limits })`؛ راجع [Sessions](/ar/sessions). |
 
-## ما لا يقبله createAgent() بعد
+## ما لا يقبله createAgent() حتى الآن
 
-هذه خيارات `ExecuteOptions` ليس لها خيار مقابل في `createAgent()`. حيث يوجد بديل مدعوم فقد سُمّي؛ وإلا أبقِ ذلك الاستدعاء على `AgentExecutor.execute()`.
+هذه خيارات `ExecuteOptions` ليس لها خيار مقابل في `createAgent()`. إذا وُجد بديل مدعوم فهو مذكور؛ وإلا فأبقِ ذلك الاستدعاء على `AgentExecutor.execute()`.
 
-| خيار المنفِّذ | البديل |
+| خيار الـ executor | البديل |
 | --------------- | ----------- |
-| `temperature` و`maxTokens` | لا بديل: ابقَ على المنفِّذ. (`limits.maxTokens` ميزانية للتشغيل، وليس إعداد توليد.) |
-| `sandbox` | لا بديل: ابقَ على المنفِّذ. |
-| `onLLMRequest` و`onLLMResponse` | خطّاف `preGenerate` / `postGenerate` في `hooks`، أو مستمع `onEvent`. |
-| `onToolCall` و`onToolResult` | خطّاف `preToolCall` / `postToolCall` في `hooks`، أو مستمع `onEvent`. |
-| `onRunEnd` | مستمع `onEvent` للحدث `run.done`، أو نتيجة `send()`. |
-| `businessState` | لا بديل: ابقَ على المنفِّذ. |
+| `temperature` و`maxTokens` | لا يوجد: ابقَ على الـ executor. (`limits.maxTokens` ميزانية للـ run، وليس إعداد توليد.) |
+| `sandbox` | لا يوجد: ابقَ على الـ executor. |
+| `onLLMRequest` و`onLLMResponse` | `preGenerate` / `postGenerate` hook في `hooks`، أو `onEvent` listener. |
+| `onToolCall` و`onToolResult` | `preToolCall` / `postToolCall` hook في `hooks`، أو `onEvent` listener. |
+| `onRunEnd` | `onEvent` listener لحدث `run.done`، أو نتيجة `send()`. |
+| `businessState` | لا يوجد: ابقَ على الـ executor. |
 
-يستخدم التشغيل الواحد إحدى الواجهتين: الوكيل الذي يحتاج إلى أحد الصفوف المكتوب فيها «لا بديل» يُبقي ذلك الاستدعاء على المنفِّذ، ويمكنه استخدام `createAgent()` في بقية الشيفرة.
+الـ run الواحد يستخدم إحدى الواجهتين فقط: agent يحتاج خيارًا من صفوف «لا يوجد» يترك ذلك الاستدعاء على الـ executor، ويستخدم `createAgent()` في باقي الكود.
 
 ## اختلافات السلوك
 
-- `send()` دورة واحدة. أما المحادثة فكائن منفصل هو `agent.session()`، يحتفظ بسجل المحادثة ويرسله مع كل دورة؛ انظر [الجلسات](/ar/sessions). الشيفرة التي كانت تبني سجل الرسائل يدويًا تنتقل إلى جلسة.
-- التشغيل الموقوف يُحسَم. فاستدعاء `send()` الذي يصل إلى أداة `needsApproval` يُحسَم بـ`finishReason: 'awaiting-approval'` ومعها `approvalId`؛ ولا يرمي خطأً. ويبقى التوقف عند الوكيل، فيعرضه `agent.approvals.list()` ويواصله `resolve()` دون السجل أو المزوّد.
-- مخزن الموافقات الافتراضي خاص بكل وكيل وموجود في الذاكرة. ولا ينجو التوقف من إعادة التشغيل إلا مع `store` أو `approvalStore` متين؛ انظر [اختيار المخزن](/ar/sessions#اختيار-المخزن).
-- إعادة المحاولة مفعّلة افتراضيًا مع سلسلة `model`: محاولتان إضافيتان لاستدعاء النموذج الفاشل. أما نسخة `provider` التي تمررها فلا تُغلَّف ما لم تعيّن `retry`. انظر [إعادة محاولات المزوّد والبديل الاحتياطي](/ar/configuration#إعادة-المحاولة-والبديل-الاحتياطي-لدى-المزوّد).
+- `send()` هو turn واحد. المحادثة كائن مستقل هو `agent.session()`، يحتفظ بالـ transcript ويرسله مع كل turn؛ راجع [Sessions](/ar/sessions). الكود الذي كان يبني سجل الرسائل يدويًا ينتقل إلى session.
+- الـ run الموقوف يرجع نتيجة، لا يعلق. الـ `send()` الذي يصل إلى tool عليه `needsApproval` يرجع بـ`finishReason: 'awaiting-approval'` ومعه `approvalId`، ولا يرمي خطأ. التوقف يبقى عند الـ agent، فيعرضه `agent.approvals.list()` ويكمله `resolve()` دون registry أو provider.
+- الـ approval store الافتراضي خاص بكل agent ويعيش في الذاكرة. التوقف لا ينجو من restart إلا مع `store` أو `approvalStore` من نوع durable؛ راجع [اختيار الـ store](/ar/sessions#choosing-a-store).
+- الـ retries مفعّلة افتراضيًا مع سلسلة `model`: محاولتان إضافيتان لاستدعاء model فاشل. الـ `provider` الذي تمرره لا يُغلَّف إلا إذا عيّنت `retry`. راجع [Provider retries and fallback](/ar/configuration#الـ-retry-والـ-fallback-عند-الـ-provider).
 
 ## الانتقال خطوة بخطوة
 
-1. الأدوات أولًا. أبقِ أدوات `defineTool()`؛ واحذف `ToolRegistry` وأي استدعاء `addTool(key, config)`، واذكر الأدوات في `tools`.
-2. استبدل `AgentBuilder` بـ`createAgent({ name, instructions, tools })`، ومرّر `model` أو `provider` الذي تمرره أصلًا إلى `execute()`.
-3. استبدل كل `AgentExecutor.execute()` بـ`agent.send()` وكل `stream()` بـ`agent.stream()`. وانقل `maxSteps` و`limits` وبقية الخيارات المشتركة إلى `createAgent()`. وأبقِ الاستدعاء على المنفِّذ إن احتاج إلى خيار من قائمة «ما لا يقبله بعد».
-4. استبدل `resumeAfterApproval()` بـ`agent.approvals.resolve()`. وإن كان لا بد أن تبقى الموافقات بعد انتهاء العملية فمرّر المخزن الذي استخدمته بوصفه `approvalStore`.
-5. انقل `checkpointStore` ومعه `sessionId` إلى `store`، ومرّر `sessionId` إلى `send()`. واستخدم `agent.session()` حيث كنت تحتفظ بالسجل بنفسك.
-6. استبدل `onEvent` مع `ExecutionEvent` بمستمع `AgentEvent`، ثم انقل خطّافات `HookRegistry` إلى `hooks`.
+1. الـ tools أولًا. أبقِ الـ tools المعرفة بـ`defineTool()`، واحذف `ToolRegistry` وأي استدعاء `addTool(key, config)`، وعدّد الـ tools في `tools`.
+2. استبدل `AgentBuilder` بـ`createAgent({ name, instructions, tools })`، ومرّر `model` أو الـ `provider` نفسه الذي كنت تمرره إلى `execute()`.
+3. استبدل كل `AgentExecutor.execute()` بـ`agent.send()` وكل `stream()` بـ`agent.stream()`. انقل `maxSteps` و`limits` وبقية الخيارات المشتركة إلى `createAgent()`. إذا احتاج استدعاء إلى خيار من قائمة «حتى الآن» فاتركه على الـ executor.
+4. استبدل `resumeAfterApproval()` بـ`agent.approvals.resolve()`. إذا كان يجب أن تبقى الـ approvals بعد انتهاء العملية، مرّر الـ store الذي استخدمته كـ`approvalStore`.
+5. انقل `checkpointStore` و`sessionId` الخاص به إلى `store`، ومرّر `sessionId` إلى `send()`. واستخدم `agent.session()` بدل سجل الرسائل الذي كنت تحتفظ به بنفسك.
+6. استبدل `onEvent` مع `ExecutionEvent` بـ`AgentEvent` listener، ثم انقل الـ hooks الموجودة في `HookRegistry` إلى `hooks`.

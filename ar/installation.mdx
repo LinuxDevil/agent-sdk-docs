@@ -5,8 +5,8 @@ title: "التثبيت"
 
 ## المتطلبات
 
-- Node.js **22.19 أو أحدث** (`engines.node` في `package.json`، وهو مضبوط بسبب الاعتمادية `undici@8`؛ ولا تُحمَّل `undici` إلا حين تجري أداة `http_request` أو `web_fetch` طلبًا، راجع [الحزم النظيرة الاختيارية](#الحزم-النظيرة-الاختيارية)).
-- TypeScript اختيارية لكن يوصى بها، فالـ SDK تأتي بتعريفات أنواع كاملة.
+- Node.js **22.19 أو أحدث** (`engines.node` في `package.json`، والرقم مفروض من الاعتمادية `undici@8`؛ و`undici` لا تُحمَّل إلا عندما ترسل `http_request` أو `web_fetch` طلبًا، راجع [Optional peers](#optional-peers)).
+- TypeScript اختيارية لكننا ننصح بها — الـ SDK تأتي مع type definitions كاملة.
 
 ## تثبيت الحزمة
 
@@ -18,13 +18,13 @@ pnpm add @lousho/build-ai-agent ai zod
 yarn add @lousho/build-ai-agent ai zod
 ```
 
-`ai` (وهي Vercel AI SDK: `^4.3.19` أو `^6.0.0` أو `^7.0.0`) و`zod` (`^3.25.76 || ^4.0.0`) اعتماديتان نظيرتان (peer dependencies) مطلوبتان. الإصدار `ai` 5 غير مدعوم.
+`ai` (وهي Vercel AI SDK: `^4.3.19` أو `^6.0.0` أو `^7.0.0`) و`zod` (`^3.25.76 || ^4.0.0`) peer dependencies إجبارية. الإصدار `ai` 5 غير مدعوم.
 
-المخططات من أي من الإصدارين الرئيسيين لـ zod تعمل في كل موضع تقبل فيه الـ SDK مخططًا (`defineTool({ input })`، و`output` المنظَّم، وأدوات MCP)، ومنها مخططات zod 4 من `zod/v4` حين يكون zod 3.25 مثبَّتًا، ومخططات zod 3 من `zod/v3` على zod 4. ويمكن أن يكون `input` في `defineTool` مخططًا من مكتبة أخرى تتبع [Standard Schema](https://standardschema.dev) إذا كانت تكشف مخطط JSON Schema الخاص به (`~standard.jsonSchema`)؛ فالنموذج يحتاج إلى JSON Schema، ولذلك يُرفض مخطط Standard Schema الذي لا يوفّره (استخدم zod لتلك الأدوات). حزم المزوّدين الخاصة بـ `ai` 4 تعلن zod 3 اعتماديةً نظيرة، فقرِن zod 4 بـ `ai` 6 أو 7.
+أي schema من الإصدارين الرئيسيين لـ zod تشتغل في كل مكان تقبل فيه الـ SDK schema: `defineTool({ input })`، و`output` منظَّم، وأدوات MCP. يشمل هذا schemas من zod 4 عبر `zod/v4` مع zod 3.25 مثبت، وschemas من zod 3 عبر `zod/v3` على zod 4. حقل `input` في `defineTool` يمكن أن يكون أيضًا schema من مكتبة [Standard Schema](https://standardschema.dev) أخرى، إذا كانت تكشف الـ JSON Schema الخاصة بها (`~standard.jsonSchema`). الـ model يحتاج JSON Schema، فأي Standard Schema بلا واحدة يترفض — استخدم zod لتلك الأدوات. حزم الـ providers الخاصة بـ `ai` 4 تعلن zod 3 كـ peer dependency، فاقرن zod 4 مع `ai` 6 أو 7.
 
-### حزم المزوّدين
+### حزم الـ providers
 
-كل مزوّد LLM حقيقي يستند إلى اعتمادية نظيرة اختيارية، بالإصدار الرئيسي الذي يقترن بالإصدار الرئيسي لـ `ai` لديك. ثبّت الزوج من صف واحد:
+كل provider حقيقي لـ LLM يعتمد على peer dependency اختيارية، بالإصدار الرئيسي الذي يتوافق مع إصدار `ai` لديك. ثبّت الزوج من صف واحد:
 
 | `ai`      | OpenAI وOpenRouter: `@ai-sdk/openai` | Anthropic: `@ai-sdk/anthropic` | Ollama                                 |
 | --------- | ------------------------------------ | ------------------------------ | -------------------------------------- |
@@ -32,17 +32,17 @@ yarn add @lousho/build-ai-agent ai zod
 | `^6.0.0`  | `^3.0.0`                             | `^3.0.0`                       | `ollama-ai-provider-v2@^3.0.0` (zod 4) |
 | `^7.0.0`  | `^4.0.0`                             | `^4.0.0`                       | `ollama-ai-provider-v2@^4.0.0` (zod 4) |
 
-مثلًا، على الإصدار الرئيسي الحالي من `ai`:
+على الإصدار الرئيسي الحالي من `ai` مثلًا:
 
 ```bash
 npm install @lousho/build-ai-agent ai@^7.0.0 zod @ai-sdk/openai@^4.0.0
 ```
 
-**Ollama على `ai` 6/7 يحتاج إلى zod 4.** الحزمة `ollama-ai-provider-v2` (حزمة Ollama لـ `ai` 6 و7) تعلن `zod ^4` اعتماديةً نظيرة. والـ SDK تقبل zod 4، فثبّتها مع zod 4، مثلًا `npm install ai@^7.0.0 ollama-ai-provider-v2@^4.0.0 zod@^4.0.0`. أما مع zod 3 فاستخدم `ai@^4.3.19` مع `ollama-ai-provider@^1.2.0`. وينشئ `lousho init --provider ollama` مشروعًا بـ `ai@^7.0.0` و`ollama-ai-provider-v2@^4.0.0` وzod 4.
+**Ollama على `ai` 6/7 يحتاج zod 4.** الحزمة `ollama-ai-provider-v2` (حزمة Ollama لـ `ai` 6 و7) تعلن `zod ^4` كـ peer dependency. الـ SDK تقبل zod 4، فثبّتها مع zod 4، مثلًا `npm install ai@^7.0.0 ollama-ai-provider-v2@^4.0.0 zod@^4.0.0`. مع zod 3 استخدم `ai@^4.3.19` مع `ollama-ai-provider@^1.2.0`. و`lousho init --provider ollama` ينشئ المشروع بـ `ai@^7.0.0` و`ollama-ai-provider-v2@^4.0.0` وzod 4.
 
-**ما يختبره CI.** كل اقتران تقبله نطاقات الاعتماديات النظيرة يُثبَّت فعليًا ويُشغَّل عبر فحص الأنواع والبناء ومجموعة الاختبارات كاملة، مع كل تغيير: `ai` 4 مع zod 3 (تثبيت التطوير) ومع zod 4، و`ai` 6 مع zod 3 ومع zod 4، و`ai` 7 مع zod 3 ومع zod 4. وحالتا zod 4 على `ai` 6 و7 تثبّتان أيضًا `ollama-ai-provider-v2` (الإصدارين 3.x و4.x) وتشغّلان مزوّد Ollama عليه، فدعم Ollama على `ai` 6/7 مُختبَر لا مفترَض.
+**ما يختبره CI.** كل تركيبة تقبلها نطاقات الـ peers تُثبَّت فعلًا وتمر على فحص الأنواع والـ build ومجموعة الاختبارات كاملة، مع كل تغيير: `ai` 4 مع zod 3 (هو تثبيت التطوير) ومع zod 4، و`ai` 6 مع zod 3 ومع zod 4، و`ai` 7 مع zod 3 ومع zod 4. حالتا zod 4 على `ai` 6 و7 تثبّتان أيضًا `ollama-ai-provider-v2` (3.x و4.x) وتشغّلان provider الخاص بـ Ollama عليه، فدعم Ollama على `ai` 6/7 مُختبَر فعلًا وليس مفترَضًا.
 
-تُحمَّل الحزم النظيرة عند الطلب: استيراد `@lousho/build-ai-agent` (أو أي من مداخلها الفرعية) لا يحمّل حزمة مزوّد أبدًا، فلا تحتاج إلى تثبيت غير ما تستخدمه منها. تُحمَّل حزمة كل مزوّد عند أول استدعاء يجريه ذلك المزوّد؛ وإذا كانت ناقصة، فشل ذلك الاستدعاء بخطأ `MissingPeerDependencyError` يحمل الأمر الدقيق الذي عليك تشغيله، بما يناسب الإصدار الرئيسي لـ `ai` المثبَّت لديك. بادئة النموذج `vendor/` هي التي تختار المزوّد؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`). مع `ai` 4:
+الـ peers تُحمَّل عند الطلب: استيراد `@lousho/build-ai-agent` (أو أي من مداخلها الفرعية) لا يحمّل أي حزمة provider، فثبّت فقط التي تستخدمها. حزمة كل provider تُحمَّل أول مرة يجري فيها ذلك الـ provider استدعاء. إذا كانت ناقصة، يفشل الاستدعاء بـ `MissingPeerDependencyError` يحمل الأمر الدقيق الذي عليك تشغيله، بما يناسب إصدار `ai` الرئيسي المثبت عندك. بادئة النموذج `vendor/` هي التي تحدد الـ provider؛ مع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`). مع `ai` 4:
 
 ```bash
 npm install @ai-sdk/openai@^0.0.42
@@ -61,62 +61,62 @@ try {
 }
 ```
 
-### الحزم النظيرة الاختيارية
+### Optional peers
 
-هذه الحزم أيضًا اعتماديات نظيرة اختيارية. المشروع الذي لا يستخدم أبدًا العزل بـ Docker ولا MCP ولا التتبّع بـ OpenTelemetry ولا واجهات React أو Vue ولا `lousho build` ولا أسئلة `lousho init` ولا وضع الشيفرة لا يثبّت أيًّا منها:
+هذه الحزم أيضًا peer dependencies اختيارية. مشروع لا يستخدم أبدًا Docker sandboxing ولا MCP ولا OpenTelemetry tracing ولا bindings لـ React أو Vue ولا `lousho build` ولا أسئلة `lousho init` ولا code mode، لا يثبّت أيًّا منها:
 
-| الحزمة                      | النطاق    | ما تتيحه                                                                                      | التثبيت                                          |
+| الحزمة                      | النطاق    | تتيح                                                                                            | التثبيت                                          |
 | --------------------------- | --------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| `dockerode`                 | `^5.0.1`  | العزل بـ Docker: `SubprocessSandbox` (وفحص الاتصال بـ Docker في `lousho doctor`)              | `npm install dockerode@^5.0.1`                   |
-| `@modelcontextprotocol/sdk` | `^1.30.1` | MCP: `createAgent({ mcpServers })` / `connectMcp()`، و`serveMcp()`، و`lousho mcp`            | `npm install @modelcontextprotocol/sdk@^1.30.1`  |
-| `@opentelemetry/api`        | `^1.9.1`  | التتبّع بـ OpenTelemetry: `createOtelTraceExporter()` من `@lousho/build-ai-agent/otel`         | `npm install @opentelemetry/api@^1.9.1`          |
-| `react`                     | `^18`، `^19` | واجهات React (`@lousho/build-ai-agent/react`)                                              | `npm install react`                              |
-| `vue`                       | `^3`      | واجهات Vue (`@lousho/build-ai-agent/vue`)                                                     | `npm install vue@^3`                             |
-| `tsup`                      | `^8.0.0`  | `lousho build`، الذي يجمّع الوكيل في حزمة لكل هدف                                              | `npm install --save-dev tsup@^8.0.0`             |
-| `prompts`                   | `^2.4.2`  | الأسئلة التفاعلية في `lousho init` (`lousho init --yes` والخيارات لا تحتاج إلى شيء)           | `npm install prompts@^2.4.2`                     |
-| `quickjs-emscripten`        | `^0.32.0` | [وضع الشيفرة](/ar/code-mode): يشغّل `createAgent({ codeMode })` سكربتات `run_code` في عزل QuickJS الخاص بها | `npm install quickjs-emscripten@^0.32.0` |
+| `dockerode`                 | `^5.0.1`  | Docker sandboxing: `SubprocessSandbox` (وفحص `lousho doctor` للاتصال بـ Docker)                | `npm install dockerode@^5.0.1`                   |
+| `@modelcontextprotocol/sdk` | `^1.30.1` | MCP: `createAgent({ mcpServers })` / `connectMcp()`، و`serveMcp()`، و`lousho mcp`              | `npm install @modelcontextprotocol/sdk@^1.30.1`  |
+| `@opentelemetry/api`        | `^1.9.1`  | OpenTelemetry tracing: `createOtelTraceExporter()` من `@lousho/build-ai-agent/otel`            | `npm install @opentelemetry/api@^1.9.1`          |
+| `react`                     | `^18`، `^19` | React bindings (`@lousho/build-ai-agent/react`)                                             | `npm install react`                              |
+| `vue`                       | `^3`      | Vue bindings (`@lousho/build-ai-agent/vue`)                                                    | `npm install vue@^3`                             |
+| `tsup`                      | `^8.0.0`  | `lousho build`، الذي يجمّع الـ agent لكل target                                                 | `npm install --save-dev tsup@^8.0.0`             |
+| `prompts`                   | `^2.4.2`  | الأسئلة التفاعلية في `lousho init` (`lousho init --yes` والـ flags لا تحتاج شيئًا)             | `npm install prompts@^2.4.2`                     |
+| `quickjs-emscripten`        | `^0.32.0` | [Code mode](/ar/code-mode): `createAgent({ codeMode })` يشغّل سكربتات `run_code` داخل isolate من QuickJS | `npm install quickjs-emscripten@^0.32.0` |
 
-كحزم المزوّدين، تُحمَّل كل واحدة منها عند أول استخدام، لا وقت الاستيراد أبدًا، والناقصة منها تُفشل ذلك الاستدعاء بخطأ `MissingPeerDependencyError` يذكر الميزة والأمر الدقيق، مثلًا:
+مثل حزم الـ providers، كل واحدة تُحمَّل عند أول استخدام وليس وقت الاستيراد. الناقصة منها تفشل ذلك الاستدعاء بـ `MissingPeerDependencyError` يذكر الميزة والأمر الدقيق، مثلًا:
 
 ```text
 The optional package 'dockerode' is not installed, but Docker sandboxing (SubprocessSandbox) needs it. Run: npm install dockerode@^5.0.1
 ```
 
-يثبّت `npm create lousho-agent` الحزمة `prompts` بنفسه، فإنشاء هيكل المشروع به لا يحتاج إلى شيء إضافي. يسرد `lousho doctor` كل حزمة نظيرة اختيارية، وما تتيحه، وهل هي مثبَّتة (غياب `dockerode` خطأ فقط حين يستخدم ملف مواصفات الوكيل أداة معزولة).
+`npm create lousho-agent` يثبّت `prompts` بنفسه، فالـ scaffolding به لا يحتاج شيئًا إضافيًّا. و`lousho doctor` يسرد كل peer dependency اختيارية: ماذا تتيح وهل هي مثبتة (غياب `dockerode` خطأ فقط إذا كان ملف مواصفات الـ agent يستخدم أداة داخل sandbox).
 
-تبقى `undici` و`yaml` اعتماديتين عاديتين. تحلّل `yaml` ملفات مواصفات الوكلاء وملفات `agent.yaml` والمهارات، وليس في Node محلّل YAML مدمج. أما `undici` فتُحمَّل عند أول طلب من أداة `http_request` أو `web_fetch`: كلتاهما تتصلان عبر `Agent` من undici يفحص بحثُه في DNS العنوانَ ويثبّت الاتصال عليه، وتحصر `http_request` أيضًا الإعداد `validateSSL: false` في ذلك `Agent`. ولا تستطيع `fetch` العامة التعبير عن أي من الأمرين.
+`undici` و`yaml` تبقيان اعتماديتين عاديتين. `yaml` تحلّل ملفات مواصفات الـ agents وملفات `agent.yaml` والـ skills، وليس في Node parser مدمج لـ YAML. أما `undici` فتُحمَّل عند أول طلب تجريه `http_request` أو `web_fetch`: كلتاهما تتصل عبر `Agent` من undici يفحص العنوان في DNS lookup ويثبّت الاتصال عليه، و`http_request` تحصر أيضًا `validateSSL: false` في ذلك `Agent`. الـ `fetch` العامة لا توفّر أيًّا من هذين السلوكين.
 
-## نقاط الدخول تتشارك الشيفرة (ESM وCJS)
+## نقاط الدخول تتشارك الكود (ESM وCJS)
 
-مداخل الحزمة (`.` و`./hooks` و`./tools` و`./mcp` وغيرها) مبنية بتقسيم الشيفرة (code splitting): فهي تستورد قطعًا مشتركة من `dist/`، ولذلك يكون الصنف أو الكائن الوحيد (singleton) مثل `HookRegistry` أو `SDKError` أو `globalToolRegistry` هو الكائن نفسه أيًّا كان المدخل الذي تستورده منه، في ESM وفي CJS. لكن استيراد الحزمة بـ `import` في ESM وبـ `require` في CJS ضمن عملية واحدة يحمّل مع ذلك نسختين منفصلتين (خطر الحزمة المزدوجة في Node)، فالصنف من إحداهما لا يساوي `===` نظيره من الأخرى. الفحصان `instanceof SDKError` و`instanceof HookRegistry` آمنان بين النسختين (فهما يفحصان علامة `Symbol.for`)؛ وللأصناف الأخرى، استخدم صيغة وحدات واحدة لكل عملية.
+مداخل الحزمة (`.` و`./hooks` و`./tools` و`./mcp` وغيرها) مبنية بـ code splitting: تستورد chunks مشتركة من `dist/`. لذلك class أو singleton مثل `HookRegistry` أو `SDKError` أو `globalToolRegistry` هو الكائن نفسه أيًّا كان المدخل الذي تستورده منه، في ESM وفي CJS. لكن `import` من ESM و`require` من CJS للحزمة في عملية واحدة يحمّلان نسختين منفصلتين (dual-package hazard المعروف في Node)، فالـ class من إحداهما ليس `===` نظيره من الأخرى. `instanceof SDKError` و`instanceof HookRegistry` آمنان بين النسختين لأنهما يفحصان علامة `Symbol.for`؛ لبقية الـ classes استخدم صيغة modules واحدة في العملية.
 
-نقاط الدخول التي يصرّح بها ، وما يحمله كل منها:
+نقاط الدخول التي يصرّح بها `exports`، وماذا تحتوي كل واحدة:
 
-| محدِّد الاستيراد | ما يحمله |
+| محدد الاستيراد | ماذا تحتوي |
 | ---------------- | ------------- |
-|  | الجذر:  و و وأنواع الوكلاء العامة والأحداث والمخازن ( و) والخطّافات وحواجز الحماية والجلسات والمهارات والذاكرة والوكلاء الفرعيون والتقييمات وملفات المواصفات وأنواع النشر |
-|  | واجهة المنفِّذ (متقدم - فضّل ):  و و و و و و |
-|  | سطح الأدوات:  و والأدوات المدمجة ومساعدات MCP/OpenAPI |
-|  |  و و وكل أنواع مسارات العمل ( و و و...) |
-|  | أدوات الطرف الثالث ذات الاعتمادات:  و و /  و و وأنواعها |
-|  |  و و و و و والمدقّقات ( و و...) |
-|  | مساعدات عميل MCP وخادمه:  و و |
-|  | الأنواع العامة دون بيئة التشغيل |
-|  |  و ومساعدات الاختبار دون اتصال |
-|  |  (تحتاج الاعتمادية النظيرة الاختيارية ) |
-|  | سطح الخطّافات:  وأنواع الخطّافات |
-|  |  (الجلسات ونقاط الحفظ والموافقات والرموز في ملف SQLite واحد؛ تحتاج  في Node) |
-|  | مصادقة المسارات:  و و و و و |
-|  |  و لـ Cloudflare Worker مكتوب يدويًا |
-|  |  و و (ما يقرأه ) |
-|  |  و و و |
-|  |  ومساعدات React (تحتاج ) |
-|  |  بوصفها composable لـ Vue (تحتاج ) |
-|  |  بوصفها مخزنًا (store) لـ Svelte |
+| `@lousho/build-ai-agent` | الجذر: `createAgent()` و`defineTool()` و`defineChannel()` والأنواع العامة للـ agents والـ events والـ stores (`memoryStore()` و`fileStore()`) والـ hooks والـ guardrails والـ sessions والـ skills والذاكرة والـ sub-agents والـ evals وملفات المواصفات وأنواع النشر |
+| `@lousho/build-ai-agent/executor` | الـ executor API (متقدم — فضّل `createAgent()`): `AgentExecutor` و`AgentBuilder` و`resumeAfterApproval()` و`streamResumeAfterApproval()` و`resumeRequest()` و`ToolRegistry` و`globalToolRegistry` |
+| `@lousho/build-ai-agent/tools` | سطح الـ tools: `defineTool()` و`ToolRegistry` والأدوات المدمجة وhelpers لـ MCP وOpenAPI |
+| `@lousho/build-ai-agent/flows` | `FlowBuilder` و`FlowExecutor` و`validateFlow()` وكل أنواع الـ flow (`AgentFlow` و`EditorStep` و`FlowExecutionEvent` وغيرها) |
+| `@lousho/build-ai-agent/integrations` | أدوات الطرف الثالث ذات بيانات الاعتماد: `createJiraTools()` و`createGitHubTools()` و`createSlackTool()` / `slackTool` و`postSlackAlert()` و`createEmailTool()` وأنواعها |
+| `@lousho/build-ai-agent/utils` | `EncryptionUtils` و`sha256()` و`generatePassword()` و`StorageService` و`StorageServiceApprovalStore` و`LocalStorageCheckpointStore` والـ validators (`validateWithSchema` و`isValidEmail` وغيرها) |
+| `@lousho/build-ai-agent/mcp` | helpers لعميل MCP وسيرفره: `connectMcp()` و`loadMcpTools()` و`serveMcp()` |
+| `@lousho/build-ai-agent/types` | الأنواع العامة بدون الـ runtime |
+| `@lousho/build-ai-agent/testing` | `mockModel()` و`recordReplay()` وhelpers الاختبار دون اتصال |
+| `@lousho/build-ai-agent/otel` | `createOtelTraceExporter()` (يحتاج الـ peer الاختيارية `@opentelemetry/api`) |
+| `@lousho/build-ai-agent/hooks` | سطح الـ hooks: `HookRegistry` وأنواع الـ hooks |
+| `@lousho/build-ai-agent/sqlite` | `SqliteStore` (sessions وcheckpoints وapprovals وtokens في ملف SQLite واحد؛ يحتاج `node:sqlite` في Node) |
+| `@lousho/build-ai-agent/auth` | مصادقة المسارات: `routeAuth()` و`jwt()` و`oidc()` و`basic()` و`apiToken()` و`anonymous()` |
+| `@lousho/build-ai-agent/kv` | `KVStore` و`KVCheckpointStore` لـ Cloudflare Worker مكتوب يدويًّا |
+| `@lousho/build-ai-agent/traces` | `fileTraceExporter()` و`listTraces()` و`readTrace()` (ما يقرأه `lousho traces`) |
+| `@lousho/build-ai-agent/triggers` | `WebhookTriggerAdapter` و`SlackTriggerAdapter` و`CronTriggerAdapter` و`TriggerRegistry` |
+| `@lousho/build-ai-agent/react` | `useLoushoAgent()` وhelpers لـ React (يحتاج `react`) |
+| `@lousho/build-ai-agent/vue` | `useLoushoAgent()` كـ composable لـ Vue (يحتاج `vue`) |
+| `@lousho/build-ai-agent/svelte` | `loushoAgent()` كـ store لـ Svelte |
 
-## التثبيت من بناء محلي
+## التثبيت من build محلي
 
-لتجربة إيداع (commit) غير منشور، ابنِ الـ SDK وحزّمها من نسخة محلية من هذا المستودع، ثم ثبّت ملف tarball في مشروعك، وهي الطريقة نفسها التي يستخدمها `lousho init --sdk-path` للمشاريع التي ينشئها. يُتحقق من ذلك في CI بواسطة `npm run pack-smoke`، الذي يثبّت ملف tarball المحزَّم في مشروع جديد ويحمّل كل نقطة دخول، في ESM وCJS:
+لتجربة commit غير منشور، اعمل build للـ SDK وحزّمها من checkout محلي لهذا المستودع، ثم ثبّت الـ tarball في مشروعك. هي الطريقة نفسها التي يستخدمها `lousho init --sdk-path` في المشاريع التي ينشئها. الـ CI يتحقق منها عبر `npm run pack-smoke`، الذي يثبّت الـ tarball في مشروع جديد ويحمّل كل نقطة دخول، في ESM وCJS:
 
 ```bash
 # in the SDK checkout
@@ -128,13 +128,13 @@ npm pack --pack-destination /path/to/your-project
 npm install ./lousho-build-ai-agent-<version>.tgz ai zod
 ```
 
-لإنشاء هيكل مشروع جديد بالطريقة نفسها، من النسخة المحلية: `node bin/lousho.js init ../my-agent --sdk-path .`.
+ولعمل scaffold لمشروع جديد بالطريقة نفسها، من الـ checkout: `node bin/lousho.js init ../my-agent --sdk-path .`.
 
-الأمر `npm install github:LinuxDevil/agent-sdk` **لا** يعمل: فالمجلد `dist/` غير موجود في git وليس في المستودع خطوة بناء `prepare`، فيخلو التثبيت من نقاط الدخول.
+الأمر `npm install github:LinuxDevil/agent-sdk` **لا** يعمل: `dist/` غير موجود في git، وليس في المستودع خطوة `prepare` تعمل build، فينتهي التثبيت بلا نقاط دخول.
 
-## إنشاء هيكل مشروع جديد
+## إنشاء مشروع جديد
 
-ينشئ `lousho init` مشروعًا جاهزًا للتشغيل: `package.json` (بصيغة ESM، ويعتمد على هذه الـ SDK بنطاق إصدارات)، و`tsconfig.json` صارمًا، و`src/agent.ts` يستدعي `createAgent({ model, instructions })` مع أداة نموذجية معرَّفة بـ `defineTool()`، واختبارًا يعمل دون اتصال `src/agent.test.ts` يستخدم `mockModel`، وملف `.env.example` يذكر اسم متغير مفتاح مزوّدك، و`.gitignore` وملف README. ثم يثبّت الاعتماديات ويشغّل `git init`.
+`lousho init` ينشئ مشروعًا جاهزًا للتشغيل: `package.json` (ESM، ويعتمد على هذه الـ SDK بنطاق إصدار)، و`tsconfig.json` strict، و`src/agent.ts` يستدعي `createAgent({ model, instructions })` مع أداة مثال معرَّفة بـ `defineTool()`، و`src/agent.test.ts` يشتغل offline باستخدام `mockModel`، و`.env.example` يذكر اسم متغير مفتاح الـ provider عندك، و`.gitignore`، وREADME. بعدها يثبّت الاعتماديات ويشغّل `git init`.
 
 ```bash
 npx lousho init my-agent                 # or: npm create lousho-agent my-agent
@@ -143,23 +143,23 @@ npx lousho init my-agent --yes --provider anthropic --template tools --no-instal
 
 | الخيار | المعنى |
 | ---- | ------- |
-| `--provider openai\|anthropic\|openrouter\|ollama` | الافتراضي: المزوّد الذي ضُبط متغير مفتاح API الخاص به، وإلا `openai`. |
+| `--provider openai\|anthropic\|openrouter\|ollama` | الافتراضي: الـ provider الذي متغير مفتاح API الخاص به مضبوط، وإلا `openai`. |
 | `--template minimal\|tools\|yaml` | `minimal` (أداة واحدة)، أو `tools` (ثلاث أدوات)، أو `yaml` (ملف مواصفات `agent.yaml` يشغّله `lousho dev`). الافتراضي `minimal`. |
-| `--package-manager npm\|pnpm\|yarn\|bun` | الافتراضي: مدير الحزم الذي شغّل الأمر (`npm_config_user_agent`)، وإلا `npm`. |
-| `--yes`, `-y` | لا يسأل أبدًا؛ ويستخدم القيم الافتراضية لكل ما لم يُحدَّد. الأسئلة لا تظهر إلا في طرفية. |
+| `--package-manager npm\|pnpm\|yarn\|bun` | الافتراضي: الذي شغّل الأمر (`npm_config_user_agent`)، وإلا `npm`. |
+| `--yes`, `-y` | لا يسأل أبدًا؛ يستخدم الافتراضيات لكل ما لم تحدده. الأسئلة تظهر فقط على terminal. |
 | `--no-install`, `--no-git` | يتخطى تثبيت الاعتماديات / `git init`. |
-| `--force` | يكتب في مجلد غير فارغ (وإلا رفض `init` ذلك). |
-| `--sdk-path <dir\|tarball>` | لتطوير الـ SDK: يعتمد على نسخة محلية من المستودع (تُحزَّم بـ `npm pack`) أو على ملف `.tgz` محزَّم بدل الإصدار المنشور. يُقرأ أيضًا من `LOUSHO_SDK_PATH`. |
+| `--force` | يكتب في مجلد غير فارغ (وإلا يرفض `init`). |
+| `--sdk-path <dir\|tarball>` | لتطوير الـ SDK: يعتمد على checkout (يُحزَّم بـ `npm pack`) أو على `.tgz` محزَّم بدل الإصدار المنشور. يُقرأ أيضًا من `LOUSHO_SDK_PATH`. |
 
-`create-lousho-agent` (`packages/create-lousho-agent`) غلاف رقيق يشغّل `lousho init` بالوسائط نفسها.
+`create-lousho-agent` (`packages/create-lousho-agent`) مجرد غلاف بسيط يشغّل `lousho init` بنفس الوسائط.
 
-## واجهة سطر الأوامر `lousho`
+## الـ CLI `lousho`
 
-تثبيت الحزمة يثبّت معها الأمر `lousho`: `init` و`doctor` و`dev` و`chat` و`acp` و`add` و`mcp` و`eval` و`traces` و`build` و`studio`. انظر [واجهة سطر الأوامر](/ar/cli) لمعرفة ما يفعله كل أمر وخياراته. يحتاج البناء إلى `tsup`، وهو اعتمادية نظيرة اختيارية (انظر الجدول أعلاه): `npm install --save-dev tsup`.
+تثبيت الحزمة يثبّت أيضًا أمر `lousho`: `init` و`doctor` و`dev` و`chat` و`acp` و`add` و`mcp` و`eval` و`traces` و`build` و`studio`. راجع [الـ CLI](/ar/cli) لما يفعله كل واحد وخياراته. الـ build يحتاج `tsup`، وهي peer dependency اختيارية (راجع الجدول أعلاه): `npm install --save-dev tsup`.
 
-## استكشاف الأخطاء وإصلاحها: lousho doctor
+## استكشاف الأخطاء: lousho doctor
 
-شغّل `npx lousho doctor` بعد التثبيت مباشرة. يطبع سطرًا لكل فحص مع حالة (`ok` أو `warn` أو `FAIL`)، وما وجده، ولكل ما ليس سليمًا الأمرَ الذي عليك تشغيله أو الإعداد الذي عليك تغييره:
+شغّل `npx lousho doctor` مباشرة بعد التثبيت. يطبع سطرًا لكل فحص مع حالته (`ok` أو `warn` أو `FAIL`) وما وجده، ولكل شيء غير سليم يطبع الأمر الذي تشغّله أو الإعداد الذي تغيّره:
 
 ```text
 lousho doctor
@@ -182,18 +182,18 @@ lousho doctor
 
 ما يفحصه:
 
-1. إصدار Node لديك مقابل `engines.node` الخاص بالحزمة.
-2. الحزمتان النظيرتان المطلوبتان `ai` و`zod`: أنهما مثبَّتتان، وضمن نطاق `peerDependencies` الخاص بالـ SDK (يُحلّ من المجلد الحالي).
-3. حزم المزوّدين الاختيارية (`@ai-sdk/openai` و`@ai-sdk/anthropic`، و`ollama-ai-provider` على `ai` 4 أو `ollama-ai-provider-v2` على `ai` 6/7)، مع أمر `npm install` لكل حزمة ناقصة. حزمة المزوّد التي لا تقترن بنسخة `ai` المثبَّتة (مثلًا `ai` 7 مع `@ai-sdk/openai` 1.x) يُنبَّه إليها مع الإصدار الذي ينبغي تثبيته بدلًا منها.
-4. هل متغير مفتاح API لكل مزوّد مضبوط. لا يُطبع إلا اسم المتغير و`set` / `not set`، ولا تُطبع القيمة أبدًا. ويعرض أيضًا أي مزوّد سيختاره `createAgent()` افتراضيًا في بيئتك.
-5. مع مسار ملف مواصفات (`lousho doctor agent.yaml`): يُتحقق من صحة ملف المواصفات مع مسارات الحقول لكل خطأ، وتُفحص حزمة مزوّده ومفتاحه (الناقص منهما يصبح إخفاقًا)، ويجب أن تكون أدواته في `tools` أدوات مدمجة، ويجب أن يكون أي أمر في `mcpServers` قابلًا للحل.
-6. إمكانية الوصول إلى Ollama، فقط حين يستخدم ملف المواصفات Ollama أو يكون `OLLAMA_HOST` مضبوطًا.
-7. توفّر Docker، وهو تحذير فقط حين يستخدم ملف المواصفات أداة معزولة.
+1. إصدار Node عندك مقابل `engines.node` في الحزمة.
+2. الـ peers الإجبارية `ai` و`zod`: مثبتة وضمن نطاق `peerDependencies` الخاص بالـ SDK (يُحلَّ من المجلد الحالي).
+3. حزم الـ providers الاختيارية (`@ai-sdk/openai` و`@ai-sdk/anthropic`، و`ollama-ai-provider` على `ai` 4 أو `ollama-ai-provider-v2` على `ai` 6/7)، مع أمر `npm install` لكل ناقصة. حزمة provider لا تتوافق مع `ai` المثبت (مثلًا `ai` 7 مع `@ai-sdk/openai` 1.x) تُعلَّم مع الإصدار الذي عليك تثبيته بدلًا منها.
+4. هل متغير مفتاح API لكل provider مضبوط. يُطبع فقط اسم المتغير و`set` أو `not set`، ولا تُطبع القيمة أبدًا. ويعرض أيضًا أي provider سيختاره `createAgent()` افتراضيًّا في بيئتك.
+5. مع مسار ملف مواصفات (`lousho doctor agent.yaml`): تُتحقَّق صحة الملف مع مسارات الحقول لكل خطأ، وتُفحص حزمة الـ provider والمفتاح (الناقص منهما يصبح إخفاقًا)، ويجب أن تكون عناصر `tools` أدوات مدمجة، وأن يكون أي أمر في `mcpServers` قابلًا للحل.
+6. إمكانية الوصول إلى Ollama — فقط إذا استخدم ملف المواصفات Ollama أو كان `OLLAMA_HOST` مضبوطًا.
+7. توفر Docker — تحذير فقط إذا استخدم ملف المواصفات أداة داخل sandbox.
 
-رمز الخروج `1` إذا فشل أي فحص و`0` في غير ذلك (التحذيرات لا تُفشل)، فيصلح شرطًا لاجتياز CI. أضف `--json` للحصول على مخرجات تقرؤها الآلة. لا تُستخدم الألوان إلا حين يكون stdout طرفية ويكون `NO_COLOR` غير مضبوط.
+رمز الخروج `1` إذا فشل أي فحص و`0` غير ذلك (التحذيرات لا تفشل)، فيصلح بوابة لـ CI. أضف `--json` لمخرجات تقرؤها الآلة. الألوان تُستخدم فقط عندما يكون stdout على terminal و`NO_COLOR` غير مضبوط.
 
-للمشكلات التي لا تتعلق بالتثبيت، راجع [استكشاف الأخطاء وإصلاحها](/ar/troubleshooting).
+للمشكلات غير المتعلقة بالتثبيت، راجع [استكشاف الأخطاء وإصلاحها](/ar/troubleshooting).
 
-قادمًا من إصدار ؟ انظر [الترقية إلى 1.0](/ar/upgrading) للاطلاع على الواردات التي انتقلت وواجهات API المحذوفة والمعاد تسميتها.
+عندك إصدار `1.0.0-alpha.*`؟ راجع [الترقية إلى 1.0](/ar/upgrading) للواردات التي انتقلت وواجهات API المحذوفة والمعاد تسميتها.
 
 التالي: [البدء السريع](/ar/quickstart).

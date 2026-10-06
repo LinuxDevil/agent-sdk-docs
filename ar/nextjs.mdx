@@ -1,10 +1,10 @@
 ---
-title: "Next.js وأطر العمل الأخرى المبنية على Fetch API"
-sidebarTitle: "Next.js وأطر Fetch"
+title: "Next.js وframeworks أخرى على Fetch API"
+sidebarTitle: "Next.js وFetch frameworks"
 ---
 {/* Generated from docs/nextjs.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-يقدّم `createRouteHandler(agent, options?)` وكيلًا من ملف مسار في أي إطار عمل تأخذ معالجاته كائن `Request` من معايير الويب وتُعيد `Response`: Next.js App Router، وSvelteKit، وRemix / React Router، وHono، وBun.serve. وهو غلاف رقيق فوق واجهة الجلسات نفسها التي يستخدمها `lousho dev` والخادم المنشور ([النشر](/ar/deployment))، فتعمل معه واجهات الربط (bindings) الخاصة بـReact وVue وSvelte دون تغيير. ولا يستورد أي إطار عمل ولا أي وحدة `node:*`. بادئة النموذج `vendor/` هي التي تختار المزوّد؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`).
+`createRouteHandler(agent, options?)` يشغّل agent من ملف route في أي framework يستقبل الـhandlers فيه `Request` ويرجّع `Response`: Next.js App Router، SvelteKit، Remix / React Router، Hono، Bun.serve. هو غلاف رفيع فوق نفس session API المستخدم في `lousho dev` وفي السيرفر المنشور ([النشر](/ar/deployment))، فالـbindings الخاصة بـReact وVue وSvelte تشتغل معه بدون أي تغيير. لا يستورد أي framework ولا أي module من `node:*`. بادئة `vendor/` على الـmodel هي التي تحدد الـprovider؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`).
 
 ## Next.js App Router
 
@@ -28,7 +28,7 @@ export const { GET, POST } = createRouteHandler(agent, {
 });
 ```
 
-**المسار الذي ليس له `auth` عام**: كل من يستطيع الوصول إليه يستطيع تشغيل وكيلك وإنفاق ميزانية نموذجك. مرّر رمز bearer، أو دالة تتحقق من جلستك أو ملف تعريف الارتباط (cookie) الخاص بتطبيقك:
+**route بدون `auth` يعني public**: أي حد يوصل له يقدر يشغّل الـagent تبعك ويصرف ميزانية الـmodel. مرّر bearer token، أو function تتحقق من الـsession أو الـcookie تبعتك:
 
 ```ts
 import { createAgent, createRouteHandler } from '@lousho/build-ai-agent';
@@ -42,24 +42,24 @@ export const { GET, POST } = createRouteHandler(createAgent({ model: 'openai/gpt
 
 ## المسارات
 
-كل المسارات تقع تحت `basePath` (الافتراضي `/api/agent`؛ وتُقبل الشرطة المائلة في آخره، والطلب خارج المسار الأساسي يُعيد 404).
+كل المسارات تحت `basePath` (الافتراضي `/api/agent`). الـ`/` في الآخر مقبولة، وأي طلب خارج الـbase path يرجع 404.
 
-| المسار | ما يفعله |
+| المسار | شو بيعمل |
 | --- | --- |
-| `POST <basePath>` | `{ input, sessionId? }`: الدورة مبثوثةً عبر SSE. هذا ما يرسله `useLoushoAgent({ url })`؛ ودون `sessionId` تكون كل دورة جلسة جديدة |
-| `POST <basePath>/approvals/:id` | `{ approved, note? }` أو `{ answer }`: التتمة مبثوثةً (`approvalsUrl` في `useLoushoAgent`) |
-| `POST <basePath>/chat` | `{ sessionId, input }`: واجهة الجلسات في الخادم المنشور |
-| `GET <basePath>/chat/:sessionId` | سجل محادثة الجلسة والموافقات المعلّقة |
-| `POST <basePath>/chat/:sessionId/approvals/:id` | حسم موافقة في جلسة |
-| `POST <basePath>/ui` | مع `uiMessageStream: true`: نقطة النهاية التي يستخدمها `useChat` من AI SDK |
-| `GET <basePath>/oauth/callback` | إعادة توجيه مزوّد OAuth بعد تسجيل الدخول؛ ولا يخضع لـ`auth` أبدًا (يحميه `state` الأحادي الاستخدام) |
-| `GET <basePath>/health` | `ok`، ولا يخضع لـ`auth` أبدًا |
+| `POST <basePath>` | `{ input, sessionId? }`: الـturn يوصل streaming عبر SSE. هذا اللي يرسله `useLoushoAgent({ url })`؛ بدون `sessionId` كل turn يفتح session جديدة |
+| `POST <basePath>/approvals/:id` | `{ approved, note? }` أو `{ answer }`: الاستكمال يوصل streaming (نفس `approvalsUrl` في `useLoushoAgent`) |
+| `POST <basePath>/chat` | `{ sessionId, input }`: نفس session API تبع السيرفر المنشور |
+| `GET <basePath>/chat/:sessionId` | الـtranscript تبع الـsession والـapprovals (موافقات) المعلّقة |
+| `POST <basePath>/chat/:sessionId/approvals/:id` | تحسم approval داخل session |
+| `POST <basePath>/ui` | مع `uiMessageStream: true`: الـendpoint الذي يستخدمه `useChat` من AI SDK |
+| `GET <basePath>/oauth/callback` | الـredirect من الـOAuth provider بعد تسجيل الدخول؛ لا يمر على `auth` أبدًا (يحميه `state` اللي ينستخدم مرة وحدة) |
+| `GET <basePath>/health` | `ok`، ولا يمر على `auth` أبدًا |
 
-تُحفظ الجلسات في `store` الخاص بالوكيل (`createAgent({ store })`)، فأعطِ الوكيل مخزنًا يبقى بعد انتهاء الاستدعاء في البيئات عديمة الخادم (serverless) حين تستخدم الجلسات.
+الـagent يحتفظ بالـsessions عبر `store` (`createAgent({ store })`). إذا بتستخدم sessions على serverless، أعطِ الـagent ‏`store` يعيش أطول من استدعاء واحد.
 
-يقبل `auth` أيضًا قائمة مرتّبة من المدخلات `jwt()` و`oidc()` و`basic()` و`apiToken()`، ويصل المتصل الذي تقبله إلى التشغيل بوصفه `principal`: انظر [مصادقة المسارات والهويات](/ar/auth).
+`auth` يقبل أيضًا قائمة مرتبة من `jwt()` و`oidc()` و`basic()` و`apiToken()`. المتصل اللي بتقبله القائمة يوصل للـrun باسم `principal`. التفاصيل في [auth المسارات والـprincipals](/ar/auth).
 
-## العميل: `useLoushoAgent`
+## Client: `useLoushoAgent`
 
 ```tsx
 'use client';
@@ -71,9 +71,9 @@ export function Chat() {
 }
 ```
 
-## العميل: `useChat`
+## Client: `useChat`
 
-مع `uiMessageStream: true`، وجّه `useChat` إلى المسار `ui`. المعرّف `id` الخاص بالمحادثة يسمّي الجلسة، فلا يُرسل إلى الوكيل إلا أحدث رسالة للمستخدم ([AI SDK UI](/ar/ai-sdk-ui)).
+مع `uiMessageStream: true`، وجّه `useChat` على الـroute تبع `ui`. الـ`id` تبع الشات هو اسم الـsession، فاللي يوصل للـagent هو آخر رسالة من المستخدم فقط ([AI SDK UI](/ar/ai-sdk-ui)).
 
 ```tsx
 import { useChat } from '@ai-sdk/react';
@@ -83,9 +83,9 @@ import { DefaultChatTransport } from 'ai';
 const { messages, sendMessage } = useChat({ transport: new DefaultChatTransport({ api: '/api/agent/ui' }) });
 ```
 
-## أطر العمل الأخرى
+## Frameworks أخرى
 
-المعالج نفسه، مركَّبًا حيث يريده إطار العمل:
+نفس الـhandler، ركّبه بالمكان اللي الـframework يتوقعه:
 
 ```ts
 import { createAgent, createRouteHandler } from '@lousho/build-ai-agent';

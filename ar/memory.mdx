@@ -3,16 +3,16 @@ title: "الذاكرة"
 ---
 {/* Generated from docs/memory.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-[الجلسة](/ar/sessions) تتذكر محادثة واحدة. أما الذاكرة فهي ما يحتفظ به الوكيل **عبر** المحادثات: تفضيلات المستخدم، وحقائق أُخبر بها، وقرارات اتُّخذت الأسبوع الماضي. تعطي الوكيل **خانة ذاكرة** (memory slot) مسمّاة واحدة أو أكثر؛ كل خانة تخزّن عناصر نصية قصيرة عبر مزوّد، ويحدّد مفتاحَها **نطاقٌ** (scope) (ذاكرة واحدة للجميع، أو واحدة لكل جلسة، أو واحدة لكل مستخدم).
+الـ [session](/ar/sessions) (الجلسة) تتذكّر محادثة واحدة. الذاكرة هي اللي الـ agent يحتفظ فيه **عبر** المحادثات: تفضيلات المستخدم، حقائق انقالت له، قرارات اتخذت الأسبوع الماضي. تعطي الـ agent واحد أو أكثر من **memory slots** بأسماء؛ كل slot يخزّن عناصر نصية قصيرة عن طريق provider، ومفتاحها **scope**: ذاكرة وحدة للجميع، أو وحدة لكل session، أو وحدة لكل مستخدم.
 
-لكل خانة، تقوم `createAgent({ memory })` بما يلي:
+لكل slot، `createAgent({ memory })` تسوّي شيئين:
 
-1. **تسترجع** في بداية كل تشغيل (`send()`، `stream()`، كل دورة في جلسة): عند أول استدعاء للنموذج في التشغيل، تُدرَج أحدث العناصر في موجّه النظام داخل كتلة `<memory name="...">`. تبقى الكتلة حتى نهاية التشغيل ولا تُحفَظ في سجل محادثة الجلسة.
-2. تعطي النموذج أداة **`remember_<name>`** (مُدخَلها `{ text }`) لتخزين عنصر جديد، وأداة **`recall_<name>`** (مُدخَلها `{ query?, limit? }`) للبحث في الخانة، الأحدث أولًا.
+1. **تسترجع** في بداية كل run (`send()`، `stream()`، كل turn في session): في أول model call في الـ run، تنحط أحدث العناصر في الـ system prompt داخل بلوك `<memory name="...">`. البلوك يظل لآخر الـ run وما ينحفظ في الـ transcript تبع الـ session.
+2. تعطي الـ model أداة **`remember_<name>`** (input `{ text }`) يخزّن فيها عنصر جديد، وأداة **`recall_<name>`** (input `{ query?, limit? }`) يبحث فيها في الـ slot، الأحدث أول.
 
 ## الذاكرة في الكود
 
-تحدّد بادئة `vendor/` في اسم النموذج المزوّد؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`).
+البادئة `vendor/` في اسم الـ model هي اللي تختار الـ provider؛ مع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثال: `openrouter/openai/gpt-4o-mini`).
 
 ```ts
 import { createAgent, defineMemory, fileMemory } from '@lousho/build-ai-agent';
@@ -35,7 +35,7 @@ await agent.session({ id: 'user-42' }).send('Please always answer in French.');
 const { text } = await agent.session({ id: 'user-42' }).send('What is the capital of Japan?');
 ```
 
-ينتهي موجّه النظام في المحادثة الثانية بما يلي:
+الـ system prompt تبع المحادثة الثانية ينتهي بـ:
 
 ```text
 <memory name="preferences">
@@ -43,17 +43,17 @@ const { text } = await agent.session({ id: 'user-42' }).send('What is the capita
 </memory>
 ```
 
-## النطاقات
+## Scopes
 
-يقرأ التشغيل ويكتب العناصر التابعة **لمفتاح النطاق** الخاص به:
+الـ run يقرأ ويكتب عناصر الـ scope key تبعه:
 
-| `scope` | مفتاح النطاق | ذاكرة واحدة لكل |
+| `scope` | الـ scope key | ذاكرة وحدة لكل |
 |---|---|---|
-| `'global'` | `'global'` | وكيل (يتشاركها كل تشغيل) |
-| `'session'` | `'session:<id>'`: معرّف `agent.session({ id })`، أو `sessionId` الممرَّر إلى `send()` / `stream()` | جلسة |
-| `({ sessionId, metadata }) => string \| undefined` | ما تُرجعه الدالة | ما تختاره مفتاحًا، كالمستخدم مثلًا |
+| `'global'` | `'global'` | agent (تتشاركها كل الـ runs) |
+| `'session'` | `'session:<id>'`: الـ `id` في `agent.session({ id })`، أو `sessionId` الممرَّر لـ `send()` / `stream()` | session |
+| `({ sessionId, metadata }) => string \| undefined` | اللي الدالة ترجعه | أي شي تعمل عليه key، مثل مستخدم |
 
-ترى دالة النطاق `sessionId` الخاص بالتشغيل و`metadata` الممرَّرة إلى `send()` / `stream()`، فتستطيع الاحتفاظ بذاكرة واحدة لكل مستخدم عبر جميع جلساته:
+دالة الـ scope تشوف `sessionId` تبع الـ run والـ `metadata` اللي اتمرّرت لـ `send()` / `stream()`، فينفعك تحتفظ بذاكرة وحدة لكل مستخدم عبر كل الـ sessions تبعته:
 
 ```ts
 import { createAgent, defineMemory, inMemoryMemory } from '@lousho/build-ai-agent';
@@ -69,43 +69,44 @@ const agent = createAgent({ provider: mockModel(['Hello!']), memory: [userFacts]
 await agent.send('Hi again!', { metadata: { userId: 'u-42' } });
 ```
 
-عندما لا يكون للتشغيل مفتاح نطاق (خانة `'session'` في `send()` دون `sessionId`، أو دالة نطاق تُرجع `undefined`)، تُعطَّل الخانة في ذلك التشغيل: لا يُسترجَع شيء ولا تُعرَض أدواتها على النموذج.
+لما الـ run ما يكون إله scope key (slot من نوع `'session'` في `send()` بدون `sessionId`، أو دالة scope ترجع `undefined`)، الـ slot يكون مطفي لذلك الـ run: ما ينسترجع شي وما تنعرض الـ tools تبعتها.
 
-ترى دالة النطاق أيضًا `principal`، أي المتصل الذي تحقّقت منه مصادقة المسار، وهو أأمن للاعتماد عليه مفتاحًا من `metadata` (إذ يستطيع المتصل إرسال أي بيانات وصفية): انظر [مصادقة المسارات والهويات](/ar/auth#قراءة-الهوية-أثناء-التشغيل).
+دالة الـ scope تشوف كمان `principal`، وهو المتصل اللي auth المسار تحقّق منه، وأأمن تعمل عليه key من `metadata` لأن المتصل يقدر يرسل أي metadata: شوف [قراءة الـ principal في الـ run](/ar/auth#قراءة-الـ-principal-في-الـ-run).
 
 ## خيارات الإعداد
 
-تُرجع `defineMemory(options)` كائن `MemorySlot`:
+`defineMemory(options)` ترجع `MemorySlot`:
 
 | الخيار | النوع | الافتراضي | الوصف |
 |---|---|---|---|
-| `name` | `string` | إلزامي | من 1 إلى 55 محرفًا من `A-Za-z0-9_-`؛ والأداتان هما `remember_<name>` و`recall_<name>`. فريد لكل وكيل. |
-| `description` | `string` | لا يوجد | ما تحتويه الخانة؛ يُضاف إلى أوصاف الأدوات. |
-| `scope` | `'global' \| 'session' \| (ctx) => string \| undefined` | إلزامي | راجع [النطاقات](#النطاقات). |
-| `provider` | `MemoryProvider` | إلزامي | مكان تخزين العناصر: `inMemoryMemory()` أو `fileMemory({ dir })` أو مزوّدك الخاص. |
-| `recall.onSessionStart` | `boolean` | `true` | الاسترجاع إلى موجّه النظام عند أول استدعاء للنموذج في كل تشغيل. |
-| `recall.maxItems` | `number` | `10` | الحد الأقصى للعناصر المسترجَعة إلى الموجّه، والقيمة الافتراضية لـ`limit` في `recall_<name>`. |
-| `recall.query` | `'last-input' \| 'none'` | `'none'` | القيمة `'last-input'` تمرّر آخر رسالة مستخدم في التشغيل إلى المزوّد بصفتها `query`، لاسترجاع العناصر ذات الصلة بدلًا من الأحدث. |
-| `expose.remember` | `boolean` | `true` | عرض الأداة `remember_<name>` على النموذج. |
-| `expose.recall` | `boolean` | `true` | عرض الأداة `recall_<name>` على النموذج. |
+| `name` | `string` | إلزامي | من 1 إلى 55 حرف من `A-Za-z0-9_-`؛ الأداتان `remember_<name>` و`recall_<name>`. فريد لكل agent. |
+| `description` | `string` | ما فيه | اللي الـ slot تحتويه؛ ينضاف لوصف الـ tools. |
+| `scope` | `'global' \| 'session' \| (ctx) => string \| undefined` | إلزامي | شوف [Scopes](#scopes). |
+| `provider` | `MemoryProvider` | إلزامي | مكان تخزين العناصر: `inMemoryMemory()`، `fileMemory({ dir })`، أو واحد من عندك. |
+| `recall.onSessionStart` | `boolean` | `true` | استرجاع للـ system prompt في أول model call لكل run. |
+| `recall.maxItems` | `number` | `10` | أقصى عدد عناصر تُسترجع للـ prompt، والـ `limit` الافتراضي لـ `recall_<name>`. |
+| `recall.query` | `'last-input' \| 'none'` | `'none'` | `'last-input'` تمرّر آخر رسالة مستخدم في الـ run للـ provider كـ `query`، عشان يسترجع العناصر ذات الصلة بدل الأحدث. |
+| `expose.remember` | `boolean` | `true` | يعرض tool الـ `remember_<name>`. |
+| `expose.recall` | `boolean` | `true` | يعرض tool الـ `recall_<name>`. |
 
-الخانة ذات `expose: { remember: false }` للقراءة فقط بالنسبة إلى النموذج: تملؤها أنت من الكود بـ`provider.add(scopeKey, { text })`.
+الـ slot اللي فيها `expose: { remember: false }` read-only للـ model: إنت تملاها من الكود بـ `provider.add(scopeKey, { text })`.
 
-## المزوّدون
+## Providers
 
-| المزوّد | التخزين |
+| Provider | التخزين |
 |---|---|
-| `inMemoryMemory({ maxItems? })` | هذه العملية؛ ويُفقد عند إعادة التشغيل. للاختبارات والعروض التوضيحية. |
-| `fileMemory({ dir, maxItems? })` | ملف JSON لكل مفتاح نطاق في `dir` (المفتاح مرمَّز بترميز URI)، ويُكتب كتابة ذرّية. |
-| `sqliteMemory(store, { maxItems? })` (من `/sqlite`) | جدول `memory_items` في ملف `SqliteStore` الخاص بالوكيل، مصفوفة JSON لكل مفتاح نطاق. |
-| `inMemoryVectorMemory({ embedder, maxItems?, minScore? })` | هذه العملية؛ يسترجع بحسب المعنى. راجع [الاسترجاع الدلالي](#الاسترجاع-الدلالي). |
-| `sqliteVectorMemory(store, { embedder, maxItems?, minScore? })` (من `/sqlite`) | جدول `memory_vectors` في ملف `SqliteStore` الخاص بالوكيل؛ يسترجع بحسب المعنى. |
+| `inMemoryMemory({ maxItems? })` | هالعملية؛ يضيع عند إعادة التشغيل. للاختبارات والديمو. |
+| `fileMemory({ dir, maxItems? })` | ملف JSON لكل scope key في `dir` (المفتاح URI-encoded)، والكتابة atomic. |
+| `kvMemory({ binding?, maxItems? })` | KV namespace في Cloudflare Workers — الـ binding `AGENT_CHECKPOINTS` أو اللي تسمّيه `binding` — لملفات `memory/` تبع agent directory من نوع cloudflare-worker؛ مربوط بـ `env` لكل request. شوف [Cloudflare Workers](/ar/cloudflare-workers#build-and-deploy). |
+| `sqliteMemory(store, { maxItems? })` (من `/sqlite`) | جدول `memory_items` في ملف `SqliteStore` تبع الـ agent، مصفوفة JSON لكل scope key. |
+| `inMemoryVectorMemory({ embedder, maxItems?, minScore? })` | هالعملية؛ يسترجع بالمعنى. شوف [Semantic recall](#semantic-recall). |
+| `sqliteVectorMemory(store, { embedder, maxItems?, minScore? })` (من `/sqlite`) | جدول `memory_vectors` في ملف `SqliteStore` تبع الـ agent؛ يسترجع بالمعنى. |
 
-تحتفظ الثلاثة الأولى بما لا يزيد على `maxItems` عنصرًا لكل مفتاح نطاق (الافتراضي 1000؛ وإضافة عنصر زائد تحذف الأقدم) وتطابق `query` بالكلمات المفتاحية: يطابق العنصر إذا احتوى على إحدى كلمات الاستعلام المؤلفة من ثلاثة أحرف أو أكثر، دون تمييز بين الأحرف الكبيرة والصغيرة.
+أول ثلاثة providers يحتفظون بحد أقصى `maxItems` عنصر لكل scope key (الافتراضي 1000؛ إذا زدت عنصر ينحذف الأقدم)، ويطابقون الـ `query` بالكلمات المفتاحية: العنصر يطابق إذا فيه كلمة من كلمات الـ query بطول 3 أحرف أو أكثر، بدون تمييز بين الأحرف الكبيرة والصغيرة.
 
 ### SQLite
 
-مرّر `SqliteStore` نفسه إلى الوكيل وإلى المزوّد، فتتشارك الجلسات ونقاط الحفظ والذاكرة ملف قاعدة بيانات واحدًا. الملف الموجود مسبقًا يُضاف إليه الجدول عند فتحه. أبقِ المخزن مفتوحًا ما دام الوكيل يعمل. وللاسترجاع بحسب المعنى بدل الكلمات المفتاحية استخدم `sqliteVectorMemory()`: راجع [الاسترجاع الدلالي](#الاسترجاع-الدلالي).
+مرّر نفس الـ `SqliteStore` للـ agent وللـ provider، فتتشارك الـ sessions والـ checkpoints والذاكرة ملف قاعدة بيانات واحد. الملف الموجود يكسب الجدول لما ينفتح. خلّي الـ store مفتوح ما دام الـ agent شغّال. ولو تبي الاسترجاع بالمعنى بدل الكلمات المفتاحية، استخدم `sqliteVectorMemory()`: شوف [Semantic recall](#semantic-recall).
 
 ```ts
 import { createAgent, defineMemory } from '@lousho/build-ai-agent';
@@ -116,7 +117,7 @@ const notes = defineMemory({ name: 'notes', scope: 'global', provider: sqliteMem
 const agent = createAgent({ model: 'openai/gpt-4o-mini', store, memory: [notes] });
 ```
 
-لمخزن مستضاف أو لترتيبك الخاص، طبّق الواجهة `MemoryProvider`:
+لو تبي store مستضاف أو ترتيب من عندك، نفّذ `MemoryProvider`:
 
 ```ts
 import type { MemoryItem, MemoryProvider } from '@lousho/build-ai-agent';
@@ -140,7 +141,7 @@ const myProvider: MemoryProvider = {
 
 ## اختبار الذاكرة
 
-باستخدام [`mockModel`](/ar/testing)، تحقّق من موجّه النظام في الطلب الأول، وحرّك الأدوات باستدعاءات أدوات مكتوبة في السيناريو:
+مع [`mockModel`](/ar/testing)، تحقّق من الـ system prompt تبع أول request، وحرّك الـ tools بـ tool calls مكتوبة في السكربت:
 
 ```ts
 import { createAgent, defineMemory, inMemoryMemory } from '@lousho/build-ai-agent';
@@ -159,14 +160,14 @@ console.log((await store.list('global')).map((item) => item.text)); // ['Lives i
 
 ## القيود
 
-- الاسترجاع وأدوات الذاكرة تنطبق على تشغيلات الوكيل نفسه، لا على وكلائه الفرعيين. وعندما يواصل `agent.approvals.resolve()` تشغيلًا بعد توقف بانتظار موافقة، تبقى الكتلة المسترجَعة في الموجّه لكن أدوات الذاكرة لا تُعرَض في ما بقي من ذلك التشغيل.
-- مجلد `memory/` في مجلد الوكيل جزء من الوكيل: راجع [مجلدات الوكلاء](/ar/agent-directories#الذاكرة).
+- الاسترجاع وtools الذاكرة يشتغلون على runs الـ agent نفسه، مو على الـ sub-agents تبعته. ولما `agent.approvals.resolve()` يكمّل run بعد وقفة approval، البلوك المسترجَع يظل في الـ prompt بس tools الذاكرة ما تنعرض لبقية ذلك الـ run.
+- مجلد `memory/` في الـ agent directory جزء من الـ agent: شوف [Agent directories](/ar/agent-directories#memory).
 
-## الاسترجاع الدلالي
+## Semantic recall
 
-لا تجد مزوّدات الكلمات المفتاحية أعلاه عنصرًا إلا إذا شارك الاستعلام كلمةً. أما مزوّد المتجهات (vector) فيجده بحسب المعنى: يحوّل كل عنصر وكل استعلام إلى متجه بنموذج تضمين (embedding)، ويرتّب العناصر بحسب تشابه جيب التمام (cosine)، فيجد السؤال "what does the user like to eat?" العنصر "Sam is vegetarian".
+الـ providers بالكلمات المفتاحية اللي فوق ما تلاقي عنصر إلا إذا شارك الـ query كلمة. الـ vector provider يلاقيه بالمعنى: يحوّل كل عنصر وكل query إلى vector بـ embedding model، ويرتّب العناصر حسب cosine similarity — فسؤال "what does the user like to eat?" يلاقي "Sam is vegetarian".
 
-**المُضمِّن (embedder)** (`EmbeddingProvider`) يحوّل النصوص إلى متجهات. وتغلّف `aiSdkEmbedder(model)` أي نموذج تضمين في AI SDK، عبر `embedMany` من الحزمة `ai` المثبّتة (الإصدار 4 أو 6 أو 7؛ ابنِ النموذج بحزمة المزوّد المقترنة بإصدار `ai` الرئيسي لديك، كما في نماذج اللغة). ولا تضيف أي اعتمادية: فـ `ai` اعتمادية نظيرة أصلًا، وحزمة المزوّد من عندك.
+الـ **embedder** (`EmbeddingProvider`) يحوّل النصوص إلى vectors. و`aiSdkEmbedder(model)` تغلّف أي embedding model في AI SDK، عن طريق `embedMany` من حزمة `ai` المثبّتة (4 أو 6 أو 7؛ ابنِ الـ model بحزمة الـ provider اللي تلائم الـ major version تبع `ai` عندك، نفس قاعدة نماذج اللغة). وما تضيف dependency: `ai` أصلًا peer dependency، وحزمة الـ provider من عندك.
 
 ```ts
 import { createAgent, defineMemory, aiSdkEmbedder, inMemoryVectorMemory } from '@lousho/build-ai-agent';
@@ -186,36 +187,18 @@ const facts = defineMemory({
 const agent = createAgent({ model: 'openai/gpt-4o-mini', memory: [facts] });
 ```
 
-يرتّب مزوّدان بحسب المعنى، بالخيارات نفسها:
+في اثنين من الـ providers يرتّبون بالمعنى، بنفس الخيارات:
 
-- `inMemoryVectorMemory({ embedder, maxItems?, minScore? })` يحتفظ بالعناصر في هذه
-  العملية.
-- `sqliteVectorMemory(store, { embedder, maxItems?, minScore? })` (من
-  `@lousho/build-ai-agent/sqlite`) يحتفظ بها في ملف SQLite الخاص بالوكيل، في جدول
-  `memory_vectors` يُضاف إلى الملف الموجود عند فتحه. وتصمد المتجهات بعد إعادة التشغيل.
+- `inMemoryVectorMemory({ embedder, maxItems?, minScore? })` يحتفظ بالعناصر في هالعملية.
+- `sqliteVectorMemory(store, { embedder, maxItems?, minScore? })` (من `@lousho/build-ai-agent/sqlite`) يحتفظ بها في ملف SQLite تبع الـ agent، في جدول `memory_vectors` ينضاف للملف الموجود لما ينفتح. والـ vectors تعيش بعد إعادة التشغيل.
 
-مع وجود استعلام، تضمّنه `list()` وتقيّم عناصر مفتاح النطاق ذاك، وتُسقط
-ما دون `minScore` (تشابه جيب التمام، والافتراضي `0.2`)، وترتّب بحسب الدرجة
-(الأحدث أولًا عند التعادل) وتعيد `limit` منها. وتحمل كل عنصر معاد درجته
-في `metadata.score`. ومن دون استعلام، أو مع استعلام فارغ، تسرد الأحدث
-أولًا، كما يفعل كل مزوّد. ويصبح وصف الأداة `recall_<name>` عندئذٍ: "Search
-the "&lt;name>" memory by meaning, most relevant first."
+مع query، `list()` تعمل لها embed، وتعطي عناصر ذلك الـ scope key درجات، وترمي اللي تحت `minScore` (cosine similarity، الافتراضي `0.2`)، وترتّب حسب الدرجة (الأحدث أول عند التعادل) وترجع `limit` منها. كل عنصر راجع إله درجته في `metadata.score`. وبدون query، أو مع query فاضية، تسرد الأحدث أول مثل أي provider. وقتها وصف tool الـ `recall_<name>` يصير "Search the "&lt;name>" memory by meaning, most relevant first."
 
-وللاسترجاع بحسب المعنى عند بداية التشغيل، اضبط `recall: { query: 'last-input' }`
-على الخانة: فتكون آخر رسالة للمستخدم في التشغيل هي الاستعلام، فتحوي كتلة `<memory>`
-العناصر الأقرب إليها بدل الأحدث. ومن دونها تحوي الكتلة أحدث `maxItems` عنصرًا
-ولا يرتّب إلا الأداة `recall_<name>`.
+لو تبي الاسترجاع بالمعنى في بداية الـ run، اضبط `recall: { query: 'last-input' }` على الـ slot: آخر رسالة مستخدم في الـ run تصير هي الـ query، فبلوك `<memory>` يحتوي العناصر الأقرب لها بدل الأحدث. وبدونها، البلوك يحتوي أحدث `maxItems` عنصر، والترتيب الوحيد يصير عن طريق tool الـ `recall_<name>`.
 
-لا تُقارن العناصر إلا داخل مفتاح نطاقها، ولا تُقارن إلا إذا أنتجها المُضمِّن نفسه
-(بحسب `id` الخاص به). ويُخزَّن المعرّف مع كل متجه: فبعد تغيير النموذج أو المعرّف تُتخطى
-العناصر القديمة عند الترتيب (وتظهر في السرد من دون استعلام) إلى أن تستدعي
-`await provider.reindex()`، فتعيد تضمينها على دفعات وتعيد عدد ما غيّرته. وتعالج
-`reindex(scopeKey)` مفتاح نطاق واحدًا فقط.
+العناصر ما تنقارن إلا داخل الـ scope key تبعها، وبس إذا نفس الـ embedder (الـ `id` تبعه) هو اللي سوّاها. الـ `id` ينخزّن مع كل vector: بعد ما تغيّر الـ model أو الـ `id`، العناصر القديمة تتخطّى عند الترتيب (بس تظل تطلع في السرد بدون query) لحد ما تنادي `await provider.reindex()`، اللي يعيد لها الـ embed على دفعات ويرجع كم وحدة غيّر. و`reindex(scopeKey)` تعالج scope key واحد بس.
 
-الدالة `hashEmbedder()` من `@lousho/build-ai-agent/testing` مُضمِّن حتمي يعمل
-دون اتصال للاختبارات: حقيبة مُجزَّأة من جذوع الكلمات، فالنصوص التي تتشارك كلمات متقاربة.
-وهي ليست نموذجًا دلاليًا ولا تعرف أن "vegetarian"
-و"eat" مترابطتان.
+`hashEmbedder()` من `@lousho/build-ai-agent/testing` هو embedder حتمي يشتغل offline للاختبارات: bag من جذوع الكلمات بعد hash، فالنصوص اللي تتشارك كلمات تطلع قريبة من بعض. هو مو نموذج دلالي وما يعرف إن "vegetarian" و"eat" لهم علاقة ببعض.
 
 ```ts
 import { inMemoryVectorMemory } from '@lousho/build-ai-agent';
@@ -231,11 +214,6 @@ console.log(best.text, best.metadata?.score); // Sam is vegetarian, a score of a
 
 التكاليف والحدود:
 
-- تُجري كل `add` استدعاء تضمين واحدًا وكل استعلام كذلك، فكتابات الذاكرة
-  والاسترجاع تكلّف استدعاءات نموذج وتزيد زمن الاستجابة. واستدعاء التضمين الفاشل
-  لا يخزّن شيئًا؛ وتبلّغ الأداة `remember_<name>` النموذجَ بالخطأ.
-- التقييم بالقوة الغاشمة في JavaScript على عناصر مفتاح نطاق واحد، من دون فهرس متجهات.
-  ضع في حسبانك `maxItems` (الافتراضي 5000 لكل مفتاح نطاق؛ وإضافة عنصر زائد تحذف
-  الأقدم): آلاف العناصر لكل مفتاح مقبولة، ومئات الآلاف لا.
-- لا تدعم `fileMemory()` و`sqliteMemory()` ومخزن Cloudflare KV المتجهات.
-  اكتب `MemoryProvider` خاصًا بك لقاعدة بيانات متجهات.
+- كل `add` يسوّي embedding call وحدة وكل query كذلك، فكتابات الذاكرة والاسترجاع يكلّفون model calls ويضيفون latency. الـ embedding call الفاشلة ما تخزّن شي؛ وtool الـ `remember_<name>` تبلّغ الـ model بالخطأ.
+- التقييم brute force في JavaScript على عناصر scope key واحد، بدون vector index. انتبه لـ `maxItems` (الافتراضي 5000 لكل scope key؛ عنصر زيادة يحذف الأقدم): آلاف العناصر لكل key عادي، مئات الآلاف لا.
+- `fileMemory()` و`sqliteMemory()` وstore الـ Cloudflare KV ما يدعمون vectors. اكتب `MemoryProvider` من عندك لقاعدة بيانات vectors.

@@ -1,26 +1,33 @@
 ---
-title: "القنوات"
+title: "Channels"
 ---
 {/* Generated from docs/channels.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-**القناة** (channel) تربط الوكيل بواجهة واحدة: واجهة JSON برمجية، أو webhook، أو
-تطبيق محادثة. وهي تحدد كيف يُتحقق من هوية الطلب الوارد، وإلى أي محادثة ينتمي،
-وكيف يعود رد الوكيل (أو الموافقة التي توقّف عندها) إلى تلك الواجهة. تقدّم
-`mountChannels()` قنواتك كلها خلف معالج واحد من الشكل `(req, res)`، وتعالج كل
-طلب بالطريقة نفسها:
+الـ **channel** يوصّل الـ agent بطرف واحد: JSON API، أو webhook، أو تطبيق
+محادثة. هو اللي يحدد المصادقة تبع الطلب الوارد، ولأي محادثة ينتمي، وكيف
+يرجع رد الـ agent (أو الـ approval اللي وقف عليه) لنفس الطرف.
+`mountChannels()` تقدّم قنواتك كلها وراء handler واحد `(req, res)` وتشغّل
+كل طلب بنفس الطريقة:
 
 ```text
 POST <basePath>/<name>  ->  verify  ->  parse  ->  session turn  ->  reply (or onApproval)
 ```
 
-تحلّ القنوات محلّ [مهايئات المُشغِّلات](/ar/triggers) المُهمَلة
-(يستخدم `WebhookTriggerAdapter` الدالة `webhookChannel()` في المصادقة
-والتحليل). وتضيف القنوات ما تفتقر إليه المُشغِّلات: كل محادثة على الواجهة هي
-[جلسة](/ar/sessions)، والموافقات والأسئلة تعود إلى الواجهة نفسها.
+الـ channels تحل محل [trigger adapters](/ar/triggers) اللي صارت deprecated
+(`WebhookTriggerAdapter` يستخدم `webhookChannel()` للمصادقة والـ parsing).
+وتضيف الشي اللي ينقص الـ triggers: كل محادثة على الطرف هي
+[session](/ar/sessions) (جلسة)، والـ approvals والأسئلة ترجع للطرف.
 
-## البدء السريع
+على host من نوع Fetch مثل Cloudflare Worker، `mountFetchChannels()` تقدّم
+نفس المسارات: يدخلها `Request` وتطلع `Response` (و`ctx.waitUntil` تبع الـ
+host يخلّي الـ turn يعيش بعد ما الـ webhook انرد عليه). و
+`lousho build --target=cloudflare-worker` يركّب مجلد `channels/` تبع
+agent directory تحت `/channels` بها.
 
-`httpChannel()` هي القناة المرجعية: تستقبل `{ sessionKey, input }` وتُخرج JSON.
+## البداية السريعة
+
+`httpChannel()` هو الـ channel المرجعي: `{ sessionKey, input }` داخل، JSON
+خارج.
 
 ```ts
 import * as http from 'node:http';
@@ -42,34 +49,50 @@ curl -s localhost:3000/channels/http -d '{"sessionKey":"user-42","input":"Hi, I 
 # {"sessionId":"http_user-42-...","text":"...","finishReason":"stop"}
 ```
 
-يُرجع المعالج `true` إذا خدم الطلب، و`false` (دون أن يكتب شيئًا) لأي مسار
-آخر، مثل مسارات `/chat` في `lousho dev`، فيمكنك تركيبه إلى جانب مساراتك الخاصة.
+الـ handler يرجع `true` لما يخدم الطلب، و`false` (بدون ما يكتب شيء) لأي مسار
+ثاني، مثل مسارات `/chat` في `lousho dev`. يعني تقدر تركّبه جنب مساراتك.
 
 ## العقد
 
-`defineChannel({ ... })` تتحقق من الاسم وتُرجع التعريف:
+`defineChannel({ ... })` تفحص الاسم وترجع التعريف:
 
 | الحقل | الوصف |
 | ----- | ----------- |
-| `name` | جزء المسار: `POST <basePath>/<name>`. أحرف وأرقام و`_` و`-`. |
-| `verify(req)` | اختياري. يتحقق من هوية الطلب (توقيع أو رمز وصول). أرجِع `true`/`false` أو `{ ok, reason? }`؛ القيمة `false` تردّ بـ `401 {"error":"Unauthorized"}` قبل تحليل أي شيء أو تشغيله. |
-| `parse(req, respond, ctx)` | الرسالة: `{ sessionKey, input, metadata?, replyTo, event? }`؛ أو `{ decision: { id, approved?, note?, answer? } }` للبتّ في توقف مؤقت توقفت عنده دورة هذه القناة (نقرة زر)؛ أو `null` للإقرار باستلام الطلب دون تشغيل دورة (رسالة من البوت نفسه، أو إعادة محاولة). استدعِ `respond(status, body)` للرد قبل تشغيل الدورة (واجهة مهلتها قصيرة، أو مصافحة). |
-| `reply(ctx)` | يسلّم الرد: `ctx.text`، إضافةً إلى `inbound` و`sessionId` و`result` و`events` و`approval`، و`respond(status, body)` ما دام الطلب مفتوحًا. |
-| `onApproval(ctx)` | اختياري. يعرض التوقف المؤقت (أزرار، نموذج). الافتراضي: `reply` مع نص الطلب في `ctx.text` وطلب الموافقة في `ctx.approval`. |
-| `onError(error, { channel, stage, sessionId? })` | اختياري. يستقبل الإخفاقات التي تقع بعد الإقرار باستلام الطلب (رد تعذّر تسليمه، أو دورة فاشلة، أو إخفاق في متابعة التشغيل بعد موافقة). الافتراضي: `mountChannels({ onError })`، وإلا `console.error` مع القناة والمرحلة ومعرّف الجلسة ورمز خطأ SDK (ولا يُطبع أي رمز وصول إطلاقًا). والدورة الفاشلة تُبلغ المستخدم أيضًا في المحادثة بالعبارة "Sorry, that request failed." (قدر المستطاع). |
-| `stream` | اختياري. القيمة `true` تستدعي `reply` مع `partial: true` والنص المكتوب حتى اللحظة أثناء كتابة النموذج، ثم مرة أخيرة بالنص النهائي. |
-| `sessionId(inbound)` | اختياري. الجلسة التي تنتمي إليها الرسالة. الافتراضي: `` `${name}:${sessionKey}` ``. |
+| `name` | جزء المسار: `POST <basePath>/<name>`. حروف وأرقام و`_` و`-`. |
+| `verify(req)` | اختياري. يتحقق من الطلب (توقيع، token). رجّع `true`/`false` أو `{ ok, reason? }`؛ و`false` ترجع `401 {"error":"Unauthorized"}` قبل ما ينعمل parsing أو تشغيل لأي شيء. |
+| `parse(req, respond, ctx)` | الرسالة: `{ sessionKey, input, metadata?, principal?, replyTo, event? }`؛ أو `{ decision: { id, approved?, note?, answer? } }` لحسم توقف وقف عليه turn هذي القناة (كليك زر)؛ أو `null` للإقرار بالطلب بدون turn (رسالة من البوت نفسه، retry). استدعِ `respond(status, body)` عشان ترد قبل ما يشتغل الـ turn (طرف مهلته قصيرة، handshake). |
+| `reply(ctx)` | يوصّل الرد: `ctx.text`، زائد `inbound` و`sessionId` و`result` و`events` و`approval`، و`respond(status, body)` ما دام الطلب مفتوح. |
+| `onApproval(ctx)` | اختياري. يعرض التوقف (أزرار، فورم). الافتراضي: `reply` مع prompt نصي في `ctx.text` والطلب في `ctx.approval`. |
+| `onError(error, { channel, stage, sessionId? })` | اختياري. يستلم الأعطال اللي تصير بعد ما الطلب انقرّ (رد ما انوصّل، turn فاشل، أو متابعة approval فاشلة). الافتراضي: `mountChannels({ onError })`، وإلا `console.error` مع القناة والمرحلة ومعرّف الـ session ورمز خطأ SDK (ولا token أبدًا). والـ turn الفاشل يقول للمستخدم "Sorry, that request failed." في المحادثة (best effort). |
+| `stream` | اختياري. `true` ينادي `reply` مع `partial: true` والنص اللي انكتب لحد الآن أثناء ما الـ model يكتب، وبعدين مرة أخيرة بالنص النهائي. |
+| `sessionId(inbound)` | اختياري. الـ session تبع الرسالة. الافتراضي: `` `${name}:${sessionKey}` ``. |
 
-يتيح `ctx` (`ChannelContext`) لـ `parse` أن يسأل المضيف بدل الاحتفاظ بحالة: `ctx.approval(id)` (الاستدعاء المعلّق)، و`ctx.sessionId(key)`، و`ctx.hasSession(key)` (أي أن جلسة لهذا المفتاح محفوظة في `store`)، و`ctx.pendingQuestion(key)` (معرّف `ask_question` الذي تنتظره جلسة ذلك المفتاح، أو `undefined`؛ وهي تجد أيضًا سؤالًا طُرح قبل إعادة التشغيل حين تكون الجلسات ونقاط الحفظ والموافقات في مخازن متينة، وتربطه بالجلسة فتنضم دورة الإجابة إلى السجل). لا تستدعِ `pendingQuestion` إلا لرسالة تعيدها بوصفها الإجابة، `{ decision: { id, answer: text }, inbound }`: فالمعرّف يُسلَّم مرة واحدة إلى أن تُنفَّذ تلك الإجابة. ويمكن أن يحمل `{ decision }` الحقل `inbound` (المحادثة كما تسمّيها النقرة نفسها، فيبقى التوقف المؤقت قائمًا بعد إعادة التشغيل) والحقل `approver` (مَن اتخذ القرار؛ يُمرَّر إلى `mountChannels({ onDecision })` لسجل التدقيق لديك).
+`metadata` تروح للـ turn كـ `metadata` تبع `send()` (دوال scope الذاكرة
+ودوال `model` / `instructions` / `tools` تشوفها). و`principal` هو المتصل
+المتحقق منه في الـ turn، ويمر في نفس مكان `principal` تبع `send()`. لا تضبط
+`principal` إلا من بيانات `verify` ضمنتها.
 
-`req` هو `ChannelRequest` مستقل عن أي إطار عمل: `method` و`url` و`headers`
-(بأسماء بأحرف صغيرة) و`rawBody` (البايتات كما وصلت: تحقق من التواقيع عليها هي،
-لا على JSON أُعيدت سَلسَلته) و`text` و`native` (طلب المضيف الأصلي).
+`ctx` (`ChannelContext`) يخلّي `parse` يسأل الـ host بدل ما يخزّن state:
+`ctx.approval(id)` (الاستدعاء المعلّق)، `ctx.sessionId(key)`،
+`ctx.hasSession(key)` (يعني في session محفوظة لذاك المفتاح في الـ `store`)،
+و`ctx.pendingQuestion(key)` (معرّف الـ `ask_question` اللي session ذاك
+المفتاح تنتظره، أو `undefined`؛ ويلاقي كمان سؤال اتسأل قبل إعادة تشغيل لما
+تكون الـ sessions والـ checkpoints والـ approvals في durable stores (مخازن
+تنجو من إعادة التشغيل)، ويربطه بالـ session فتنضم turn الإجابة للـ
+transcript). استدعِ `pendingQuestion` بس لرسالة ترجعها كإجابة،
+`{ decision: { id, answer: text }, inbound }`: المعرّف ينعطى مرة وحدة لحد
+ما تشتغل تلك الإجابة. و`{ decision }` يقدر يحمل `inbound` (المحادثة كما
+يسمّيها الكليك نفسه، فيبقى التوقف قائم بعد إعادة التشغيل) و`approver` (مين
+قرر؛ يمر لـ `mountChannels({ onDecision })` لسجل التدقيق تبعك).
 
-الرد الذي لا يستدعي `respond` يتبعه `200 {"ok":true}`؛ فالواجهة التي تسلّم
-الردود خارج الطلب (بالنشر عبر واجهة برمجية لتطبيق محادثة) يكفيها الإقرار
-باستلام الطلب. والخطأ الذي يرميه `parse` يُردّ عليه بـ 400 إن كان
-`SyntaxError` (JSON غير صالح) وبـ 500 فيما عدا ذلك؛ والجسم الذي يتجاوز 1MB يُردّ عليه بـ 413.
+`req` هو `ChannelRequest` مستقل عن أي framework: `method` و`url` و`headers`
+(أسماء بأحرف صغيرة) و`rawBody` (البايتات كما وصلت بالضبط: تحقق التواقيع
+عليها هي، أبدًا مش على JSON أعيدت سلسَلته) و`text` و`native` (طلب الـ host).
+
+الرد اللي ما يستدعي `respond` يتبعه `200 {"ok":true}`. والطرف اللي يوصّل
+الردود خارج الطلب (ينشر على chat API مثلاً) يكفيه يقرّ بالطلب. وخطأ يرميه
+`parse` يُرد عليه بـ 400 لو `SyntaxError` (JSON غلط) وبـ 500 غير كذا؛ وجسم
+فوق 1MB ياخذ 413.
 
 ```ts
 import { createAgent, defineChannel, mountChannels } from '@lousho/build-ai-agent';
@@ -98,34 +121,34 @@ const sms = defineChannel<SmsEvent>({
 const handler = mountChannels(agent, [sms], { basePath: '/hooks' }); // POST /hooks/sms
 ```
 
-## الجلسات
+## Sessions
 
-الرسائل التي تحمل `sessionKey` نفسه على القناة نفسها تتشارك جلسة واحدة، فيرى
-الوكيل ما سبق من تبادلات؛ ودورات الجلسة الواحدة تُنفَّذ واحدة تلو الأخرى.
-معرّفات الجلسات لا تقبل إلا `A-Za-z0-9_-`، فالمعرّف الذي يحوي محارف أخرى
-(والافتراضي `` `${name}:${sessionKey}` `` يحوي `:` دائمًا) تُستبدل بها
-`_` ويُلحق به تجزئة (hash) للمعرّف الأصلي: `sms:+1555` يصبح `sms__1555-<hash>`.
-أرجِع معرّفًا صالحًا من `sessionId()` ليُستخدم كما هو.
+الرسائل اللي لها نفس `sessionKey` على نفس الـ channel تتشارك session وحدة،
+فيشوف الـ agent التبادلات اللي قبلها؛ وturns الـ session الواحدة تشتغل وحدة
+وحدة. معرّفات الـ sessions تقبل بس `A-Za-z0-9_-`، فمعرّف فيه حروف ثانية
+(والافتراضي `` `${name}:${sessionKey}` `` فيه `:` دائمًا) تُستبدل الحروف
+بـ `_` وينلحق بها hash للمعرّف الأصلي: `sms:+1555` يصير
+`sms__1555-<hash>`. رجّع معرّف صالح من `sessionId()` عشان يُستخدم كما هو.
 
-تُحفظ سجلات المحادثات في `mountChannels(agent, channels, { store })`: وهو
-`SessionStore` أو `{ sessions, checkpoints }` مثل `SqliteStore` (مرّر
-المخزن نفسه الذي أعطيته لـ `createAgent({ store })`). ومن دون `store` يحتفظ
-بها المعالج في الذاكرة.
+الـ transcripts تنحفظ في `mountChannels(agent, channels, { store })`:
+`SessionStore` أو `{ sessions, checkpoints }` مثل `SqliteStore` (مرّر نفس
+الـ store اللي عطيته لـ `createAgent({ store })`). وبدون `store`، الـ
+handler يحتفظ بيها في الذاكرة.
 
-## الموافقات والأسئلة
+## approvals والأسئلة
 
-حين تتوقف دورة مؤقتًا عند أداة تتطلب موافقة، أو عند استدعاء
-[`ask_question`](/ar/approvals)، يستدعي المعالج `onApproval` (والافتراضي هو
-`reply` مع نص طلب مثل `Approve send_email {"to":"sam@example.com"}?
-(approval id: ...)`). ويُتخذ القرار بإحدى طريقتين؛ وتعود متابعة التشغيل عبر
-`reply` الخاص بالقناة نفسها (أو `onApproval` من جديد إن توقفت مرة أخرى):
+لما turn يتوقف على tool يحتاج approval (موافقة)، أو على استدعاء
+[`ask_question`](/ar/approvals)، الـ handler ينادي `onApproval` (الافتراضي
+`reply` مع prompt مثل `Approve send_email {"to":"sam@example.com"}?
+(approval id: ...)`). احسمها بإحدى طريقتين؛ والمتابعة ترجع عبر `reply` تبع
+نفس القناة (أو `onApproval` مرة ثانية لو توقفت ثاني):
 
 - `handler.resolveApproval({ id, approved, note? })` أو
-  `handler.resolveApproval({ id, answer })` من شيفرتك، مثلًا من دالة رد
-  النداء لزر في الواجهة.
+  `handler.resolveApproval({ id, answer })` من الكود تبعك، مثلاً من callback
+  زر في الطرف.
 - `POST <basePath>/<name>/approvals/<id>` مع `{ approved, note? }` أو
-  `{ answer }`. يُنفَّذ `verify` الخاص بالقناة أولًا؛ والمعرّف الذي لم تتوقف
-  عنده القناة يُردّ عليه بـ 404.
+  `{ answer }`. `verify` تبع القناة يشتغل أول؛ ومعرّف القناة ما توقفت عليه
+  ياخذ 404.
 
 ```ts
 import { createAgent, defineChannel, mountChannels } from '@lousho/build-ai-agent';
@@ -151,23 +174,26 @@ const channels = mountChannels(agent, [chat]);
 await channels.resolveApproval({ id: 'the-approval-id', approved: true });
 ```
 
-## القنوات المضمّنة
+## القنوات الجاهزة
 
-| القناة | الطلب | الاستجابة |
+| القناة | الطلب | الرد |
 | ------- | ------- | -------- |
-| `httpChannel({ name?, verify? })` | JSON بالشكل `{ sessionKey, input }` (و`input` نص أو أجزاء محتوى)؛ وأي شيء آخر يُردّ عليه بـ 400 | `200 { sessionId, text, finishReason }`؛ وعند التوقف المؤقت يُضاف `approval` ويكون `text` هو نص الطلب |
-| `webhookChannel({ secret?, auth?, name? })` | النص `input` في جسم JSON، أو الجسم كله؛ جلسة لمرة واحدة ما لم يحوِ الجسم `sessionKey` | `200` مع `ExecutionResult` الخاص بالدورة، كما يردّ `WebhookTriggerAdapter` |
-| `slackChannel({ signingSecret, botToken, name?, fetch?, approvers?, onError? })` | طلبات Events API والتفاعلات (interactivity) من Slack (انظر [Slack](#slack)) | `200` فورًا؛ وتُنشر الردود في سلسلة الرسائل على Slack |
-| `discordChannel({ publicKey, applicationId, botToken?, name?, fetch?, approvers?, onError? })` | تفاعلات الأوامر المائلة (slash commands) والأزرار في Discord (انظر [Discord](#discord)) | إقرار مؤجَّل فورًا؛ ثم يعدّل الردُّ الاستجابةَ الأصلية |
-| `telegramChannel({ botToken, secretToken, botUsername?, name?, fetch?, approvers?, onError? })` | تحديثات webhook لبوت Telegram: الرسائل والنقرات على لوحة المفاتيح المضمّنة (انظر [Telegram](#telegram)) | `200` فورًا؛ وتُرسل الردود بـ `sendMessage` نصًا عاديًا |
-| `githubChannel({ webhookSecret, botName, token?, app?, name?, apiUrl?, fetch?, triggers?, approvers?, onError? })` | تعليقات GitHub على القضايا وطلبات الدمج والمراجعات التي تذكر `@<botName>` (انظر [GitHub](#github)) | `200` فورًا؛ وتُنشر الردود تعليقاتٍ في السلسلة نفسها |
-| `teamsChannel({ appId, appPassword, tenantId?, name?, fetch?, approvers?, onError? })` | رسائل Microsoft Teams والنقرات على أزرار البطاقات التكيفية (Adaptive Card) من Azure Bot (انظر [Microsoft Teams](#microsoft-teams)) | `200` فورًا؛ وتُنشر الردود عبر Bot Framework Connector بصيغة Markdown |
+| `httpChannel({ name?, verify? })` | JSON `{ sessionKey, input }` (`input` نص أو content parts)؛ أي شيء ثاني 400 | `200 { sessionId, text, finishReason }`؛ ولما يتوقف، `approval` كمان و`text` هو الـ prompt |
+| `webhookChannel({ secret?, auth?, name?, principal? })` | نص `input` في جسم JSON، أو الجسم كله؛ session لمرة وحدة إلا لو الجسم فيه `sessionKey` | `200` مع `ExecutionResult` تبع الـ turn، نفس رد `WebhookTriggerAdapter` |
+| `slackChannel({ signingSecret, botToken, name?, fetch?, approvers?, onError? })` | طلبات Slack Events API والتفاعلات (راجع [Slack](#slack)) | `200` فورًا؛ الردود تُنشر في الـ thread على Slack |
+| `discordChannel({ publicKey, applicationId, botToken?, name?, fetch?, approvers?, onError? })` | تفاعلات slash command والأزرار في Discord (راجع [Discord](#discord)) | ack مؤجّل فورًا؛ الرد يعدّل الرد الأصلي |
+| `telegramChannel({ botToken, secretToken, botUsername?, name?, fetch?, approvers?, onError? })` | تحديثات webhook البوت في Telegram: رسائل ونقرات على inline keyboard (راجع [Telegram](#telegram)) | `200` فورًا؛ الردود تُرسل بـ `sendMessage` كنص عادي |
+| `githubChannel({ webhookSecret, botName, token?, app?, name?, apiUrl?, fetch?, triggers?, approvers?, onError? })` | تعليقات GitHub على issues وpull requests والـ reviews اللي تذكر `@<botName>` (راجع [GitHub](#github)) | `200` فورًا؛ الردود تُنشر كتعليقات في نفس الـ thread |
+| `teamsChannel({ appId, appPassword, tenantId?, name?, fetch?, approvers?, onError? })` | رسائل Microsoft Teams ونقرات أزرار Adaptive Card من Azure Bot (راجع [Microsoft Teams](#microsoft-teams)) | `200` فورًا؛ الردود تُنشر عبر Bot Framework Connector كـ Markdown |
 
-`webhookChannel({ secret })` تتحقق من توقيع HMAC-SHA256 للجسم الخام في
-`x-signature-256: sha256=<hex>`؛ ويقبل `auth` أي
-[مصادقة webhook](/ar/triggers#مصادقة-webhook) (خيارات HMAC مع
-الحماية من إعادة الإرسال، أو رمز bearer، أو مصادقة مخصصة). والفحوص والرد 401
-العام هي نفسها التي يستخدمها `WebhookTriggerAdapter`.
+`webhookChannel({ secret })` تفحص توقيع HMAC-SHA256 للجسم الخام في
+`x-signature-256: sha256=<hex>`؛ و`auth` ياخذ أي
+[مصادقة webhook](/ar/triggers#مصادقة-webhook) (خيارات HMAC مع حماية من
+replay، bearer token، أو مخصص). الفحوصات والـ 401 العام هي نفسها اللي
+يستخدمها `WebhookTriggerAdapter`. و`principal` هي
+`(body, req) => Principal | undefined` تسمّي متصل الـ turn من الطلب اللي
+تحقق (نظام التنبيهات اللي أرسل الـ hook، مستخدم تكامل)؛ و`body` هو جسم JSON
+بعد الـ parsing، أو `undefined` لو مش JSON.
 
 ```ts
 import { createAgent, httpChannel, mountChannels, webhookChannel } from '@lousho/build-ai-agent';
@@ -180,81 +206,83 @@ const handler = mountChannels(agent, [
 ]);
 ```
 
-## في مجلد الوكيل
+## داخل agent directory
 
-يمكن لـ [مجلد الوكيل](/ar/agent-directories#القنوات) أن يضع قنواته في
-`channels/*.ts`، قناة واحدة مُصدَّرة افتراضيًا (default export) في كل ملف.
-المسار المخدوم هو `POST /channels/<name>`، حيث `<name>` هو `name` الذي تحدده
-القناة نفسها؛ واسم الملف لا ينطبق إلا على تصدير بلا اسم — وكل مصنع مضمَّن يحدد
-واحدًا (`webhookChannel()` ← `webhook`، و`slackChannel()` ← `slack`، ...)،
-فملف `channels/support.ts` الذي يصدّر `webhookChannel()` يُخدَّم على
-`/channels/webhook` لا `/channels/support`. تُرجعها `resolveAgentDir()` في
-`channels`، ويركّبها خادم node الذي يُخرجه `lousho build`
-(`createDeployedServer(agent, { channels })`، وهو مساعِد داخلي).
+[agent directory](/ar/agent-directories#channels) يقدر يخزّن قنواته في
+`channels/*.ts`، قناة وحدة default-exported في كل ملف. المسار اللي ينخدم هو
+`POST /channels/<name>`، و`<name>` هو `name` تبع القناة نفسها؛ واسم الملف
+ينطبق بس على export ما له اسم — وكل factory جاهز يضبط اسم
+(`webhookChannel()` ← `webhook`، `slackChannel()` ← `slack`، ...)، فملف
+`channels/support.ts` اللي يصدّر `webhookChannel()` يُخدَّم على
+`/channels/webhook` مش `/channels/support`. `resolveAgentDir()` ترجعهم كـ
+`channels`، وسيرفر node اللي `lousho build` يطلعه يركّبهم
+(`createDeployedServer(agent, { channels })`، helper داخلي).
 
-## من يحق له الموافقة (Slack وDiscord)
+## من يقدر يوافق (Slack و Discord)
 
-تقبل القناتان الخيار `approvers`: قائمة بمعرّفات المستخدمين على المنصة، أو دالة
+القناتين تاخذ `approvers`: قائمة بمعرّفات مستخدمي المنصة، أو دالة
 `(user: { id, name?, roles? }, { toolName, input, sessionId, principal? }) => boolean | Promise<boolean>`
-(يملأ Discord الحقل `roles` بمعرّفات أدوار العضو؛ و`principal` هو المُرسِل الذي توقفت دورته). يُسجَّل المستخدم الذي ينقر على أنه المُوافِق
-(`ctx.approval.by` في الأداة، راجع
-[المصادقة](/ar/auth#من-وافق))؛ وتظل الأداة تعمل نيابةً عن المُرسِل. نقرة أي شخص آخر لا تحسم
-الموافقة: تصله رسالة مؤقتة لا يراها غيره تفيد بأنه "غير مسموح له"، وتبقى
-الموافقة معلّقة.
+(Discord يعبّي `roles` بمعرّفات أدوار العضو؛ و`principal` هو المرسل اللي
+توقف turnه). المستخدم اللي ينقر ينسجَّل كـ approver (`ctx.approval.by` داخل
+الـ tool، راجع [المصادقة](/ar/auth#من-وافق))؛ والـ tool يظل يشتغل لصالح
+المرسل. ونقرة من أي شخص ثاني ما تحسم الـ approval: يوصله تنبيه مؤقت "غير
+مسموح" والـ approval يظل معلّق.
 
-**ملاحظة أمنية.** من دون `approvers`، لا يحق الموافقة إلا للمستخدم الذي بدأ
-الدورة (كاتب الرسالة على Slack، ومستخدم الأمر على Discord). في
-الإصدارات السابقة كان ذلك متاحًا لكل من يرى الرسالة؛ والقيمة `approvers: () => true`
-تعيد ذلك السلوك، ولا ينبغي أن تفعل ذلك إلا في قناة خاصة. و`approvers`
-بصيغة الدالة يرفض احتياطًا (fail closed) حين لا تعرف العملية الاستدعاء المعلّق
-(بعد إعادة التشغيل)؛ فاستخدم صيغة القائمة أو السلوك الافتراضي للموافقات التي
-يجب أن تبقى صالحة بعدها. أما إجابات `ask_question` فغير مقيَّدة: الرسالة التالية (Slack)
-أو أمر `/ask` التالي (Discord) في المحادثة هو الإجابة. وهوية من اتخذ القرار تُمرَّر إلى
+**ملاحظة أمنية.** بدون `approvers`، بس المستخدم اللي بدأ الـ turn (كاتب
+الرسالة على Slack، مستخدم الأمر على Discord) يقدر يوافق. في الإصدارات اللي
+قبل كان أي واحد يشوف الرسالة يقدر؛ و`approvers: () => true` ترجع ذاك
+السلوك، وما تسوي كذا إلا في قناة خاصة. ودالة `approvers` تشوف الاستدعاء
+المعلّق بعد إعادة التشغيل كمان: `ctx.approval(id)` يسأل الـ approval store
+الدائم لما هذي العملية مش هي اللي توقفت على المعرّف، فيقرر بنفس الطريقة اللي
+قرر فيها قبل. وبس مع approval store محلي للعملية (الافتراضي
+`InMemoryApprovalStore` — وقتها أصلاً ما في شيء ينجو من إعادة التشغيل) يفشل
+fail-closed. وإجابات `ask_question` غير مقيّدة: الرسالة التالية (Slack) أو
+`/ask` (Discord) في المحادثة هي الإجابة. ومين قرر يروح لـ
 `mountChannels(agent, channels, { onDecision({ approver, decision, sessionId, channel }) {} })`.
-وتقبل قناة Telegram الخيار `approvers` نفسه (معرّفات مستخدمي Telegram نصوصًا؛ وتتلقى
-الدالة `{ id, name }`، حيث `name` هو اسم المستخدم أو الاسم الأول).
+وقناة Telegram تاخذ نفس `approvers` (معرّفات مستخدمي Telegram كنصوص؛
+والدالة تاخذ `{ id, name }`، و`name` هو اسم المستخدم أو الاسم الأول).
 
-الإخفاقات التي تقع بعد الإقرار بالاستلام تذهب إلى `onError` (خيار في القناة،
-أو في `mountChannels`)؛ انظر العقد أعلاه.
+الأعطال اللي تصير بعد الإقرار تروح لـ `onError` (خيار في القناة، أو في
+`mountChannels`)؛ راجع العقد فوق.
 
 ## Slack
 
-`slackChannel({ signingSecret, botToken, name?, fetch? })` تربط تطبيق Slack.
-كل سلسلة رسائل (thread) في Slack هي جلسة واحدة: الإشارة إلى البوت تبدأ جلسة
-سلسلتها (أو تتابعها)، ومفتاحها الفريق والقناة وقيمة `ts` لرسالة السلسلة الأولى؛
-والرسائل اللاحقة في سلسلة لها جلسة من قبل تتابعها دون
-إشارة (يُسأل مخزن الجلسات عن ذلك، فيبقى هذا السلوك قائمًا بعد إعادة التشغيل). والرسالة المباشرة
-إلى البوت تبدأ جلسة مفتاحها قناة الرسائل المباشرة. تُنشر الردود في السلسلة عبر `chat.postMessage` (بـ
-`fetch` وحدها، دون Slack SDK؛ مرّر `fetch` لحقن بديل عنها في الاختبارات).
+`slackChannel({ signingSecret, botToken, name?, fetch? })` توصّل تطبيق
+Slack. كل thread في Slack هو session وحدة: منشن للبوت يبدأ session الـ
+thread (أو يكملها)، ومفتاحها الـ workspace والقناة و`ts` رسالة الجذر؛
+والرسائل اللاحقة في thread له session تكملها بدون منشن (الـ session store
+ينسأل، فهذا يظل شغال بعد إعادة التشغيل). ورسالة مباشرة للبوت تبدأ session
+مفتاحها قناة الـ DM. الردود تُنشر في الـ thread بـ `chat.postMessage`
+(`fetch` عادي، بدون Slack SDK؛ مرّر `fetch` عشان تحقن واحد في الاختبارات).
 
-- يُتحقق من توقيع كل طلب (HMAC-SHA256 بصيغة `v0` عبر Web Crypto، مع
-  نافذة حماية من إعادة الإرسال مدتها خمس دقائق)؛ والإخفاق يُردّ عليه بـ 401.
-- يُردّ على الطلب فورًا (`200`، أو تحدي `url_verification`)
-  وتُنفَّذ الدورة بعد الاستجابة، ضمن حد الثواني الثلاث الذي يفرضه
-  Slack.
-- إعادات المحاولة (`X-Slack-Retry-Num`)، ورسائل البوتات (ومنها رسائل البوت نفسه)،
-  ونسخة `message` المكررة من الإشارة: يُقرّ باستلامها كلها وتُتجاوز، فلا تُنفَّذ
-  أي دورة مرتين.
-- تُنشر موافقة الأداة في السلسلة مع زرَّي **Approve** و**Deny**؛
-  والنقرة تستأنف الجلسة وتُنشر متابعة التشغيل في
-  السلسلة. تُستبدل بالرسالة التي نُقر زرها النتيجةُ ("Approved by @user")،
-  فتختفي أزرارها. وتحمل النقرة قناتها وسلسلتها والمستخدم الذي
-  يحق له القرار، فتعمل بعد إعادة التشغيل. أما `ask_question` فيُنشر نصًا، والرسالة التالية في
-  السلسلة هي الإجابة، وذلك أيضًا بعد إعادة التشغيل (انظر أدناه).
+- توقيع كل طلب ينفحص (`v0` HMAC-SHA256 بـ Web Crypto، نافذة replay خمس
+  دقائق)؛ والفشل يرد بـ 401.
+- الطلب يُرد عليه فورًا (`200`، أو تحدي `url_verification`) والـ turn
+  يشتغل بعد الرد، ضمن حد Slack اللي هو 3 ثواني.
+- الـ retries (`X-Slack-Retry-Num`) ورسائل البوتات (بما فيها رسائل البوت
+  نفسه) ونسخة `message` تبع المنشن: كلها تُقَر وتتجاوز، فما في turn يشتغل
+  مرتين.
+- approval الـ tool يُنشر في الـ thread مع زرّي **Approve** و**Deny**؛
+  والنقرة تستأنف الـ session والمتابعة تُنشر في الـ thread. الرسالة
+  المنقورة تُستبدل بالنتيجة ("Approved by @user") فتختفي أزرارها. والنقرة
+  تحمل قناتها وthreadها والمستخدم اللي يقدر يقرر، فتشتغل بعد إعادة تشغيل.
+  و`ask_question` يُنشر كنص، والرسالة التالية في الـ thread هي الإجابة،
+  بعد إعادة تشغيل كمان (انظر تحت).
 
 أعدّ التطبيق في [api.slack.com/apps](https://api.slack.com/apps):
 
-1. **OAuth & Permissions**: نطاقات رمز البوت `app_mentions:read` و`chat:write`،
-   و`channels:history` (مع `groups:history` للقنوات الخاصة) لرسائل
-   المتابعة دون إشارة، و`im:history` للرسائل المباشرة. ثبّت التطبيق وانسخ رمز البوت
+1. **OAuth & Permissions**: scopes البوت `app_mentions:read` و`chat:write`
+   و`channels:history` (مع `groups:history` للقنوات الخاصة) للمتابعات بدون
+   منشن، و`im:history` للرسائل المباشرة. ثبّت التطبيق وانسخ الـ bot token
    (`xoxb-...`).
-2. **Event Subscriptions**: عنوان الطلب (Request URL) هو `https://<host>/channels/slack`؛ وأحداث
-   البوت `app_mention` و`message.channels` (و`message.groups` للقنوات
-   الخاصة)، و`message.im` للرسائل المباشرة (وفعّل أيضًا **Messages Tab**
-   في App Home ليتمكن المستخدمون من مراسلة البوت).
-3. **Interactivity & Shortcuts**: عنوان الطلب (Request URL) هو `https://<host>/channels/slack`
-   (المسار نفسه).
-4. **Basic Information**: انسخ سر التوقيع (signing secret).
+2. **Event Subscriptions**: الـ Request URL هو
+   `https://<host>/channels/slack`؛ وأحداث البوت `app_mention`
+   و`message.channels` (`message.groups` للقنوات الخاصة)، و`message.im`
+   للرسائل المباشرة (وفعّل **Messages Tab** في App Home عشان المستخدمين
+   يقدرون يراسلون البوت).
+3. **Interactivity & Shortcuts**: الـ Request URL هو
+   `https://<host>/channels/slack` (نفس المسار).
+4. **Basic Information**: انسخ الـ signing secret.
 
 ```ts
 import * as http from 'node:http';
@@ -274,51 +302,53 @@ http.createServer((req, res) => {
 }).listen(3000);
 ```
 
-معرفة السلاسل النشطة مصدرها `store` الذي تمرّره إلى `mountChannels()`.
-والموافقات المعلّقة تُحسم من النقرة نفسها. أما `ask_question` المعلّق فيبقى
-بعد إعادة التشغيل متى كانت الجلسة ونقاط حفظها والموافقات في مخازن متينة
-(مثل `mountChannels(agent, channels, { store: sqlite })` مع `SqliteStore`، و`approvalStore`
-الخاص بالوكيل): فتبقى الرسالة التالية في السلسلة هي الإجابة، وتستمر الدورة،
-ويُلحق السؤال والإجابة والرد بسجل محادثة الجلسة. والرسالة في سلسلة
-تنتظر جلستُها موافقة على أداة لا تحسم تلك الموافقة؛ الأزرار وحدها تفعل. وبعد إعادة التشغيل
-تُنشر متابعة التشغيل الناتجة عن نقرة زر، لكنها لا تُلحق بسجل محادثة الجلسة.
+الـ threads النشطة مصدرها الـ `store` اللي تمرّره لـ `mountChannels()`.
+والـ approvals المعلّقة تنحسم من النقرة نفسها. و`ask_question` معلّق ينجو
+من إعادة تشغيل لما تكون الـ session والـ checkpoints والـ approvals في
+durable stores (مثلاً `mountChannels(agent, channels, { store: sqlite })`
+مع `SqliteStore`، و`approvalStore` تبع الـ agent): الرسالة التالية في الـ
+thread تظل هي الإجابة، والـ turn يكمل، والسؤال والإجابة والرد ينلحقوا بـ
+transcript الـ session. ورسالة في thread الـ session تبعه تنتظر approval
+على tool ما تحسمه؛ بس الأزرار تحسمه. ونقرة زر بعد إعادة تشغيل تنربط بـ
+session الـ thread أول — لازم النقرة تسمّي thread الـ turn المحفوظ في
+checkpoint ينتظر بالضبط ذاك الـ approval — فالمتابعة تنضم لـ transcript الـ
+session، ونقرة مُعادة (replay) ما تشغّل الـ tool مرتين، ونقرة في thread
+ثاني تُرفض.
 
 ## Discord
 
 `discordChannel({ publicKey, applicationId, botToken?, name?, fetch? })`
-تربط تطبيق Discord عبر نقطة HTTP Interactions (دون اتصال gateway
-ودون مكتبة Discord؛ Web Crypto و`fetch` فقط، فتعمل أيضًا على
-Workers). الأمر المتوقع هو `/ask prompt:<text>`: خيار نصي واحد،
-والخيار `prompt` (أو أول خيار نصي) هو الرسالة.
+توصّل تطبيق Discord عبر HTTP Interactions endpoint (بدون اتصال gateway
+وبدون مكتبة Discord؛ Web Crypto و`fetch` بس، فتشتغل حتى على Workers). الأمر
+المتوقع هو `/ask prompt:<text>`: خيار نصي واحد، وخيار `prompt` (أو أول خيار
+نصي) هو الرسالة.
 
-- يُتحقق في كل طلب من `X-Signature-Ed25519` / `X-Signature-Timestamp`
-  على `timestamp + body`؛ والتوقيع المفقود أو الخاطئ يُردّ عليه بـ 401، كما يشترط
-  Discord. ويُردّ على `PING` بـ `PONG`.
-- يُقرّ باستلام الأمر فورًا باستجابة مؤجَّلة (ضمن حد الثواني الثلاث الذي يفرضه
-  Discord)؛ ثم يعدّل الردُّ الاستجابةَ الأصلية
-  (`PATCH /webhooks/{applicationId}/{token}/messages/@original`). والنص الذي يتجاوز
-  2000 محرف يُكمَل في رسائل متابعة.
-- الأوامر في القناة نفسها تتشارك جلسة واحدة، مفتاحها الخادم (guild) والقناة
-  (والسلسلة، إن كانت في سلسلة).
-- تُنشر موافقة الأداة مع زرَّي **Approve** و**Deny** (ولا يحق النقر عليهما إلا
-  لـ `approvers`، وهو افتراضيًا مستخدم الأمر)؛ والنقرة
-  تستأنف الجلسة وتأتي متابعة التشغيل في رسالة متابعة. وتحمل النقرة
-  المحادثة، فتعمل بعد إعادة التشغيل. أما
-  `ask_question` فيُنشر نصًا، وأمر `/ask` التالي في تلك القناة هو
-  الإجابة، وذلك أيضًا بعد إعادة التشغيل (انظر أدناه).
-- رموز التفاعل (interaction tokens) تبقى صالحة 15 دقيقة، فالرد (أو النقرة) بعد ذلك
-  يفشل. و`botToken` محجوز لاستدعاءات REST الخاصة بالبوت؛ والردود لا تحتاج إلا إلى
-  رمز التفاعل.
+- في كل طلب ينتحقق `X-Signature-Ed25519` / `X-Signature-Timestamp` على
+  `timestamp + body`؛ وتوقيع ناقص أو غلط يرد بـ 401، زي ما يشترط Discord.
+  و`PING` يُرد عليه بـ `PONG`.
+- الأمر يُقَر فورًا برد مؤجّل (ضمن حد Discord اللي هو 3 ثواني)؛ وبعدين
+  الرد يعدّل الرد الأصلي
+  (`PATCH /webhooks/{applicationId}/{token}/messages/@original`). والنص
+  اللي فوق 2000 حرف يكمل في رسائل متابعة.
+- الأوامر في نفس القناة تتشارك session وحدة، مفتاحها الـ guild والقناة
+  (والـ thread لو الأمر داخل thread).
+- approval الـ tool يُنشر مع زرّي **Approve** و**Deny** (بس `approvers` —
+  افتراضيًا مستخدم الأمر — يقدرون ينقرونهم)؛ والنقرة تستأنف الـ session
+  والمتابعة تجي كرسالة متابعة. والنقرة تحمل المحادثة، فتشتغل بعد إعادة
+  تشغيل. و`ask_question` يُنشر كنص، و`/ask` التالي في تلك القناة هو
+  الإجابة، بعد إعادة تشغيل كمان (انظر تحت).
+- interaction tokens تعيش 15 دقيقة، فرد (أو نقرة) بعدها يفشل. و`botToken`
+  محجوز لاستدعاءات REST تبع البوت؛ والردود تحتاج بس الـ interaction token.
 
 أعدّ التطبيق في
 [discord.com/developers/applications](https://discord.com/developers/applications):
 
-1. **General Information**: انسخ معرّف التطبيق والمفتاح العام.
-2. **Interactions Endpoint URL**: `https://<host>/channels/discord` (يرسل Discord
-   طلب `PING` موقَّعًا عند الحفظ).
-3. **Installation**: يكفي النطاق `applications.commands` (أضف `bot`
-   فقط إن أردت أيضًا وجود مستخدم البوت في الخادم).
-4. سجّل الأمر مرة واحدة (أمر الخادم (guild) يظهر فورًا؛ واستخدم
+1. **General Information**: انسخ الـ application id والمفتاح العام.
+2. **Interactions Endpoint URL**: `https://<host>/channels/discord`
+   (Discord يرسل `PING` موقَّع لما تحفظ).
+3. **Installation**: يكفي scope `applications.commands` (أضف `bot` بس لو
+   تريد مستخدم البوت في السيرفر).
+4. سجّل الأمر مرة وحدة (أمر الـ guild يظهر فورًا؛ استخدم
    `/applications/{id}/commands` لأمر عام):
 
 ```sh
@@ -343,63 +373,63 @@ http.createServer((req, res) => {
 }).listen(3000);
 ```
 
-الموافقات المعلّقة تُحسم من نقرة الزر ومن مخزن الموافقات. وكما في Slack، يبقى
-`ask_question` المعلّق بعد إعادة التشغيل متى كانت الجلسات ونقاط الحفظ والموافقات في
-مخازن متينة: فأمر `/ask` التالي في القناة هو الإجابة، وتُلحق الدورة المستمرة بسجل
-محادثة الجلسة. أما متابعة التشغيل الناتجة عن نقرة زر بعد إعادة التشغيل فتُنشر لكنها
-لا تُلحق بسجل محادثة الجلسة.
+الـ approvals المعلّقة تنحسم من نقرة الزر والـ approval store. وزي Slack،
+`ask_question` معلّق ينجو من إعادة تشغيل لو الـ sessions والـ checkpoints
+والـ approvals في durable stores: `/ask` التالي في القناة هو الإجابة والـ
+turn المكمل ينضم لـ transcript الـ session. ونقرة زر بعد إعادة تشغيل تسمّي
+محادثتها، فتنربط بتلك الـ session قبل ما الـ approval ينحسم — المتابعة تنضم
+للـ transcript، ونقرة قديمة أو منسوخة ما تحسم شيء.
 
-ملفات `channels/*.ts` في [مجلد الوكيل](/ar/agent-directories) تُحمَّل
-قنواتٍ هي أيضًا، ويركّبها خادم node. أما `SlackTriggerAdapter` (انظر [المُشغِّلات](/ar/triggers))، الذي يرد
-عبر webhook وارد، فهو مُهمَل: استخدم `slackChannel()`. و`verifySlackSignature()` ليست مُهمَلة.
+ملفات `channels/*.ts` في [agent directory](/ar/agent-directories) تنحمل
+كقنوات كمان، وسيرفر node يركّبها. و`SlackTriggerAdapter` (راجع
+[Triggers](/ar/triggers))، اللي يرد عبر webhook وارد، deprecated: استخدم
+`slackChannel()`. أما `verifySlackSignature()` فمش deprecated.
 
 ## Telegram
 
 `telegramChannel({ botToken, secretToken, botUsername?, name?, fetch?, approvers?, onError? })`
-تضع وكيلًا خلف بوت Telegram عبر الـwebhooks (دون استطلاع طويل (long polling)
-ودون مكتبة Telegram؛ Web Crypto و`fetch` فقط، فتعمل أيضًا على Workers).
+تحط agent وراء بوت Telegram عبر webhooks (بدون long polling وبدون مكتبة
+Telegram؛ Web Crypto و`fetch` بس، فتشتغل حتى على Workers).
 
-- تُقارَن ترويسة `X-Telegram-Bot-Api-Secret-Token` في كل طلب مع
-  `secretToken` في زمن ثابت؛ والقيمة المفقودة أو الخاطئة يُردّ عليها بـ 401. ولا
-  وضع للقناة بلا مصادقة، فمرّر `secret_token` دائمًا إلى
-  `setWebhook`.
-- يُقرّ باستلام التحديث فورًا بـ `200` وتُنفَّذ الدورة بعد ذلك، فلا يعيد
-  Telegram محاولة إرسال الـwebhook.
-- في المحادثة الخاصة تُعدّ كل رسالة نصية (أو تعليق على صورة أو مستند)
-  رسالةً إلى الوكيل. وفي المجموعة أو المجموعة الفائقة (supergroup) لا يوقظ البوتَ إلا
-  أمر `/ask` (أو `/ask@<botUsername>`)، أو رسالة تحوي `@<botUsername>`، أو رد على
-  إحدى رسائل البوت نفسه؛ ويُزال الأمر والإشارة من النص وتُتجاهل كل رسالة أخرى.
-  وتُتجاهل الرسائل الصادرة من بوتات. اضبط `botUsername` (دون `@`) لتستخدم قواعد
-  المجموعات التي تحتاج إليه.
-- جلسة واحدة لكل محادثة، وواحدة لكل موضوع (topic) في المجموعة الفائقة المنتدى. وتذهب الردود إلى
-  المحادثة والموضوع نفسيهما، ردًّا على الرسالة التي أطلقت الدورة.
-- الردود نص عادي (دون `parse_mode`)، فلا يستطيع Markdown الصادر عن النموذج أن
-  يجعل Telegram يرفض الرسالة. والنص الذي يتجاوز 4096 محرفًا يُقسَّم عند
-  فواصل الأسطر إلى عدة رسائل.
-- تُنشر موافقة الأداة مع لوحة مفاتيح مضمّنة (inline keyboard) فيها **Approve** و
-  **Deny**. لا يحق النقر عليهما إلا لـ `approvers` (الافتراضي: المستخدم الذي بدأت
-  رسالته الدورة)؛ ومن سواه يتلقى تنبيهًا وتبقى الموافقة معلّقة. والنقرة
-  تجيب عن رد النداء (callback)، وتعدّل الرسالة فتُلحق بها "Approved by ..." أو
-  "Denied by ..." وتزيل لوحة المفاتيح، وتُرسل متابعة التشغيل رسالةً جديدة. وتحمل النقرة
-  محادثتها، فتعمل بعد إعادة التشغيل. ويحدّ Telegram
-  `callback_data` بـ 64 بايتًا: وهي تحمل `a:` أو `d:` ومعرّف مستخدم من بدأ الدورة
-  ومعرّف الموافقة (نحو 55 بايتًا). فإن كانت ستطول عن ذلك، يُحذف
-  معرّف من بدأ الدورة، ولا يعود يستطيع الموافقة إلا قائمة `approvers` أو دالتها
-  (والافتراضي يرفض الجميع).
-- يُرسل `ask_question` نصًا مع `force_reply`، والرسالة التالية في
-  المحادثة هي الإجابة (وفي المجموعة يجب أن تكون موجَّهة إلى البوت، وهو ما
-  يحققه الرد على السؤال).
-- المرفقات لا تُقرأ بعد: لا يصل إلى الوكيل إلا النص أو التعليق.
+- ترويسة `X-Telegram-Bot-Api-Secret-Token` في كل طلب تنقارن بـ
+  `secretToken` في زمن ثابت؛ وقيمة ناقصة أو غلط ترد بـ 401. القناة ما لها
+  وضع بدون مصادقة، فمرّر `secret_token` دائمًا لـ `setWebhook`.
+- التحديث يُقَر بـ `200` فورًا والـ turn يشتغل بعده، فـ Telegram ما يعيد
+  إرسال الـ webhook.
+- في المحادثة الخاصة، كل رسالة نصية (أو caption صورة أو مستند) هي رسالة
+  للـ agent. وفي مجموعة أو supergroup بس أمر `/ask` (أو
+  `/ask@<botUsername>`)، أو رسالة فيها `@<botUsername>`، أو رد على رسالة من
+  رسائل البوت نفسه يوقظ البوت؛ والأمر والمنشن ينحذفوا من النص وكل رسالة
+  ثانية تتجاهل. ورسائل البوتات تتجاهل. اضبط `botUsername` (بدون `@`) عشان
+  تستخدم قواعد المجموعات اللي تحتاجه.
+- session وحدة لكل محادثة، ووحدة لكل topic في supergroup منتدى. والردود
+  تروح لنفس المحادثة والـ topic، كرد على الرسالة اللي أطلقت الـ turn.
+- الردود نص عادي (بدون `parse_mode`)، فالـ Markdown اللي يطلعه الـ model ما
+  يقدر يخلّي Telegram يرفض الرسالة. والنص اللي فوق 4096 حرف ينقسم عند فواصل
+  الأسطر لعدة رسائل.
+- approval الـ tool يُنشر مع inline keyboard فيها **Approve** و**Deny**. بس
+  `approvers` (الافتراضي: المستخدم اللي رسالته بدأت الـ turn) يقدرون
+  ينقرونهم؛ وغيرهم يوصلهم تنبيه والـ approval يظل معلّق. والنقرة تجاوب الـ
+  callback، تعدّل الرسالة فتضيف "Approved by ..." أو "Denied by ..." وتحذف
+  لوحة المفاتيح، والمتابعة تُرسل كرسالة جديدة. والنقرة تحمل محادثتها،
+  فتشتغل بعد إعادة تشغيل. وTelegram يحد `callback_data` بـ 64 بايت: يحمل
+  `a:` أو `d:` ومعرّف مستخدم اللي بدأ ومعرّف الـ approval (حوالي 55 بايت).
+  ولو تجاوز 64 بايت، يُحذف معرّف البادئ، ووقتها بس قائمة `approvers` أو دالة
+  يقدرون يوافقون (الافتراضي يرفض الكل).
+- `ask_question` يُرسل كنص مع `force_reply`، والرسالة التالية في المحادثة
+  هي الإجابة (في المجموعة لازم تكون موجّهة للبوت، وهذا اللي يسويه الرد على
+  السؤال).
+- المرفقات ما تنقرا بعد: بس النص أو الـ caption يوصل للـ agent.
 
 أعدّ البوت عبر [@BotFather](https://t.me/BotFather):
 
-1. أرسل `/newbot`، واختر اسمًا ومعرّف مستخدم، وانسخ رمز البوت. وللاستخدام في
-   المجموعات، يحدد `/setprivacy` هل يرى البوت كل رسالة؛
-   و`/ask` والإشارات والردود تعمل في الحالتين.
-2. اختر رمزًا سريًا عشوائيًا (من 1 إلى 256 محرفًا من `A-Z` و`a-z` و`0-9`
-   و`_` و`-`).
-3. سجّل الـwebhook مرة واحدة، مع رمز البوت في العنوان والرمز السري
-   في الجسم (وأبعدهما عن سجل الصدفة (shell) وعن السجلات):
+1. أرسل `/newbot`، اختر اسم واسم مستخدم، وانسخ الـ bot token. وللاستخدام في
+   المجموعات، `/setprivacy` يحدد إذا البوت يشوف كل رسالة؛ `/ask`
+   والمنشنات والردود تشتغل في الحالتين.
+2. اختر secret token عشوائي (من 1 لحد 256 حرف من `A-Z` و`a-z` و`0-9` و`_`
+   و`-`).
+3. سجّل الـ webhook مرة وحدة، الـ bot token في الـ URL والـ secret token في
+   الجسم (خلّي الاثنين بعيد عن history الـ shell والسجلات):
 
 ```sh
 curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook" -H "Content-Type: application/json" -d '{"url":"https://<host>/channels/telegram","secret_token":"'"$TELEGRAM_SECRET_TOKEN"'","allowed_updates":["message","callback_query"]}'
@@ -424,114 +454,112 @@ http.createServer((req, res) => {
 }).listen(3000);
 ```
 
-رمز البوت جزء من كل عنوان في Bot API، لذا تبني القناة رسائل الخطأ من اسم
-الدالة وحالة الاستجابة فقط: فلا يصل الرمز أبدًا إلى
-`onError` ولا إلى سطر السجل الافتراضي.
+الـ bot token جزء من كل URL في Bot API، فالقناة تبني رسائل الخطأ من اسم
+الدالة وحالة HTTP بس: الـ token ما يوصل أبدًا لـ `onError` ولا لسطر السجل
+الافتراضي.
 
-الموافقات المعلّقة تُحسم من النقرة ومن مخزن الموافقات. وكما في Slack
-وDiscord، يبقى `ask_question` المعلّق بعد إعادة التشغيل متى كانت مخازن
-الجلسات ونقاط الحفظ والموافقات متينة: فالرسالة التالية في المحادثة هي
-الإجابة، وتُلحق الدورة المستمرة بسجل محادثة الجلسة. أما متابعة التشغيل الناتجة عن نقرة بعد
-إعادة التشغيل فتُرسل لكنها لا تُلحق بسجل
-محادثة الجلسة.
+الـ approvals المعلّقة تنحسم من النقرة والـ approval store. وزي Slack
+وDiscord، `ask_question` معلّق ينجو من إعادة تشغيل لو الـ sessions
+والـ checkpoints والـ approvals في durable stores: الرسالة التالية في
+المحادثة هي الإجابة والـ turn المكمل ينضم لـ transcript الـ session. وزي
+نقرة الزر في القنوات الثانية، نقرة بعد إعادة تشغيل تنفحص مقابل الـ turn
+المحفوظ في checkpoint تبع session المحادثة، فالمتابعة تنضم للـ transcript
+ونقرة مُعادة ما تشغّل الـ tool مرتين.
 
 ## GitHub
 
 `githubChannel({ webhookSecret, botName, token?, app?, name?, apiUrl?, fetch?, triggers?, approvers?, onError? })`
-تتيح للناس استدعاء وكيل بـ `@<botName>` في تعليق على قضية (issue) أو طلب دمج (pull request)
-أو مراجعة؛ ويجيب الوكيل بتعليق في السلسلة نفسها. وهي تقرأ
-webhooks تطبيق GitHub (أو مستودع واحد) وتنشر عبر واجهة REST
-باستخدام `fetch` وWeb Crypto فقط (دون أي استيراد `node:*` ودون مكتبة GitHub)،
-فتعمل أيضًا على Workers.
+تخلّي الناس ينادون agent بـ `@<botName>` في تعليق على issue أو pull request
+أو review في GitHub؛ والـ agent يجاوب بتعليق في نفس الـ thread. يقرا webhooks
+تطبيق GitHub (أو مستودع واحد) وينشر عبر REST API بـ `fetch` وWeb Crypto بس
+(بدون `node:*` import وبدون مكتبة GitHub)، فتشتغل حتى على Workers.
 
-- يُفحص ترويسة `X-Hub-Signature-256` في كل طلب مقابل الجسم الخام
-  بـ `webhookSecret` (HMAC-SHA256، يُقارَن في زمن ثابت) قبل تحليل الجسم؛
-  والتوقيع المفقود أو الخاطئ يُردّ عليه بـ 401. ولا وضع للقناة بلا مصادقة.
-- يُقرّ باستلام الـwebhook فورًا بـ `200` وتُنفَّذ الدورة بعد ذلك: ينتظر GitHub 10 ثوانٍ
-  ولا يعيد المحاولة، والرد البطيء يُنشر تعليقًا جديدًا.
-  أما `ping` فيُقرّ باستلامه دون دورة.
-- التعليق على قضية، أو على طلب دمج (تبويب المحادثة)، أو تعليق مراجعة
-  (على سطر من الفروقات (diff)) يحتوي على `@<botName>` ككلمة كاملة
-  (دون اعتبار لحالة الأحرف) يبدأ دورة، مع إزالة الإشارة من النص. وما إن
-  تصبح للسلسلة جلسة حتى يُعدّ كل تعليق لاحق فيها متابعة ولا يحتاج إلى
-  إشارة. وتُتجاهل التعليقات المعدَّلة والمحذوفة، وتعليقات البوتات (`user.type` هو `Bot`)،
-  وتعليقات `<botName>[bot]`، وتعليقات `botLogin`، وأي تعليق نشرته القناة نفسها،
-  فلا يجيب الوكيل نفسه أبدًا. وتُتجاهل الأحداث الأخرى (فتح القضايا،
-  والدفع (push)، وردود الفعل، وتشغيل الفحوص).
-- جلسة واحدة لكل قضية أو طلب دمج (`<owner>/<repo>#<number>`)، وواحدة
-  لكل سلسلة مراجعة (تعليق مراجعة والردود تحته).
-- الرد تعليق جديد: تعليق في الخط الزمني للقضية أو طلب الدمج،
-  أو رد في سلسلة المراجعة. والنص الذي يتجاوز 60,000 محرف (حد GitHub
-  هو 65,536) يُقسَّم عند فواصل الأسطر إلى عدة تعليقات. ويحمل كل تعليق
-  علامة مخفية (تعليق HTML) تتعرف عليها القناة.
-- موافقة الأداة تعليق يحوي الأداة ووسائطها في كتلة مسوَّرة (fenced block)
-  والسطر "Reply `/approve <id>` or `/deny <id>`.". والتعليق الذي
-  **سطره الأول** هو `/approve <id>` أو `/deny <id>` (بأي حالة أحرف) يحسمها؛
-  وما بعد السطر الأول ملاحظة للنموذج. واقتباس الطلب، أو الأمر في أي موضع غير السطر الأول،
-  لا يحسم شيئًا. وتجيب القناة
-  "Approved by @login." أو "Denied by @login." ويستمر التشغيل بتعليق جديد.
-  والمعرّف هو معرّف الموافقة المعلّقة، فلا يستطيع أمر قديم (webhook أُعيد تسليمه،
-  أو تعليق موافقة حُسمت من قبل) أن يحسم موافقة لاحقة.
-- يُنشر `ask_question` تعليقًا، والتعليق التالي في تلك السلسلة هو
-  الإجابة (دون حاجة إلى إشارة، من أي شخص تسمح له `triggers`). ويبقى السؤال
-  المعلّق بعد إعادة التشغيل متى كانت مخازن الجلسات ونقاط الحفظ والموافقات متينة،
-  كما في Slack وDiscord؛ وثمن ذلك استعلام واحد من المخزن لكل
-  تعليق ليس إشارة في سلسلة بلا جلسة.
+- ترويسة `X-Hub-Signature-256` في كل طلب تنفحص مقابل الجسم الخام بـ
+  `webhookSecret` (HMAC-SHA256، مقارنة في زمن ثابت) قبل ما الجسم ينعمل
+  parse؛ وتوقيع ناقص أو غلط يرد بـ 401. القناة ما لها وضع بدون مصادقة.
+- الـ webhook يُقَر بـ `200` فورًا والـ turn يشتغل بعده: GitHub ينتظر 10
+  ثواني وما يعيد المحاولة، والرد البطيء يُنشر كتعليق جديد. و`ping` يُقَر
+  بدون turn.
+- تعليق على issue، أو على pull request (تبويب المحادثة)، أو review comment
+  (على سطر من الـ diff) فيه `@<botName>` ككلمة كاملة (بدون حساسية لحالة
+  الحروف) يبدأ turn، والمنشن ينحذف من النص. وأول ما يصير للـ thread session،
+  كل تعليق لاحق فيه يُعد متابعة وما يحتاج منشن. وتتجاهل التعليقات المعدّلة
+  والمحذوفة، وتعليقات البوتات (`user.type` هو `Bot`)، وتعليقات
+  `<botName>[bot]`، وتعليقات `botLogin`، وأي تعليق نشرته القناة نفسها — فالـ
+  agent ما يجاوب نفسه أبدًا. والأحداث الثانية (فتح issues، pushes،
+  reactions، check runs) تتجاهل.
+- session وحدة لكل issue أو pull request (`<owner>/<repo>#<number>`)،
+  ووحدة لكل review thread (review comment والردود تحته).
+- الرد تعليق جديد: تعليق في timeline الـ issue أو الـ pull request، أو رد في
+  الـ review thread. والنص اللي فوق 60,000 حرف (حد GitHub هو 65,536) ينقسم
+  عند فواصل الأسطر لعدة تعليقات. وكل تعليق يحمل علامة مخفية (تعليق HTML)
+  تعرفها القناة.
+- approval الـ tool هو تعليق فيه الـ tool ووسائطها في fenced block وسطر
+  "Reply `/approve <id>` or `/deny <id>`.". تعليق **سطره الأول** هو
+  `/approve <id>` أو `/deny <id>` (بأي حالة حروف) يحسمها؛ واللي بعد السطر
+  الأول ملاحظة للـ model. واقتباس الـ prompt، أو الأمر في أي مكان غير السطر
+  الأول، ما يحسم شيء. القناة تجاوب "Approved by @login." أو "Denied by
+  @login." والـ run يكمل بتعليق جديد. والمعرّف هو معرّف الـ approval
+  المعلّق، فأمر قديم (webhook أعيد تسليمه، أو تعليق approval انحسم قبل) ما
+  يقدر يحسم approval لاحق.
+- `ask_question` يُنشر كتعليق والتعليق التالي في ذاك الـ thread هو الإجابة
+  (بدون منشن، من أي واحد `triggers` تسمح له). وسؤال معلّق ينجو من إعادة
+  تشغيل لو الـ sessions والـ checkpoints والـ approvals في durable stores،
+  زي Slack وDiscord؛ والثمن lookup واحد في الـ store لكل تعليق مش منشن في
+  thread ما له session.
 
-**ملاحظة أمنية.** تعليق GitHub نص يكتبه أي شخص يستطيع التعليق على
-المستودع، وهو في مستودع عام كل الناس. فهو مدخل غير موثوق للوكيل،
-مثل أي رسالة مستخدم، ويمكنه محاولة توجيهه (حقن موجّه (prompt injection))؛ ونص القضية وطلب الدمج
-الذي يشير إليه غير موثوق بالقدر نفسه.
-امنح الوكيل أدوات لا تمانع في أسوأ استخدام لها، وأبقِ `needsApproval`
-مفعّلًا على الأدوات التي تكتب أو تنفق. وهناك خياران يحددان من يوثَق به، وكلاهما
-صريح:
+**ملاحظة أمنية.** تعليق GitHub نص يكتبه أي واحد يقدر يعلّق على المستودع،
+وفي مستودع عام يعني الكل. يعني هو إدخال مش موثوق للـ agent، زي أي رسالة
+مستخدم، ويقدر يحاول يوجّهه (prompt injection)؛ ونص الـ issue والـ pull
+request اللي يشير له مش موثوق بنفس القدر. عطِ الـ agent بس tools اللي تقبل
+أسوأ استخدام لها، وخلّي `needsApproval` على اللي تكتب أو تصرف. في خيارين
+يحددون مين الموثوق، والاثنين صريحين:
 
-- `triggers` (الافتراضي: كل من يستطيع التعليق) يحدد من يحق له بدء دورة أو
-  الإجابة عن سؤال: قائمة بأسماء الدخول (logins)، أو دالة
-  `({ login, association }) => boolean`. وفي مستودع عام قيّده
-  (مثلًا بـ `association` من `OWNER` أو `MEMBER` أو `COLLABORATOR`) ما لم
-  تكن تريد أن ينفق الغرباء رصيد نماذجك.
-- `approvers` يحدد من يحق له `/approve` و`/deny`، و**افتراضيه مغلق**:
-  من دونه لا يحسم إلا صاحب تعليق تكون `author_association` له `OWNER` أو `MEMBER` أو
-  `COLLABORATOR`. وهذا يختلف عن Slack وDiscord عمدًا: فسلسلة GitHub مرئية لكل
-  من يستطيع قراءة المستودع، ومن بدأ الدورة قد يكون أي شخص، فلا يوثَق بكاتب
-  الطلب ليوافق عليه. والأمر المرفوض يتلقى "@login is not allowed to
-  approve this request." وتبقى الموافقة معلّقة. ومع قائمة أسماء دخول
-  (دون اعتبار لحالة الأحرف) لا يحسم إلا أولئك المستخدمون، أيًّا كانت صلتهم بالمستودع.
-  ومع دالة `(user, { toolName, input, sessionId }) => boolean`، يكون `user.id`
-  اسم الدخول و`user.roles` هو `[author_association]`.
+- `triggers` (الافتراضي: كل اللي يقدرون يعلّقون) يحدد مين يقدر يبدأ turn أو
+  يجاوب على سؤال: قائمة logins، أو دالة
+  `({ login, association }) => boolean`. وفي مستودع عام قيّده (مثلاً لـ
+  `association` من `OWNER` أو `MEMBER` أو `COLLABORATOR`) إلا لو تريد
+  الغرباء يصرفون رصيد الـ models تبعك.
+- `approvers` يحدد مين يقدر `/approve` و`/deny`، و**افتراضه مغلق**: بدونه
+  بس معلّق `author_association` تبعه `OWNER` أو `MEMBER` أو `COLLABORATOR`
+  يقدر يقرر. وهذا يختلف عن Slack وDiscord بقصد: thread GitHub مرئي لكل واحد
+  يقدر يقرا المستودع، واللي بدأ الـ turn ممكن يكون أي واحد، فكاتب الطلب مش
+  موثوق يوافق عليه. والأمر المرفوض يوصله "@login is not allowed to
+  approve this request." والـ approval يظل معلّق. ومع قائمة logins (بدون
+  حساسية لحالة الحروف) بس أولئك المستخدمين يقررون، مهما كانت الـ association
+  تبعهم. ومع دالة `(user, { toolName, input, sessionId }) => boolean`،
+  `user.id` هو الـ login و`user.roles` هو `[author_association]`.
 
-تُقرأ الصلة بالمستودع (association) من webhook تعليق الأمر نفسه، فيستند القرار إلى
-ما أبلغ عنه GitHub حين كُتب ذلك التعليق (والطلب أصيل بفضل التوقيع)، لا إلى
-العضوية التي كانت للمعلّق حين طُلبت الموافقة: فالمتعاون الذي أُزيل
-قبل نشر `/approve` يُرفض أمره. وهي لقطة تؤخذ عند الأمر، لا فحص صلاحية
-حيّ؛ فإن كان لا بد أن يسري سحب الصلاحية داخل تلك النافذة، فاستخدم
-`approvers` بدالة تسأل واجهة GitHub البرمجية (مثلًا عن صلاحية المتعاون) قبل أن تعيد `true`.
-و`approvers` بصيغة الدالة، كما في القنوات الأخرى، يرفض احتياطًا (fail closed) حين لا تعرف العملية
-الاستدعاء المعلّق (بعد إعادة التشغيل).
+الـ association تُقرأ من webhook تعليق الأمر نفسه، فالقرار مبني على اللي
+أبلغ عنه GitHub لما انكتب ذاك التعليق (الطلب أصلي بفضل التوقيع)، مش على
+العضوية اللي كانت للمعلّق لما انطلب الـ approval: متعاون انحذف قبل ما ينشر
+`/approve` ينرفض. وهي snapshot تُخذ عند الأمر، مش فحص صلاحية حي؛ فلو لازم
+سحب الصلاحية يسري داخل تلك النافذة، استخدم `approvers` بدالة تسأل GitHub API
+(مثلاً صلاحية المتعاون) قبل ما ترجع `true`. ودالة `approvers`، زي القنوات
+الثانية، تشوف الاستدعاء المعلّق بعد إعادة تشغيل كمان (الـ approval store
+الدائم ينسأل)، وتفشل fail-closed بس مع approval store محلي للعملية.
 
 أعدّ تطبيق GitHub:
 
-1. أنشئ التطبيق (Settings، Developer settings، GitHub Apps، New GitHub App).
-   ضمن Webhook، اضبط العنوان على `https://<host>/channels/github`، وأبقِه
-   مفعّلًا، واختر سرًّا عشوائيًا طويلًا (وهو `webhookSecret`).
-2. الصلاحيات: Issues بالقراءة والكتابة، وPull requests بالقراءة والكتابة. اشترك
-   في الحدثين **Issue comment** و**Pull request review comment**.
-3. ولّد مفتاحًا خاصًا (ينزّله GitHub بصيغة PKCS#1 PEM، `BEGIN RSA PRIVATE KEY`؛
-   وPKCS#8 يعمل أيضًا) ودوّن معرّف التطبيق (App ID). ثبّت التطبيق في المستودعات التي
-   ينبغي أن يجيب فيها. يسمّي كل webhook تثبيته، وتبدّل القناة
-   JWT موقَّعًا برمز تثبيت (installation token) لكل تثبيت وتخزنه مؤقتًا
-   إلى ما قبل انتهاء صلاحيته بـ 5 دقائق.
-4. `botName` هو المعرّف المختصر (slug) للتطبيق: `@my-agent` في تعليق تشير إلى التطبيق
-   `my-agent`، الذي ينشر باسم `my-agent[bot]`.
+1. أنشئ التطبيق (Settings ← Developer settings ← GitHub Apps ← New GitHub
+   App). وتحت Webhook، اضبط الـ URL على `https://<host>/channels/github`،
+   خلّيه مفعّل، واختر secret عشوائي طويل (هذا هو `webhookSecret`).
+2. الصلاحيات: Issues قراءة وكتابة، وPull requests قراءة وكتابة. واشترك في
+   **Issue comment** و**Pull request review comment**.
+3. ولّد private key (GitHub ينزّله كـ PKCS#1 PEM، `BEGIN RSA PRIVATE KEY`؛
+   وPKCS#8 يشتغل كمان) ودوّن الـ App ID. ثبّت التطبيق على المستودعات اللي
+   لازم يجاوب فيها. كل webhook يسمّي الـ installation تبعه، والقناة تبدل JWT
+   موقَّع بـ installation token لكل واحد وتخزّنه مؤقت لحد 5 دقائق قبل ما
+   تنتهي صلاحيته.
+4. `botName` هو الـ slug تبع التطبيق: `@my-agent` في تعليق ينشن التطبيق
+   `my-agent`، اللي ينشر باسم `my-agent[bot]`.
 
-لمستودع واحد يمكنك الاستغناء عن التطبيق: أضف webhook للمستودع
-(نوع المحتوى `application/json`، والحدثان نفسهما، والعنوان والسر نفسهما)
-ومرّر `token`، وهو رمز وصول شخصي دقيق الصلاحيات (fine-grained) بصلاحية القراءة والكتابة على Issues وPull
-requests في ذلك المستودع (أو دالة تعيد
-رمزًا). وتُنشر الردود حينئذٍ باسم مستخدم الرمز، فمرّر أيضًا `botLogin`
-باسم دخول ذلك المستخدم. ومن دونه لا يمنع الوكيلَ من الإجابة عن تعليقاته
-إلا العلامة المخفية للقناة.
+لمستودع واحد تقدر تتخطى التطبيق: أضف webhook للمستودع (content type
+`application/json`، نفس الحدثين، نفس الـ URL والـ secret) ومرّر `token` —
+fine-grained personal access token بقراءة وكتابة على Issues وPull requests
+في ذاك المستودع (أو دالة ترجع token). والردود وقتها تُنشر باسم مستخدم الـ
+token، فمرّر كمان `botLogin` بـ login ذاك المستخدم. وبدونه، بس العلامة
+المخفية تبع القناة تمنع الـ agent من الإجابة على تعليقاته.
 
 ```ts
 import * as http from 'node:http';
@@ -553,75 +581,79 @@ http.createServer((req, res) => {
 }).listen(3000);
 ```
 
-يوجّه `apiUrl` القناة إلى GitHub Enterprise Server
-(`https://<host>/api/v3`). ولا يوضع الرمز ولا المفتاح الخاص ولا JWT في أي
-رسالة خطأ أو سطر سجل: والاستدعاء الفاشل يُبلَّغ عنه إلى `onError` بالاستدعاء
-وحالة HTTP فقط (`LOUSHO_CHANNEL_REQUEST_FAILED`).
+`apiUrl` يوجّه القناة لـ GitHub Enterprise Server
+(`https://<host>/api/v3`). والـ token والـ private key والـ JWT ما ينحطّ
+أبدًا في رسالة خطأ أو سطر سجل: استدعاء فاشل يُبلَّغ عنه لـ `onError`
+بالاستدعاء وحالة HTTP بس (`LOUSHO_CHANNEL_REQUEST_FAILED`).
 
-الموافقات المعلّقة تُحسم من تعليق الأمر ومن مخزن الموافقات.
-ويُحتفَظ بـ `ask_question` المعلّق في الذاكرة إلى حين التعليق التالي، ويبقى بعد
-إعادة التشغيل متى كانت المخازن متينة، كما في القنوات الأخرى. وبعد إعادة التشغيل، يفشل أمر
-معرّفه لم يعد معلّقًا (حُسم من قبل، أو انتهت صلاحيته)
-بتعليق "Sorry, that request failed." العام بدل أن يُتجاهل،
-ولا يعود المعرّف مرتبطًا بالسلسلة التي نُشر فيها. وتُنشر متابعة التشغيل بعد
-إعادة التشغيل لكنها لا تُلحق بسجل محادثة الجلسة.
+الـ approvals المعلّقة تنحسم من تعليق الأمر والـ approval store.
+و`ask_question` معلّق ينحفظ في الذاكرة لحد التعليق التالي، وينجو من إعادة
+تشغيل لو الـ stores durable، زي القنوات الثانية. وبعد إعادة تشغيل، الأمر
+يسمّي threadه، فمع durable checkpoints ينربط بـ session ذاك الـ thread قبل
+ما الـ approval ينحسم: المتابعة تنضم لـ transcript الـ session، ومعرّف الـ
+thread ما تنتظره (انحسم خلاص، أو approval لـ thread ثاني) يفشل بتعليق
+"Sorry, that request failed." العام.
 
 ## Microsoft Teams
 
-تضع `teamsChannel({ appId, appPassword, tenantId?, name?, fetch?, approvers?, onError? })`
-وكيلًا خلف Azure Bot في Microsoft Teams: تبدأ المحادثات الشخصية والإشارات في القنوات
-جلسةً أو تتابعها، وتعود الردود عبر Bot
-Framework Connector، وتكون موافقة الأداة بطاقة تكيفية (Adaptive Card) فيها زرّا الموافقة والرفض
-(Approve وDeny). وهي تستخدم `fetch` وWeb Crypto فقط (من دون أي استيراد `node:*` ومن دون مكتبة Bot
-Framework)، فتعمل أيضًا على Workers.
+`teamsChannel({ appId, appPassword, tenantId?, name?, fetch?, approvers?, onError? })`
+تحط agent وراء Azure Bot في Microsoft Teams: المحادثات الشخصية والمنشنات في
+القنوات تبدأ session أو تكملها، والردود ترجع عبر Bot Framework Connector،
+وapproval الـ tool بطاقة Adaptive Card فيها زرّي Approve وDeny. تستخدم
+`fetch` وWeb Crypto بس (بدون `node:*` import وبدون مكتبة Bot Framework)،
+فتشتغل حتى على Workers.
 
-- يجب أن يحمل كل طلب رمز Bot Framework في `Authorization: Bearer`. ويُتحقَّق منه
-  قبل تحليل الجسم: توقيع RS256 يُفحص مقابل
-  مجموعة المفاتيح التي تشير إليها بيانات OpenID الوصفية الثابتة لـ Bot Framework
-  (`https://login.botframework.com/v1/.well-known/openidconfiguration`) (تُخزَّن مؤقتًا ولا تؤخذ أبدًا من عنوان داخل الرمز)، والمُصدِر
-  `https://api.botframework.com`، والجمهور `appId`، ومهلة انحراف الساعة 5 دقائق.
-  ويجب أن تساوي مطالبة `serviceurl` في الرمز قيمة `serviceUrl` في النشاط أيضًا، فلا يمكن إعادة استخدام رمز صالح
-  لعنوان خدمة واحد لجعل البوت ينشر في مكان آخر. وأي إخفاق يُجاب بـ 401. وليس للقناة وضع
-  بلا مصادقة، ومحاكي Bot Framework من دون مصادقة غير مدعوم.
-- يُقرّ النشاط بـ `200` فورًا وتجري الدورة بعد ذلك.
-  لا يصل إلى الوكيل إلا أنشطة `message`؛ أما `conversationUpdate` و`typing`
-  و`invoke` ورسائل البوت نفسه فتُتجاهل.
-- المحادثة الشخصية تبدأ جلسةً أو تتابعها دائمًا. وفي محادثة جماعية أو
-  قناة لا تفعل ذلك إلا رسالة تذكر البوت بـ `@mentions`؛ وتُزال الإشارة
-  من النص وتُتجاهل كل رسالة أخرى.
-- جلسة واحدة لكل محادثة (`conversation.id`؛ وفي قناة Teams
-  يتضمن الرسالة الجذر للسلسلة، فتكون كل سلسلة جلسة قائمة بذاتها). والمُرسِل
-  (`from.aadObjectId`، وإلا `from.id`) هو `principal` التشغيل
-  (`authenticator: 'teams'`، و`issuer`: المستأجر)، كما في القنوات الأخرى.
-- الردود بصيغة Markdown تُنشر إلى `{serviceUrl}/v3/conversations/{id}/activities/{replyToId}`،
-  مع `serviceUrl` الذي ضمنه الرمز (`https` فقط). ويُقسَّم النص الذي يتجاوز 25,000
-  حرف عند فواصل الأسطر. ويأتي رمز الوصول الصادر من تدفق بيانات اعتماد العميل
-  (client-credentials) بـ `appId` و`appPassword`، ويُخزَّن مؤقتًا حتى قبل 5
-  دقائق من انتهاء صلاحيته.
-- موافقة الأداة بطاقة تكيفية (الإصدار 1.4) فيها الأداة ووسائطها
-  (تُقطع عند 2,000 حرف) وزرّا `Action.Submit`. ولا يستطيع استخدامهما إلا
-  `approvers` (معرّفات مستخدمي Teams كما في `from.id`، أو دالة)؛ وافتراضيًا لا يستطيع إلا
-  المستخدم الذي بدأ الدورة. ويتلقى أي شخص آخر "You are not allowed to
-  approve this request." وتبقى الموافقة معلّقة. والنقر يستبدل
-  البطاقة بالنص "Approved by &lt;name>." أو "Denied by &lt;name>." (بلا أزرار) ويتابع التشغيل
-  برسالة جديدة. ويحمل الزر المحادثة التي نُشر فيها، والنقر الذي تختلف محادثته
-  (مرجع منسوخ) لا يحسم شيئًا؛ ومعرّف الموافقة هو معرّف الموافقة المعلّقة، فلا تستطيع بطاقة قديمة
-  حسم موافقة لاحقة، ولا تفعل البطاقة المستخدمة شيئًا، حتى بعد إعادة
-  التشغيل.
-- يُنشر `ask_question` نصًا وتكون الرسالة التالية في المحادثة
-  هي الإجابة. ويصمد السؤال المعلّق بعد إعادة التشغيل إذا كانت المخازن متينة للجلسات
-  ونقاط الحفظ والموافقات، كما في Slack وDiscord.
+- كل طلب لازم يحمل Bot Framework token في `Authorization: Bearer`. ينتحقق
+  قبل parsing الجسم: توقيع RS256 ينفحص مقابل مجموعة المفاتيح اللي تشير لها
+  بيانات OpenID الثابتة تبع Bot Framework
+  (`https://login.botframework.com/v1/.well-known/openidconfiguration`)
+  (مخزّنة مؤقت، وأبدًا ما تؤخذ من URL داخل الـ token)، والـ issuer
+  `https://api.botframework.com`، والـ audience `appId`، وتسامح انحراف ساعة
+  5 دقائق. ومطالبة `serviceurl` في الـ token لازم تساوي `serviceUrl` في الـ
+  activity كمان، فـ token صالح لعنوان خدمة واحد ما ينعاد استخدامه عشان البوت
+  ينشر في مكان ثاني. وأي فشل يرد بـ 401. القناة ما لها وضع بدون مصادقة،
+  ومُحاكي Bot Framework بدون مصادقة مش مدعوم.
+- الـ activity يُقَر بـ `200` فورًا والـ turn يشتغل بعده. بس activities من
+  نوع `message` توصل للـ agent؛ `conversationUpdate` و`typing` و`invoke`
+  ورسائل البوت نفسه تتجاهل.
+- المحادثة الشخصية تبدأ session أو تكملها دائمًا. وفي محادثة جماعية أو قناة
+  بس رسالة تسوي `@mention` للبوت تسوي كذا؛ والمنشن ينحذف من النص وكل رسالة
+  ثانية تتجاهل.
+- session وحدة لكل محادثة (`conversation.id`؛ وفي قناة Teams يشمل رسالة
+  جذر الـ thread، فكل thread session مستقلة). والمرسل (`from.aadObjectId`،
+  وإلا `from.id`) هو `principal` تبع الـ run (`authenticator: 'teams'`،
+  `issuer`: الـ tenant)، زي القنوات الثانية.
+- الردود Markdown تُنشر على
+  `{serviceUrl}/v3/conversations/{id}/activities/{replyToId}`، بـ
+  `serviceUrl` اللي ضمنه الـ token (`https` بس). والنص اللي فوق 25,000 حرف
+  ينقسم عند فواصل الأسطر. والـ access token الصادر يجي من تدفق
+  client-credentials بـ `appId` و`appPassword` ويُخزَّن مؤقت لحد 5 دقائق
+  قبل انتهائه.
+- approval الـ tool بطاقة Adaptive Card (الإصدار 1.4) فيها الـ tool
+  ووسائطها (تنقطع عند 2,000 حرف) وزرّي `Action.Submit`. بس `approvers`
+  (معرّفات مستخدمي Teams زي `from.id`، أو دالة) يقدرون يستخدمونهم؛
+  افتراضيًا بس المستخدم اللي بدأ الـ turn. وأي واحد ثاني يوصله "You are not
+  allowed to approve this request." والـ approval يظل معلّق. والنقرة تستبدل
+  البطاقة بـ "Approved by &lt;name>." أو "Denied by &lt;name>." (بدون
+  أزرار) والـ run يكمل برسالة جديدة. والزر يحمل المحادثة اللي اننشر فيها،
+  ونقرة محادثتها مختلفة (مرجع منسوخ) ما تحسم شيء؛ ومعرّف الـ approval هو
+  معرّف المعلّق، فبطاقة قديمة ما تقدر تحسم approval لاحق، وبطاقة مستخدمة
+  خلاص ما تسوي شيء، حتى بعد إعادة تشغيل.
+- `ask_question` يُنشر كنص والرسالة التالية في المحادثة هي الإجابة. وسؤال
+  معلّق ينجو من إعادة تشغيل لو الـ sessions والـ checkpoints والـ approvals
+  في durable stores، زي Slack وDiscord.
 
-إعداد البوت:
+أعدّ البوت:
 
-1. أنشئ Azure Bot (أحادي المستأجر أو متعدد المستأجرين) ودوّن معرّف تطبيق Microsoft
-   (`appId`). ومن Configuration اضبط نقطة نهاية الرسائل على
+1. أنشئ Azure Bot (single-tenant أو multi-tenant) ودوّن الـ Microsoft App
+   ID (`appId`). وتحت Configuration، اضبط الـ messaging endpoint على
    `https://<host>/channels/teams`.
-2. ومن Manage Password أنشئ سرّ عميل (`appPassword`). وفي البوت أحادي المستأجر
-   مرّر أيضًا `tenantId` (فيُطلب السرّ حينئذٍ من مستأجرك).
-3. ومن Channels فعّل Microsoft Teams.
-4. أنشئ ملف manifest لتطبيق Teams يكون فيه `botId` في مدخل `bots` مساويًا لمعرّف التطبيق
-   مع النطاقات التي تريدها (`personal` و`team` و`groupChat`)، ثم ثبّته.
+2. وتحت Manage Password، أنشئ client secret (`appPassword`). ولبوت
+   single-tenant مرّر كمان `tenantId` (وقتها الـ secret يُطلب من الـ tenant
+   تبعك).
+3. وتحت Channels، فعّل Microsoft Teams.
+4. أنشئ manifest لتطبيق Teams يكون مدخل `bots` فيه `botId` مساوي للـ App ID
+   مع الـ scopes اللي تريدها (`personal` و`team` و`groupChat`)، وثبّته.
 
 ```ts
 import * as http from 'node:http';
@@ -642,8 +674,9 @@ http.createServer((req, res) => {
 }).listen(3000);
 ```
 
-لا يوضع سرّ التطبيق ولا رمز الوصول في رسالة خطأ ولا في سطر سجل:
-يُبلَّغ `onError` عن الاستدعاء الفاشل بالاستدعاء ورمز حالة HTTP
-فقط (`LOUSHO_CHANNEL_REQUEST_FAILED`). والنقر على بطاقة يعمل في عملية أُعيد تشغيلها،
-لأنه يسمّي المحادثة والموافقة نفسها؛ أما المتابعة بعد إعادة التشغيل فتُرسل لكنها لا تُلحق
-بسجل محادثة الجلسة.
+لا الـ app password ولا الـ access token ينحطّ في رسالة خطأ أو سطر سجل:
+استدعاء فاشل يُبلَّغ عنه لـ `onError` بالاستدعاء وحالة HTTP بس
+(`LOUSHO_CHANNEL_REQUEST_FAILED`). ونقرة على بطاقة تشتغل على عملية معاد
+تشغيلها، لأنها تسمّي المحادثة والـ approval نفسه؛ ومع durable checkpoints
+النقرة تنربط بـ turn الـ session المعلّق أول، فالمتابعة تنضم لـ transcript
+الـ session ونقرة الـ session ما تنتظرها ما تحسم شيء.

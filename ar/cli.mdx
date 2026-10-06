@@ -1,27 +1,27 @@
 ---
-title: "واجهة سطر الأوامر (CLI)"
+title: "CLI"
 ---
 {/* Generated from docs/cli.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-تثبيت الحزمة يثبّت معها الأمر `lousho`. ينشئ هذا الأمر هياكل المشاريع، ويفحص إعدادك، ويشغّل وكيلًا محليًا، ويقدّمه عبر MCP، ويشغّل التقييمات، ويعرض التتبّعات المحفوظة، ويبني مخرجًا قابلًا للنشر، ويفتح لوحة التحكم Agent Forge. شغّله بـ `npx lousho <command>` داخل مشروع مثبَّتة فيه الـ SDK.
+تثبيت الحزمة يثبّت معها أمر `lousho`. ينشئ مشاريع جديدة، ويفحص الإعداد عندك، ويشغّل agent محليًا، ويقدّمه عبر MCP، ويشغّل evals، ويعرض traces محفوظة، ويبني artifact جاهزًا للنشر، ويفتح لوحة Agent Forge. شغّله بـ `npx lousho <command>` داخل مشروع مثبّت فيه الـ SDK.
 
 | الأمر | ما يفعله | التفاصيل |
 | ------- | ------------ | ------- |
-| `lousho init [dir]` | ينشئ هيكل مشروع: وكيل مع أداة نموذجية، واختبار يعمل دون اتصال، و`.env.example`؛ ثم يثبّت الاعتماديات ويشغّل `git init`. | [التثبيت](/ar/installation#إنشاء-هيكل-مشروع-جديد) |
-| `lousho doctor [spec] [--json]` | يفحص Node، والحزم النظيرة، ومفاتيح المزوّدين، واختياريًا ملف مواصفات؛ ويطبع حلًّا لكل مشكلة. | [التثبيت](/ar/installation#استكشاف-الأخطاء-وإصلاحها-lousho-doctor) |
-| `lousho dev <path>` | خادم تطوير محلي لملف مواصفات أو مجلد وكيل أو وكيل مكتوب بـ TS: واجهة محادثة فيها جلسة لكل تبويب وأحداث مبثوثة، مع إعادة تحميل فوري عند الحفظ. | [أدناه](#lousho-dev) |
-| `lousho chat <path>` | حلقة REPL في الطرفية لملف مواصفات أو مجلد وكيل أو وكيل مكتوب بـ TS: تبث الردود، وتعرض استدعاءات الأدوات، وتطلب الموافقات وتطرح الأسئلة. | [أدناه](#lousho-chat) |
-| `lousho acp <path>` | يقدّم ملف مواصفات أو مجلد وكيل أو وكيلًا مكتوبًا بـ TS إلى محرر (Zed وغيره من عملاء ACP) عبر Agent Client Protocol على stdio. | [ACP](/ar/acp) |
-| `lousho add <name>` | يثبّت أداة أو مهارة أو قناة أو جدولًا زمنيًا أو خانة ذاكرة من سجل JSON في مجلد وكيل، بعد عرض بيان صلاحياتها وفحص الشيفرة مقابله. | [السجل](/ar/registry) |
-| `lousho mcp <spec>` | يقدّم الوكيل كخادم MCP (عبر stdio، أو HTTP مع `--http`). | [MCP](/ar/mcp-integration#تقديم-وكيل-عبر-mcp) |
-| `lousho eval [globs...]` | يشغّل ملفات `*.eval.ts` تحت vitest؛ ويطبع ملخصًا ويكتب تقارير JUnit/JSON. | [التقييمات](/ar/evals#lousho-eval) |
-| `lousho traces [id]` | يعرض التشغيلات الأخيرة التي حفظها `fileTraceExporter()` (المدة، واستدعاءات النموذج والأدوات، والرموز، والتكلفة)، أو يطبع تشغيلًا واحدًا بوصفه شجرة مقاطع. | [قابلية المراقبة](/ar/observability#التتبّعات-المحلية) |
-| `lousho build --target=<t> --agent=<spec>` | يبني خادم Node أو صورة Docker أو Cloudflare Worker قابلًا للنشر. | [النشر](/ar/deployment) |
-| `lousho studio` | يفتح Agent Forge، لوحة التحكم المرئية، على منفذ محلي واحد. | [Agent Forge](/ar/agent-forge) |
+| `lousho init [dir]` | ينشئ مشروعًا جديدًا: agent مع tool مثال، واختبار يشتغل offline، و`.env.example`؛ ويثبّت الـ dependencies ويشغّل `git init`. | [التثبيت](/ar/installation#إنشاء-مشروع-جديد) |
+| `lousho doctor [spec] [--json]` | يفحص Node وpeer packages ومفاتيح الـ providers، وملف spec اختياريًا؛ ويطبع fix لكل مشكلة. | [التثبيت](/ar/installation#استكشاف-الأخطاء-lousho-doctor) |
+| `lousho dev <path>` | سيرفر تطوير محلي لملف spec أو مجلد agent أو agent مكتوب بـ TS: واجهة chat فيها session (جلسة) لكل تبويب وأحداث تصل streaming، مع hot reload عند الحفظ. | [أدناه](#lousho-dev) |
+| `lousho chat <path>` | REPL في الـ terminal لملف spec أو مجلد agent أو agent مكتوب بـ TS: يعرض الردود streaming، ويبيّن الـ tool calls، ويطلب approvals (موافقات) ويطرح الأسئلة. | [أدناه](#lousho-chat) |
+| `lousho acp <path>` | يقدّم ملف spec أو مجلد agent أو agent مكتوب بـ TS لمحرر (Zed وغيره من ACP clients) عبر Agent Client Protocol على stdio. | [ACP](/ar/acp) |
+| `lousho add <name>` | يثبّت tool أو skill أو channel أو schedule أو memory slot من JSON registry داخل مجلد agent، بعد ما يعرض الـ permission manifest ويفحص الكود مقابله. | [Registry](/ar/registry) |
+| `lousho mcp <spec>` | يقدّم الـ agent كسيرفر MCP (stdio، أو HTTP مع `--http`). | [MCP](/ar/mcp-integration#تشغيل-agent-كسيرفر-mcp) |
+| `lousho eval [globs...]` | يشغّل ملفات `*.eval.ts` تحت vitest؛ ويطبع ملخصًا ويكتب تقارير JUnit/JSON. | [Evals](/ar/evals#lousho-eval) |
+| `lousho traces [id]` | يعرض آخر runs حفظها `fileTraceExporter()` (المدة، والـ model والـ tool calls، والـ tokens، والتكلفة)، أو يطبع run واحد كشجرة spans. | [Observability](/ar/observability#local-traces) |
+| `lousho build --target=<t> --agent=<spec>` | يبني سيرفر Node أو Docker image أو Cloudflare Worker جاهزًا للنشر. | [النشر](/ar/deployment) |
+| `lousho studio` | يفتح Agent Forge، الـ dashboard المرئية، على port محلي واحد. | [Agent Forge](/ar/agent-forge) |
 
-كل أمر يقبل `<spec>` يقرأ ملف مواصفات وكيل (`.yaml` أو `.yml` أو `.json`، انظر [الإعداد](/ar/configuration#ملفات-مواصفات-الوكيل-agentspec)).
+أي أمر يستقبل `<spec>` يقرأ ملف spec للـ agent (`.yaml` أو `.yml` أو `.json`، انظر [الإعداد](/ar/configuration#ملفات-تعريف-الـ-agent-agentspec)).
 
-## طريقة الاستخدام
+## الاستخدام
 
 ```text
 lousho init [dir] [--provider P] [--template T] [--yes] [--no-install] [--no-git] [--package-manager PM] [--force] [--sdk-path <dir|tgz>]
@@ -37,13 +37,13 @@ lousho eval [globs...] [--tag t] [--junit path] [--json path] [--strict] [--judg
 lousho traces [traceId|prefix] [--dir D] [--limit N] [--json] [--content]
 ```
 
-تحلّل الأوامر كلها خياراتها بالطريقة نفسها (`parseArgs` في Node، بالوضع الصارم): تعمل الصيغتان `--flag value` و`--flag=value`، وعند تكرار خيار تُعتمد قيمته الأخيرة (أما `--tag` فتتراكم قيمه)، وتنهي `--` الخيارات، ويطبع `-h` / `--help` صيغة استخدام الأمر ويخرج بالرمز 0. الخيار غير المعروف، أو الخيار الذي تنقصه قيمته (لا يأخذ الخيارَ التالي قيمةً له أبدًا)، أو الوسيط الزائد، يفشل بالخطأ `LOUSHO_CONFIG_INVALID` مع سطر صيغة الاستخدام. والقيمة التي تبدأ بـ `-` تحتاج إلى صيغة `=`: `--model=-x`. والخيار `--traces` هو الوحيد الذي تكون قيمته اختيارية: لا يأخذها إلا بصيغة `=` (`--traces=./t`)، ولذلك يبقى `--traces agent.yaml` خيارًا يتبعه المسار.
+كل الأوامر تحلّل الـ flags بنفس الطريقة (`parseArgs` في Node، بالوضع strict): الصيغتان `--flag value` و`--flag=value` تعملان، وإذا تكرّر flag تُعتمد آخر قيمة (`--tag` يجمع القيم بدل ذلك)، و`--` تنهي الـ flags، و`-h` / `--help` يطبع الـ usage الخاص بالأمر ويخرج بـ 0. الـ flag غير المعروف، أو الـ flag بدون قيمته (لا يأخذ الـ flag التالي قيمةً له أبدًا)، أو الـ argument الزائد، يفشل بـ `LOUSHO_CONFIG_INVALID` مع سطر الـ usage. القيمة التي تبدأ بـ `-` تحتاج صيغة `=`: `--model=-x`. `--traces` هو الـ flag الوحيد الذي قيمته اختيارية: يأخذها فقط بصيغة `=` (`--traces=./t`)، فـ`--traces agent.yaml` يبقى flag متبوعًا بمسار.
 
-`lousho init` هو الاستثناء: يحلّل خياراته بنفسه، والخيار أو القيمة غير الصالحة يفشل بخطأ `InitUsageError` — تُطبع رسالته كما هي برمز خروج 1 — لا بمسار `LOUSHO_CONFIG_INVALID` المشترك. والخيارات القصيرة الوحيدة غير `-h` هي `-y` بمعنى `--yes`، في `init` وفي `add`.
+`lousho init` هو الاستثناء: يحلّل flags بنفسه، وأي flag أو قيمة غير صالحة يفشل بـ `InitUsageError` — تُطبع رسالته كما هي ويكون exit code هو 1 — لا بمسار `LOUSHO_CONFIG_INVALID` المشترك. الـ flags القصيرة الوحيدة غير `-h` هي `-y` بدل `--yes`، في `init` وفي `add`.
 
-ويقبل `lousho eval` أيضًا `--config <file>` ليعمل تحت ملف إعداد vitest الخاص بك بدل المولَّد؛ وتُضيّق محارف البدل (globs) عندها ملفات ذلك الإعداد باعتبارها مرشّحات vitest.
+و`lousho eval` يقبل أيضًا `--config <file>` ليشتغل على ملف إعداد vitest الخاص بك بدل المولَّد؛ وعندها تعمل الـ globs كـ filters لـ vitest على ملفات ذلك الإعداد.
 
-يشغّل `npm create lousho-agent my-agent` الأمر `lousho init` بالوسائط نفسها. ولإنشاء هيكل مشروع يعتمد على بناء غير منشور من الـ SDK، مرِّر `--sdk-path` (انظر [التثبيت من بناء محلي](/ar/installation#التثبيت-من-بناء-محلي)).
+`npm create lousho-agent my-agent` يشغّل `lousho init` بنفس الـ arguments. ولإنشاء مشروع على build غير منشور من الـ SDK، مرّر `--sdk-path` (انظر [التثبيت من build محلي](/ar/installation#التثبيت-من-build-محلي)).
 
 ## `lousho dev`
 
@@ -55,45 +55,45 @@ npx lousho dev agent.yaml --port 4000 --host 0.0.0.0
 npx lousho dev ./my-agent --no-schedules   # do not fire the directory's cron schedules
 ```
 
-في حالة مجلد الوكيل، تُركَّب القنوات في `channels/` تحت `/channels` وتُشغَّل الجداول الزمنية في `schedules/` (ويُستبدل الاثنان عند إعادة التحميل، بعد إيقاف الجداول القديمة أولًا)؛ ومع `--no-schedules` لا يُشغَّل أي جدول. انظر [مجلدات الوكلاء](/ar/agent-directories#شغّله-بالأمر-lousho-dev).
+في مجلد الـ agent، تُركَّب `channels/` تحت `/channels` وتشتغل `schedules/` (وكلاهما يُستبدل عند الـ reload، بعد إيقاف الـ schedules القديمة أولًا)؛ ومع `--no-schedules` لا يشتغل أي schedule. انظر [Agent directories](/ar/agent-directories#شغّله-بـ-lousho-dev).
 
-يقدّم واجهة محادثة على `GET /`، و`GET /health`، و`GET /dev/status` ونقاط نهاية المحادثة أدناه (حدّ الجسم 1 ميغابايت). ونوع `<path>` يُستنتج من المسار نفسه:
+يقدّم chat UI على `GET /`، و`GET /health`، و`GET /dev/status`، وendpoints الـ chat أدناه (حد حجم الـ body هو 1MB). ومعنى `<path>` يُستنتج من المسار نفسه:
 
 | المسار | يُحمَّل بواسطة |
 | ---- | ----------- |
 | `.yaml`, `.yml`, `.json` | `loadSpec()` + `specToAgent()` ([الإعداد](/ar/configuration)) |
-| مجلد | `loadAgentDir()` ([مجلدات الوكلاء](/ar/agent-directories)) |
-| `.ts`, `.mts`, `.cts`, `.js`, `.mjs`, `.cjs` | التصدير الافتراضي للوحدة، أو تصديرها المسمّى `agent`: كائن `SimpleAgent` (ما يعيده `createAgent()`) أو كائن خيارات `createAgent()` |
+| مجلد | `loadAgentDir()` ([Agent directories](/ar/agent-directories)) |
+| `.ts`, `.mts`, `.cts`, `.js`, `.mjs`, `.cjs` | الـ default export للـ module، أو export اسمه `agent`: كائن `SimpleAgent` (ما يرجعه `createAgent()`) أو object بخيارات `createAgent()` |
 
-أي امتداد آخر، أو مسار غير موجود، أو وحدة لا تصدّر وكيلًا، يفشل بخطأ ذي رمز (`LOUSHO_SPEC_UNSUPPORTED_FORMAT` أو `LOUSHO_CONFIG_INVALID`) مع حلّه. وحدة `.ts` يستوردها Node العامل نفسه (الإصدار 22.19 أو أحدث يزيل الأنواع، ولذلك تحتاج الاستيرادات النسبية إلى امتداد الملف)؛ استخدم `.js` للشيفرة التي تحتاج إلى مترجم مصدري (transpiler).
+أي امتداد آخر، أو مسار غير موجود، أو module بلا export للـ agent، يفشل بخطأ له كود (`LOUSHO_SPEC_UNSUPPORTED_FORMAT` أو `LOUSHO_CONFIG_INVALID`) مع الـ fix. ملف `.ts` يستورده Node نفسه وقت التشغيل (الإصدار 22.19 أو أحدث يشيل الـ types، فالـ imports النسبية لازم تذكر امتداد الملف)؛ استخدم `.js` للكود الذي يحتاج transpiler.
 
-**جلسات المحادثة.** تحتفظ واجهة المحادثة بجلسة واحدة لكل تبويب في المتصفح (معرّفها في `sessionStorage`؛ والزر "New session" يبدأ جلسة أخرى) وتعرض الدورة المبثوثة: النص فور وصوله، واستدعاءات الأدوات مع وسائطها ونتائجها، والأخطاء، والرموز (tokens) والتكلفة من `run.done`. استدعاء الأداة الذي يحتاج إلى موافقة يعرض زرَّي Approve / Reject؛ واستدعاء `ask_question` يعرض خياراته كأزرار مع حقل نص حر. وتعمل نقاط النهاية نفسها من `curl` أو من صفحتك الخاصة:
+**Chat sessions.** واجهة الـ chat تحتفظ بـ session واحدة لكل تبويب في المتصفح (المعرّف في `sessionStorage`؛ وزر "New session" يبدأ واحدة أخرى) وتعرض الـ turn أثناء الـ streaming: النص فور وصوله، والـ tool calls مع arguments ونتائجها، والأخطاء، والـ tokens والتكلفة من `run.done`. الـ tool call الذي يحتاج approval يعرض زرّي Approve / Reject؛ والـ `ask_question` call يعرض خياراته كأزرار مع حقل نص حر. نفس الـ endpoints تشتغل من `curl` أو من صفحتك:
 
-| نقطة النهاية | ما تفعله |
+| Endpoint | ما يفعله |
 | -------- | ------------ |
-| `POST /chat` `{ "sessionId", "input" }` | تشغّل `agent.session({ id: sessionId }).stream(input)` وتبث الدورة بصيغة SSE: سطر `data: <AgentEvent JSON>` لكل حدث ([البث](/ar/streaming))، ثم `event: done`. يُحفظ السجل لكل `sessionId` (من 1 إلى 128 محرفًا من `A-Za-z0-9_-`). |
-| `GET /chat/:sessionId` | سجل محادثة الجلسة: `{ sessionId, messages, pending }`؛ وتكون `pending` هي `{ status, approvalId? }` ما دامت دورة تنتظر موافقة، وإلا `null`. |
-| `POST /chat/:sessionId/approvals/:id` `{ "approved", "note"? }` أو `{ "answer" }` | تبتّ في الموافقة المعلّقة (`agent.approvals.streamResolve()`)، أو تجيب عن سؤال (`agent.approvals.streamAnswer()`)، وتبث تتمة الدورة بصيغة SSE. قد تتوقف الدورة مرة أخرى بحدث `approval.requested` آخر. تعيد `404` حين لا يكون `id` معلّقًا. |
-| `POST /chat` `{ "message" }` | مُهمَل: بلا جلسة وبلا بث. تعيد `ExecutionResult` الخاص بالوكيل بصيغة JSON، مع الترويسة `Deprecation: true`. |
+| `POST /chat` `{ "sessionId", "input" }` | يشغّل `agent.session({ id: sessionId }).stream(input)` ويرسل الـ turn كـ SSE: سطر `data: <AgentEvent JSON>` لكل event ([Streaming](/ar/streaming))، ثم `event: done`. الـ history يُحفظ لكل `sessionId` (من 1 إلى 128 حرف من `A-Za-z0-9_-`). |
+| `GET /chat/:sessionId` | الـ transcript الخاص بالـ session: `{ sessionId, messages, pending }`؛ و`pending` تكون `{ status, approvalId? }` ما دام فيه turn ينتظر approval، وإلا `null`. |
+| `POST /chat/:sessionId/approvals/:id` `{ "approved", "note"? }` أو `{ "answer" }` | يبتّ في الـ approval المعلّق (`agent.approvals.streamResolve()`)، أو يجيب على سؤال (`agent.approvals.streamAnswer()`)، ويرسل تكملة الـ turn كـ SSE. ويمكن أن يتوقف مرة أخرى بـ `approval.requested` جديد. يعيد `404` إذا لم يكن `id` معلّقًا. |
+| `POST /chat` `{ "message" }` | Deprecated: بلا session وبلا streaming. يعيد `ExecutionResult` الخاص بالـ agent كـ JSON، مع header `Deprecation: true`. |
 
-يكتب `--traces` (أو `--traces=<dir>`) كل تشغيل في ملفات تتبّع محلية عبر `fileTraceExporter()`، في `.lousho/traces` ما لم تسمِّ مجلدًا، فيُظهر `npx lousho traces` ما فعله الوكيل. وهو معطَّل افتراضيًا لأن الملفات تحوي محتوى الموجّهات ووسائط الأدوات ونتائجها، ويطبع الخيارُ المجلدَ الذي يكتب فيه. وينطبق على ملفات المواصفات ومجلدات الوكلاء والوحدات على حد سواء (فيُستبدل `exporter` الخاص بالوحدة ما دام الخيار مضبوطًا). انظر [التتبّعات المحلية](/ar/observability#التتبّعات-المحلية).
+`--traces` (أو `--traces=<dir>`) يكتب كل run في ملفات traces محلية عبر `fileTraceExporter()`، في `.lousho/traces` إلا إذا سمّيت مجلدًا، فيعرض `npx lousho traces` ماذا فعل الـ agent. هو معطّل افتراضيًا لأن الملفات تحتوي محتوى الـ prompts وarguments ونتائج الـ tools، والـ flag يطبع المجلد الذي يكتب فيه. ينطبق على ملفات spec ومجلدات الـ agents والـ modules بالتساوي (الـ `exporter` الخاص بالـ module يُستبدل ما دام الـ flag مضبوطًا). انظر [Local traces](/ar/observability#local-traces).
 
-تعيش الجلسات في `memoryStore()` داخل العملية (تزول حين يتوقف `lousho dev`)، أو في مخزن `store` الخاص بالوكيل حين تضبطه خيارات `createAgent()` في الوحدة. تتمة الموافقة تُبَثّ هي الأخرى: فنقطة النهاية تشغّلها بـ `agent.approvals.streamResolve()` (أو `streamAnswer()` في حالة سؤال) وترسل أحداث الدورة التالية — استدعاء الأداة المبتوت فيه، وزيادات النص، وتوقفًا آخر محتملًا، و`run.done` — فور وقوعها.
+الـ sessions تعيش في `memoryStore()` داخل العملية (تختفي إذا وقّفت `lousho dev`)، أو في الـ `store` الخاص بالـ agent إذا ضبطته خيارات `createAgent()` في الـ module. تكملة الـ approval تُرسل streaming هي الأخرى: الـ endpoint يشغّلها بـ `agent.approvals.streamResolve()` (أو `streamAnswer()` إذا كان سؤالًا) ويرسل events الـ turn المكمّل — الـ tool call المبتوت فيه، والـ text deltas، وتوقفًا آخر محتملًا، و`run.done` — فور حدوثها.
 
-خوادم `lousho build` (`node-server` و`docker`) تقدّم نقاط النهاية نفسها من الشيفرة نفسها، مع جلسات في مخزن يحدده `LOUSHO_STORE` ومصادقة bearer اختيارية: انظر [النشر: واجهة HTTP البرمجية](/ar/deployment#واجهة-http).
+سيرفرات `lousho build` (`node-server` و`docker`) تقدّم نفس الـ endpoints من نفس الكود، مع sessions في store تحدده `LOUSHO_STORE` وbearer auth اختيارية: انظر [Deployment: HTTP API](/ar/deployment#http-api).
 
-**إعادة التحميل الفوري.** يُعاد بناء الوكيل بعد لحظة (100 ميلي ثانية) من تغيّر ملف، دون إعادة تشغيل الخادم ولا تحرير المنفذ:
+**Hot reload.** يُعاد بناء الـ agent بعد لحظة (100 ms) من تغيّر ملف، بدون إعادة تشغيل السيرفر وبدون خسارة الـ port:
 
-- في حالة ملف المواصفات: ملف المواصفات نفسه؛
-- في حالة المجلد: كل ما تحته (`instructions.md`، وملف الإعداد، و`tools/`، و`skills/`، و`subagents/`)، ما عدا `node_modules` و`.git`؛
-- في حالة الوحدة: الملف والملفات المحلية التي يستوردها (محدِّدات `import` / `require` النسبية، ويُعثر عليها مرة واحدة عند بدء التشغيل؛ دون مُحزِّم).
+- في حالة spec: ملف الـ spec نفسه؛
+- في حالة مجلد: كل ما تحته (`instructions.md`، وملف الإعداد، و`tools/`، و`skills/`، و`subagents/`)، ما عدا `node_modules` و`.git`؛
+- في حالة module: الملف والملفات المحلية التي يستوردها (الـ specifiers النسبية في `import` / `require`، تُكتشف مرة واحدة عند بدء التشغيل؛ بلا bundler).
 
-تُستورد ملفات المجلدات والوحدات مع استعلام `?t=<time>` يتجاوز التخزين المؤقت، فيُعاد تقييم ملف الأداة أو الوكيل بعد تعديله. أما الملف الذي *يستورده* ذلك الملف (دالة مساعدة مشتركة مثلًا) فيبقى مخزَّنًا مؤقتًا لدى Node: أعد تشغيل `lousho dev` بعد تعديل ملف كهذا. تسجّل الطرفية ما أُعيد تحميله. يُبنى الوكيل الجديد (ويُنتظر `ready()`، فتتصل خوادم MCP) قبل أن يحل محل القديم، ثم يُستدعى `close()` على القديم. وإذا فشلت إعادة البناء، استمر آخر وكيل سليم في الإجابة، وسُجِّل الخطأ وعُرض في شريط تنبيه على صفحة المحادثة (وكذلك في الحقل `error` ضمن `GET /dev/status`)؛ ويزيله أول تعديل سليم لاحق. الجلسات تبقى بعد إعادة التحميل: فالمخزن يعيش أطول من تبديل الوكيل، ولذلك تكمل الرسالة التالية المحادثةَ على الوكيل الجديد. أما الموافقة التي كانت معلّقة على الوكيل القديم فلا يعرفها الجديد (`404`)؛ ابدأ جلسة جديدة.
+ملفات المجلدات والـ modules تُستورد مع query `?t=<time>` يكسر الـ cache، فأي ملف tool أو agent عدّلته يُعاد تقييمه. أما الملف الذي *يستورده* ذلك الملف (helper مشترك مثلًا) فيبقى في الـ cache عند Node: أعد تشغيل `lousho dev` بعد تعديل ملف كهذا. الـ console يسجّل ما أُعيد تحميله. الـ agent الجديد يُبنى (وينتظر `ready()`، فتتصل سيرفرات MCP) قبل أن يحل محل القديم، ثم يُستدعى `close()` على القديم. إذا فشلت إعادة البناء، يظل آخر agent سليم يرد، والخطأ يُسجَّل ويظهر في banner على صفحة الـ chat (وفي `error` ضمن `GET /dev/status`)؛ وأول تعديل ناجح يزيله. الـ sessions تنجو من الـ reload: الـ store يعيش أكثر من تبديل الـ agent، فالرسالة التالية تكمل المحادثة على الـ agent الجديد. الـ approval الذي كان معلّقًا على الـ agent القديم لا يعرفه الجديد (`404`)؛ ابدأ session جديدة.
 
-المجلدات والوحدات هي شيفرتك وتعمل بصلاحياتك؛ فلا تشغّل `lousho dev` إلا على ما تثق به منها.
+المجلدات والـ modules هي كودك وتشتغل بصلاحياتك؛ لا تشغّل `lousho dev` إلا على ما تثق فيه.
 
 - `--port` - الافتراضي `3737`.
-- `--host` - الافتراضي `127.0.0.1` (localhost فقط). مرِّر مثلًا `--host=0.0.0.0` لتتيح الوصول من الشبكة المحلية صراحةً.
+- `--host` - الافتراضي `127.0.0.1` (localhost فقط). مرّر مثلًا `--host=0.0.0.0` لتفعّل الوصول من الـ LAN.
 
 ## `lousho chat`
 
@@ -103,7 +103,7 @@ npx lousho chat ./my-agent --model openai/gpt-4o    # an agent directory, on ano
 npx lousho chat src/agent.ts --store sqlite:.lousho/chat.db --session support
 ```
 
-حلقة REPL في الطرفية: كل سطر تكتبه هو دورة واحدة في جلسة. يُحمَّل `<path>` كما يحمّله `lousho dev` (ملف مواصفات، أو مجلد وكيل، أو وحدة `.ts`/`.js`، انظر [`lousho dev`](#lousho-dev))؛ والمسار غير الموجود أو الامتداد غير الصالح يفشل بالخطأ ذي الرمز نفسه (`LOUSHO_CONFIG_INVALID` أو `LOUSHO_SPEC_UNSUPPORTED_FORMAT`)، وكذلك معرّف `--session` غير الصالح (`LOUSHO_SESSION_ID_INVALID`).
+REPL في الـ terminal: كل سطر تكتبه هو turn واحد في الـ session. `<path>` يُحمَّل كما يحمّله `lousho dev` (ملف spec، أو مجلد agent، أو module `.ts`/`.js`، انظر [`lousho dev`](#lousho-dev))؛ والمسار غير الموجود أو الامتداد غير الصالح يفشل بنفس الخطأ الذي له كود (`LOUSHO_CONFIG_INVALID` أو `LOUSHO_SPEC_UNSUPPORTED_FORMAT`)، وكذلك معرّف `--session` غير الصالح (`LOUSHO_SESSION_ID_INVALID`).
 
 ```text
 > look up cats
@@ -117,28 +117,28 @@ Approve send_email({"to":"sam@example.com"})? [y/N] y
 Done, the report is on its way.
 ```
 
-- يُكتب النص فور أن ينتجه النموذج. وكل استدعاء أداة سطر واحد باهت اللون، `[tool_name] {args}`، يتبعه `  -> result` (أو `  -> error: ...`).
-- استدعاء الأداة الذي يحتاج إلى موافقة يسأل `Approve <tool>(args)? [y/N]`: الإجابة `y` أو `yes` تنفّذه، وأي إجابة أخرى ترفضه ويواصل النموذج عمله. استدعاء `ask_question` (`askQuestion: true`) يطبع السؤال مع خيارات مرقَّمة؛ أجب بالرقم أو بنص حر.
-- بعد كل دورة يعرض `[usage]` عدد الرموز، وكذلك التكلفة حين تكون أسعار كل النماذج المستخدمة معروفة (العلامة `~` تدل على رموز مقدَّرة).
-- أخطاء الـ SDK تُطبع مع رمزها `[LOUSHO_...]` وحلّها، وتستمر الجلسة.
-- يكتب `--traces` أو `--traces=<dir>` تشغيلات الجلسة في ملفات تتبّع محلية كما في `lousho dev`؛ ويذكر سطر على stderr مكانها.
+- النص يُكتب فور ما ينتجه الـ model. كل tool call سطر واحد باهت، `[tool_name] {args}`، يتبعه `  -> result` (أو `  -> error: ...`).
+- الـ tool call الذي يحتاج approval يسأل `Approve <tool>(args)? [y/N]`: `y` أو `yes` تشغّله، وغيرهما يرفضه والـ model يكمل. الـ `ask_question` call (`askQuestion: true`) يطبع السؤال مع خيارات مرقّمة؛ أجب بالرقم أو بنص حر.
+- بعد كل turn يعرض `[usage]` الـ tokens، والتكلفة أيضًا إذا كانت أسعار كل الـ models المستخدمة معروفة (`~` تعني أن الـ tokens مقدّرة).
+- أخطاء الـ SDK تُطبع مع الكود `[LOUSHO_...]` والـ fix، والـ session تكمل.
+- `--traces` أو `--traces=<dir>` يكتب runs الـ session في ملفات traces محلية، كما في `lousho dev`؛ وسطر على stderr يوضح المكان.
 
 | الأمر | ما يفعله |
 | ------- | ------------ |
-| `/new` | يبدأ جلسة جديدة (تبقى القديمة في المخزن). |
-| `/model <provider/model>` | يعيد بناء الوكيل على نموذج آخر؛ وتستمر الجلسة. عند الفشل يبقى النموذج الحالي. |
-| `/compact` | يضغط سجل محادثة الجلسة فورًا (تُقلَّم نتائج الأدوات القديمة) ويطبع الحجم قبل الضغط وبعده. |
-| `/clear` | يفرّغ سجل محادثة الجلسة؛ ويبقى معرّف الجلسة. |
-| `/history` | يطبع سجل محادثة الجلسة. |
-| `/quit` | يخرج (ويعمل Ctrl-D أيضًا). |
+| `/new` | يبدأ session جديدة (القديمة تبقى في الـ store). |
+| `/model <provider/model>` | يعيد بناء الـ agent على model آخر؛ والـ session تكمل. عند الفشل يبقى الـ model الحالي. |
+| `/compact` | يعمل compaction للـ transcript الآن (نتائج الـ tools القديمة تُزال) ويطبع الحجم قبل وبعد. |
+| `/clear` | يفرّغ الـ transcript؛ ومعرّف الـ session يبقى. |
+| `/history` | يطبع الـ transcript. |
+| `/quit` | يخرج (Ctrl-D يعمل أيضًا). |
 
 | الخيار | المعنى |
 | ------ | ------- |
-| `--model provider/model` | يستخدم هذا النموذج بدل الذي يسمّيه الهدف. ينطبق على ملفات المواصفات، ومجلدات الوكلاء، وتصديرات خيارات `createAgent()`؛ أما الوحدة التي تصدّر وكيلًا مبنيًا مسبقًا فتحتفظ بنموذجها. بادئة النموذج `vendor/` هي التي تختار المزوّد؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o`). |
-| `--session id` | يفتح هذه الجلسة (من 1 إلى 128 محرفًا من `A-Za-z0-9_-`)؛ والافتراضي جلسة جديدة باسم `chat-<id>`. |
-| `--store sqlite:<file>` | يحفظ الجلسات في ملف SQLite ([`SqliteStore`](/ar/durable-execution))، فيكمل `--session id` المحادثة بعد إعادة التشغيل. الافتراضي: في الذاكرة. الموافقات المعلّقة لا تُستعاد بعد إعادة التشغيل. |
+| `--model provider/model` | يستخدم هذا الـ model بدل الذي يسمّيه الهدف. ينطبق على ملفات spec ومجلدات الـ agents وexports خيارات `createAgent()`؛ أما الـ module الذي يصدّر agent مبنيًا مسبقًا فيحتفظ بالـ model الخاص به. بادئة `vendor/` في الـ model تختار الـ provider؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o`). |
+| `--session id` | يفتح هذه الـ session (من 1 إلى 128 حرف من `A-Za-z0-9_-`)؛ الافتراضي `chat-<id>` جديدة. |
+| `--store sqlite:<file>` | يحفظ الـ sessions في ملف SQLite ([`SqliteStore`](/ar/durable-execution))، فـ`--session id` يكمل محادثة بعد إعادة التشغيل. الافتراضي: في الذاكرة. الـ approvals المعلّقة لا تُستعاد بعد إعادة التشغيل. |
 
-حلقة REPL نفسها هي `runChatRepl()` في `src/cli/chatRepl.ts`؛ وهي تأخذ أسطر الإدخال، ومجرى إخراج، ودالة مصنع للوكيل، فيمكن اختبارها بأسطر معدّة مسبقًا ووكيل `mockModel` ودون طرفية.
+الـ REPL نفسه هو `runChatRepl()` في `src/cli/chatRepl.ts`؛ يأخذ أسطر الإدخال وoutput stream وfactory للـ agent، فيمكن اختباره بأسطر scripted وagent مبني على `mockModel` وبدون terminal.
 
 ## `lousho build`
 
@@ -147,7 +147,7 @@ npx lousho build --target=node-server --agent=agent.yaml        # or docker / cl
 npx lousho build ./my-agent --target=node-server                # an agent directory (node-server, docker)
 ```
 
-يكتب المخرج في `--out` (الافتراضي `.lousho/build/<target>`) ويطبع أمر تشغيله أو نشره. يحتاج البناء إلى `tsup` (`npm install --save-dev tsup`). الأهداف، وواجهة HTTP البرمجية التي تقدّمها، وحدود Workers مذكورة في [النشر](/ar/deployment).
+يكتب الـ artifact في `--out` (الافتراضي `.lousho/build/<target>`) ويطبع أمر تشغيله أو نشره. البناء يحتاج `tsup` (`npm install --save-dev tsup`). الـ targets والـ HTTP API الذي تقدّمه وحدود Workers كلها في [النشر](/ar/deployment).
 
 ## `lousho studio`
 
@@ -156,4 +156,4 @@ npx lousho studio            # http://127.0.0.1:4750
 npx lousho studio --port 5000
 ```
 
-يشغّل خادمًا محليًا واحدًا للواجهة البرمجية ولواجهة المستخدم الخاصتين بـ Agent Forge. يُخزَّن الوكلاء وحالة التشغيل تحت `.lousho/` في المجلد الحالي. انظر [Agent Forge](/ar/agent-forge) للجولة التعريفية.
+يشغّل سيرفر محلي واحد للـ API والـ UI الخاصين بـ Agent Forge. الـ agents وحالة الـ run تُخزَّن تحت `.lousho/` في المجلد الحالي. انظر [Agent Forge](/ar/agent-forge) للـ walkthrough.

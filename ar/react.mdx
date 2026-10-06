@@ -3,9 +3,9 @@ title: "React"
 ---
 {/* Generated from docs/react.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-يضع `useLoushoAgent()` وكيلًا خلف واجهة محادثة. فهو يشغّل دورة، ويقرأ [بث الأحداث ذا الأنواع المحدّدة](/ar/streaming) فور وصوله، ويحوّله إلى حالة جاهزة للعرض: رسائل بنصوصها واستدعاءات أدواتها، وقيمة `status` لحقل كتابة الرسائل، واستدعاء الأداة الذي ينتظر الموافقة إن وُجد.
+`useLoushoAgent()` يحط agent وراء واجهة محادثة. يشغّل turn، يقرأ الـ [typed event stream](/ar/streaming) أول ما يوصل، ويحوّله إلى state جاهز للـ render: رسائل بنصها وtool calls، و`status` لحقل كتابة الرسالة، والـ tool call الواقف على approval إذا فيه واحد.
 
-يوجد الخطّاف (hook) في المسار الفرعي `@lousho/build-ai-agent/react`. و`react` (18 أو 19) اعتمادية نظيرة اختيارية: ثبّتها في التطبيق الذي يستخدم الخطّاف.
+موجود على الـ subpath `@lousho/build-ai-agent/react`. و`react` (18 أو 19) peer dependency اختيارية: ثبّتها في التطبيق اللي يستخدم الـ hook.
 
 ```tsx
 import { useLoushoAgent } from '@lousho/build-ai-agent/react';
@@ -47,48 +47,48 @@ export function Chat() {
 
 ## المصادر
 
-يحدّد الوسيط الأول أين يعمل الوكيل.
+أول argument يحدد مكان تشغيل الـ agent.
 
-| المصدر | ما يفعله الخطّاف |
+| المصدر | ما يفعله الـ hook |
 | ------ | ------------------ |
-| `{ url, headers?, fetch? }` | **عن بُعد.** ترسل `send(input)` الكائن `{ "input": "..." }` بطلب POST بصيغة JSON إلى `url` وتقرأ جسم الاستجابة على أنه بث أحداث: SSE (أسطر `data: {...}`) أو JSON مفصول بأسطر جديدة، حدث واحد في كل سطر. والخادم الوارد أدناه يكتب ذلك بالضبط. |
-| `{ agent }` | **داخل العملية.** تستدعي `send(input)` الدالة `agent.stream(input)`. كل دورة تشغيل جديد بلا سجل سابق، مثل `agent.send()`. |
-| `{ agent, sessionId }` | **داخل العملية، متعدد الدورات.** ينشئ الخطّاف `agent.session({ id: sessionId })` مرة واحدة ويبث كل دورة بـ `session.stream()`، فترى الدورات المحادثة حتى تلك اللحظة. |
+| `{ url, headers?, fetch? }` | **Remote.** `send(input)` ترسل `{ "input": "..." }` بـ POST كـ JSON إلى `url` وتقرا الـ response body كـ event stream: SSE (أسطر `data: {...}`) أو JSON مفصول بأسطر، حدث واحد كل سطر. السيرفر اللي تحت يكتب نفس الشيء بالضبط. |
+| `{ agent }` | **داخل الـ process.** `send(input)` تنادي `agent.stream(input)`. كل turn هو run جديد بدون history، مثل `agent.send()`. |
+| `{ agent, sessionId }` | **داخل الـ process، multi-turn.** الـ hook ينشئ `agent.session({ id: sessionId })` مرة واحدة ويعمل stream لكل turn بـ `session.stream()`، فكل turn يشوف المحادثة اللي قبله. |
 
-وضع «داخل العملية» مخصّص لكود React الذي يعمل حيث يستطيع الوكيل أن يعمل (Electron وReact Native والاختبارات). أما في المتصفح فاستخدم الوضع البعيد: مكان مفاتيح API الخاصة بالنماذج هو الخادم.
+وضع داخل الـ process لكود React اللي يشتغل في مكان يقدر الـ agent يشتغل فيه (Electron، React Native، الاختبارات). في المتصفح استخدم الـ remote mode: مفاتيح API للـ models مكانها السيرفر.
 
-## الحالة المُرجَعة
+## الـ state المُرجَعة
 
 | الحقل | ما هو |
 | ----- | ---------- |
-| `messages` | `UIMessage[]`: `{ id, role: 'user' \| 'assistant', text, toolCalls, reasoning? }`. كل استدعاء لـ `send()` يضيف رسالة مستخدم ورسالة مساعد تمتلئ مع وصول `text.delta` وأحداث الأدوات؛ ويجمع `reasoning` نص `reasoning.delta` الذي يبثّه النموذج إن بثّ شيئًا منه. |
-| `toolCalls[i]` | `{ id, name, args, status, result?, error?, partial? }`، وقيمة `status` هي `'running'` أو `'awaiting-approval'` أو `'done'` أو `'error'` أو `'rejected'`. و`partial` هي أحدث لقطة `tool.partial` لـ[أداة بث](/ar/tools#بث-النتائج-الجزئية) قيد التشغيل، وتُزال عندما يستقر الاستدعاء أو يتوقف مؤقتًا. |
-| `status` | `'idle'` أو `'streaming'` أو `'awaiting-approval'` أو `'error'`. |
-| `pendingApproval` | `{ id, toolCallId, toolName, args }` لاستدعاء الأداة الذي توقف عنده التشغيل، وإلا `null`. ولاستدعاء `ask_question` يتضمن أيضًا `kind: 'question'` و`question: { text, options?, allowFreeText? }`؛ أما الأداة التي تنتظر تسجيل دخول OAuth فتتضمن `kind: 'sign-in'` و`signIn: { provider, displayName?, url }` (راجع [ما يراه المستخدم](/ar/oauth#ما-يراه-المستخدم)). |
-| `error` | `{ name, message }` لآخر حدث `error` أو لطلب فاشل، وإلا `null`. |
-| `usage` | استهلاك الرموز (tokens) في آخر تشغيل مكتمل (من `run.done`)، وإلا `null`. |
-| `todos` | قائمة مهام الوكيل (`{ id, content, status }[]`)، يضبطها كل حدث `todo.updated` من [أدوات المهام](/ar/tools#أدوات-قائمة-المهام)؛ و`[]` حتى أول حدث. وتنتقل عبر الدورات؛ راجع [المهام](#المهام). |
-| `lastEvent` | آخر حدث استُلم، لكل ما لا تغطّيه هذه الحالة المشتقّة. |
-| `send(input)` | تبدأ دورة. وإذا كانت دورة أخرى ما زالت جارية فإنها تُلغى أولًا. `input` سلسلة نصية أو أجزاء محتوى أو `Message[]` (أي `AgentInput`)؛ وتعرض فقاعة المستخدم النص مع علامة `[image]` / `[file]` لكل جزء آخر (الوضع البعيد يرسله بطلب POST على هيئة `{ "input": ... }`). |
-| `stop()` | تلغي الدورة الجارية عبر `AbortSignal` الخاصة بها؛ وتعود `status` إلى `'idle'`. |
-| `approve(note?)`, `reject(note?)` | تحسمان `pendingApproval` (انظر أدناه). |
-| `answer(text)` | تجيب عن سؤال (`pendingApproval.kind === 'question'`)؛ وهي مماثلة لـ `approve(text)`. أما `reject()` فترفض الإجابة عنه. |
+| `messages` | `UIMessage[]`: `{ id, role: 'user' \| 'assistant', text, toolCalls, reasoning? }`. كل `send()` يضيف رسالة user ورسالة assistant تمتلي مع وصول `text.delta` وأحداث الـ tools. و`reasoning` يجمع نص `reasoning.delta` اللي يبثه الـ model إذا بث شيء. |
+| `toolCalls[i]` | `{ id, name, args, status, result?, error?, partial? }`، و`status` وحدة من `'running'`، `'awaiting-approval'`، `'done'`، `'error'`، `'rejected'`. `partial` هو آخر snapshot `tool.partial` لـ [streaming tool](/ar/tools#streaming-للنتائج-الجزئية) شغالة، وينحذف لما الـ call يستقر أو يتوقف مؤقتًا. |
+| `status` | `'idle'`، `'streaming'`، `'awaiting-approval'` أو `'error'`. |
+| `pendingApproval` | `{ id, toolCallId, toolName, args }` للـ tool call اللي توقف عنده الـ run، وإلا `null`. لـ call من نوع `ask_question` فيه كمان `kind: 'question'` و`question: { text, options?, allowFreeText? }`. والـ tool اللي مستنية تسجيل دخول OAuth فيها `kind: 'sign-in'` و`signIn: { provider, displayName?, url }` (شوف [ما يراه المستخدم](/ar/oauth#ما-يراه-المستخدم)). |
+| `error` | `{ name, message }` لآخر حدث `error` أو لطلب فشل، وإلا `null`. |
+| `usage` | استهلاك الـ tokens في آخر run خلص (من `run.done`)، وإلا `null`. |
+| `todos` | قائمة الـ todos للـ agent (`{ id, content, status }[]`)، يضبطها كل حدث `todo.updated` من [todo tools](/ar/tools#todo-tools). `[]` لحد ما يوصل أول حدث. تبقى معك عبر الـ turns؛ شوف [Todos](#todos). |
+| `lastEvent` | آخر حدث وصل، لأي شي الـ projection ما يغطيه. |
+| `send(input)` | يبدأ turn. إذا فيه turn شغالة لسه، تنلغي أولًا. `input` تكون string أو content parts أو `Message[]` (يعني `AgentInput`). فقاعة الـ user تعرض النص مع علامة `[image]` / `[file]` لكل جزء ثاني، والـ remote mode يرسلها بـ POST كـ `{ "input": ... }`. |
+| `stop()` | يلغي الـ turn الجارية عن طريق `AbortSignal`، و`status` ترجع `'idle'`. |
+| `approve(note?)`, `reject(note?)` | يحسما الـ `pendingApproval` (شوف تحت). |
+| `answer(text)` | يجاوب على سؤال (`pendingApproval.kind === 'question'`). نفس `approve(text)`. `reject()` يرفض السؤال. |
 
-إزالة المكوّن (unmount) تلغي الدورة الجارية. وأحداث تشغيل [وكيل فرعي](/ar/sub-agents) (وهي تحمل `subagent`) لا تغيّر `messages` — إلا حدث `approval.requested` من وكيل فرعي، فهو يحدّث `messages` و`pendingApproval` و`status` (فالبتّ في هذا التوقف للمستخدم). اقرأ بقية أحداث الوكيل الفرعي من `lastEvent` إن أردت عرضها.
+إلغاء تركيب المكوّن (unmount) يلغي الـ turn الجارية. أحداث run تبع [sub-agent](/ar/sub-agents) (اللي تحمل `subagent`) ما تغيّر `messages` — إلا `approval.requested` من sub-agent، هو يحدّث `messages` و`pendingApproval` و`status` (التوقف قرار المستخدم). إذا أردت تعرض باقي أحداث الـ sub-agent اقرأها من `lastEvent`.
 
-## الموافقات
+## Approvals
 
-عند استدعاء أداة تحمل `needsApproval`، يتوقف التشغيل بالحدث `approval.requested`. تصبح قيمة `status` هي `'awaiting-approval'` ويحمل `pendingApproval` الاستدعاء. بعد ذلك:
+لما يتنادى tool عليه `needsApproval`، الـ run يتوقف بـ `approval.requested`. `status` تصير `'awaiting-approval'` و`pendingApproval` يمسك الـ call. بعدها:
 
-- **داخل العملية**، تستدعي `approve(note?)` و`reject(note?)` الدالة `agent.approvals.streamResolve({ id, approved, note }, { signal })` (راجع [الموافقات](/ar/approvals)). تصل أحداث التشغيل المتواصل بثًّا حيًّا، فيُلحَق نصّه برسالة المساعد فور وصوله وتعود `status` إلى `'idle'`، أو إلى `'awaiting-approval'` إذا توقف التشغيل مجددًا.
-- **عن بُعد**، مرّر `{ approvalsUrl }` وسيطًا ثانيًا. يرسل الخطّاف `{ "approved": true, "note": "..." }` بطلب POST إلى `${approvalsUrl}/${approvalId}` ويعرض تتمة التشغيل مباشرة من بث SSE الذي تجيب به واجهة الجلسات البرمجية (الأحداث نفسها التي في دورة محادثة؛ والتوقف الثاني يصل على هيئة `approval.requested`). والخادم الذي يجيب بدلًا من ذلك بـ JSON من نوع `ApprovalOutcome` (كالخادم الوارد أدناه) يبقى يعمل.
-- **عن بُعد دون `approvalsUrl`**، لا تفعل `approve()` و`reject()` شيئًا. اعرض `pendingApproval` واحسمه عبر واجهتك البرمجية الخاصة، ثم أرسل الدورة التالية بـ `send()`.
+- **داخل الـ process**، `approve(note?)` و`reject(note?)` ينادوا `agent.approvals.streamResolve({ id, approved, note }, { signal })` (شوف [Approvals](/ar/approvals)). أحداث الـ run المكمّل توصل live، فالنص يلحق برسالة الـ assistant أول بأول و`status` ترجع `'idle'`، أو `'awaiting-approval'` إذا الـ run توقف مرة ثانية.
+- **Remote**، مرّر `{ approvalsUrl }` كـ argument ثاني. الـ hook يرسل `{ "approved": true, "note": "..." }` بـ POST إلى `${approvalsUrl}/${approvalId}` ويعرض التكملة live من الـ SSE stream اللي يرد فيه الـ session API (نفس أحداث أي turn محادثة؛ توقف ثاني يوصل كـ `approval.requested`). سيرفر يرد بدلها بـ JSON من نوع `ApprovalOutcome` (زي اللي تحت) يظل شغال.
+- **Remote بدون `approvalsUrl`**، `approve()` و`reject()` ما يسووا شيء. اعرض `pendingApproval` واحسمه عبر الـ API الخاص بك، بعدين ابعث الـ turn التالية بـ `send()`.
 
-الوكيل المنشأ بـ `askQuestion: true` يستطيع أن يطرح سؤالًا على المستخدم (راجع [طرح سؤال على المستخدم](/ar/approvals#طرح-سؤال-على-المستخدم)). يصل التوقف بالطريقة نفسها، مع `pendingApproval.kind === 'question'`: اعرض `pendingApproval.question.text` و`options` الخاصة به، واستدعِ `answer(text)`.
+إذا أنشأت الـ agent بـ `askQuestion: true` يقدر يسأل المستخدم سؤال (شوف [سؤال المستخدم](/ar/approvals#سؤال-المستخدم)). التوقف يوصل بنفس الطريقة، مع `pendingApproval.kind === 'question'`: اعرض `pendingApproval.question.text` والـ `options` تبعه، ونادي `answer(text)`.
 
-## جانب الخادم
+## جهة السيرفر
 
-نقطة نهاية Node للوضع البعيد، مع مسار الموافقات (بادئة النموذج `vendor/` هي التي تختار المزوّد؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>`، مثل `openrouter/openai/gpt-4o-mini`):
+نقطة نهاية Node للـ remote mode، مع route الموافقات (بادئة `vendor/` في اسم الـ model هي اللي تختار الـ provider؛ مع OpenRouter استخدم `openrouter/<vendor>/<model>`، مثل `openrouter/openai/gpt-4o-mini`):
 
 ```ts
 import { createServer, type IncomingMessage } from 'node:http';
@@ -128,11 +128,11 @@ createServer(async (req, res) => {
 }).listen(3000);
 ```
 
-ثم يستخدم العميل `useLoushoAgent({ url: '/api/agent' }, { approvalsUrl: '/api/approvals' })`. ولمحادثة متعددة الدورات، احتفظ على الخادم بـ `agent.session({ id })` لكل محادثة واستدعِ `session.stream()` بدلًا من `agent.stream()`. وامنح الوكيل مخزن `store` (`createAgent({ store: memoryStore() })` أو مخزنًا متينًا) حين تُفتَح الجلسات لكل طلب: فبدونه يحصل كل `agent.session({ id })` على سجل محادثة جديد في الذاكرة، فتنسى الدورة التالية ما قبلها (راجع [اختيار مخزن](/ar/sessions#اختيار-المخزن)).
+الـ client بعدها يستخدم `useLoushoAgent({ url: '/api/agent' }, { approvalsUrl: '/api/approvals' })`. لمحادثة multi-turn، احتفظ بـ `agent.session({ id })` لكل محادثة على السيرفر واستدعِ `session.stream()` بدل `agent.stream()`. أعطِ الـ agent `store` (`createAgent({ store: memoryStore() })` أو store من نوع durable) لما الـ sessions تنفتح مع كل request: بدون store، كل `agent.session({ id })` يحصل على transcript جديد في الذاكرة، والـ turn التالية تنسى الأولى (شوف [اختيار الـ store](/ar/sessions#choosing-a-store)).
 
-## داخل العملية
+## داخل الـ process
 
-يقبل الخطّاف الوكيل نفسه أيضًا. وهذا استدعاؤه من خطّاف مخصّص:
+الـ hook يستقبل الـ agent نفسه كمان. مثال على استدعائه من hook مخصّص:
 
 ```ts
 import { createAgent } from '@lousho/build-ai-agent';
@@ -147,9 +147,9 @@ export function useSupportChat() {
 }
 ```
 
-## من دون React
+## بدون React
 
-الخطّاف مغلِّف رقيق. منطق الحالة هو `reduceAgentEvents(state, event)`، وهو مختزِل (reducer) نقي يعمل على أحداث `AgentEvent` وبضعة إجراءات محلية (`ui.send` و`ui.decide` و`ui.resumed` و`ui.stopped` و`ui.reset` و`ui.error`)، أما `parseEventStream(response)` فتقرأ الأحداث من استجابة fetch. كلاهما مصدَّر من المسار الفرعي نفسه، لبناء ربط مخصّص أو عميل لا يستخدم React:
+الـ hook مجرد wrapper رقيق. منطق الـ state هو `reduceAgentEvents(state, event)`، reducer نقي يشتغل على `AgentEvent` وشوية actions محلية (`ui.send`، `ui.decide`، `ui.resumed`، `ui.stopped`، `ui.reset`، `ui.error`). و`parseEventStream(response)` يقرأ الأحداث من response تبع fetch. الاتنين مُصدَّرين من نفس الـ subpath، عشان binding مخصّص أو client بدون React:
 
 ```ts
 import { initialAgentUIState, parseEventStream, reduceAgentEvents } from '@lousho/build-ai-agent/react';
@@ -166,11 +166,11 @@ for await (const event of parseEventStream(response)) {
 console.log(state.status, state.messages.at(-1)?.text, state.usage?.totalTokens);
 ```
 
-تتخطى `parseEventStream()` الأسطر الفارغة وتعليقات SSE وحقول `event:`/`id:` وأي سطر ليس حدثًا معروفًا، ولذلك تقرأ صيغتَي التأطير كلتيهما. والخروج من حلقتها يلغي جسم الاستجابة.
+`parseEventStream()` يتخطى الأسطر الفاضية وتعليقات SSE وحقول `event:`/`id:` وأي سطر ليس حدثًا معروفًا، لذلك يقرأ صيغتَي التأطير الاثنتين. الخروج من حلقته يلغي الـ response body.
 
-## المهام
+## Todos
 
-الوكيل الذي يملك [أدوات المهام](/ar/tools#أدوات-قائمة-المهام) يُصدر حدث `todo.updated` عند كل `todo_write`؛ ويحتفظ الخطّاف بأحدث قائمة في `todos`، وتحوّلها `useTodos(agent)` إلى عرض فيه الأعداد والبند قيد العمل والتقدّم. وهي تأخذ نتيجة الخطّاف، فيغذّي بث واحد المحادثة والخطة معًا. وتنتقل القائمة عبر الدورات ولا يمسحها شيء سوى خطّاف جديد (ولا تُستعاد حين تعيد الصفحة الاتصال بجلسة قائمة).
+الـ agent اللي عنده [todo tools](/ar/tools#todo-tools) يطلق حدث `todo.updated` مع كل `todo_write`. الـ hook يخزن أحدث قائمة في `todos`، و`useTodos(agent)` يحوّلها إلى view فيه العدّادات والبند الجاري والتقدم. يستقبل ناتج الـ hook، فـ stream واحد يغذي المحادثة والخطة. القائمة تبقى عبر الـ turns وما يمسحها شيء غير hook جديد — ولا تُستعاد لما الصفحة ترجع تتصل بـ session موجودة.
 
 ```tsx
 import { useLoushoAgent, useTodos } from '@lousho/build-ai-agent/react';
@@ -198,4 +198,4 @@ export function Plan() {
 }
 ```
 
-`current` هو البند `in_progress`، وإلا أول بند `pending`، و`undefined` حين لا يبقى شيء؛ و`progress` هو `completed / total` (و0 لقائمة فارغة). والعرض مُخزَّن بالتذكّر (memoized) على `agent.todos`. وتحسب `todoView(todos)` العرض نفسه خارج React.
+`current` هو البند `in_progress`، وإذا ما فيه فهو أول بند `pending`، و`undefined` لما ما يبقى شيء. `progress` هو `completed / total` (0 لقائمة فاضية). الـ view مُخزَّن memoized على `agent.todos`. و`todoView(todos)` يحسب نفس الـ view خارج React.

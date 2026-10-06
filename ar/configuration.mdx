@@ -2,31 +2,26 @@
 title: "الإعدادات"
 ---
 
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/configuration).
-</Warning>
-
 {/* Generated from docs/configuration.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-## ملفات مواصفات الوكيل (`AgentSpec`)
+## ملفات تعريف الـ agent (`AgentSpec`)
 
-الوكيل التصريحي (declarative) ملف YAML (`.yaml`/`.yml`) أو JSON (`.json`)،
-تتحقق منه `loadSpec()` بواسطة zod (`src/spec/schema.ts`). وهو الصيغة التي
-يشغّلها `lousho dev` وينشرها `lousho build`.
+الـ agent التصريحي (declarative) ملف YAML (`.yaml`/`.yml`) أو JSON (`.json`)،
+تتحقق منه `loadSpec()` بمكتبة zod (`src/spec/schema.ts`). هي الصيغة التي
+يخدمها `lousho dev` وينشرها `lousho build`.
 
 | الحقل            | النوع      | مطلوب    | الوصف                                                   |
 | ---------------- | ---------- | -------- | ------------------------------------------------------- |
-| `name`           | `string`   | نعم      | اسم الوكيل.                                             |
-| `prompt`         | `string`   | نعم      | موجّه النظام (system prompt).                           |
+| `name`           | `string`   | نعم      | اسم الـ agent.                                          |
+| `prompt`         | `string`   | نعم      | الـ system prompt.                                      |
 | `provider.type`  | `string`   | نعم      | `openai` أو `anthropic` أو `ollama` أو `openrouter` أو `mock`. |
-| `provider.model` | `string`   | نعم      | معرّف النموذج الذي يستخدمه كل استدعاء (النموذج المضبوط في المزوّد؛ والقيمة `settings.model` الخاصة بالوكيل، إن وُجدت، تتقدم عليه). |
-| `tools`          | `string[]` | لا       | أسماء أدوات مضمَّنة (انظر أدناه).                       |
-| `policy`         | `AgentSpecPolicy` | لا | الموافقات وحواجز الحماية والحدود وغيرها، وتُفرَض حين يتحول ملف المواصفات إلى وكيل (انظر أدناه). |
-| `triggers`       | `AgentSpecTrigger[]` | لا | ما يشغّل الوكيل من تلقاء نفسه — جداول cron زمنية (`{ type: 'cron', cron, input, name?, timezone? }`)؛ انظر [الجداول الزمنية](/ar/schedules) و[المُشغِّلات](/ar/triggers#جداول-cron-الزمنية). |
-| `mcpServers`     | `Record<string, McpServerSpec>` | لا | خوادم MCP التي يستخدمها الوكيل، مفهرسة بالاسم (انظر أدناه). |
+| `provider.model` | `string`   | نعم      | معرّف الـ model المستخدم في كل call (الـ model المضبوط لدى الـ provider؛ و`settings.model` الخاصة بالـ agent تتجاوزه إن وُجدت). |
+| `tools`          | `string[]` | لا       | أسماء الـ tools المدمجة (انظر أدناه).                  |
+| `policy`         | `AgentSpecPolicy` | لا | الموافقات والـ guardrails والحدود وغيرها، وتُفرَض عند تحوّل الـ spec إلى agent (انظر أدناه). |
+| `triggers`       | `AgentSpecTrigger[]` | لا | ما يشغّل الـ agent من تلقاء نفسه — جداول cron (`{ type: 'cron', cron, input, name?, timezone? }`)؛ انظر [الجداول الزمنية](/ar/schedules) و[المُشغِّلات](/ar/triggers#جداول-cron). |
+| `mcpServers`     | `Record<string, McpServerSpec>` | لا | سيرفرات MCP التي يستخدمها الـ agent، مفهرسة بالاسم (انظر أدناه). |
 
-الحقل الناقص أو غير الصالح يُفشل التحميل بخطأ يسمّي الحقل بعينه، مثل
+الحقل الناقص أو غير الصالح يفشل بخطأ يسمّي الحقل نفسه، مثل
 `'prompt': Required`.
 
 ```yaml
@@ -40,33 +35,33 @@ tools:
   - http
 ```
 
-### الأدوات التي يمكن لملف المواصفات الإشارة إليها
+### الـ tools التي يمكن للـ spec الإشارة إليها
 
 | الاسم          | الأداة                                               |
 | -------------- | ---------------------------------------------------- |
 | `http`         | `httpTool` - طلبات HTTP                              |
 | `web-fetch`    | `webFetchTool` - قراءة صفحة ويب عامة كنص             |
 | `current-date` | `currentDateTool` - التاريخ والوقت الحاليان (ISO، UTC) |
-| `day-name`     | `dayNameTool` - اسم يوم الأسبوع                      |
+| `day-name`     | `dayNameTool` - يوم الأسبوع                          |
 
-الأداتان `github` و`jira` تحتاجان إلى بيانات اعتماد ليس لها حقل في ملف
-المواصفات؛ والإشارة إليهما ترمي خطأً يطلب منك بناء الوكيل بـ `createAgent()`
-وتمرير أداة مضبوطة الإعدادات بدلًا من ذلك.
+`github` و`jira` تحتاج بيانات اعتماد لا يوجد لها حقل في الـ spec؛ الإشارة
+إليها ترمي خطأ يطلب منك تبني الـ agent بـ `createAgent()` وتمرّر tool
+مضبوط بدلًا منها.
 
 ### السياسة (`policy`)
 
-تحوّل `specToAgent()` الحقل `policy` إلى خيارات لـ `createAgent()`، فيفرض ملف
-المواصفات ما يصرّح به. الحقول المعروفة تتحقق منها `loadSpec()`؛ والمفاتيح
-الأخرى يُحتفظ بها من أجل مولِّدات بيئات التشغيل (harness) الأخرى (Claude Code
-و Codex و Pi)، وهي تقرأ السياسة الخام.
+تحوّل `specToAgent()` الحقل `policy` إلى خيارات لـ `createAgent()`، فالـ spec
+يفرض ما يصرّح به. الحقول المعروفة تتحقق منها `loadSpec()`؛ والمفاتيح الأخرى
+تبقى لمولّدات الـ harness الأخرى (Claude Code وCodex وPi)، وهي تقرأ الـ
+policy الخام.
 
-| الحقل              | يتحول إلى                                     | الوصف |
+| الحقل              | يتحوّل إلى                                    | الوصف |
 | ------------------ | --------------------------------------------- | ----------- |
-| `requiresApproval` | `permissions` ([`ask`](/ar/guardrails))       | `true`: كل استدعاء أداة يتوقف مؤقتًا بانتظار الموافقة. قائمة: تتوقف تلك الأدوات فقط. |
-| `guardrails`       | `guardrails` (المدخلات والمخرجات)             | أسماء حواجز حماية مضمَّنة، أو `{ name, ...options }` (الجدول أدناه). |
-| `limits`           | `limits` ([الميزانيات](#الميزانيات))                | `maxTokens`, `maxInputTokens`, `maxOutputTokens`, `maxCostUsd`, `maxDurationMs`, `maxSteps`, `onExceeded`. |
-| `askQuestion`      | `askQuestion`                                 | `true` تضيف الأداة المضمَّنة `ask_question`. |
-| `compaction`       | `compaction`                                  | `true`، أو `{ thresholdPercent: 0.8 }` (كسر من نافذة السياق، أكبر من 0 وحتى 1). |
+| `requiresApproval` | `permissions` ([`ask`](/ar/guardrails))       | `true`: كل tool call يتوقف لانتظار الموافقة. قائمة: تتوقف تلك الـ tools فقط. |
+| `guardrails`       | `guardrails` (input وoutput)                  | أسماء guardrails مدمجة، أو `{ name, ...options }` (الجدول أدناه). |
+| `limits`           | `limits` ([الميزانيات](#الميزانيات))          | `maxTokens`, `maxInputTokens`, `maxOutputTokens`, `maxCostUsd`, `maxDurationMs`, `maxSteps`, `onExceeded`. |
+| `askQuestion`      | `askQuestion`                                 | `true` تضيف الـ tool المدمج `ask_question`. |
+| `compaction`       | `compaction`                                  | `true`، أو `{ thresholdPercent: 0.8 }` (نسبة من نافذة السياق، فوق 0 وحتى 1). |
 
 ```yaml
 name: support-bot
@@ -94,44 +89,44 @@ policy:
     thresholdPercent: 0.8
 ```
 
-أسماء حواجز الحماية (انظر [حواجز حماية المدخلات والمخرجات](/ar/guardrails#حواجز-حماية-المدخلات-والمخرجات)):
+أسماء الـ guardrails (انظر [Input and output guardrails](/ar/guardrails#input-و-output-guardrails)):
 
 | الاسم          | الخيارات | ما يفعله |
 | -------------- | ------- | ---- |
-| `max-length`   | `maxChars` (الافتراضي 10000) | يحجب النصوص الأطول من `maxChars`. |
-| `secret-scan`  | `action` (`block` أو `rewrite`)، `replacement` | يحجب (أو يطمس) المفاتيح الخاصة، والمفاتيح على نمط OpenAI ومفاتيح AWS. |
-| `regex`        | `pattern` (مطلوب)، `flags`، `action`، `replacement` | يحجب (أو يعيد كتابة) النصوص التي تطابق `pattern`. |
-| `deny-topics`  | `topics` (مطلوب، قائمة) | يحجب النصوص التي تذكر موضوعًا من القائمة (دون تمييز بين الأحرف الكبيرة والصغيرة). |
-| `llm-judge`    | `model` (مطلوب، `"provider/model"`)، `instruction` | يسأل نموذجًا هل النص مقبول؛ استدعاء واحد لكل فحص. |
-| `pii`          | `types` (قائمة من `email` و`phone` و`credit-card` و`iban` و`us-ssn` و`ip-address`؛ والافتراضي كلها)، `action` (الافتراضي `block`) | يحجب (أو يعيد كتابة إلى `[email]` وما شابه) البيانات الشخصية التي يعثر عليها بالأنماط. استدلالي (heuristic). |
-| `secrets`      | `action` (الافتراضي `rewrite`)، `extraPatterns` (قائمة من التعبيرات النمطية) | يعيد كتابة (أو يحجب) مفاتيح API والرموز والمفاتيح الخاصة التي يعثر عليها بالأنماط. استدلالي (heuristic). |
-| `prompt-injection` | `model` (اختياري، `"provider/model"`) | يحجب صياغات وعلامات حقن الموجّه (prompt injection) الشائعة؛ ومع `model` يسأل النموذج أيضًا. استدلالي (heuristic). |
-| `moderation`   | `model` (مطلوب، `"provider/model"`)، `categories` (الافتراضي كلها) | يسأل نموذجًا عن فئات المحتوى الضار المنطبقة؛ استدعاء واحد لكل فحص. |
+| `max-length`   | `maxChars` (الافتراضي 10000) | يمنع النصوص الأطول من `maxChars`. |
+| `secret-scan`  | `action` (`block` أو `rewrite`)، `replacement` | يمنع (أو يطمس) المفاتيح الخاصة، ومفاتيح بنمط OpenAI ومفاتيح AWS. |
+| `regex`        | `pattern` (مطلوب)، `flags`، `action`، `replacement` | يمنع (أو يعيد كتابة) النصوص المطابقة لـ `pattern`. |
+| `deny-topics`  | `topics` (مطلوب، قائمة) | يمنع النصوص التي تذكر موضوعًا من القائمة (دون تمييز حالة الأحرف). |
+| `llm-judge`    | `model` (مطلوب، `"provider/model"`)، `instruction` | يسأل model إن كان النص مقبولًا؛ call واحد لكل فحص. |
+| `pii`          | `types` (قائمة من `email` و`phone` و`credit-card` و`iban` و`us-ssn` و`ip-address`؛ الافتراضي كلها)، `action` (الافتراضي `block`) | يمنع (أو يعيد كتابتها إلى `[email]` وما شابه) البيانات الشخصية التي يجدها بالأنماط. heuristic. |
+| `secrets`      | `action` (الافتراضي `rewrite`)، `extraPatterns` (قائمة regular expressions) | يعيد كتابة (أو يمنع) مفاتيح API والـ tokens والمفاتيح الخاصة التي يجدها بالأنماط. heuristic. |
+| `prompt-injection` | `model` (اختياري، `"provider/model"`) | يمنع صياغات وعلامات prompt injection الشائعة؛ ومع `model` يسأل الـ model أيضًا. heuristic. |
+| `moderation`   | `model` (مطلوب، `"provider/model"`)، `categories` (الافتراضي كلها) | يسأل model عن فئات المحتوى الضار المطبقة؛ call واحد لكل فحص. |
 
-كل حاجز حماية يقبل أيضًا `on`: `input` أو `output` أو `tools` (وسائط استدعاء
-أداة)، أو قائمة منها. القيمة الافتراضية `[input, output]`. الاسم أو الخيار غير
-المعروف يُفشل التحقق، مع ذكر حواجز الحماية المتاحة واقتراح «هل تقصد» ("did you
-mean"):
+كل guardrail يقبل أيضًا `on`: `input` أو `output` أو `tools` (وسائط الـ
+tool call)، أو قائمة منها. الافتراضي `[input, output]`. الاسم أو الخيار غير
+المعروف يفشل الـ validation، ويذكر الـ guardrails المتاحة مع اقتراح "did you
+mean":
 `'policy.guardrails.0': unknown guardrail 'deny-topic' (did you mean 'deny-topics'?)`.
 
-يوقف `requiresApproval` التشغيل مؤقتًا (`finishReason: 'awaiting-approval'`)
-إلى أن تُستدعى `agent.approvals.resolve()`؛ وقبل هذا التغيير كان ملف المواصفات
-الذي يضبطه يشغّل أدواته دون أن يسأل. ويطبع `lousho doctor agent.yaml` سطرًا
-واحدًا لكل قسم من السياسة.
+يوقف `requiresApproval` الـ run (`finishReason: 'awaiting-approval'`) حتى
+تستدعي `agent.approvals.resolve()`؛ وقبل هذا التغيير، الـ spec الذي يضبطه
+كان يشغّل أدواته دون أن يسأل. ويطبع `lousho doctor agent.yaml` سطرًا واحدًا
+لكل قسم من الـ policy.
 
-### خوادم MCP (`mcpServers`)
+### سيرفرات MCP (`mcpServers`)
 
-يصرّح `mcpServers` بخوادم MCP التي يستخدمها الوكيل، في صورة خريطة من اسم الخادم
-(وهو يشكّل نطاق أسماء لأدوات ذلك الخادم) إلى خادم stdio (`command`، ومعه
-اختياريًا `args` و`env`) أو خادم HTTP (`url`، ومعه اختياريًا `headers`).
-كل مُدخل يضبط واحدًا فقط من `command` / `url`؛ و`args`/`env` يخصّان stdio وحده
-و`headers` يخصّ HTTP وحده. تتحقق `loadSpec()` من الحقل، والمُدخل غير الصالح
-يفشل برسالة فيها اسم المُدخل، مثل
+يصرّح `mcpServers` بسيرفرات MCP التي يستخدمها الـ agent: خريطة من اسم
+السيرفر (الاسم يعمل namespace لأدواته) إلى سيرفر stdio (`command`، ومعها
+اختياريًا `args` و`env`) أو سيرفر HTTP (`url`، ومعها اختياريًا `headers`).
+كل مدخل يضبط واحدًا فقط من `command` / `url`؛ و`args`/`env` لـ stdio فقط
+و`headers` لـ HTTP فقط. تتحقق `loadSpec()` من الحقل، والمدخل غير الصالح
+يفشل برسالة تذكر اسمه، مثل
 `'mcpServers.files': AgentSpec validation failed: missing 'command' (stdio server) or 'url' (HTTP server)`.
-والحقل الاختياري `approval` (`annotations` أو `always` أو `never`) يحدد أيّ أدوات الخادم تطلب الموافقة؛ انظر [الموافقة على أدوات MCP](/ar/mcp-integration#الموافقة-على-أدوات-mcp).
-والحقل الاختياري `deferLoading: true` يحجب أدوات الخادم عن النموذج إلى أن يجدها بـ `tool_search`؛ انظر [البحث عن الأدوات](/ar/tool-search).
-ويمكن لمدخل HTTP أن يضبط `oauth` (`redirectUri`، و`clientId` و`clientSecret` و`scopes` و`clientName` اختياريًا) ليسجّل الدخول إلى الخادم بـ OAuth بدل ترويسة `Authorization` ثابتة؛ انظر [خوادم MCP مع OAuth](/ar/oauth#خوادم-mcp-مع-oauth).
-ويتحقق `lousho doctor` من أن كل `command` لخادم stdio يمكن العثور عليه.
+والحقل الاختياري `approval` (`annotations` أو `always` أو `never`) يحدد أي أدوات السيرفر تطلب موافقة؛ انظر [الموافقة على أدوات MCP](/ar/mcp-integration#الـ-approval-على-tools-mcp).
+والاختياري `deferLoading: true` يحجب أدوات السيرفر عن الـ model حتى يجدها بـ `tool_search`؛ انظر [Tool search](/ar/tool-search).
+ومدخل HTTP يقدر يضبط `oauth` (`redirectUri`، واختياريًا `clientId` و`clientSecret` و`scopes` و`clientName`) ليسجّل الدخول للسيرفر بـ OAuth بدل header `Authorization` ثابت؛ انظر [سيرفرات MCP مع OAuth](/ar/oauth#خوادم-mcp-مع-oauth).
+ويتأكد `lousho doctor` أن كل `command` لسيرفر stdio يمكن الوصول إليه.
 
 ```yaml
 mcpServers:
@@ -162,30 +157,33 @@ const agent = specToAgent(spec);
 console.log(Object.keys(agent.mcpServers)); // ['filesystem', 'docs']
 ```
 
-تمرّر `specToAgent()` الخوادم إلى `createAgent({ mcpServers })` الموصوف في
-[MCP](/ar/mcp-integration#استخدام-خوادم-mcp-في-وكيل)، فتحصل وكلاء `lousho dev` و`lousho mcp` على أدواتها.
+تمرّر `specToAgent()` السيرفرات إلى `createAgent({ mcpServers })`، الموصوفة في
+[MCP](/ar/mcp-integration#استخدام-سيرفرات-mcp-داخل-agent)، فأي agent من `lousho dev` أو `lousho mcp` يحصل على أدواتها.
 
-عملاء MCP و`connectMcp()` والموافقة على الأدوات وتقديم وكيل عبر MCP موضوعها صفحة مستقلة: [MCP (Model Context Protocol)](/ar/mcp-integration).
+الـ MCP clients و`connectMcp()` وموافقة الـ tools وتقديم agent عبر MCP لها صفحة مستقلة: [MCP (Model Context Protocol)](/ar/mcp-integration).
 
-## بيانات اعتماد المزوّدين
+## بيانات اعتماد الـ providers
 
-المزوّدون الحقيقيون تحدّدهم `resolveProvider('<provider>/<model>')` (وتُستخدم
-أيضًا لملفات المواصفات)، وهي تقرأ بيانات الاعتماد من متغيرات البيئة:
+الـ providers الحقيقيون يُحلّون عبر `resolveProvider('<provider>/<model>')`
+(المستخدمة أيضًا لملفات الـ spec)، وهي تقرأ بيانات الاعتماد من البيئة:
 
-| المزوّد      | متغير البيئة          |
+| الـ provider | متغير البيئة          |
 | ------------ | --------------------- |
 | `openai`     | `OPENAI_API_KEY`      |
 | `anthropic`  | `ANTHROPIC_API_KEY`   |
 | `openrouter` | `OPENROUTER_API_KEY`  |
 | `ollama`     | `OLLAMA_BASE_URL`     |
+| `pi`         | متغير الـ provider الداخلي نفسه (`pi/openrouter/...` يقرأ `OPENROUTER_API_KEY`) |
 
-المزوّد `mock` لا يحتاج إلى بيانات اعتماد ويُرجع ردودًا معدّة سلفًا؛ وهو ما
-تستخدمه الأمثلة ودليل البدء السريع افتراضيًا.
+الـ `mock` provider لا يحتاج بيانات اعتماد ويرجع ردودًا جاهزة؛ وهو ما
+تستخدمه الأمثلة والـ Quick Start افتراضيًا.
 
-## إعادة المحاولة والبديل الاحتياطي لدى المزوّد
+## الـ retry والـ fallback عند الـ provider
 
-تعيد `createAgent()` محاولة استدعاءات النموذج الفاشلة من تلقاء نفسها، ويمكنها
-اللجوء إلى نماذج أخرى كبديل احتياطي. تحدّد بادئة `vendor/` في اسم النموذج المزوّد؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`).
+تعيد `createAgent()` محاولة استدعاءات الـ model الفاشلة من تلقاء نفسها،
+وتقدر ترجع إلى models أخرى كـ fallback. بادئة `vendor/` في اسم الـ model
+تحدد الـ provider؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل
+`openrouter/openai/gpt-4o-mini`).
 
 ```ts
 import { createAgent } from '@lousho/build-ai-agent';
@@ -202,27 +200,27 @@ for await (const event of agent.stream('Hello!')) {
 }
 ```
 
-- يقبل `retry` خيارات `withRetry()` المذكورة أدناه. وهو يسري على السلسلة النصية
-  `model` (أو النموذج المختار من البيئة) وعلى كل مُدخل في `fallbackModels`.
-  تبني createAgent هؤلاء المزوّدين مع تعطيل إعادة المحاولة الخاصة بـ SDK
-  الـ `ai` (`maxRetries: 0`)، فتجري إعادة المحاولة في مكان واحد، ويُجري
-  الافتراضي `{ maxRetries: 2 }` العدد نفسه من الاستدعاءات كما في السابق.
-- نسخة `provider` التي تمرّرها تحتفظ بسلوكها الخاص في إعادة المحاولة؛ ولا
-  تُغلَّف بـ `withRetry()` إلا إذا ضبطت `retry`. وتعمل `fallbackModels` معها
-  أيضًا.
-- قيم `fallbackModels` سلاسل نصية بالصيغة `provider/model`، تُحدَّد مثل `model`
-  عند إنشاء الوكيل. يشغّل الوكيل
+- `retry` يأخذ خيارات `withRetry()` المذكورة أدناه. يسري على سلسلة `model`
+  (أو الـ model المختار من البيئة) وعلى كل مدخل في `fallbackModels`. تبني
+  `createAgent` هؤلاء الـ providers مع إطفاء الـ retries الخاصة بـ `ai`
+  SDK (`maxRetries: 0`)، فيحصل الـ retry في مكان واحد، والافتراضي
+  `{ maxRetries: 2 }` يجري نفس عدد الـ calls كما في السابق.
+- نسخة `provider` التي تمرّرها تحتفظ بسلوك الـ retry الخاص فيها؛ ولا
+  تُغلَّف بـ `withRetry()` إلا إذا ضبطت `retry`. و`fallbackModels` تعمل
+  معها أيضًا.
+- قيم `fallbackModels` سلاسل بالصيغة `provider/model`، تُحلّ مثل `model`
+  عند إنشاء الـ agent. يشغّل الـ agent
   `withFallback([withRetry(primary), withRetry(fallback1), ...])`:
-  كل استدعاء يبدأ بالنموذج الأساسي.
-- تُبلغ `stream()` و`session.stream()` عن كل إعادة محاولة بحدث `provider.retry`
-  وعن كل انتقال بحدث `provider.fallback` (انظر
-  [البث](/ar/stream-events#مخطط-الأحداث-الإصدار-1)). أما `send()` فتُرجع النتيجة
-  النهائية كما في السابق.
+  كل call يبدأ بالـ model الأساسي.
+- تبلّغ `stream()` و`session.stream()` عن كل إعادة محاولة كحدث `provider.retry`
+  وعن كل تبديل كـ `provider.fallback` (انظر
+  [Streaming](/ar/stream-events#event-schema-version-1)). أما `send()` فترجع
+  النتيجة النهائية كما في السابق.
 
-لبناء الشيء نفسه يدويًا، أو لمزوّدين تنشئهم بنفسك، تغلّف
+لبناء نفس الشيء يدويًا، أو لـ providers تنشئهم بنفسك، تغلّف
 `withRetry(provider, options)` و`withFallback(providers, options)` أي
-`LLMProvider` وتُرجعان مزوّدًا آخر، فيمكن تركيبهما معًا وتمريرهما في أي موضع
-يُقبل فيه مزوّد:
+`LLMProvider` وترجعان provider آخر، فتتركّب معًا وتُمرَّر في أي مكان يُقبل
+فيه provider:
 
 ```ts
 import { createAgent, resolveProvider, withFallback, withRetry } from '@lousho/build-ai-agent';
@@ -243,99 +241,96 @@ const agent = createAgent({ prompt: 'You are helpful.', provider });
 ```
 
 - تعيد `withRetry` محاولة `generate()` و`stream()` (الافتراضي `maxRetries: 2`)
-  عند تجاوز حدود المعدّل (rate limits)، وانقضاء المهلة، وأخطاء الشبكة،
-  واستجابات 5xx، بالتصنيف نفسه الذي تستخدمه `compactProviderError()`. لا تُعاد
-  المحاولة عند فشل المصادقة، ولا الطلبات غير الصالحة، ولا أخطاء طول السياق؛
-  ولا عند الإلغاء. وتلميح `retryAfterMs` من المزوّد (الترويسة `Retry-After`)
-  يحل محل مدة التراجع (backoff). مرّر `retryOn(error, attempt)` لتغيير
-  القاعدة، و`timeoutMs` لتحديد مهلة لكل محاولة، و`signal` لإيقاف إعادة
-  المحاولة.
-- لا تُعاد محاولة استدعاء `stream()` إلا إذا رُفض وعده. والخطأ الذي يقع داخل
-  بث أُرجع بالفعل لا تُعاد محاولته.
-- تجرّب `withFallback` المزوّدين واحدًا تلو الآخر بالترتيب، وترمي الخطأ الأخير
-  من جديد إذا فشلوا جميعًا. افتراضيًا تنتقل إلى البديل الاحتياطي عند أي خطأ ما
-  عدا الإلغاء (ويغيّر `fallbackOn` ذلك). كل بديل احتياطي يعمل بقيمة
-  `defaultModel` الخاصة به. و`name` و`defaultModel` يعكسان المزوّد الذي خدم
-  آخر استدعاء.
+  عند rate limits وانتهاء المهلة وأخطاء الشبكة وردود 5xx، بنفس التصنيف الذي
+  تستخدمه `compactProviderError()`. لا تُعاد المحاولة عند فشل المصادقة ولا
+  الطلبات غير الصالحة ولا أخطاء طول السياق؛ ولا عند الإلغاء. وتلميح
+  `retryAfterMs` من الـ provider (هيدر `Retry-After`) يحل محل تأخير الـ
+  backoff. مرّر `retryOn(error, attempt)` لتغيّر القاعدة، و`timeoutMs` لمهلة
+  لكل محاولة، و`signal` لإيقاف الـ retry.
+- استدعاء `stream()` يُعاد فقط إذا رُفض. والخطأ الذي يقع داخل stream أُرجع
+  سلفًا لا تُعاد محاولته.
+- تجرّب `withFallback` الـ providers واحدًا تلو الآخر، وترمي آخر خطأ إذا
+  فشلوا جميعًا. افتراضيًا تنتقل للـ fallback عند أي خطأ ما عدا الإلغاء
+  (ويغيّر `fallbackOn` هذا). كل fallback يعمل بـ `defaultModel` الخاص فيه.
+  و`name` و`defaultModel` يذكران الـ provider الذي خدم آخر call.
 - تطبّق `resilientProvider(provider, { maxRetries, timeout })` حقلَي
   `LLMProviderConfig` اللذين يحملان الاسمين نفسيهما.
-- المزوّدون المضمَّنون يمرّرون قيمة `maxRetries` من إعداداتهم (الافتراضي 2) إلى
-  إعادة المحاولة الداخلية في SDK الـ `ai`، وهي تجري داخل كل محاولة من محاولات
-  `withRetry`. أنشئ المزوّد الذي تغلّفه مع `maxRetries: 0`
-  (`new OpenAIProvider({ apiKey, maxRetries: 0 })`) لتجري إعادة المحاولة في
-  مكان واحد. وتفعل `createAgent()` ذلك للنماذج التي تحدّدها هي.
+- الـ providers المدمجون يمرّرون `maxRetries` من إعداداتهم (الافتراضي 2) إلى
+  الـ retries الداخلية في `ai` SDK، وهي تعمل داخل كل محاولة `withRetry`.
+  أنشئ الـ provider الذي ستغلّفه بـ `maxRetries: 0`
+  (`new OpenAIProvider({ apiKey, maxRetries: 0 })`) ليحصل الـ retry في مكان
+  واحد. وتفعل `createAgent()` هذا للـ models التي تحلّها هي.
 
 ## خيارات `createAgent()`
 
 | الخيار         | الوصف                                                          |
 | -------------- | -------------------------------------------------------------- |
-| `model`        | سلسلة نصية بالصيغة `'provider/model'` مثل `'openai/gpt-4o-mini'`، تُحدَّد بواسطة `resolveProvider()` (والمفتاح من متغير البيئة المذكور أعلاه). بديل عن `provider`. |
-| `provider`     | نسخة من `LLMProvider` (حقيقي أو وهمي). بديل عن `model`. إذا مرّرت الاثنين استُخدم `provider` وصار `model` إعداد النموذج لكل تشغيل لدى الوكيل (معرّف نموذج مجرّد مثل `'gpt-4o'`). |
-| `instructions` | موجّه النظام. اختياري (الافتراضي `'You are a helpful assistant.'`). |
-| `prompt`       | اسم بديل عامل لـ `instructions`؛ وتمرير الاثنين معًا خطأ.       |
-| `tools`    | مصفوفة من نواتج `defineTool()`، أو `Record<string, ToolDescriptor>` مفهرس بالاسم الذي يستخدمه الوكيل (انظر [الأدوات](/ar/tools)). |
-| `name`     | اسم الوكيل (الافتراضي `'agent'`).                                  |
-| `description` | ما يفعله الوكيل، في جملة واحدة. مطلوب حين يُستخدم وكيلًا فرعيًا. |
-| `maxSteps` | يُمرَّر كما هو إلى `AgentExecutor.execute()`.                       |
-| `limits`   | ميزانيات كل تشغيل: `{ maxTokens?, maxInputTokens?, maxOutputTokens?, maxCostUsd?, maxDurationMs?, maxSteps?, onExceeded? }`. بلوغ أحد الحدود ينهي التشغيل بـ `finishReason: 'budget-exceeded'`. انظر [الميزانيات](#الميزانيات). |
-| `toolConcurrency` | عدد استدعاءات الأدوات التي تعمل معًا في دورة نموذج واحدة: عدد صحيح موجب أو `'unbounded'` (الافتراضي). انظر [استدعاءات الأدوات المتوازية](/ar/runs#استدعاءات-الأدوات-المتوازية). |
-| `skills`   | مهارات من `defineSkill()` / `loadSkills()`؛ انظر [المهارات](/ar/skills). |
-| `subagents`, `maxSubagentDepth` | وكلاء فرعيون مسمَّون خلف أداة `task` واحدة، وأقصى عمق لتداخلهم (الافتراضي 1)؛ انظر [الوكلاء الفرعيون](/ar/sub-agents). |
-| `handoffs`, `maxHandoffs` | وكلاء يستطيع هذا الوكيل أن يسلّمهم المحادثة كلها، بأداة `transfer_to_<name>` لكل منهم، وعدد عمليات التسليم المسموح بها في تشغيل واحد (الافتراضي 5)؛ انظر [التسليم](/ar/handoffs). |
-| `toolSearch` | يضبط [البحث عن الأدوات](/ar/tool-search) للأدوات المعلَّمة بـ `deferLoading`: `{ thresholdPercent?, maxResults?, contextWindow?, search? }`، أو `false` لإرسال كل أداة في كل استدعاء. |
-| `store`    | مخزن `AgentStore` (`SqliteStore`، أو `memoryStore()`، أو `{ sessions?, checkpoints?, approvals? }`): المخازن الافتراضية لـ `agent.session()` وللموافقات ولتشغيلات `send(message, { sessionId })`؛ وتُكمل `agent.resume(id)` تشغيلًا انقطع. انظر [الجلسات المتينة](/ar/sessions#الجلسات-المتينة). |
-| `memory`   | خانات ذاكرة من `defineMemory()`: تُستحضر إلى موجّه النظام في بداية كل تشغيل، مع أدوات `remember_<name>` / `recall_<name>`. انظر [الذاكرة](/ar/memory). |
-| `approvalStore` | الموضع الذي يُحفظ فيه التوقف المؤقت الناتج عن `needsApproval` (الافتراضي: `store.approvals`، وإلا `InMemoryApprovalStore` خاص بكل وكيل)؛ انظر [الموافقات](/ar/approvals). |
-| `approve`  | `(call) => boolean`: احسم الموافقات في الشيفرة بدلًا من التوقف المؤقت. |
-| `projectInstructions` | `true` أو `{ cwd?, files? }`: ألحِق أقرب ملف `AGENTS.md` / `CLAUDE.md` بالتعليمات (معطَّل افتراضيًا؛ انظر [تعليمات المشروع](#تعليمات-المشروع)). |
-| `retry`    | خيارات `withRetry()` لاستدعاءات النموذج الفاشلة، أو `false`. الافتراضي `{ maxRetries: 2 }` لسلاسل `model` النصية؛ أما نسخة `provider` فلا تُغلَّف إلا إذا ضُبط. انظر [إعادة المحاولة والبديل الاحتياطي لدى المزوّد](#إعادة-المحاولة-والبديل-الاحتياطي-لدى-المزوّد). |
-| `fallbackModels` | سلاسل نصية بالصيغة `provider/model` تُجرَّب بالترتيب حين يظل النموذج يفشل بعد استنفاد محاولاته. |
-| `hooks`    | مصفوفة `AgentHook[]` تعمل حول كل استدعاء للنموذج وكل استدعاء أداة، بالترتيب، قبل خطّاف ضغط السياق (انظر [الخطّافات](/ar/hooks)). |
-| `compaction` | `true` (احذف نتائج الأدوات القديمة عند تجاوز 90% من نافذة السياق) أو `{ strategy?, thresholdPercent?, contextWindow?, protectedTokens?, summarizer? }`؛ و`summarizer` (`'provider/model'` أو `LLMProvider`) يختار الاستراتيجية ذات المرحلتين. تُبلغ `stream()` عن `compaction.start` / `compaction.done`. انظر [ضغط السياق](/ar/compaction#ضغط-سياق-وكيل). |
+| `model`        | سلسلة `'provider/model'` مثل `'openai/gpt-4o-mini'`، تُحلّ بـ `resolveProvider()` (المفتاح من متغير البيئة أعلاه). بديل عن `provider`. |
+| `provider`     | نسخة `LLMProvider` (حقيقية أو mock). بديل عن `model`. إذا مرّرت الاثنين يُستخدم `provider` ويصير `model` إعداد الـ model لكل run (معرّف model مجرّد مثل `'gpt-4o'`). |
+| `instructions` | الـ system prompt. اختياري (الافتراضي `'You are a helpful assistant.'`). |
+| `prompt`       | alias شغّال لـ `instructions`؛ تمرير الاثنين معًا خطأ.          |
+| `tools`    | مصفوفة من نواتج `defineTool()`، أو `Record<string, ToolDescriptor>` مفهرسة بالاسم الذي يستخدمه الـ agent (انظر [الـ tools](/ar/tools)). |
+| `name`     | اسم الـ agent (الافتراضي `'agent'`).                            |
+| `description` | ما يفعله الـ agent، في جملة. مطلوب عندما يُستخدم كـ sub-agent. |
+| `maxSteps` | يُمرَّر كما هو إلى `AgentExecutor.execute()`.                    |
+| `limits`   | ميزانيات كل run: `{ maxTokens?, maxInputTokens?, maxOutputTokens?, maxCostUsd?, maxDurationMs?, maxSteps?, onExceeded? }`. الحد المستوفى ينهي الـ run بـ `finishReason: 'budget-exceeded'`. انظر [الميزانيات](#الميزانيات). |
+| `toolConcurrency` | كم tool call من turn واحد للـ model يعمل معًا: عدد صحيح موجب أو `'unbounded'` (الافتراضي). انظر [الـ tool calls المتوازية](/ar/runs#tool-calls-متوازية). |
+| `skills`   | skills من `defineSkill()` / `loadSkills()`؛ انظر [Skills](/ar/skills). |
+| `subagents`, `maxSubagentDepth` | sub-agents مسمّاة خلف tool واحد اسمه `task`، وأقصى عمق لتداخلها (الافتراضي 1)؛ انظر [الـ sub-agents](/ar/sub-agents). |
+| `handoffs`, `maxHandoffs` | agents يقدر هذا الـ agent يسلّمهم المحادثة كلها، بـ tool `transfer_to_<name>` لكل واحد، وكم handoff مسموح في الـ run الواحد (الافتراضي 5)؛ انظر [الـ handoffs](/ar/handoffs). |
+| `toolSearch` | يضبط [tool search](/ar/tool-search) للـ tools المعلَّمة بـ `deferLoading`: `{ thresholdPercent?, maxResults?, contextWindow?, search? }`، أو `false` لإرسال كل tool في كل call. |
+| `store`    | `AgentStore` (`SqliteStore`، أو `memoryStore()`، أو `{ sessions?, checkpoints?, approvals? }`): المخازن الافتراضية لـ `agent.session()` وللموافقات ولـ runs الـ `send(message, { sessionId })`؛ و`agent.resume(id)` يكمل run انقطع. انظر [Durable sessions](/ar/sessions#durable-sessions). |
+| `memory`   | خانات ذاكرة من `defineMemory()`: تُستحضر داخل الـ system prompt في بداية كل run، مع tools `remember_<name>` / `recall_<name>`. انظر [الذاكرة](/ar/memory). |
+| `approvalStore` | أين يُحفَظ توقف `needsApproval` (الافتراضي: `store.approvals`، وإلا `InMemoryApprovalStore` لكل agent)؛ انظر [الموافقات](/ar/approvals). |
+| `approve`  | `(call) => boolean`: حسم الموافقات بالكود بدل التوقف.            |
+| `projectInstructions` | `true` أو `{ cwd?, files? }`: إلحاق أقرب `AGENTS.md` / `CLAUDE.md` بالتعليمات (مطفأ افتراضيًا؛ انظر [تعليمات المشروع](#تعليمات-المشروع)). |
+| `retry`    | خيارات `withRetry()` لاستدعاءات الـ model الفاشلة، أو `false`. الافتراضي `{ maxRetries: 2 }` لسلاسل `model`؛ ونسخة `provider` تُغلَّف فقط إذا ضُبط. انظر [الـ retry والـ fallback](#الـ-retry-والـ-fallback-عند-الـ-provider). |
+| `fallbackModels` | سلاسل `provider/model` تُجرَّب بالترتيب عندما يظل الـ model يفشل بعد استنفاد محاولاته. |
+| `hooks`    | `AgentHook[]` تعمل حول كل call للـ model وكل tool call، بالترتيب، قبل الـ compaction hook (انظر [الـ hooks](/ar/hooks)). |
+| `compaction` | `true` (تنظيف نتائج الـ tools القديمة فوق 90% من نافذة السياق) أو `{ strategy?, thresholdPercent?, contextWindow?, protectedTokens?, summarizer? }`؛ و`summarizer` (`'provider/model'` أو `LLMProvider`) يختار الاستراتيجية ثنائية المرحلتين. تبلّغ `stream()` عن `compaction.start` / `compaction.done`. انظر [Context compaction](/ar/compaction#تفعيل-الـcompaction-على-agent). |
 
-إذا لم يُحدَّد `model` ولا `provider`، تحدّد `createAgent()` المزوّد من البيئة:
-`LOUSHO_MODEL` (سلسلة نصية بالصيغة `'provider/model'`) إن كان مضبوطًا، وإلا
-فأول مزوّد ضُبط متغيره، وتُفحص المتغيرات بهذا الترتيب:
-`OPENAI_API_KEY` (`openai/gpt-4o-mini`)، ثم `ANTHROPIC_API_KEY`
+إذا لم تمرّر `model` ولا `provider`، تحل `createAgent()` من البيئة:
+`LOUSHO_MODEL` (سلسلة `'provider/model'`) إن كانت مضبوطة، وإلا أول provider
+متغيّره مضبوط، ويُفحص بهذا الترتيب: `OPENAI_API_KEY`
+(`openai/gpt-4o-mini`)، ثم `ANTHROPIC_API_KEY`
 (`anthropic/claude-3-5-sonnet-latest`)، ثم `OPENROUTER_API_KEY`
-(`openrouter/openai/gpt-4o-mini`)، ثم `OLLAMA_BASE_URL` (`ollama/llama3`). وإذا
-لم يكن أيٌّ منها مضبوطًا رمت خطأً يسرد بدقة الخيارات أو المتغيرات التي تحل
-المشكلة.
+(`openrouter/openai/gpt-4o-mini`)، ثم `OLLAMA_BASE_URL` (`ollama/llama3`).
+وإذا لم يكن أي منها مضبوطًا ترمي خطأً يسرد بالضبط أي خيارات أو متغيرات
+تحل المشكلة.
 
-أخطاء سوء الإعداد تبيّن طريقة إصلاحها: المفتاح الناقص يسمّي المتغير
+أخطاء سوء الإعداد تقول لك كيف تُصلَح: المفتاح الناقص يسمّي المتغير
 (`createAgent: OPENAI_API_KEY is not set. ...`)، والبادئة غير المعروفة تسرد
-البادئات المدعومة وتقترح أقربها، والاعتمادية النظيرة الاختيارية الناقصة تطبع
-أمر `npm install` بنصّه.
+البادئات المدعومة وتقترح أقربها، والـ peer dependency الاختيارية الناقصة
+تطبع أمر `npm install` كاملًا.
 
 ## الميزانيات
 
-يضع `limits` سقفًا لما يجوز للتشغيل أن ينفقه. اضبطه في `createAgent()` (لكل
-تشغيلات الوكيل) أو في `AgentExecutor.execute()` / `stream()`:
+يضع `limits` سقفًا لما يجوز للـ run أن ينفقه. اضبطه في `createAgent()` (لكل
+run للـ agent) أو في `AgentExecutor.execute()` / `stream()`:
 
 | الحد              | ما يحسبه |
 | ----------------- | ------ |
-| `maxTokens`       | رموز (tokens) الموجّه مع رموز الإكمال في التشغيل (`usage.totalTokens`). |
-| `maxInputTokens`  | رموز الموجّه (`usage.inputTokens`). |
-| `maxOutputTokens` | رموز الإكمال (`usage.outputTokens`). |
-| `maxCostUsd`      | التكلفة التقديرية بالدولار الأمريكي (`usage.costUsd`، من [جدول الأسعار](/ar/models-and-cost#النماذج-وجدول-الأسعار)). لا يُفحص ما دام أحد النماذج المستخدمة مجهول التسعير (`costUsd` تساوي `undefined`). |
-| `maxDurationMs`   | الزمن الفعلي المنقضي في استدعاء `execute()` / `stream()`. |
-| `maxSteps`        | خطوات النموذج. اسم بديل للخيار `maxSteps`: إذا ضُبط الاثنان غلب الأشد تقييدًا (وعند التساوي يُبلَّغ عن `'max-steps'` الخاص بالخيار)؛ وإذا ضُبط وحده حلّ محل القيمة الافتراضية 10. |
+| `maxTokens`       | tokens الـ prompt مع tokens الإكمال في الـ run (`usage.totalTokens`). |
+| `maxInputTokens`  | tokens الـ prompt (`usage.inputTokens`). |
+| `maxOutputTokens` | tokens الإكمال (`usage.outputTokens`). |
+| `maxCostUsd`      | التكلفة التقديرية بالدولار (`usage.costUsd`، من [جدول الأسعار](/ar/models-and-cost#الـ-models-وجدول-الأسعار)). لا يُفحص طالما فيه model مستخدم تسعيره مجهول (`costUsd` تساوي `undefined`). |
+| `maxDurationMs`   | الزمن الفعلي لاستدعاء `execute()` / `stream()`. |
+| `maxSteps`        | خطوات الـ model. alias للخيار `maxSteps`: إذا ضُبط الاثنان يغلب الأشد تقييدًا (وعند التعادل يُبلَّغ عن `'max-steps'` الخاص بالخيار)؛ ولوحده يحل محل الافتراضي 10. |
 
-تُفحص الحدود قبل كل استدعاء للنموذج (أي بعد كل دفعة أدوات) وبعد استدعاء
-النموذج الذي يطلب أدوات؛ كما يُلغي `maxDurationMs` استدعاء النموذج أو الأداة
-الجاري عبر إشارة التشغيل. يُعدّ الحد متجاوَزًا حالما يبلغه التشغيل. واستهلاك
-الوكلاء الفرعيين يُحتسب من ميزانية وكيلهم الرئيسي: يُضاف حين يعود الوكيل
-الفرعي، فيتوقف الوكيل الرئيسي قبل استدعائه التالي للنموذج. والتشغيل الذي ينتهي
-من تلقاء نفسه في الخطوة التي بلغت حدًّا يحتفظ بسبب انتهائه هو، كما في
-`maxSteps`.
+تُفحص الحدود قبل كل call للـ model (يعني بعد كل دفعة tools) وبعد call الـ
+model التي تطلب tools؛ و`maxDurationMs` يلغي أيضًا call model أو tool
+جارية عبر signal الـ run. الحد يُستوفى فور بلوغ الـ run له. واستهلاك الـ
+sub-agents يُحتسب من ميزانية الـ lead الخاص بهم: يُضاف عند عودة الـ
+sub-agent، فيتوقف الـ lead قبل call الـ model التالي. والـ run الذي ينتهي
+بنفسه داخل الخطوة التي بلغت الحد يحتفظ بسبب انتهائه هو، مثل `maxSteps`.
 
-حين يُتجاوَز حد، يتوقف التشغيل بـ `finishReason: 'budget-exceeded'` مع
-`result.budget` (`{ limit, value, max, scope }`). استدعاءات الأدوات التي طلبها
-النموذج في تلك الخطوة تحصل على نتيجة «أُلغي» ("cancelled")، فيبقى سجل المحادثة
-صالحًا، ومع مخزن نقاط حفظ يُحفظ في نقطة حفظ على أنه منتهٍ، مثل `'max-steps'`.
-تُصدر `stream()` الحدث `budget.exceeded` قبل `run.done`. ومع
-`onExceeded: 'throw'` يُرفَض وعد التشغيل بالخطأ `BudgetExceededError`
-(`LOUSHO_BUDGET_EXCEEDED`، ومعه قيمة `budget` نفسها) بدلًا من ذلك.
+عند استيفاء حد، يتوقف الـ run بـ `finishReason: 'budget-exceeded'` ومعه
+`result.budget` (`{ limit, value, max, scope }`). الـ tool calls التي طلبها
+الـ model في تلك الخطوة تأخذ نتيجة "cancelled"، فيبقى الـ transcript
+صالحًا، ومع checkpoint store يُحفَظ في checkpoint كمنتهٍ، مثل
+`'max-steps'`. وتطلق `stream()` حدث `budget.exceeded` قبل `run.done`. ومع
+`onExceeded: 'throw'` يُرفَض الـ run بـ `BudgetExceededError`
+(`LOUSHO_BUDGET_EXCEEDED`، مع نفس `budget`) بدلًا من ذلك.
 
 ```ts
 import { BudgetExceededError, createAgent } from '@lousho/build-ai-agent';
@@ -356,15 +351,15 @@ try {
 }
 ```
 
-**حدود التشغيل وحدود الجلسة.** يسري `createAgent({ limits })` على كل تشغيل على
-حدة: كل `send()`، وكل دورة في جلسة، يبدأ من الصفر. ويضيف
-`agent.session({ id, limits })` حدودًا تشمل كل دورات الجلسة: تتوقف الدورة
-حالما يبلغ ما أنفقته الجلسة، في دوراتها كلها، حدًّا (وعندها تكون
-`budget.scope` مساوية `'session'`)، والدورات اللاحقة تتوقف قبل استدعاء النموذج.
-ما أنفقته الدورات (الرموز والتكلفة والخطوات وزمن التشغيل) يُحفظ مع سجل
-المحادثة، في `metadata.sessionUsage` على آخر رسالة فيه، فالجلسة التي تُستكمل
-من مخزنها تحتفظ بميزانيتها. يسري النوعان معًا؛ وأول حد يُبلَغ يوقف الدورة.
-والدورة التي أُلغيت لا تُحتسب.
+**حدود الـ run والـ session.** يسري `createAgent({ limits })` على كل run
+وحده: كل `send()`، وكل turn في session، يبدأ من صفر. ويضيف
+`agent.session({ id, limits })` حدودًا تشمل كل turns الـ session: الـ turn
+يتوقف فور أن يبلغ مجموع ما أنفقته الـ session في turnsها كلها حدًّا (وعندها
+تصير `budget.scope` تساوي `'session'`)، والـ turns اللاحقة تتوقف قبل استدعاء
+الـ model. ما أنفقته الـ turns (tokens وتكلفة وخطوات وزمن run) يُحفَظ مع
+الـ transcript، في `metadata.sessionUsage` على آخر رسالة فيه، فالـ session
+التي تُستكمل من الـ store تحتفظ بميزانيتها. الاثنان يسريان معًا؛ وأول حد
+يُبلَغ يوقف الـ turn. والـ turn الملغى لا يُحتسب.
 
 ```ts
 import { createAgent, memoryStore } from '@lousho/build-ai-agent';
@@ -377,8 +372,8 @@ if (reply.budget?.scope === 'session') console.log('This conversation used up it
 
 ## تعليمات المشروع
 
-كثير من المستودعات يحفظ إرشادات لوكلاء البرمجة في ملف `AGENTS.md` (أو
-`CLAUDE.md`). يستطيع `createAgent` إلحاقه بتعليمات الوكيل:
+كثير من الـ repos تحتفظ بإرشادات للـ coding agents في ملف `AGENTS.md` (أو
+`CLAUDE.md`). تستطيع `createAgent` إلحاقه بتعليمات الـ agent:
 
 ```ts
 import { createAgent } from '@lousho/build-ai-agent';
@@ -390,25 +385,24 @@ const agent = createAgent({
 });
 ```
 
-يُضاف الملف بعد تعليماتك أنت تحت العنوان
-`## Project instructions (from AGENTS.md)`. ويُقرأ مرة واحدة، عند إنشاء الوكيل.
-يصعد البحث من `cwd` (الافتراضي `process.cwd()`) ويستخدم أقرب مجلد فيه أحد
-ملفات `files` (الافتراضي `['AGENTS.md', 'CLAUDE.md']`، وأول تطابق يفوز)، ويتوقف
-عند أقرب مجلد يحتوي `.git` أو عند جذر نظام الملفات. المحتوى الذي يزيد على
-32,000 حرف يُقتطع مع علامة تدل على الاقتطاع. وإذا لم يُعثر على ملف لم يُضَف
-شيء.
+يُضاف الملف بعد تعليماتك تحت العنوان
+`## Project instructions (from AGENTS.md)`. ويُقرأ مرة واحدة، عند إنشاء الـ
+agent. يصعد البحث من `cwd` (الافتراضي `process.cwd()`) ويأخذ أقرب مجلد فيه
+أحد `files` (الافتراضي `['AGENTS.md', 'CLAUDE.md']`، وأول تطابق يفوز)،
+ويتوقف عند أقرب مجلد يحوي `.git` أو عند جذر نظام الملفات. المحتوى فوق 32,000
+حرف يُقتطع مع علامة تدل على الاقتطاع. وإذا لم يجد ملفًا لا يُضاف شيء.
 
-هذه الميزة **اختيارية (opt-in)** عن قصد: قراءة الملفات من القرص افتراضيًا
-ستفاجئ من يضمّنون الـ SDK في خادم، حيث مجلد العمل ليس المشروع الذي يُعنى به
-الوكيل. وللعثور على الملف بنفسك (لعرضه مثلًا)، استخدم
-`loadProjectInstructions({ cwd, files, stopAt, maxChars })`، وهي تُرجع
+هذا **opt-in** عن قصد: قراءة الملفات من القرص افتراضيًا ستفاجئ من يضمّن الـ
+SDK في سيرفر، حيث مجلد العمل ليس المشروع الذي يخص الـ agent. ولتجد الملف
+بنفسك (مثلًا لعرضه)، استخدم
+`loadProjectInstructions({ cwd, files, stopAt, maxChars })`، وهي ترجع
 `{ path, content }` أو `undefined`.
 
 ## خيارات `AgentExecutor.execute()`
 
-خيارات `AgentExecutor.execute()`، وهي نقطة الدخول الأدنى مستوى، مدرجة في [صفحة واجهة المنفِّذ](/ar/executor-api#خيارات-agentexecutor-execute).
+خيارات `AgentExecutor.execute()`، نقطة الدخول الأدنى مستوى، مدرجة في [صفحة executor API](/ar/executor-api#خيارات-agentexecutorexecute).
 
 ## CLI
 
-الأوامر `lousho dev` و`lousho build` و`lousho mcp` وسائر الأوامر، مع
-راياتها (flags)، موصوفة في [CLI](/ar/cli)؛ ويُعرض `lousho mcp` أيضًا في [MCP](/ar/mcp-integration#من-سطر-الأوامر).
+الأوامر `lousho dev` و`lousho build` و`lousho mcp` وباقي الأوامر، مع
+flagsها، موصوفة في [CLI](/ar/cli)؛ و`lousho mcp` مغطّى أيضًا في [MCP](/ar/mcp-integration#من-الـ-cli).

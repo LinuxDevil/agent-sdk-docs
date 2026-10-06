@@ -6,37 +6,37 @@ sidebarTitle: "الترقية إلى 1.0"
 
 ## من يحتاج هذه الصفحة
 
-كل من لديه شيفرة مكتوبة على `1.0.0-alpha.8` أو إصدار `1.0.0-alpha.*`
-أقدم. بين آخر إصدارات alpha وبين `1.0.0-rc.0` أُعيد تنظيم السطح العام
-للحزمة: انتقلت الواردات إلى مسارات فرعية، وحُذفت واجهات API ميتة أو
-تجاوزتها بدائل، وسُمّيت حواجز حماية الترقيعات فحوصات ترقيع (patch
-checks). لم تتغير `createAgent()` ولا خياراتها - الوكيل الذي لا يفعل
-شيئًا سوى `createAgent({ model, instructions, tools })` و`agent.send()`
-يُرقَّى دون تغيير شيء سوى رقم الإصدار.
+أي شخص عنده كود مكتوب على `1.0.0-alpha.8` أو إصدار `1.0.0-alpha.*`
+أقدم. بين آخر إصدارات alpha و`1.0.0-rc.0` أعدنا تنظيم السطح العام
+للحزمة. الـ imports انتقلت إلى subpaths. حذفنا الـ APIs الميتة أو
+اللي صار لها بديل. والـ patch guardrails صار اسمها patch checks.
+`createAgent()` وخياراتها لم تتغير — الـ agent اللي ما يعمل إلا
+`createAgent({ model, instructions, tools })` و`agent.send()` يترقّى
+بتغيير رقم الإصدار فقط.
 
 ```bash
 npm install @lousho/build-ai-agent@^1.0.0-rc.0
 ```
 
-## مسارات الاستيراد التي انتقلت
+## مسارات الـ import اللي انتقلت
 
-يضم جذر الحزمة الآن `createAgent()` والأسماء التي تستخدمها إعداداتها
-ونتائجها. كل ما يلي انتقل إلى مسار فرعي مخصص؛ والتعريفات لم تتغير سوى
-في مكان وجودها.
+جذر الحزمة الآن فيه `createAgent()` والأسماء اللي تستخدمها إعداداتها
+ونتائجها. كل اللي تحت انتقل إلى subpath خاص فيه. التعريفات نفسها لم
+تتغير، بس مكانها تغيّر.
 
-| الاسم (الأسماء) | الاستيراد القديم | الاستيراد الجديد |
+| الاسم (الأسماء) | الـ import القديم | الـ import الجديد |
 | ------- | ---------- | ---------- |
 | `AgentExecutor`, `AgentBuilder`, `ExecuteOptions`, `ResumeExecuteOptions`, `ResumeRequest`, `resumeAfterApproval()`, `streamResumeAfterApproval()`, `resumeRequest()` | `@lousho/build-ai-agent` أو `@lousho/build-ai-agent/core` | `@lousho/build-ai-agent/executor` |
-| `ToolRegistry`, `globalToolRegistry` | `@lousho/build-ai-agent` أو `@lousho/build-ai-agent/core` | `@lousho/build-ai-agent/executor` (وما زال أيضًا في `@lousho/build-ai-agent/tools`) |
-| `ExecutionResult`, `ExecutionFinishReason` (أنواع المنفّذ) | `@lousho/build-ai-agent/core` | `@lousho/build-ai-agent/executor` (وما زال `ExecutionResult` أيضًا في الجذر، حيث يوجد نوع نتيجة `createAgent()`) |
-| `FlowBuilder`, `FlowExecutor`, `validateFlow` وكل أنواع مسارات العمل (`AgentFlow`, `EditorStep`, `FlowExecutionEvent`, ...) | `@lousho/build-ai-agent` أو `@lousho/build-ai-agent/types` | `@lousho/build-ai-agent/flows` |
+| `ToolRegistry`, `globalToolRegistry` | `@lousho/build-ai-agent` أو `@lousho/build-ai-agent/core` | `@lousho/build-ai-agent/executor` (وما زال موجود في `@lousho/build-ai-agent/tools`) |
+| `ExecutionResult`, `ExecutionFinishReason` (أنواع الـ executor) | `@lousho/build-ai-agent/core` | `@lousho/build-ai-agent/executor` (و`ExecutionResult` ما زال في الجذر، مكان نوع نتيجة `createAgent()`) |
+| `FlowBuilder`, `FlowExecutor`, `validateFlow` وكل أنواع الـ flow (`AgentFlow`, `EditorStep`, `FlowExecutionEvent`, ...) | `@lousho/build-ai-agent` أو `@lousho/build-ai-agent/types` | `@lousho/build-ai-agent/flows` |
 | `createJiraTools`, `createGitHubTools`, `createSlackTool`, `slackTool`, `postSlackAlert`, `createEmailTool` وأنواعها | `@lousho/build-ai-agent` أو `@lousho/build-ai-agent/tools` | `@lousho/build-ai-agent/integrations` |
 | `EncryptionUtils`, `DTOEncryptionFilter`, `DecryptionError`, `sha256`, `generatePassword` | `@lousho/build-ai-agent` | `@lousho/build-ai-agent/utils` |
-| `StorageService`, `StorageServiceApprovalStore`, `LocalStorageCheckpointStore` | `@lousho/build-ai-agent` | `@lousho/build-ai-agent/utils` (مع مخازن `createAgent()`، فضّل `fileStore(dir)` من الجذر) |
-| `validateWithSchema`, `safeValidate`, `isValidEmail` وبقية المدقّقات | `@lousho/build-ai-agent` | `@lousho/build-ai-agent/utils` |
+| `StorageService`, `StorageServiceApprovalStore`, `LocalStorageCheckpointStore` | `@lousho/build-ai-agent` | `@lousho/build-ai-agent/utils` (مع الـ stores الخاصة بـ`createAgent()`، الأفضل `fileStore(dir)` من الجذر) |
+| `validateWithSchema`, `safeValidate`, `isValidEmail` وبقية الـ validators | `@lousho/build-ai-agent` | `@lousho/build-ai-agent/utils` |
 
-لم يعد المسار الفرعي `@lousho/build-ai-agent/core` موجودًا؛ كل ما كان
-يصدّره أصبح تحت `/executor`.
+الـ subpath `@lousho/build-ai-agent/core` لم يعد موجود؛ كل اللي كان
+يصدّره صار تحت `/executor`.
 
 ```ts
 import { AgentExecutor, AgentBuilder, ToolRegistry } from '@lousho/build-ai-agent/executor';
@@ -45,32 +45,34 @@ import { createSlackTool } from '@lousho/build-ai-agent/integrations';
 import { EncryptionUtils, validateWithSchema } from '@lousho/build-ai-agent/utils';
 ```
 
-## واجهات API المحذوفة وبدائلها
+## APIs محذوفة وبدائلها
 
 - **`AgentType` و`AgentTypeDescriptor` و`AgentConfig.agentType`
-  و`AgentBuilder.setType()` وسجل أنواع الوكلاء**
+  و`AgentBuilder.setType()` والـ agent-type registry**
   (`agentTypesRegistry`, `getAgentTypeDescriptor`, `getAllAgentTypeDescriptors`,
-  `isValidAgentType`, `validateAgentConfig`, `validateAgentTools`). لم يكن
-  لها أي أثر وقت التشغيل: احذف استدعاء `setType(...)` وحقل `agentType`.
-  نقطة الحفظ المحفوظة مع `agentType` ما زالت تُحمَّل؛ ويُتجاهَل الحقل.
-- **`ExecuteOptions.onEvent`** ونوعا `ExecutionEvent` / `ExecutionEventType`.
-  مرّر `onAgentEvent` إلى `AgentExecutor.execute()` / `stream()` /
-  `resumeAfterApproval()` بدلًا منها؛ فالأحداث التي تصلك الآن هي
-  `AgentEvent`. جدول مقابلة أسماء الأحداث في
-  [البث](/ar/streaming#الانتقال-من-onevent-/-executionevent). ومع `createAgent()`، يستقبل `onEvent`
-  أصلًا `AgentEvent` ولم يتغير.
+  `isValidAgentType`, `validateAgentConfig`, `validateAgentTools`). ما
+  كان لها أي أثر في الـ runtime: احذف استدعاء `setType(...)` وحقل
+  `agentType`. الـ checkpoint (نقطة الحفظ) المحفوظ مع `agentType`
+  ينفتح عادي؛ الحقل يُتجاهَل.
+- **`ExecuteOptions.onEvent`** ونوعا `ExecutionEvent` /
+  `ExecutionEventType`. مرّر `onAgentEvent` لـ
+  `AgentExecutor.execute()` / `stream()` / `resumeAfterApproval()`
+  بدلها؛ الأحداث اللي توصلك الآن هي `AgentEvent`. جدول مقابلة أسماء
+  الأحداث في
+  [Streaming](/ar/streaming#الانتقال-من-onevent-executionevent). ومع `createAgent()`، الـ `onEvent`
+  أصلاً يستقبل `AgentEvent` ولم يتغير.
 - **`createDelegateTool()`** و`DelegateAgentOptions` و`DelegateAgentResult`
-  و`DelegationDepthExceededError`. استخدم خيار `subagents` في `createAgent()`
-  أو `AgentExecutor.execute()`: يحصل النموذج على أداة `task` واحدة لكل
-  وكيل فرعي، مع حدّ للعمق (`maxSubagentDepth`، الافتراضي `1`) بدل الخطأ
-  المرمي. انظر [الوكلاء الفرعيون](/ar/sub-agents).
-- **أنواع لم يُنفّذها شيء ولم يستخدمها شيء**: واجهات المستودعات
+  و`DelegationDepthExceededError`. استخدم خيار `subagents` في
+  `createAgent()` أو `AgentExecutor.execute()`: الـ model يحصل على
+  tool باسم `task` لكل sub-agent (وكيل فرعي)، مع حد للعمق
+  (`maxSubagentDepth`، الافتراضي `1`) بدل الخطأ اللي كان يُرمى. شوف
+  [Sub-agents](/ar/sub-agents).
+- **أنواع ما نفّذها ولا استخدمها أي كود**: واجهات الـ repository
   (`IRepository`, `IAgentRepository`, `ISessionRepository`, `IResultRepository`,
   `SessionData`, `ResultData`, `SDKRepositories`)، و`DataLoadingStatus`،
   و`PaginationParams`، و`PaginatedResponse`، و`DeepPartial`، و`Timestamped`،
   و`IdEntity`، و`AgentExecutionOptions`، و`AgentExecutionResult`، و`AgentDefinition`
-  و`ToolSetting`. إن كانت شيفرتك تستخدم واحدًا منها، انسخ تعريفه إلى
-  مشروعك.
+  و`ToolSetting`. لو كودك يستخدم واحد منها، انسخ تعريفه إلى مشروعك.
 
 ```ts
 // Before (alpha):
@@ -90,13 +92,13 @@ const lead = createAgent({
 });
 ```
 
-## واجهات API أُعيدت تسميتها
+## APIs بأسماء جديدة
 
-أصبحت حواجز حماية الترقيعات تُسمى فحوصات ترقيع (patch checks)، حتى لا
-تعني كلمة «حاجز حماية» (guardrail) إلا حواجز المدخلات والمخرجات
-والأدوات في `createAgent({ guardrails })`. المعاملات والنتائج والسلوك لم
-تتغير؛ واحتفظ `SECRET_PATTERNS` باسمه. انظر
-[حواجز الحماية والبيئات المعزولة](/ar/guardrails).
+الـ patch guardrails صار اسمها patch checks، عشان كلمة guardrail
+ما تعني إلا الـ guardrails الخاصة بالمدخلات والمخرجات والأدوات في
+`createAgent({ guardrails })`. المعاملات والنتائج والسلوك نفسها لم
+تتغير. و`SECRET_PATTERNS` احتفظ باسمه. شوف
+[Guardrails والـ sandbox](/ar/guardrails).
 
 | الاسم القديم | الاسم الجديد |
 | -------- | -------- |
@@ -112,95 +114,97 @@ const lead = createAgent({
 | `createTestRunGuardrail` | `createTestRunCheck` |
 | `createLintGuardrail` | `createLintCheck` |
 
-## مُهمَلة لكنها ما زالت تعمل في 1.x
+## Deprecated لكنها ما زالت تشتغل في 1.x
 
-هذه الأسماء ما زالت تعمل في 1.x وتُحذف في 2.0. انتقل عنها حين تعدّل
-الشيفرة؛ ولن ينكسر شيء إن لم تفعل.
+هذه الأسماء تشتغل في 1.x وتنحذف في 2.0. انتقل عنها أول ما تعدّل
+الكود؛ ولن ينكسر شيء لو لم تفعل.
 
-| مُهمَل | البديل |
+| Deprecated | البديل |
 | ---------- | ----------- |
-| `SlackTriggerAdapter` (`@lousho/build-ai-agent/triggers`) | `slackChannel()`، تُركَّب بـ`mountChannels()` - جلسات لكل سلسلة رسائل (thread)، وأزرار موافقة. انظر [القنوات](/ar/channels) |
-| `CronTriggerAdapter` | `defineSchedule()` مع `startSchedules()`، أو `schedules/` في مجلد الوكيل، أو مُشغِّلات cron في ملف مواصفات. انظر [الجداول الزمنية](/ar/schedules) |
-| `WebhookTriggerAdapter` | `webhookChannel()`، تُركَّب بـ`mountChannels()`. انظر [القنوات](/ar/channels) |
-| أنواع خيارات المحوّلات (`SlackTriggerAdapterOptions`, `CronTriggerAdapterOptions`, `WebhookTriggerAdapterOptions`) و`WebhookTriggerHandle` | أنواع خيارات القناة/الجدول الزمني المناظرة. `verifySlackSignature()` ومساعدات `WebhookAuth` و`parseCronExpression()` و`TriggerAdapter` و`TriggerRegistry` **ليست** مُهمَلة |
-| `ToolRunContext` | `ToolExecutionContext`، نوع سياق التنفيذ العام الوحيد |
+| `SlackTriggerAdapter` (`@lousho/build-ai-agent/triggers`) | `slackChannel()`، تُركَّب بـ`mountChannels()` - sessions (جلسات) لكل thread، وأزرار approval (موافقة). شوف [Channels](/ar/channels) |
+| `CronTriggerAdapter` | `defineSchedule()` مع `startSchedules()`، أو `schedules/` في مجلد الـ agent، أو cron triggers في ملف spec. شوف [Schedules](/ar/schedules) |
+| `WebhookTriggerAdapter` | `webhookChannel()`، تُركَّب بـ`mountChannels()`. شوف [Channels](/ar/channels) |
+| أنواع خيارات الـ adapters (`SlackTriggerAdapterOptions`, `CronTriggerAdapterOptions`, `WebhookTriggerAdapterOptions`) و`WebhookTriggerHandle` | أنواع الخيارات المقابلة للـ channel/schedule. `verifySlackSignature()` وhelpers الخاصة بـ`WebhookAuth` و`parseCronExpression()` و`TriggerAdapter` و`TriggerRegistry` **ليست** deprecated |
+| `ToolRunContext` | `ToolExecutionContext`، النوع العام الوحيد لسياق التنفيذ |
 | `RunUsage.promptTokens` | `RunUsage.inputTokens` |
 | `RunUsage.completionTokens` | `RunUsage.outputTokens` |
-| `AiSdkProvider.convertMessages()` (خطّاف محمي بشكل `ai` v4) | لا تتجاوزه في الشيفرة الجديدة؛ يبقى للمزوّدين المدمجين حتى 2.0. انظر [المزوّدون](/ar/providers) |
+| `AiSdkProvider.convertMessages()` (hook محمي بشكل `ai` v4) | لا تعمل له override في كود جديد؛ يبقى للـ providers المدمجين حتى 2.0. شوف [Providers](/ar/providers) |
 
-## تغييرات سلوكية أخرى منذ alpha.8
+## تغييرات أخرى في السلوك منذ alpha.8
 
-القائمة الكاملة في [CHANGELOG](/changelog). البنود التي تغيّر سلوك
-وقت التشغيل أو الأنواع التي قد تعتمد عليها شيفرتك، سطر لكل منها:
+القائمة الكاملة في [CHANGELOG](/changelog). هذه البنود اللي تغيّر
+سلوك الـ runtime أو أنواع ممكن كودك يعتمد عليها، سطر لكل بند:
 
-- عمليات النقل والحذف وإعادة التسمية أعلاه هي قسم `### Breaking`؛
-  والملاحظات أدناه هي بنود `### Changed` التي تغيّر السلوك.
-- الأداة التي يعيد `execute` فيها مولّدًا غير متزامن تُستهلَك الآن
-  بالتكرار - آخر قيمة يولّدها هي النتيجة - ويكتسب `AgentEvent` الحدث
-  `tool.partial` (`ToolPartialEvent`)؛ فإن قصدت إعادة مولّد كقيمة
-  فغلّفه (`{ items: generator }`). انظر [الأدوات](/ar/tools)
-  و[أحداث البث](/ar/stream-events).
-- يكتسب `AgentEvent` حدث `handoff` ويكتسب `ExecutionResult` الحقل
-  الاختياري `agentName`: عبارة `switch` شاملة على `event.type` تحتاج
-  حالة `handoff`. انظر [التسليم بين الوكلاء](/ar/handoffs).
-- يكتسب `McpServerStatus` القيمة `'needs-auth'` ويكتسب `AgentOAuth`
-  المنهج `mcpSignInUrl(server)`: عبارة `switch` شاملة على
-  `connectMcp().status()` تحتاج الحالة الجديدة. انظر [MCP](/ar/mcp-integration)
-  و[OAuth](/ar/oauth).
-- يكتسب `ToolExecutionContext` المنهجين `getToken(provider)`
-  و`requireAuth(provider)`، ويكتسب `ApprovalKind` القيمة `'sign-in'`:
-  سياق أداة مبني يدويًا في اختبار يحتاج المنهجين (أو تحويل نوع). انظر
-  [OAuth](/ar/oauth).
-- مع مستمع (`createAgent({ onEvent })`, `onAgentEvent`)، يبثّ `send()`
-  و`execute()` الآن استدعاءات النموذج: يصل نص الخطوة على هيئة عدة
-  أحداث `text.delta` بدل حدث واحد. `execute({ streamModelCalls: false })`
-  يعيد الشكل القديم. انظر [أحداث البث](/ar/stream-events).
-- `MockLLMProvider` / `createMockProvider()`: يبثّ `stream()` الآن
-  الخطوة نفسها التي يعيدها `generate()` - استدعاءات الأدوات نفسها وسبب
-  الإنهاء والاستهلاك نفسها - لذا فإن تشغيلًا وهميًا مبثوثًا يستدعي
-  الأدوات كما يفعل `send()`. انظر [اختبار الوكلاء](/ar/testing).
-- تشغيلات Agent Forge تبثّ استدعاءات نماذجها؛ وعروض المحادثة والسجلات
-  والتتبّع لم تتغير. انظر [Agent Forge](/ar/agent-forge).
-- `lousho init --provider ollama` يجهّز الآن `ai@^7` مع
+- النقل والحذف وإعادة التسمية اللي فوق هي قسم `### Breaking`.
+  والملاحظات اللي تحت هي بنود `### Changed` اللي تغيّر السلوك.
+- لو `execute` في tool يرجّع async generator، صار يُستهلك بالتكرار -
+  آخر قيمة يطلّعها هي النتيجة - و`AgentEvent` صار فيه `tool.partial`
+  (`ToolPartialEvent`). لو قصدك ترجّع generator كقيمة، غلّفه:
+  `{ items: generator }`. شوف [Tools](/ar/tools)
+  و[Stream events](/ar/stream-events).
+- `AgentEvent` صار فيه حدث `handoff`، و`ExecutionResult` صار فيه
+  الحقل الاختياري `agentName`: لو عندك `switch` شامل على `event.type`
+  لازم تضيف case لـ`handoff`. شوف [Handoffs](/ar/handoffs).
+- `McpServerStatus` صار فيه `'needs-auth'`، و`AgentOAuth` صار فيه
+  `mcpSignInUrl(server)`: الـ `switch` الشامل على
+  `connectMcp().status()` يحتاج الـ case الجديدة. شوف
+  [MCP](/ar/mcp-integration) و[OAuth](/ar/oauth).
+- `ToolExecutionContext` صار فيه `getToken(provider)`
+  و`requireAuth(provider)`، و`ApprovalKind` صار فيه `'sign-in'`:
+  لو تبني tool context بنفسك في test، لازم تضيف الدالتين (أو تعمل
+  cast). شوف [OAuth](/ar/oauth).
+- مع listener (`createAgent({ onEvent })`, `onAgentEvent`)، صار
+  `send()` و`execute()` يبثّون استدعاءات الـ model: نص الخطوة يوصلك
+  على عدة أحداث `text.delta` بدل حدث واحد.
+  `execute({ streamModelCalls: false })` يرجّع الشكل القديم. شوف
+  [Stream events](/ar/stream-events).
+- `MockLLMProvider` / `createMockProvider()`: `stream()` صار يبث
+  نفس الخطوة اللي يرجعها `generate()` - نفس الـ tool calls والـ
+  finish reason والـ usage - فالـ run المبثوث بـmock يستدعي الـ
+  tools مثل `send()`. شوف [Testing](/ar/testing).
+- الـ runs في Agent Forge تبث استدعاءات نماذجها؛ عروض الشات والسجلات
+  والـ trace ما تغيّرت. شوف [Agent Forge](/ar/agent-forge).
+- `lousho init --provider ollama` صار يجهّز `ai@^7` مع
   `ollama-ai-provider-v2@^4` و`zod@^4` (كان `ai@^4` مع
-  `ollama-ai-provider@^1` وzod 3). المشاريع القائمة لا تُمسّ. انظر
-  [التثبيت](/ar/installation#حزم-المزوّدين).
-- التشغيل المتوقف مؤقتًا داخل وكيل فرعي يقارن الوكيل الفرعي بتعريفه
-  الحالي عند الاستئناف، تحت `onAgentDrift` التابع للوكيل الرئيسي - ومع
-  `'error'` يرفض الوكيل الفرعي المتغيّر الآن `agent.approvals.resolve()`
-  أيضًا. انظر
-  [التنفيذ المتين](/ar/durable-execution#الاستئناف-بوكيل-تغيَّر).
-- `lousho add` يفرض بيان صلاحيات السجل عند التثبيت، ومجلد الوكيل
-  المحمَّل يشغّل أدوات كل عنصر داخل بيانه المقبول (الموافقة مفعّلة
-  دائمًا لعناصر `exec`/`needsApproval`/غير الموثَّقة، و`fetch`
-  و`process.env` مقيّدان بنطاق التصريح)؛ والشيفرة غير المطابقة تُرفَض
-  بـ`LOUSHO_REGISTRY_MANIFEST_MISMATCH`، و`--yes` يحتاج `--allow`
-  للصلاحيات المرتفعة. انظر [السجل](/ar/registry#بيان-الصلاحيات).
-- متابعة تشغيل محفوظ غير مكتمل بـ`principal` غير الذي حُفظ به يرمي
-  الآن `LOUSHO_CONFIG_INVALID`؛ فنقاط الحفظ ولقطات الموافقة تخزّن
-  principal التشغيل. انظر
-  [مصادقة المسارات والهويات (principals)](/ar/auth).
-- الحزمة المنشورة أصغر: ملفات الاختبار لم تعد تُشحَن، وخرائط المصدر لم
-  تعد تضمّن `sourcesContent` (وما زالت `sources` فيها تشير إلى `src/`
-  المشحون). لا تغيير في API.
+  `ollama-ai-provider@^1` وzod 3). المشاريع القائمة ما تتأثر. شوف
+  [Installation](/ar/installation#حزم-الـ-providers).
+- لما run يتوقف داخل sub-agent، عند الاستئناف يقارن الـ sub-agent
+  بتعريفه الحالي، حسب `onAgentDrift` عند الـ lead - ومع `'error'`
+  صار الـ sub-agent المتغيّر يرفض `agent.approvals.resolve()` كمان.
+  شوف
+  [Durable execution](/ar/durable-execution#استئناف-run-بعد-ما-يتغير-الـ-agent).
+- `lousho add` يفرض الـ permission manifest الخاص بالـ registry وقت
+  التثبيت، ومجلد الـ agent المحمَّل يشغّل tools كل عنصر داخل الـ
+  manifest المقبول الخاص فيه (الـ approval شغال دائمًا لعناصر
+  `exec`/`needsApproval`/غير الموثقة، و`fetch` و`process.env`
+  محصورين بنطاق التصريح المعلن)؛ الكود غير المطابق يُرفض بـ
+  `LOUSHO_REGISTRY_MANIFEST_MISMATCH`، و`--yes` يحتاج `--allow`
+  للصلاحيات المرتفعة. شوف [Registry](/ar/registry#بيان-الصلاحيات).
+- متابعة run محفوظ بـcheckpoint وغير مكتمل بـ`principal` مختلف عن
+  اللي انحفظ معه صارت ترمي `LOUSHO_CONFIG_INVALID`؛ الـ checkpoints
+  وsnapshots الخاصة بالـ approval تخزّن الـ principal الخاص بالـ run.
+  شوف [Route auth and principals](/ar/auth).
+- الحزمة المنشورة صارت أصغر: ملفات الاختبار لم تعد تُشحن، والـ
+  source maps لم تعد تضمّن `sourcesContent` (بس `sources` فيها ما
+  زالت تحل على `src/` المشحون). ما فيه تغيير في الـ API.
 
-## ما الذي تعد به 1.0
+## ما تعد به 1.0
 
-ابتداءً من 1.0 تتبع الحزمة semver على سطحها العام:
+من إصدار 1.0، الحزمة تتبع semver على سطحها العام:
 
-- **عام**: كل نقطة دخول يصرّح بها `exports` - الجذر
-  `@lousho/build-ai-agent` والمسارات الفرعية `/executor` و`/tools` و`/flows`
+- **عام (public)**: كل entry point يعلنه `exports` - الجذر
+  `@lousho/build-ai-agent` والـ subpaths `/executor` و`/tools` و`/flows`
   و`/integrations` و`/utils` و`/mcp` و`/types` و`/testing` و`/otel` و`/hooks`
   و`/sqlite` و`/auth` و`/kv` و`/worker` و`/traces` و`/triggers` و`/react`
-  و`/vue` و`/svelte` - وكل اسم في تقارير API المودعة في المستودع
+  و`/vue` و`/svelte` - وكل اسم في تقارير الـ API المودعة في المستودع
   (`api/index.api.md`, `api/executor.api.md`, ... في المستودع).
-  حذف أحدها أو إعادة تسميته أو تغيير توقيعه يتطلب إصدارًا رئيسيًا.
-- **داخلي**: كل ما عداه، بما فيه الاستيرادات العميقة داخل `dist/` أو
-  `src/` (أي مسار لا يذكره `exports`) والأسماء التي يستخدمها توقيع عام
-  دون أن يصدّرها (بنود `ae-forgotten-export` في التقارير).
-  يمكن أن تتغير هذه في أي إصدار.
-- **مُهمَل**: الأسماء المعلَّمة بـ`@deprecated` تبقى تعمل طوال 1.x
-  وتُحذف في 2.0.
+  حذف واحد منها أو إعادة تسميته أو تغيير توقيعه يحتاج major version.
+- **داخلي (internal)**: كل شي ثاني، بما فيه الـ deep imports داخل
+  `dist/` أو `src/` (أي مسار ما يذكره `exports`) والأسماء اللي
+  يستخدمها توقيع عام بس ما يصدّرها (بنود `ae-forgotten-export` في
+  التقارير). هذه ممكن تتغير في أي إصدار.
+- **Deprecated**: الأسماء المعلّمة بـ`@deprecated` تبقى تشتغل طوال
+  1.x وتنحذف في 2.0.
 
-يقارن CI التقارير في كل pull request، لذا فإن أي تغيير في السطح العام
-يكون دائمًا تعديلًا مقصودًا مُراجَعًا.
+الـ CI يقارن التقارير في كل pull request، فأي تغيير في السطح العام
+يكون دائمًا diff مقصود ومُراجَع.

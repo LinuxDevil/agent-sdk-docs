@@ -1,11 +1,18 @@
 ---
-title: "أدوات OpenAPI"
+title: "OpenAPI tools"
 ---
 {/* Generated from docs/openapi-tools.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-تنشر معظم الخدمات مستند OpenAPI ولا تقدّم خادم MCP. تحوّل `openApiTools()` هذا المستند إلى أداة مكتوبة الأنواع لكل عملية في الواجهة، فيستطيع الوكيل استدعاء الواجهة دون كتابة `defineTool()` يدويًا لكل نقطة نهاية ودون [أداة `http`](/ar/tools#الأدوات-المضمَّنة) الخام. والعمليات التي تغيّر البيانات تطلب [موافقة](/ar/approvals) افتراضيًا.
+أغلب الخدمات تنشر مستند OpenAPI وما عندها سيرفر MCP. `openApiTools()`
+يحوّل المستند إلى tool واحد typed لكل عملية في الـ API، فيقدر الـ agent
+يستدعي الـ API بدون `defineTool()` مكتوبة يدويًا لكل endpoint وبدون
+الـ [`http` tool](/ar/tools#tools-مدمجة) الخام. والعمليات التي تغيّر
+البيانات تطلب [approval](/ar/approvals) (موافقة) افتراضيًا.
 
-الدالة `openApiTools` مصدَّرة من `@lousho/build-ai-agent` و`@lousho/build-ai-agent/tools`. ولا تحتاج إلى أي حزمة إضافية. تختار بادئة النموذج `vendor/` المزوّد؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`).
+`openApiTools` مُصدَّرة من `@lousho/build-ai-agent` ومن
+`@lousho/build-ai-agent/tools`. ما تحتاج أي حزمة إضافية. بادئة الموديل
+`vendor/` هي التي تحدد الـ provider؛ ومع OpenRouter استخدم
+`openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`).
 
 ## بداية سريعة
 
@@ -23,43 +30,54 @@ const paused = await agent.send('Refund order 1042');
 // agent.approvals.resolve({ id: paused.approvalId!, approved: true })
 ```
 
-الدالة `openApiTools()` غير متزامنة دائمًا، لأن المستند قد يكون عنوان URL. وتُرجع مصفوفة أدوات تمرّرها إلى `createAgent({ tools })` كأي أدوات أخرى.
+`openApiTools()` دائمًا async، لأن المستند ممكن يكون URL. ترجع array من
+tools تمرّرها إلى `createAgent({ tools })` مثل أي tools أخرى.
 
-يمكن أن يكون `document` كائن OpenAPI 3.0 أو 3.1 مفسَّرًا، أو سلسلة JSON أو YAML، أو عنوان https (سلسلة أو `URL`). يجري التحليل مرة واحدة داخل `openApiTools()`؛ أما `execute` في الأداة فلا يفعل سوى بناء الطلب وإرساله.
+`document` ممكن يكون object مُفسَّر لـ OpenAPI 3.0 أو 3.1، أو string بصيغة
+JSON أو YAML، أو https URL (string أو `URL`). `openApiTools()` تحلّل
+المستند مرة واحدة؛ أما `execute` في الـ tool فلا تفعل إلا بناء الطلب
+وإرساله.
 
-## شكل كل أداة
+## شكل كل tool
 
 | الجزء | القيمة |
 | ---- | ----- |
-| الاسم | `operationId`، مع استبدال المحارف خارج `A-Za-z0-9_-` بـ`_`. وإن لم يوجد `operationId` فـ`<method>_<path>` (يصبح `GET /orders/{orderId}` هو `get_orders_orderId`). ومع `prefix`: `<prefix>__<name>`. بحد أقصى 64 محرفًا. وعمليتان بالاسم نفسه ترميان `ConfigurationError` يسرد الاثنتين. |
-| الوصف | `summary` الخاص بالعملية، ثم `description` (يُقطع عند 1,000 محرف)، ثم الطريقة والمسار (`GET /orders/{orderId}`). |
-| المُدخَل | كائن فيه كل معامل مسار واستعلام وترويسة وكوكي خاصية من المستوى الأعلى (إلزامية كما يصرّح المستند)، إضافةً إلى `body` لجسم طلب `application/json`. تتبع المخططات إشارات `$ref` إلى `components`، بما فيها `parameters` و`requestBodies`. ويعمل `nullable` في OpenAPI 3.0. والمعامل الذي يشغل اسمَه معاملٌ آخر في موضع مختلف يُسمّى `<location>_<name>`. |
-| النتيجة | `{ status, statusText, body }` لكل استجابة HTTP، بما فيها حالات الخطأ، ليستطيع النموذج قراءة 404 والتصرف بناءً عليه. و`body` هو JSON مفسَّر حين تقول الاستجابة إنها JSON، وإلا نص، ويكون `null` إن كان فارغًا. |
-| الأخطاء | فشل الشبكة وانتهاء المهلة وإعادة التوجيه المرفوضة كلها أخطاء أداة. |
+| الاسم | `operationId`، مع استبدال أي حرف خارج `A-Za-z0-9_-` بـ `_`. بدون `operationId`: `<method>_<path>` (`GET /orders/{orderId}` يصير `get_orders_orderId`). مع `prefix`: `<prefix>__<name>`. بحد أقصى 64 حرفًا. وعمليتان بنفس الاسم ترميان `ConfigurationError` يذكر الاثنتين. |
+| الوصف | `summary` الخاص بالعملية، ثم `description` (يُقطع عند 1,000 حرف)، ثم الـ method والـ path (`GET /orders/{orderId}`). |
+| الـ input | object فيه كل parameter من path وquery وheader وcookie كخاصية top-level (إلزامية كما يصرّح المستند)، إضافة إلى `body` لجسم طلب `application/json`. الـ schemas تتبع إشارات `$ref` داخل `components`، بما فيها `parameters` و`requestBodies`. و`nullable` في OpenAPI 3.0 يعمل. والـ parameter الذي اسمه مأخوذ من موضع آخر يُسمّى `<location>_<name>`. |
+| النتيجة | `{ status, statusText, body }` لكل response HTTP، حتى حالات الخطأ، فيقدر الـ model يقرأ 404 ويتصرف بناءً عليه. و`body` يكون JSON مُفسَّر إذا قالت الاستجابة إنها JSON، وإلا text، ويكون `null` إذا كانت فارغة. |
+| الأخطاء | فشل الشبكة، والـ timeout، والـ redirect المرفوض — كلها أخطاء tool. |
 
-تُتجاهل معاملات الترويسات `Accept` و`Content-Type` و`Authorization` كما تنص مواصفة OpenAPI؛ فاستخدم `bearerToken` أو `headers` لبيانات الاعتماد.
+معاملات الـ header `Accept` و`Content-Type` و`Authorization` تُتجاهل كما
+تنص مواصفة OpenAPI؛ استخدم `bearerToken` أو `headers` لبيانات الاعتماد.
 
 ## الخيارات
 
 | الخيار | الافتراضي | المعنى |
 | ------ | ------- | ------- |
-| `baseUrl` | أول مدخل في `servers` | وجهة الطلبات. يتغلّب على المستند. وبالنسبة إلى مستند جُلب من عنوان URL، فغياب `servers` يعني أصل (origin) ذلك العنوان. |
-| `include` | كل العمليات | أسماء العمليات (`operationId` أو الاسم المشتق)، أو دالة `(op) => boolean`. وتسمية عملية لا يحتويها المستند ترمي خطأً. |
+| `baseUrl` | أول مدخل في `servers` | وجهة الطلبات. يتغلّب على المستند. ولمستند جُلب من URL، غياب `servers` يعني الـ origin الخاص بذلك الـ URL. |
+| `include` | كل العمليات | أسماء العمليات (`operationId` أو الاسم المشتق)، أو دالة `(op) => boolean`. وتسمية عملية غير موجودة في المستند ترمي خطأً. |
 | `exclude` | لا شيء | أسماء العمليات المراد استبعادها. |
 | `approval` | `'mutating'` | `'mutating'` أو `'always'` أو `'never'` أو `(op) => boolean`. |
-| `prefix` | لا شيء | بادئة لأسماء الأدوات. |
-| `headers` | لا شيء | ترويسات تُرسل مع كل طلب، أو دالة تُستدعى لكل طلب. |
-| `bearerToken` | لا شيء | اختصار لـ`Authorization: Bearer <token>`؛ وتُستدعى الدالة لكل طلب. |
-| `providedArguments` | لا شيء | قيم يوفّرها تطبيقك؛ انظر أدناه. |
+| `prefix` | لا شيء | بادئة لأسماء الـ tools. |
+| `headers` | لا شيء | headers تُرسل مع كل طلب، أو دالة تُستدعى لكل طلب. |
+| `bearerToken` | لا شيء | اختصار لـ `Authorization: Bearer <token>`؛ وإذا كانت دالة فتُستدعى لكل طلب. |
+| `providedArguments` | لا شيء | قيم يزوّدها تطبيقك؛ انظر أدناه. |
 | `timeoutMs` | `30000` | لكل طلب. |
-| `maxResponseChars` | `50000` | يُقطع جسم الاستجابة عند هذا الطول، مع ملاحظة تبيّن مقدار ما حُذف. |
-| `fetch` | `fetch` العامة | تحلّ محل `fetch` (للاختبارات والوكلاء الوسطاء). |
+| `maxResponseChars` | `50000` | جسم الاستجابة يُقطع عند هذا الطول، مع ملاحظة تقول كم حُذف. |
+| `fetch` | `fetch` العامة | تحل محل `fetch` (للاختبارات والـ proxies). ولا يمكن دمجها مع `privateAddresses: 'refuse'`. |
+| `privateAddresses` | `'allow'` | `'refuse'` تخلي الطلبات وجلب المستند يفشلان مع عناوين loopback وlink-local والخاصة؛ انظر [قواعد الأمان](#قواعد-الأمان). Node فقط. |
+| `allowPrivate` | لا شيء | مع `'refuse'`: hosts (`intranet.example`، `*.corp.example`، أو عنوان IP) يجوز أن تكون عناوين خاصة أو تُحلّ إليها. |
 
 و`op` هو `{ name, operationId?, method, path, summary?, tags }`.
 
-## الافتراضيات في الموافقة
+## افتراضيات الـ approval
 
-مع `approval: 'mutating'` تعمل GET وHEAD وOPTIONS، وتطلب كل طريقة أخرى موافقة. وتحمل كل أداة أيضًا تعليقات توضيحية بأسلوب MCP: `readOnlyHint: true, destructiveHint: false` على GET وHEAD وOPTIONS؛ و`readOnlyHint: false` على الباقي، مع `destructiveHint: true` لـDELETE. وأي جهة تقرأ هذه التعليقات تعامل هذه الأدوات كما تعامل أدوات MCP.
+مع `approval: 'mutating'`، تعمل GET وHEAD وOPTIONS مباشرة، وكل method أخرى
+تطلب approval. وكل tool يحمل أيضًا annotations بأسلوب MCP:
+`readOnlyHint: true, destructiveHint: false` على GET وHEAD وOPTIONS؛
+و`readOnlyHint: false` على الباقي، مع `destructiveHint: true` لـ DELETE.
+وأي شيء يقرأ الـ annotations يعامل هذه الـ tools كما يعامل tools الـ MCP.
 
 ```ts
 import { openApiTools } from '@lousho/build-ai-agent';
@@ -72,9 +90,12 @@ const tools = await openApiTools(spec, {
 });
 ```
 
-## القيم التي يوفّرها تطبيقك
+## القيم التي يزوّدها تطبيقك
 
-يملأ `providedArguments` المعاملات التي ينبغي ألا يختارها النموذج، مثل معرّف المستأجر (tenant). يُزال المفتاح المزوَّد من مخطط مُدخَل الأداة (فلا يراه النموذج أبدًا) ويُضاف إلى الطلب. ويمكن أن تكون القيمة دالة تُستدعى لكل طلب مع العملية ومعرّف استدعاء الأداة.
+`providedArguments` تملأ الـ parameters التي لا يجب أن يختارها الـ model،
+مثل tenant id. المفتاح المزوَّد يُحذف من الـ input schema الخاصة بالـ tool
+(فالـ model لا يراه أبدًا) ويُضاف إلى الطلب. والقيمة ممكن تكون دالة،
+تُستدعى لكل طلب مع العملية ومعرّف الـ tool call.
 
 ```ts
 import { openApiTools } from '@lousho/build-ai-agent';
@@ -90,19 +111,62 @@ const tools = await openApiTools(spec, {
 });
 ```
 
-المفتاح هو مفتاح مُدخَل المعامل: اسمه، أو `<in>_<name>` (مثل `query_id`) حين يتشارك معاملان في العملية الواحدة اسمًا؛ ومفتاح جسم الطلب هو `body` (أو `requestBody` حين يكون معامل قد أخذ `body` من قبل). والمفتاح الذي لا تملكه أي عملية محددة يرمي خطأً، فلا يؤدي خطأ مطبعي إلى كشف المعامل للنموذج بصمت.
+المفتاح هو مفتاح الـ input الخاص بالـ parameter: اسمه، أو `<in>_<name>`
+(مثل `query_id`) عندما يتشارك اثنان من الـ parameters في العملية الواحدة
+الاسم نفسه؛ ومفتاح جسم الطلب هو `body` (أو `requestBody` عندما يكون
+parameter قد أخذ `body` من قبل). والمفتاح الذي لا تمتلكه أي عملية مُختارة
+يرمي خطأً، فلا يؤدي خطأ مطبعي إلى كشف الـ parameter للـ model بصمت.
 
 ## قواعد الأمان
 
-- **عنوان الأساس (base URL) لك أنت، لا للنموذج.** يختار النموذج قيم المعاملات والجسم؛ ولا يختار المضيف أبدًا. ويجب أن يكون عنوان الأساس https. ولا يُقبل http العادي إلا لـ`localhost` و`127.0.0.1` و`[::1]`، ويُرفض أي عنوان يحمل اسم مستخدم أو كلمة مرور. وتنطبق القاعدة نفسها على عنوان المستند.
-- **تبقى بيانات الاعتماد بعيدة عمّا يراه النموذج وسجلاتك.** لا تدخل الترويسات والرموز أبدًا في مخطط مُدخَل الأداة، ولا في حدثي `tool.start` و`tool.done`، ولا في سجل المحادثة؛ بل مُدخَل النموذج نفسه والاستجابة فقط. والترويسة التي يوفّرها النموذج لمعامل ترويسة مصرَّح به لا تحلّ أبدًا محل `headers` أو `bearerToken`.
-- **تبقى إعادة التوجيه ضمن أصل عنوان الأساس.** تستخدم الطلبات إعادة توجيه يدوية: تُتبَع 3 مرات على الأكثر، وإلى أصل عنوان الأساس نفسه فقط. وإعادة التوجيه إلى أصل آخر خطأ أداة، فلا يغادر الرمز الأصل المعدّ أبدًا.
-- **تبقى قيم المسار داخل مقطعها.** تُرمَّز معاملات المسار بالترميز النسبي المئوي (لا يستطيع `../admin` الصعود خارج مقطعه)، وتُرفض القيمة التي تساوي `.` أو `..` تمامًا.
-- **لا فحص للعناوين الخاصة.** تستدعي الأدوات عنوان الأساس الذي أعددته. فإن كان بإمكان ذلك العنوان أن يُحلّ إلى عنوان داخلي لا تتحكم فيه، فضع وكيلًا وسيطًا (proxy) أمامه أو مرّر `fetch` خاصة بك. أما فحوص العناوين في أداة `http` فهي للعناوين التي يختارها النموذج.
+- **الـ base URL لك أنت، لا للـ model.** الـ model يختار قيم الـ parameters
+  والـ body؛ ولا يختار الـ host أبدًا. الـ base URL لازم يكون https. ولا
+  يُقبل http العادي إلا لـ `localhost` و`127.0.0.1` و`[::1]`، وأي URL فيه
+  اسم مستخدم أو كلمة مرور يُرفض. ونفس القاعدة تنطبق على URL المستند.
+- **بيانات الاعتماد لا تصل إلى ما يراه الـ model وسجلاتك.** الـ headers
+  والـ tokens لا تدخل أبدًا في الـ input schema الخاصة بالـ tool، ولا في
+  حدثي `tool.start` و`tool.done`، ولا في الـ transcript؛ فقط input الـ
+  model نفسه والاستجابة. والـ header الذي يزوّده الـ model لـ header
+  parameter مُصرَّح به لا يحل محل `headers` أو `bearerToken` أبدًا.
+- **الـ redirects تبقى على origin الـ base URL.** الطلبات تستخدم redirects
+  يدوية: يُتبَع 3 على الأكثر، وفقط إلى نفس الـ origin الخاص بالـ base URL.
+  والـ redirect إلى origin آخر هو خطأ tool، فالـ token لا يغادر الـ origin
+  المُعَدّ أبدًا.
+- **قيم الـ path تبقى داخل المقطع الخاص فيها.** معاملات الـ path تُرمَّز
+  percent-encoded (فلا يقدر `../admin` يطلع خارج مقطعه)، والقيمة
+  التي تساوي `.` أو `..` تمامًا تُرفض.
+- **العناوين الخاصة: لا فحص افتراضيًا، و`privateAddresses: 'refuse'`
+  يفعّله.** افتراضيًا الـ tools تنادي الـ base URL الذي أعددته أنت، أينما
+  حُلّ: عناوين الـ base لك وغالبًا داخلية. وعندما لا يكون الـ base URL أو
+  URL المستند تحت سيطرتك الكاملة (اسم يجيب عليه DNS شخص آخر، أو مستند
+  تجلبه من مكان آخر)، مرّر `privateAddresses: 'refuse'`. عندها يُرفض كل
+  طلب operation وجلب المستند، بما فيها كل hop في الـ redirect، إذا كان
+  الـ host عنوانًا أو يُحل إلى عنوان loopback أو link-local أو خاص أو
+  shared أو multicast أو محجوز (نفس القائمة التي يستخدمها `http_request`،
+  بما فيها NAT64 و6to4). أسماء الـ hosts تُفحص بنفس الـ DNS lookup
+  المثبَّت الذي يستخدمه `http_request` و`web_fetch`: الـ host يُحل مرة
+  واحدة لكل اتصال، وكل عنوان يُفحص، والـ socket يتصل بالعنوان الذي فُحص،
+  فاسم DNS-rebinding (عام للفحص، و`127.0.0.1` للاتصال) لا يصل إلى عنوان
+  خاص أبدًا. والـ IP literals بأي صيغة يقبلها `URL` (`2130706433`،
+  `0x7f000001`، `0177.0.0.1`، `[::ffff:127.0.0.1]`) وأسماء `localhost` /
+  `*.localhost` تُرفض عند إنشاء الـ tools، كـ `ConfigurationError`. الـ
+  model لا يقدر ينقل طلبًا إلى host آخر: قيم الـ path تُرمَّز
+  percent-encoded داخل مقطعها، ومتغيرات server URL تأخذ فقط القيم
+  الافتراضية للمستند، والـ redirects تبقى على origin الأساس. ضع الـ hosts
+  الداخلية الخاصة بك في `allowPrivate` (`allowPrivate: ['localhost']`
+  لواجهة محلية). والطلب المرفوض هو خطأ tool يذكر الـ host، ولا يذكر أبدًا
+  العناوين التي حُلّ إليها.
+  `'refuse'` لا يمكن دمجه مع `fetch`: الـ `fetch` المخصصة تحل الأسماء
+  بنفسها، فلا يقدر الفحص يثبّت العنوان الذي تتصل به، وإنشاء الـ tools يرمي
+  خطأً بدل أن يفحص نصف الطريق فقط. ومع `fetch` الخاصة بك (أو proxy)، افحص
+  الوجهات هناك. `'refuse'` يحتاج Node.js (`undici` و`node:dns`)؛ وعلى
+  runtime بدونهما، إنشاء الـ tools يرمي `ConfigurationError` بدل إرسال
+  طلبات غير مفحوصة. وفي Cloudflare Workers لا تتوفّر `openApiTools`.
 
-## الواجهات الكبيرة
+## الـ APIs الكبيرة
 
-الواجهة ذات مئات العمليات تعني مئات الأدوات. أعطِ الوكيل ما يحتاج إليه فقط بـ`include` أو `exclude`، أو بشرط على `op.tags`:
+واجهة فيها مئات العمليات تعني مئات الـ tools. أعطِ الـ agent ما يحتاجه
+بـ `include` أو `exclude`، أو بـ predicate على `op.tags`:
 
 ```ts
 import { openApiTools } from '@lousho/build-ai-agent';
@@ -114,9 +178,15 @@ const tools = await openApiTools(spec, { include: (op) => op.tags.includes('orde
 
 ## الحدود
 
-- OpenAPI 3.0 و3.1 فقط. ومستند Swagger 2.0 يرمي `ConfigurationError` يطلب منك تحويله أولًا.
-- يجب أن تكون أجسام الطلبات JSON (`application/json` أو `+json`). والعملية التي ليس لها إلا جسم multipart أو نموذج أو XML تُستبعد؛ وتسميتها في `include` ترمي خطأً.
-- لا يُستخدم إلا أول مدخل في `servers`، مع متغيراته بقيمها الافتراضية. وتُتجاهل `servers` على مستوى المسار وعلى مستوى العملية.
-- يجب أن يكون كل `$ref` محليًا (`#/components/...`)؛ والإشارة إلى ملف آخر أو عنوان URL ترمي خطأً. جمّع المستند أولًا في ملف واحد.
-- لا تدفقات OAuth. ويغطي `bearerToken` و`headers` بيانات الاعتماد الثابتة وتلك المتغيرة لكل طلب.
-- تُقرأ أجسام الاستجابات نصًا، ولا تُبثّ الاستجابات.
+- OpenAPI 3.0 و3.1 فقط. ومستند Swagger 2.0 يرمي `ConfigurationError`
+  يطلب منك تحويله أولًا.
+- أجسام الطلبات لازم تكون JSON (`application/json` أو `+json`). والعملية
+  التي ليس لها إلا جسم multipart أو form أو XML تُستبعد؛ وتسميتها في
+  `include` ترمي خطأً.
+- يُستخدم فقط أول مدخل في `servers`، والمتغيرات بقيمها الافتراضية.
+  وتُتجاهل `servers` على مستوى الـ path وعلى مستوى العملية.
+- كل `$ref` لازم يكون محليًا (`#/components/...`)؛ والإشارة إلى ملف آخر
+  أو URL ترمي خطأً. اعمل bundle للمستند أولًا.
+- لا يوجد OAuth flows. و`bearerToken` و`headers` يغطّيان بيانات الاعتماد
+  الثابتة والمتغيرة لكل طلب.
+- أجسام الاستجابات تُقرأ نصًا، وما في streaming لها.

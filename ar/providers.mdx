@@ -1,15 +1,16 @@
 ---
-title: "المزوّدون"
+title: "Providers"
 ---
-
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/providers).
-</Warning>
 
 {/* Generated from docs/providers.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-`LLMProvider` هو ما يولّد به الوكيل ردوده. تأتي الـ SDK بمزوّدين لـ OpenAI وAnthropic وOpenRouter وOllama (كل منهم يستند إلى حزمة نظيرة اختيارية، انظر [التثبيت](/ar/installation#حزم-المزوّدين)) وبمزوّد وهمي حتمي للاختبارات. حدِّد المزوّد بسلسلة نصية بصيغة `provider/model`، أو مرِّر كائن مزوّد (instance). بادئة النموذج `vendor/` هي التي تختار المزوّد؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`).
+الـ `LLMProvider` هو اللي الـ agent يولّد من خلاله. الـ SDK يجي مع
+providers لـ OpenAI وAnthropic وOpenRouter وOllama و`pi` (كل واحد وراه
+peer package اختيارية، شوف [التثبيت](/ar/installation#حزم-الـ-providers)) ومع
+mock ثابت النتائج للاختبارات. تسمّيه بـ string بصيغة `provider/model`، أو
+تمرّر instance من الـ provider. البادئة `vendor/` في اسم الـ model هي اللي
+تختار الـ provider؛ ومع OpenRouter تكتب `openrouter/<vendor>/<model>` (مثال
+`openrouter/openai/gpt-4o-mini`).
 
 ```ts
 import { resolveProvider, LLMProviderRegistry } from '@lousho/build-ai-agent';
@@ -19,6 +20,8 @@ const openai = resolveProvider('openai/gpt-4o-mini');       // OPENAI_API_KEY
 const anthropic = resolveProvider('anthropic/claude-sonnet-5-5'); // ANTHROPIC_API_KEY
 const openrouter = resolveProvider('openrouter/openai/gpt-4o-mini'); // OPENROUTER_API_KEY
 const ollama = resolveProvider('ollama/llama3.1');           // OLLAMA_BASE_URL
+// pi runs one catalog through `pi/<pi-provider>/<model>` (nested slashes ok):
+const pi = resolveProvider('pi/openrouter/openai/gpt-4o-mini');    // OPENROUTER_API_KEY
 
 // Or construct a provider directly via the registry
 const custom = LLMProviderRegistry.create('openai', {
@@ -27,13 +30,20 @@ const custom = LLMProviderRegistry.create('openai', {
 });
 ```
 
-## اختيار المزوّد في `createAgent()`
+## اختيار الـ provider في `createAgent()`
 
-يقبل `createAgent()` واحدًا فقط مما يلي:
+`createAgent()` ياخذ واحد فقط من التالي:
 
-1. **`model: 'provider/model'`** - يُحلّ بواسطة `resolveProvider()`؛ ويأتي المفتاح من متغير البيئة المتعارف عليه للمزوّد (انظر [بيانات اعتماد المزوّدين](/ar/configuration#بيانات-اعتماد-المزوّدين)).
-2. **`provider: <LLMProvider>`** - مزوّدك الخاص، أو مزوّد مدمج مضبوط، أو مزوّد وهمي. يمكنك أيضًا تمرير `model` (معرّف مجرد مثل `'gpt-4o'`): فيصبح نموذج هذا الوكيل، ويتقدّم على النموذج الافتراضي للمزوّد.
-3. **لا هذا ولا ذاك** - يُحلّ من البيئة: `LOUSHO_MODEL` (سلسلة `provider/model`) إن كان مضبوطًا، وإلا فأول الموجود من `OPENAI_API_KEY` و`ANTHROPIC_API_KEY` و`OPENROUTER_API_KEY` و`OLLAMA_BASE_URL`. وإذا لم يكن أي منها مضبوطًا رمى خطأً يسرد الحلول.
+1. **`model: 'provider/model'`** - ينحلّ بـ `resolveProvider()`؛ والمفتاح
+   يجي من متغير البيئة المعتاد للـ provider (شوف
+   [بيانات اعتماد الـ providers](/ar/configuration#بيانات-اعتماد-الـ-providers)).
+2. **`provider: <LLMProvider>`** - provider كتبته إنت، أو built-in مضبوط،
+   أو mock. وتقدر تمرّر معه `model` (id مجرّد مثل `'gpt-4o'`): يصير هو
+   model هذا الـ agent ويطغى على default الـ provider.
+3. **ولا واحد** - ينحلّ من البيئة: `LOUSHO_MODEL` (string بصيغة
+   `provider/model`) لو مضبوط، وإلا أول واحد موجود من `OPENAI_API_KEY` و
+   `ANTHROPIC_API_KEY` و`OPENROUTER_API_KEY` و`OLLAMA_BASE_URL`. لو ما
+   فيه ولا واحد، يرمي خطأ يعدّد الحلول.
 
 ```ts
 import { createAgent, createMockProvider, resolveProvider } from '@lousho/build-ai-agent';
@@ -43,11 +53,15 @@ const fromInstance = createAgent({ provider: resolveProvider('openai/gpt-4o-mini
 const offline = createAgent({ provider: createMockProvider({ responses: ['Hi! How can I help?'] }) });
 ```
 
-أخطاء سوء الإعداد تبيّن طريقة إصلاحها: المفتاح الناقص يُذكر معه اسم المتغير، والبادئة غير المعروفة تُسرد معها البادئات المدعومة ويُقترح أقربها، والحزمة النظيرة الناقصة يُطبع معها أمر `npm install` الدقيق.
+أخطاء الإعداد الغلط تقول لك كيف تصلّحها: المفتاح الناقص يسمّي المتغير،
+والبادئة المجهولة تعدّد المدعوم منها وتقترح الأقرب، والـ peer package
+الناقصة تطبع أمر `npm install` الصحيح بالضبط.
 
-### إعادة المحاولة والنماذج الاحتياطية
+### Retry ونماذج fallback
 
-يعيد `createAgent()` محاولة استدعاء النموذج الفاشل (تجاوز حدّ المعدّل، انتهاء المهلة، خطأ شبكة، خطأ 5xx) مرتين افتراضيًا، ومع `fallbackModels` ينتقل إلى النموذج التالي حين يستمر فشل الاستدعاء:
+`createAgent()` يعيد محاولة الـ call الفاشلة على الـ model (rate limit،
+timeout، خطأ شبكة، 5xx) مرتين افتراضيًا. ولو ضبطت `fallbackModels` ينتقل
+للـ model التالي لما الـ call يفضل فاشل:
 
 ```ts
 import { createAgent } from '@lousho/build-ai-agent';
@@ -59,15 +73,31 @@ const agent = createAgent({
 });
 ```
 
-تُحلّ سلسلة `model` وكل نموذج احتياطي مع تعطيل إعادة المحاولة الخاصة بحزمة `ai`، فتكون `retry` طبقة إعادة المحاولة الوحيدة. أما كائن `provider` فلا يُغلَّف إلا حين تضبط `retry`. يبلّغ `agent.stream()` عن الحدثين `provider.retry` و`provider.fallback`. التفاصيل في [إعادة المحاولة والبديل الاحتياطي للمزوّد](/ar/configuration#إعادة-المحاولة-والبديل-الاحتياطي-لدى-المزوّد).
+string الـ `model` وكل fallback ينحلّون والـ retries المدمجة في `ai`
+مقفلة، فيبقى `retry` هو طبقة الـ retry الوحيدة. أما instance الـ
+`provider` فينلفّ بس لو ضبطت `retry`. `agent.stream()` يطلّع أحداث
+`provider.retry` و`provider.fallback`. التفاصيل في
+[Provider retries وfallback](/ar/configuration#الـ-retry-والـ-fallback-عند-الـ-provider).
 
-## أي نموذج يعمل؟
+## أي model يشتغل؟
 
-بالترتيب: `settings.model` الخاص بالوكيل (يُضبط بـ `AgentBuilder.setSettings({ model })`، أو بـ `model` إلى جانب `provider` في `createAgent()`)، ثم النموذج الذي بُني به المزوّد (`resolveProvider('openai/gpt-4o-mini')`، أو `provider.model` في ملف مواصفات، أو `defaultModel`)، ثم النموذج الافتراضي المدمج في المزوّد. ولا يطبَّق ذلك الافتراضي الأخير إلا حين لا يضبط شيء نموذجًا — فالنموذج الذي تضبطه لا يتجاوزه أبدًا نموذج مثبَّت في الشيفرة.
+بالترتيب: `settings.model` الخاص بالـ agent (يتضبط بـ
+`AgentBuilder.setSettings({ model })`، أو بـ `model` جنب `provider` في
+`createAgent()`)، بعده الـ model اللي اتبنى عليه الـ provider
+(`resolveProvider('openai/gpt-4o-mini')`، أو `provider.model` في spec، أو
+`defaultModel`)، وبعده الـ default المدمج في الـ provider. الـ default
+الأخير ينطبق بس لما ما يكون شي ضبط model — الـ model اللي إنت ضبطته ما
+تتجاوزه أبدًا قيمة hard-coded.
 
-## الإدخال متعدد الوسائط
+## إدخال multimodal
 
-`Message.content` سلسلة نصية أو قائمة أجزاء: `{ type: 'text', text }`، و`{ type: 'image', image, mimeType? }` (عنوان `http(s)`، أو عنوان `data:`، أو البايتات على هيئة `Uint8Array`) و`{ type: 'file', data, mimeType, filename? }`. تقبل `agent.send()` و`agent.stream()` و`session.send()` / `stream()` و`t.send()` في التقييمات و`send()` في خطّاف React كلها قيمة من نوع `AgentInput`: سلسلة نصية، أو قائمة أجزاء (تُرسَل كرسالة مستخدم واحدة)، أو `Message[]` (تُمرَّر كما هي). أجزاء تُرسَل عبر `createAgent()`:
+`Message.content` يكون string أو قائمة parts: `{ type: 'text', text }`،
+و`{ type: 'image', image, mimeType? }` (رابط `http(s)`، أو `data:` URL، أو
+الـ bytes نفسها في `Uint8Array`) و`{ type: 'file', data, mimeType, filename? }`.
+`agent.send()` و`agent.stream()` و`session.send()` / `stream()` و`t.send()` في
+الـ evals و`send()` الخاصة بالـ React hook كلها تاخذ `AgentInput`: string، أو
+قائمة parts (تترسل كرسالة `user` واحدة) أو `Message[]` (تتمرّر كما هي).
+إرسال parts عبر `createAgent()`:
 
 ```ts
 import { readFileSync } from 'node:fs';
@@ -84,7 +114,7 @@ const answer = await agent.send([
 console.log(answer.text);
 ```
 
-تُمرَّر `Message[]` كما هي؛ و`textOf()` تُرجع الأجزاء النصية من الرسالة:
+الـ `Message[]` تتمرّر كما هي؛ و`textOf()` ترجّع الـ parts النصية من الرسالة:
 
 ```ts
 import { createAgent, textOf, type Message } from '@lousho/build-ai-agent';
@@ -104,29 +134,41 @@ const result = await agent.send(messages);
 console.log(textOf(messages[0]), '->', result.text);
 ```
 
-- **الصور** تصل إلى النموذج ضمن رسائل `user` مع كل المزوّدين المدمجين (مع Anthropic وOllama تنزّل حزمة `ai` الصورة من عنوانها أولًا). اختر نموذجًا يدعم الرؤية: Ollama يتجاهل الصور مع نموذج نصي فقط، وOpenRouter يرفضها معه.
-- **الملفات** (`{ type: 'file', data, mimeType }`) تُرسَل أجزاء `file` لأنواع الوسائط التالية، بحسب المزوّد والإصدار الرئيسي من `ai`:
+- **الصور** توصل للـ model داخل رسائل `user` مع كل الـ built-in providers
+  (مع Anthropic وOllama حزمة `ai` تنزّل رابط الصورة الأول؛ و`pi` يرسل
+  `data:` URLs والـ bytes بس — رابط `http(s)` يتحوّل لملاحظة نصية مع تحذير
+  يطلع مرة واحدة). اختار model يدعم vision: Ollama يتجاهل الصور مع
+  model نصي فقط، وOpenRouter يرفضها له.
+- **الملفات** (`{ type: 'file', data, mimeType }`) تترسل كـ parts من نوع
+  `file` لأنواع الوسائط التالية، حسب الـ provider وmajor نسخة `ai`:
 
-  | المزوّد | `ai` 4 | `ai` 6 / 7 |
+  | Provider | `ai` 4 | `ai` 6 / 7 |
   | -------- | ------ | ---------- |
   | `openai` | ملاحظة نصية | `application/pdf` |
-  | `anthropic` | ملاحظة نصية | `application/pdf` و`text/plain` |
+  | `anthropic` | ملاحظة نصية | `application/pdf`، `text/plain` |
   | `openrouter` | ملاحظة نصية | `application/pdf` |
   | `ollama` | ملاحظة نصية | ملاحظة نصية |
+  | `pi` | ملاحظة نصية | ملاحظة نصية (pi ما عنده file part) |
 
-  أي جزء ملف آخر يُرسَل ملاحظة نصية
-  (`[file report.pdf (application/pdf) not sent]`)، ويحذّر المزوّد مرة واحدة
-  لكل نوع وسائط، ذاكرًا النوع والإصدار الرئيسي من `ai`. وعلى `ai` 4 يشمل النطاق
-  المقبول من `@ai-sdk/*` حزم 0.0.x التي لا تدعم أجزاء الملفات، فيصير كل
-  ملف ملاحظة نصية هناك. والصنف الفرعي من مزوّد يقبل نموذجه أنواعًا أكثر يتجاوز
-  `protected fileMediaTypes(): readonly string[]` ليسردها، أو
-  يضبط `protected readonly acceptsFileParts = true` ليرسل كل الأنواع.
-- رسائل `system` و`assistant` و`tool` تُرسَل بأجزائها النصية.
-- كل ما يقرأ نص الرسائل يستخدم `textOf()`: `estimateTokens()` (يُحتسب كل جزء صورة أو ملف 1,000 رمز ثابتة)، وضغط السياق، وأشرطة تسجيل `recordReplay()` (التي تخزّن النص وبصمة كل صورة أو ملف، أو عنوانه) و`mockModel()`. يحفظ `FileSessionStore` البايتات بترميز base64 (`{ "$bytes": "..." }`) ويعيد تحميلها على هيئة `Uint8Array`؛ ويفعل `SqliteStore` (للجلسات ونقاط الحفظ) الشيء نفسه.
+  أي file part آخر يترسل كملاحظة نصية
+  (`[file report.pdf (application/pdf) not sent]`)، والـ provider يحذّر مرة
+  واحدة لكل media type ويسمّي النوع وmajor نسخة `ai`. على `ai` 4 نطاق
+  `@ai-sdk/*` المقبول يشمل حزم 0.0.x اللي ما عندها file parts، فكل file
+  يصير ملاحظة هناك. ولو كتبت subclass لـ provider وmodel الخاص فيه يقبل
+  أنواع أكثر، تتجاوز `protected fileMediaTypes(): readonly string[]`
+  لتعدّدها، أو تضبط `protected readonly acceptsFileParts = true` ليرسل كل
+  الأنواع.
+- رسائل `system` و`assistant` و`tool` تترسل بأجزائها النصية.
+- كل اللي يقرأ نص الرسائل يستخدم `textOf()`: `estimateTokens()` (كل
+  image أو file part يتحسب 1,000 token بشكل ثابت)، والـ compaction،
+  وcassettes الخاصة بـ `recordReplay()` (تخزّن النص وdigest لكل صورة أو
+  ملف، أو رابطه) و`mockModel()`. `FileSessionStore` يخزّن الـ bytes بـ
+  base64 (`{ "$bytes": "..." }`) ويرجّعها `Uint8Array` عند التحميل؛
+  و`SqliteStore` (للـ sessions والـ checkpoints) يعمل نفس الشيء.
 
-#### متقدم: واجهة المنفّذ
+#### متقدم: executor API
 
-يقبل `AgentExecutor.execute()` الرسائل نفسها في `input` (انظر [واجهة المنفّذ](/ar/executor-api)):
+`AgentExecutor.execute()` ياخذ نفس الرسائل في `input` (شوف [executor API](/ar/executor-api)):
 
 ```ts
 import { AgentBuilder, AgentExecutor } from '@lousho/build-ai-agent/executor';
@@ -147,28 +189,29 @@ const result = await AgentExecutor.execute({ agent, input, provider: resolveProv
 console.log(result.text);
 ```
 
-## أصناف المزوّدين
+## Provider classes
 
-| التصدير | الوصف |
+| Export | الوصف |
 | ------ | ----------- |
-| `resolveProvider('p/model')` | يبني مزوّدًا حقيقيًا من بيانات الاعتماد في البيئة. |
-| `LLMProviderRegistry` | سجل مصانع المزوّدين: `create(type, config)`، `register(type, factory)`، `has(type)`. |
-| `OpenAIProvider`, `AnthropicProvider`, `OllamaProvider`, `OpenRouterProvider` | أصناف المزوّدين. انظر [examples/openrouter](https://github.com/LinuxDevil/agent-sdk/blob/main/examples/openrouter) للميزات الخاصة بـ OpenRouter. |
-| `createMockProvider()`, `MockLLMProvider` | ردود جاهزة للعروض التوضيحية؛ يحاكي استدعاء أداة حين تذكر الرسالة اسم أداة. |
-| `mockModel(script)` | مزوّد للاختبارات يتبع نصًّا معدًّا مسبقًا ويتحقق منه (من `/testing`)؛ انظر [الاختبار](/ar/testing). |
-| `withRetry()`, `withFallback()` | يعيدان محاولة الإخفاقات العابرة مع تراجع زمني، وينتقلان إلى المزوّد التالي؛ انظر [إعادة المحاولة والبديل الاحتياطي للمزوّد](/ar/configuration#إعادة-المحاولة-والبديل-الاحتياطي-لدى-المزوّد). |
-| `fromAiSdk(model, options?)` | أي `LanguageModel` من AI SDK (Google وBedrock وAzure وMistral وGateway وغيرها) بوصفه مزوّدًا؛ انظر [أدناه](#أي-نموذج-من-ai-sdk-fromaisdk). |
+| `resolveProvider('p/model')` | يبني provider حقيقي من credentials البيئة. |
+| `LLMProviderRegistry` | registry فيه factories للـ providers: `create(type, config)`، `register(type, factory)`، `has(type)`. |
+| `OpenAIProvider`, `AnthropicProvider`, `OllamaProvider`, `OpenRouterProvider`, `PiProvider` | كلاسات الـ providers. شوف [examples/openrouter](https://github.com/LinuxDevil/agent-sdk/blob/main/examples/openrouter) لميزات OpenRouter الخاصة. `PiProvider` هو الـ adapter الخاص بـ `pi/...` أدناه. |
+| `createMockProvider()`, `MockLLMProvider` | ردود جاهزة للـ demos؛ يحاكي tool call لما الرسالة تسمّي tool. |
+| `mockModel(script)` | provider بسكريبت للاختبارات يتحقق من التسلسل (من `/testing`)؛ شوف [Testing](/ar/testing). |
+| `withRetry()`, `withFallback()` | يعيد محاولة الفشل المؤقت مع backoff ويحوّل للـ provider التالي؛ شوف [Provider retries وfallback](/ar/configuration#الـ-retry-والـ-fallback-عند-الـ-provider). |
+| `fromAiSdk(model, options?)` | أي `LanguageModel` من AI SDK (Google، Bedrock، Azure، Mistral، الـ Gateway، ...) كـ provider؛ شوف [أدناه](#أي-model-من-ai-sdk-fromaisdk). |
 
-لاستخدام خدمة خلفية أخرى، تحقق أولًا مما إذا كانت لها حزمة مزوّد لـ AI SDK:
-فإن وُجدت، فغلّف نموذجها بـ `fromAiSdk()` (أدناه). وإلا فنفّذ الواجهة
-`LLMProvider` (`name` و`generate()` و`stream()` و`supportsTools()` و
-`supportsStreaming()` و`getModels()`، واختياريًا `defaultModel`) ومرِّر الكائن بوصفه `provider`، أو سجّل مصنعًا بـ
+لو عندك backend آخر، شوف الأول إذا له provider package في AI SDK:
+لو موجودة، غلّف الـ model الخاص فيها بـ `fromAiSdk()` (أدناه). وإلا
+implement الـ interface `LLMProvider` (`name` و`generate()` و`stream()` و
+`supportsTools()` و`supportsStreaming()` و`getModels()`، واختياريًا
+`defaultModel`) ومرّر الـ instance كـ `provider`، أو سجّل factory بـ
 `LLMProviderRegistry.register(name, factory)`.
 
-### أي نموذج من AI SDK: `fromAiSdk()`
+### أي model من AI SDK: `fromAiSdk()`
 
-تحوّل `fromAiSdk(model)` نموذج لغة من أي حزمة مزوّد في AI SDK
-إلى `LLMProvider`، فلا تكتب مهايئًا بنفسك:
+`fromAiSdk(model)` تحوّل أي language model من provider package في AI SDK
+إلى `LLMProvider`، فما تضطر تكتب adapter بنفسك:
 
 ```ts
 import { createOpenAI } from '@ai-sdk/openai';
@@ -181,66 +224,163 @@ const agent = createAgent({
 });
 ```
 
-وينطبق الأمر نفسه على `@ai-sdk/google` (`google('gemini-2.5-flash')`)
-و`@ai-sdk/amazon-bedrock` و`@ai-sdk/azure` و`@ai-sdk/mistral` وAI Gateway
-(`gateway('openai/gpt-4o')` من `ai` 7 أو من `@ai-sdk/gateway`). تمر الاستدعاءات عبر
-حزمة `ai` المثبَّتة لديك، فثبّت الإصدار الرئيسي من حزمة المزوّد الذي يقترن بها
-(انظر [إصدارات Vercel AI SDK](#إصدارات-vercel-ai-sdk)).
+نفس الشيء يشتغل مع `@ai-sdk/google` (`google('gemini-2.5-flash')`)
+و`@ai-sdk/amazon-bedrock` و`@ai-sdk/azure` و`@ai-sdk/mistral` والـ AI
+Gateway (`gateway('openai/gpt-4o')` من `ai` 7 أو `@ai-sdk/gateway`). الـ
+calls تعدّي على نسخة `ai` المثبّتة عندك، فثبّت الـ major المناسب لها من
+حزمة الـ provider (شوف [إصدارات Vercel AI SDK](#إصدارات-vercel-ai-sdk)).
 
 | الخيار | الافتراضي | الوصف |
 | ------ | ------- | ----------- |
-| `name` | حقل `provider` في النموذج، وإلا `'ai-sdk'` | اسم المزوّد في الأحداث ومقاطع التتبّع والتحذيرات. |
-| `fileMediaTypes` | `[]` | أنواع الوسائط التي تُرسَل أجزاء `file`؛ وأجزاء الملفات الأخرى تصبح ملاحظة نصية. أما الصور فتُرسَل دائمًا. |
-| `replaysReasoning` | `false` | يعيد إرسال كتل الاستدلال الموقَّعة في دورات المساعد (نماذج Anthropic). |
-| `maxRetries` | `0` | إعادات المحاولة الخاصة بـ AI SDK لكل استدعاء؛ أما `createAgent()` فتعيد المحاولة عبر خيارها `retry`. |
+| `name` | حقل `provider` في الـ model، وإلا `'ai-sdk'` | اسم الـ provider في الـ events والـ spans والتحذيرات. |
+| `fileMediaTypes` | `[]` | أنواع الوسائط اللي تترسل كـ parts من نوع `file`؛ باقي الـ file parts تصير ملاحظة نصية. الصور تترسل دائمًا. |
+| `replaysReasoning` | `false` | يرجّع بلوكات الـ reasoning الموقّعة في turns الـ assistant (models من Anthropic). |
+| `maxRetries` | `0` | عدد الـ retries الخاصة بـ AI SDK لكل call؛ أما `createAgent()` فيعيد المحاولة عبر خيار `retry`. |
 
-يخدم هذا المزوّد النموذج الواحد الذي يغلّفه، مع تفعيل الأدوات والبث،
-ويترك إعدادات الاستدلال للنموذج الذي بنيته أنت (فخيار `reasoning` لا يُحوَّل إلى
-شيء). وكل حالة مما يلي ترمي `LOUSHO_CONFIG_INVALID`:
+الـ provider يقدّم الـ model الواحد اللي يلفّه بس، مع tools وstreaming
+شغّالين، ويترك إعدادات الـ reasoning للـ model اللي بنيته إنت (خيار
+`reasoning` بدون mapping). كل حالة من التالية ترمي `LOUSHO_CONFIG_INVALID`:
 
-- سلسلة معرّف نموذج (`fromAiSdk('openai/gpt-4o')`): مرِّر نموذج دالة
-  المزوّد بدلًا منها؛
-- نموذج لإصدار رئيسي من `ai` غير المثبَّت (نموذج
-  `specificationVersion: 'v1'` مع `ai` 6 / 7، أو أحدث منه مع
+- string فيه model id (`fromAiSdk('openai/gpt-4o')`): مرّر الـ model اللي
+  ترجعه دالة الـ provider بدلها؛
+- model مبني لـ major آخر من `ai` غير المثبّت عندك (model
+  `specificationVersion: 'v1'` مع `ai` 6 / 7، أو model أحدث مع
   `ai` 4)؛
-- تشغيل بمعرّف `model` غير المعرّف المغلَّف (وداخل التشغيل يكون هذا
-  سبب الخطأ `LOUSHO_PROVIDER_REQUEST_FAILED`): غلّف كل نموذج بـ
-  `fromAiSdk()` واجمعها بـ `withFallback()`.
+- run بـ `model` id مختلف عن اللي متغلّف (داخل الـ run هذا يكون سبب خطأ
+  `LOUSHO_PROVIDER_REQUEST_FAILED`): غلّف كل model بـ `fromAiSdk()`
+  وادمجهم بـ `withFallback()`.
+
+### الـ provider `pi`
+
+`pi/<pi-provider>/<model>` يمرّر الـ call عبر
+[`@earendil-works/pi-ai`](https://www.npmjs.com/package/@earendil-works/pi-ai)
+(المحرك اللي `pi-coding-agent` شغّال عليه)، وهو peer اختياري ما يحتاج حزمة
+`ai`:
+
+```bash
+npm install @earendil-works/pi-ai@1.0.3
+```
+
+```ts
+import { createAgent } from '@lousho/build-ai-agent';
+
+// OpenRouter's `openai/gpt-4o-mini`, through pi's openrouter adapter:
+const agent = createAgent({ model: 'pi/openrouter/openai/gpt-4o-mini' });
+```
+
+الجزء اللي بعد `pi/` هو **pi provider** (`openrouter`، `anthropic`،
+`openai`، `google`، ...)؛ والباقي هو id الـ model في الـ catalog حرفيًا،
+بالسلاشات وكل شيء. الـ credentials لكل provider متداخل: pi يقرأ متغير
+البيئة المعتاد لكل واحد (`OPENROUTER_API_KEY` و`ANTHROPIC_API_KEY` و...)،
+فمواصفة `pi/anthropic/...` ما تشوف مفتاح OpenRouter أبدًا. `lousho init
+--provider pi` يجهّز `pi/openrouter/...` كافتراضي. لو مفتاح الـ provider
+المتداخل ناقص، الـ call يفشل بـ `LOUSHO_PROVIDER_MISSING_API_KEY` يسمّي
+المتغير، ولو `@earendil-works/pi-ai` ناقصة يفشل بـ
+`MissingPeerDependencyError` المعتاد.
+
+اللي يتحوّل في كل call:
+
+- الرسائل: `system` تروح لـ `systemPrompt` الخاص بـ pi،
+  و`user`/`assistant`/`tool` تفضل في مكانها؛ بلوكات `reasoning` في الـ
+  assistant تصير thinking parts، و`toolCallId` في رسالة `tool` يربطها
+  بالـ call الخاصة فيها؛
+- الـ tools: `parameters` تترسل كـ JSON Schema - مدخلات raw JSON Schema
+  وzod 3 وzod 4 وStandard Schema تتحوّل مرة واحدة وتنحفظ في الـ cache؛
+- الـ streams: أحداث `text_delta`/`thinking_delta`/`toolcall_*`/`done`/`error`
+  الخاصة بـ pi تصير نفس الـ chunks `text-delta`/`reasoning-*`/`tool-call`/
+  `finish`/`error` اللي يطلّعها providers الـ `ai`، فأحداث `agent.stream()`
+  و`result.usage` ما تتغيّر؛
+- الـ usage والتكلفة: usage الخاص بـ pi لكل call (بما فيه `cacheRead`)
+  يدخل في مجموع الـ run، وأسعار الـ catalog تسجّل الـ model في
+  `usage.costUsd` الخاص بالـ run؛
+- الـ retries: `maxRetries` الخاص بـ pi نفسه مثبّت على مقفل -
+  `retry`/`fallbackModels` يفضلون طبقة الـ retry الوحيدة، مثل كل built-in.
+
+`PiProviderConfig.models` تحقن مداخل في الـ catalog (الـ faux provider
+الخاص بـ pi، أو catalog خاص) قبل القائمة المدمجة. `pi` يشتغل على Node
+فقط: الـ target `cloudflare-worker` يرفض مواصفات `pi/...`، والـ bundle
+يحوّل الحزمة لـ shim مكتوب.
 
 ## إصدارات Vercel AI SDK
 
-المزوّدون المدمجون مهايئات فوق Vercel AI SDK (`ai`). ما يعمل اليوم على كل إصدار رئيسي:
+كل built-in provider ما عدا `pi` هو adapter فوق Vercel AI SDK (`ai`). اللي
+يشتغل على كل major اليوم:
 
 | `ai` | `generate()` | `stream()` | ملاحظات |
 | ---- | ------------ | ---------- | ----- |
 | v4 (`^4.3.19`) | نعم | نعم | كل ما في هذه الوثائق. |
-| v6 (`^6.0.0`), v7 (`^7.0.0`) | نعم، عبر طبقة توافق | نعم، عبر الطبقة نفسها | Ollama يحتاج إلى تثبيت zod 4 (أدناه). |
+| v6 (`^6.0.0`), v7 (`^7.0.0`) | نعم، عبر طبقة توافق | نعم، عبر نفس الطبقة | Ollama يحتاج zod 4 مثبّت (أدناه). |
 
-نطاقات الاعتماديات النظيرة تقبل الإصدارات الرئيسية الثلاثة. قرِن كلًّا منها بحزم المزوّدين المناسبة له:
+نطاقات الـ peer تقبل الـ majors الثلاثة. قرّن كل واحد بحزم الـ provider
+المناسبة له:
 
-| `ai` | `@ai-sdk/openai`, `@ai-sdk/anthropic` | حزمة Ollama |
+| `ai` | `@ai-sdk/openai`، `@ai-sdk/anthropic` | حزمة Ollama |
 | ---- | ------------------------------------- | -------------- |
 | `^4.3.19` | `^0.0.42` أو `^1.0.0` | `ollama-ai-provider@^1.2.0` |
 | `^6.0.0` | `^3.0.0` | `ollama-ai-provider-v2@^3.0.0` |
 | `^7.0.0` | `^4.0.0` | `ollama-ai-provider-v2@^4.0.0` |
 
-تلميح التثبيت لحزمة مزوّد ناقصة و`lousho doctor` يذكران الإصدار المناسب لنسخة `ai` المثبَّتة لديك، وينبّه `lousho doctor` إلى الزوج غير المتوافق (مثلًا `ai` 7 مع `@ai-sdk/openai` 1.x). يحمّل `OllamaProvider` الحزمة `ollama-ai-provider` على `ai` 4 والحزمة `ollama-ai-provider-v2` على `ai` 6/7؛ وحزمة v2 تعتمد اعتمادًا نظيرًا على zod 4، وهو ما تقبله الـ SDK، فثبّت zod 4 معها (مشاريع zod 3 تستخدم Ollama مع `ai` 4). ينشئ `lousho init` هيكل المشروع بـ `ai@^7.0.0` مع `@ai-sdk/*@^4.0.0` لـ OpenAI وAnthropic وOpenRouter، وبـ `ai@^7.0.0` مع `ollama-ai-provider-v2@^4.0.0` وzod 4 لـ Ollama.
+تلميح التثبيت لحزمة provider ناقصة و`lousho doctor` يسمّون الإصدار
+المناسب لنسخة `ai` اللي عندك، و`lousho doctor` ينبّهك على الاقتران غير
+المتوافق (مثال `ai` 7 مع `@ai-sdk/openai` 1.x). `OllamaProvider` يحمّل
+`ollama-ai-provider` على `ai` 4 و`ollama-ai-provider-v2` على `ai` 6/7؛
+حزمة v2 عندها peer dependency على zod 4، والـ SDK يقبله، فثبّت zod 4
+معها (مشاريع zod 3 تستخدم Ollama مع `ai` 4). `lousho init` يجهّز `ai@^7.0.0`
+مع `@ai-sdk/*@^4.0.0` لـ OpenAI وAnthropic وOpenRouter، و`ai@^7.0.0` مع
+`ollama-ai-provider-v2@^4.0.0` وzod 4 لـ Ollama.
 
-يثبّت CI ويختبر `ai` 4 و6 و7، كلًّا مع zod 3 وzod 4 (ستة اقترانات؛ والاقتران `ai` 4 مع zod 4 هو الوحيد الذي لا تعلنه حزم المزوّدين)، مع الحزمة الحقيقية `ollama-ai-provider-v2` على `ai` 6 و7 في مهام zod 4.
+الـ CI يثبّت ويختبر `ai` 4 و6 و7، كل واحد مع zod 3 وzod 4 (ست اقترانات؛
+اقتران `ai` 4 مع zod 4 هو الوحيد اللي حزم الـ providers ما تعلنه)، مع
+`ollama-ai-provider-v2` الحقيقية على `ai` 6 و7 في الـ jobs الخاصة بـ zod 4.
 
-يستخدم OpenRouter الحزمة `@ai-sdk/openai` موجَّهة إلى عنوان OpenRouter الأساسي. ابتداءً من `@ai-sdk/openai` 2، يستهدف الاستدعاء الافتراضي `openai(modelId)` واجهة Responses API، التي لا ينفّذها OpenRouter، ولذلك يطلب `OpenRouterProvider` نموذج Chat Completions (`provider.chat(modelId)`) على كل إصدار رئيسي؛ وهو يعمل على `ai` 4 و6 و7 مع الاقتران المذكور أعلاه.
+OpenRouter يستخدم `@ai-sdk/openai` موجّهة على الـ base URL الخاص بـ
+OpenRouter. من `@ai-sdk/openai` 2 وفوق، الـ call الافتراضي `openai(modelId)`
+يستهدف Responses API، اللي OpenRouter ما ينفّذه، فـ `OpenRouterProvider`
+يطلب model الـ Chat Completions (`provider.chat(modelId)`) على كل major؛
+ويشتغل على `ai` 4 و6 و7 مع الاقتران اللي فوق.
 
-يأخذ `OllamaProvider` عنوان الخادم الأساسي (`baseURL`، أو `OLLAMA_BASE_URL` في حالة `resolveProvider()`) ويُلحق `/api` بالمضيف المجرد، كما تتوقعه حزمتا Ollama كلتاهما: `http://host:11434` و`http://host:11434/` يصبحان `http://host:11434/api`. العنوان الذي ينتهي أصلًا بـ `/api` (أو `/api/`)، أو فيه أي مسار آخر مثل بادئة وكيل عكسي، يُستخدم كما هو.
+`OllamaProvider` ياخذ الـ base URL الخاص بالسيرفر (`baseURL`، أو
+`OLLAMA_BASE_URL` مع `resolveProvider()`) ويلحق `/api` بالـ host المجرّد،
+لأن حزمتي Ollama الاثنتين يتوقعونه بهذا الشكل: `http://host:11434`
+و`http://host:11434/` يصيرون `http://host:11434/api`. الرابط اللي منتهي
+أصلًا بـ `/api` (أو `/api/`)، أو فيه أي مسار آخر مثل prefix لـ reverse
+proxy، يُستخدم كما هو.
 
-يختار `generate()` و`stream()` شكل الاستدعاء بحسب وحدة `ai` المثبَّتة: حين تصدّر `stepCountIs` (الإصدار v5 وما بعده)، يُرسَل الطلب بشكل v6/v7 وتُقرأ النتيجة وتُحوَّل إلى `GenerateResult` أو `StreamResult` نفسيهما:
+`generate()` و`stream()` يختارون شكل الـ call حسب وحدة `ai` المثبّتة: لما
+تصدّر `stepCountIs` (v5 وأحدث)، الـ request يترسل بشكل v6/v7 والنتيجة
+تُقرأ وترجع لنفس `GenerateResult` أو `StreamResult`:
 
-- تتحوّل الرسائل إلى كائنات `ModelMessage`: وسائط استدعاء الأداة تصبح `input` الخاص به، ونتيجة الأداة تصبح `output` (`json` أو `text`، و`error-json` أو `error-text` حين تفشل الأداة)، و`mimeType` في جزء الصورة أو الملف يصبح `mediaType`. تبقى رسائل النظام في مواضعها (`allowSystemInMessages`).
-- يُرسَل `maxTokens` باسم `maxOutputTokens`، والخطوة الواحدة بالشكل `stopWhen: stepCountIs(1)`، والأدوات باسم `inputSchema` (مخطط zod كما هو، ومخطط JSON Schema عبر `jsonSchema()`) دون `execute`، و`responseFormat` على هيئة `output` بوضع JSON لا يمسّ نص الرد.
-- يأتي الاستهلاك من `inputTokens` / `outputTokens` / `totalTokens`، مع `cachedInputTokens` من `inputTokenDetails.cacheReadTokens` و`reasoningTokens` من `outputTokenDetails.reasoningTokens`.
-- يقرأ `stream()` المجرى `fullStream` الخاص بـ AI SDK على أي من الإصدارين الرئيسيين ويحوّله إلى القطع (chunks) نفسها: `text-delta` (في v6/v7 الحقل `text`، وفي v4 الحقل `textDelta`)، و`tool-call` (الاستدعاء الكامل الذي يرسله v6/v7 بعد `tool-input-start`/`-delta`/`-end`، أو استدعاء يُجمَّع من ذلك الإدخال حين لا يرسل النموذج استدعاءً كاملًا)، و`finish` مع سبب الانتهاء الذي تعطيه AI SDK والاستهلاك المذكور أعلاه (في v6/v7 الحقل `totalUsage`). جزء `error` يجعل المجرى يُرفض بخطئه، على v4 أيضًا (كان v4 ينهي مجرى كهذا بسبب الانتهاء `error`)، وجزء `abort` يرفضه بسبب الإشارة. تغيّرات الاستدلال الجزئية (deltas) يُبلَّغ عنها قطعًا من النوع `reasoning-delta` وتظهر أحداثًا `reasoning.*` (انظر [الاستدلال](/ar/reasoning)).
+- الرسائل تصير `ModelMessage`s: وسائط الـ tool call تصير `input` الخاص
+  به، ونتيجة الـ tool تصير `output` (`json` أو `text`، و`error-json` أو
+  `error-text` لما الـ tool يفشل)، و`mimeType` في الـ image أو file part
+  يصير `mediaType`. رسائل الـ system تفضل في مكانها
+  (`allowSystemInMessages`).
+- `maxTokens` يترسل باسم `maxOutputTokens`، والخطوة الواحدة كـ `stopWhen:
+  stepCountIs(1)`، والـ tools كـ `inputSchema` (zod schema كما هو، وJSON
+  Schema عبر `jsonSchema()`) بدون `execute`، و`responseFormat` كـ
+  `output` في وضع JSON ما يمسّ نص الرد.
+- الـ usage يجي من `inputTokens` / `outputTokens` / `totalTokens`، مع
+  `cachedInputTokens` من `inputTokenDetails.cacheReadTokens`
+  و`reasoningTokens` من `outputTokenDetails.reasoningTokens`.
+- `stream()` يقرأ `fullStream` الخاص بالـ SDK على أي من الـ majorين
+  ويحوّله لنفس الـ chunks: `text-delta` (في v6/v7 الحقل `text`، وفي v4
+  `textDelta`)، و`tool-call` (الـ call الكامل اللي v6/v7 يرسله بعد
+  `tool-input-start`/`-delta`/`-end`، أو واحد يتجمّع من ذلك الـ input لما
+  الـ model ما يرسل واحد)، و`finish` مع سبب الإنهاء اللي يعطيه الـ SDK
+  والـ usage المذكور أعلاه (في v6/v7 الحقل `totalUsage`). جزء `error`
+  يجعل الـ stream يرفض بخطئه، على v4 كذلك (كان v4 ينهي stream كهذا بسبب
+  إنهاء `error`)، وجزء `abort` يرفضه بسبب الـ signal. تغيّرات الـ
+  reasoning الجزئية تتبلّغ كـ chunks من نوع `reasoning-delta` وتطلع
+  كأحداث `reasoning.*` (شوف [Reasoning](/ar/reasoning)).
 
-على v6/v7 يجب أن يأتي النموذج من حزمة مزوّد خاصة بذلك الإصدار الرئيسي (الجدول أعلاه)؛ فحزم `0.0.x`/`1.x` تنتج نماذج يرفضها `ai` v7. تُرسَل أجزاء الصور أجزاء `file` بنوع وسائط صورة (وهو الشكل الذي يقبله `ai` v6/v7 للصور، فلا يظهر تحذير إهمال). الإصدار `ai` v5 غير مدعوم.
+على v6/v7 لازم الـ model يجي من provider package خاصة بنفس الـ major
+(الجدول أعلاه)؛ حزم `0.0.x`/`1.x` تنتج models يرفضها `ai` v7. الـ image
+parts تترسل كـ `file` parts بـ media type صور (وهو الشكل اللي `ai` v6/v7
+يقبله للصور، فما يطلع تحذير deprecation). `ai` v5 غير مدعوم.
 
-## أين يعمل كل مزوّد
+## أين يشتغل كل provider
 
-كل المزوّدين يعملون على Node. هدف النشر `cloudflare-worker` يدعم `mock` و`openai` و`anthropic` و`openrouter` (المفتاح من الربط `OPENROUTER_API_KEY`)؛ أما `ollama` فيحتاج إلى الهدف `node-server` أو `docker` (انظر [Cloudflare Workers](/ar/cloudflare-workers)).
+كل الـ providers يشتغلون على Node. الـ deploy target `cloudflare-worker`
+يدعم `mock` و`openai` و`anthropic` و`openrouter` (المفتاح من binding باسم
+`OPENROUTER_API_KEY`)؛ أما `ollama` و`pi` فيحتاجون target `node-server` أو
+`docker` (شوف [Cloudflare Workers](/ar/cloudflare-workers)).

@@ -1,9 +1,13 @@
 ---
-title: "الاستدلال"
+title: "Reasoning"
 ---
 {/* Generated from docs/reasoning.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-نماذج الاستدلال تفكّر قبل أن تجيب. والخيار `reasoning` يحدّد مقدار التفكير، ويُبلغ التشغيل عمّا فكّر فيه النموذج منفصلًا عن إجابته: في صورة أحداث `reasoning.*` في `agent.stream()`، وفي `result.reasoning`. بادئة النموذج `vendor/` هي التي تختار المزوّد؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/anthropic/claude-sonnet-4.5`).
+موديلات الـ reasoning تفكّر قبل ما ترد. خيار `reasoning` يحدد مقدار التفكير.
+والـ run يرجّع لك اللي الموديل فكّر فيه منفصلًا عن الجواب: كأحداث `reasoning.*`
+في `agent.stream()`، وكـ `result.reasoning`. بادئة `vendor/` في اسم الموديل
+هي اللي تختار الـ provider. ومع OpenRouter استخدم
+`openrouter/<vendor>/<model>` (مثال `openrouter/anthropic/claude-sonnet-4.5`).
 
 ```ts
 import { createAgent } from '@lousho/build-ai-agent';
@@ -27,84 +31,86 @@ console.log(result.reasoning, result.usage.reasoningTokens);
 
 ## الخيار
 
-`reasoning` إما مستوى جهد، `'none' | 'minimal' | 'low' | 'medium' | 'high'`،
-أو كائن:
+`reasoning` إما مستوى effort، `'none' | 'minimal' | 'low' | 'medium' | 'high'`،
+أو object:
 
 | الحقل | المعنى |
 | --- | --- |
-| `effort` | كما سبق. الافتراضي `'medium'`. |
-| `budgetTokens` | ميزانية رموز (tokens)، للمزوّدين الذين يقبلونها (Anthropic و OpenRouter). أما غيرهم فيستخدم `effort`. |
-| `summary` | `'auto'` يطلب من Responses API لدى OpenAI ملخصًا للاستدلال (وهو ما تبثّه OpenAI بوصفه استدلالًا). |
-| `force` | أرسل الخيارات حتى لو لم يكن النموذج ضمن عائلات الاستدلال المعروفة (انظر أدناه). |
+| `effort` | نفس القيم اللي فوق. الافتراضي `'medium'`. |
+| `budgetTokens` | ميزانية tokens، للـ providers اللي تقبلها (Anthropic و OpenRouter). الباقي يستخدم `effort`. |
+| `summary` | `'auto'` يطلب من الـ Responses API عند OpenAI ملخصًا للـ reasoning (هذا هو اللي OpenAI تبثّه على أنه reasoning). |
+| `force` | ابعت الخيارات حتى لو الموديل ما كان من عائلات الـ reasoning المعروفة (شوف تحت). |
 
-اضبطه في `createAgent({ reasoning })` لكل التشغيلات، أو لكل استدعاء عبر
-`send(input, { reasoning })` / `stream(input, { reasoning })`. الوكيل الفرعي
-يستخدم `reasoning` الخاص به، لا الخاص بالوكيل الأب. تأخذه `AgentExecutor.execute()`
-في `ExecuteOptions.reasoning`، ويستقبله المزوّد المخصَّص في
+حدده في `createAgent({ reasoning })` لكل run، أو لكل call عن طريق
+`send(input, { reasoning })` / `stream(input, { reasoning })`. الـ sub-agent
+يستخدم `reasoning` الخاص فيه، مو الخاص بالأب. `AgentExecutor.execute()`
+ياخذه كـ `ExecuteOptions.reasoning`، والـ provider المخصص يستلمه كـ
 `GenerateOptions.reasoning`.
 
-`'none'` لا يرسل شيئًا: يعمل النموذج بالإعداد الافتراضي لدى مزوّده (ونماذج
-الاستدلال من OpenAI تظل تستدل بمستوى جهدها الافتراضي).
+`'none'` ما يبعت شي: الموديل يشتغل بالافتراضي عند الـ provider (موديلات الـ
+reasoning من OpenAI تفضل تفكّر بمستوى الـ effort الافتراضي عندها).
 
-## المقابل لدى كل مزوّد
+## ما يصل لكل provider
 
-| المزوّد | يُرسل في صورة | مقابل مستوى الجهد |
+| الـ provider | يُرسل في صورة | مقابل الـ effort |
 | --- | --- | --- |
-| OpenAI | `providerOptions.openai.reasoningEffort` (و`reasoningSummary: 'auto'` مع `summary: 'auto'`) | مستوى الجهد كما هو (`'minimal'` خاص بنماذج GPT-5). |
-| Anthropic | `providerOptions.anthropic.thinking: { type: 'enabled', budgetTokens }` | `minimal` يقابل 1024 رمزًا، و`low` يقابل 2048، و`medium` يقابل 8192، و`high` يقابل 24576؛ و`budgetTokens` يتجاوز هذه القيم (1024 على الأقل، وهو الحد الأدنى لدى Anthropic). |
-| OpenRouter | الحقل الموحَّد `reasoning` في جسم الطلب | `{ max_tokens: budgetTokens }` عند تحديد ميزانية، وإلا `{ effort }`. |
-| Ollama | `providerOptions.ollama.think: true` (`ollama-ai-provider-v2`، `ai` 6/7) | تشغيل أو إيقاف فقط. مع `ai` 4 (`ollama-ai-provider`) يُتجاهل الخيار، مع تحذير واحد. |
+| OpenAI | `providerOptions.openai.reasoningEffort` (و`reasoningSummary: 'auto'` مع `summary: 'auto'`) | الـ effort كما هو (`'minimal'` لموديلات GPT-5). |
+| Anthropic | `providerOptions.anthropic.thinking: { type: 'enabled', budgetTokens }` | `minimal` = 1024، `low` = 2048، `medium` = 8192، `high` = 24576 token؛ و`budgetTokens` يغلّب عليها (1024 على الأقل، وهو الحد الأدنى عند Anthropic). |
+| OpenRouter | حقل `reasoning` الموحّد في جسم الطلب | `{ max_tokens: budgetTokens }` لو في ميزانية، وإلا `{ effort }`. |
+| Ollama | `providerOptions.ollama.think: true` (`ollama-ai-provider-v2`، `ai` 6/7) | تشغيل أو إيقاف فقط. مع `ai` 4 (`ollama-ai-provider`) الخيار يتجاهل، مع تحذير واحد. |
 
-قيود تطبّقها حزم المزوّدين عنك: `@ai-sdk/anthropic` تضيف
-ميزانية التفكير إلى `max_tokens` (فتبقى الميزانية دائمًا أقل منه)
-وتُسقط `temperature` و`topP` اللذين لا تسمح بهما Anthropic مع التفكير؛
-و`@ai-sdk/openai` تُسقط `temperature` لنماذج الاستدلال. وكلتاهما تسجّل تحذيرًا
-حين تُسقط إعدادًا.
+في قيود تطبّقها حزم الـ providers عنك: `@ai-sdk/anthropic` يضيف
+ميزانية التفكير فوق `max_tokens` (فالميزانية تبقى دائمًا أقل منه)
+ويشيل `temperature` و`topP`، لأن Anthropic ما يسمح بهم مع التفكير؛
+و`@ai-sdk/openai` يشيل `temperature` لموديلات الـ reasoning. وكل حزمة
+تسجّل تحذير لما تشيل إعداد.
 
-### أي النماذج تحصل عليه
+### أي الموديلات توصلها الخيارات
 
-لا تُرسل الخيارات إلا إلى عائلات النماذج المعروف أنها تقبلها، فلا يتلقى
-نموذج لا يستدل خطأ «خيار غير معروف» أبدًا:
+الخيارات تتبعت فقط لعائلات الموديلات المعروف إنها تقبلها. يعني موديل
+ما يدعم reasoning لن ياخد خطأ «خيار غير معروف» أبدًا:
 
-| المزوّد | معرّفات النماذج |
+| الـ provider | معرّفات الموديلات |
 | --- | --- |
-| OpenAI | `o1` وما بعده من سلسلة o (عدا `o1-mini` / `o1-preview`)، و`gpt-5` وما بعده (عدا نماذج `-chat`) |
+| OpenAI | `o1` وإصدارات o-series اللي بعده (عدا `o1-mini` / `o1-preview`)، و`gpt-5` وما بعده (عدا موديلات `-chat`) |
 | Anthropic | `claude-3-7-*` و`claude-sonnet-4*` و`claude-opus-4*` و`claude-haiku-4*` وما بعدها |
 | OpenRouter | `*/o1`...، `*/gpt-5`...، Claude 3.7 / 4+، `deepseek-r1`، `gemini-2.5`+، `grok-3`+، `qwen3`، ومتغيرات `:thinking` |
 | Ollama | `deepseek-r1`، `qwen3`، `gpt-oss`، `magistral` |
 
-لأي معرّف نموذج آخر (نموذج مضبوط بدقة (fine-tune)، أو عائلة جديدة) مرّر `{ effort, force: true }`.
+لأي model id آخر (fine-tune أو عائلة جديدة) مرّر `{ effort, force: true }`.
 
 ## الأحداث والنتائج
 
-`agent.stream()` يُصدر `reasoning.start`، ثم `reasoning.delta` (`text`) أثناء
-تفكير النموذج، ثم `reasoning.done` (`text`: النص كله؛ و`tokens` إذا كان
-المزوّد قد أبلغ عن رموز الاستدلال حتى تلك اللحظة). تأتي هذه الأحداث داخل الخطوة،
-قبل أول `text.delta` أو `tool.start` فيها. والمزوّد الذي لا يستطيع
-البث يُبلغ عن استدلال الخطوة في صورة start/delta/done واحدة قبل نصها.
+`agent.stream()` يصدر `reasoning.start`، ثم `reasoning.delta` (مع `text`)
+بينما الموديل يفكّر، ثم `reasoning.done` (`text`: النص كله؛ و`tokens` لو
+الـ provider كان بلّغ عن عدد الـ reasoning tokens وقتها). الأحداث تجي
+داخل الـ step، قبل أول `text.delta` أو `tool.start` فيها. والـ provider اللي
+ما يقدر يعمل streaming يبلّغ عن reasoning الخطوة كـ start/delta/done واحدة
+قبل نصها.
 
-`result.reasoning` هو نص الاستدلال لخطوات التشغيل، يفصل بين كل خطوة وأخرى
-سطر فارغ. و`result.usage.reasoningTokens` (وكل عنصر في `stepUsage`) يعدّ
-رموز الاستدلال حين يُبلغ عنها المزوّد؛ ويحملها مقطع التتبّع `chat`
-في `lousho.usage.reasoning_tokens`.
+`result.reasoning` هو نص الـ reasoning لخطوات الـ run، مفصول بين كل خطوة
+والتالية بسطر فارغ. و`result.usage.reasoningTokens` (وكل عنصر في `stepUsage`)
+يعدّ الـ reasoning tokens لما الـ provider يبلّغ عنها؛ والـ span الخاص بـ
+`chat` يحملها في `lousho.usage.reasoning_tokens`.
 
-الجهات المستهلِكة تعرضه أيضًا: `reduceAgentEvents()` تحتفظ به في `reasoning`
-الخاص برسالة المساعد، و`toUIMessageStream()` تُصدر الأجزاء `reasoning-start` /
-`reasoning-delta` / `reasoning-end` لـ `useChat`، و`lousho acp` يرسل
-تحديثات `agent_thought_chunk`، و`lousho chat` يطبعه بلون باهت.
+المستهلِكون يعرضوه هم كمان: `reduceAgentEvents()` تحتفظ به كـ `reasoning`
+في رسالة الـ assistant، و`toUIMessageStream()` تصدر أجزاء `reasoning-start` /
+`reasoning-delta` / `reasoning-end` لـ `useChat`، و`lousho acp` يبعت
+تحديثات `agent_thought_chunk`، و`lousho chat` يطبعه باهت.
 
-## ما يُحفظ في سجل المحادثة
+## ما يُحفظ في الـ transcript
 
-لا يُكتب الاستدلال في سجل المحادثة نصًا أبدًا ولا يُعاد إرساله
-إلى النموذج محتوًى، مع استثناء واحد يفرضه المزوّد: تحتاج Anthropic
-إلى كتل التفكير الخاصة بالدورة، دون تعديل ومع تواقيعها، حين
-تواصل بعد استدعاءات الأدوات في تلك الدورة. وعليه:
+الـ reasoning ما يتكتب أبدًا في الـ transcript كنص، وما يرجع يتبعت للـ model
+كمحتوى. في استثناء واحد يفرضه الـ provider: Anthropic تحتاج الـ thinking
+blocks الخاصة بالـ turn، بدون تعديل ومع توقيعاتها، لما تكمل بعد الـ tool
+calls في نفس الـ turn. وبالتالي:
 
-- رسالة المساعد التي أجرت استدعاءات أدوات تحتفظ بكتل التفكير الموقَّعة (أو المحجوبة)
-  في `message.reasoning`؛ ويعيد مزوّد Anthropic إرسالها
-  أولًا في تلك الدورة. وهي تبقى بعد الخطوة التالية، ونقطة الحفظ، والاستئناف
-  بعد انهيار، والتوقف المؤقت للموافقة، لأنها جزء من الرسائل المحفوظة.
-- الاستدلال غير الموقَّع (OpenAI و Ollama و OpenRouter) واستدلال
-  الرد النهائي لا يُحفظان في `messages`. وعناصر الاستدلال المشفَّرة لدى OpenAI
-  لا تُنقل بين الخطوات.
-- المزوّدون الآخرون يتجاهلون `message.reasoning`.
+- رسالة الـ assistant اللي نفّذت tool calls تحتفظ بالـ thinking blocks
+  الموقَّعة (أو المحجوبة) في `message.reasoning`؛ و provider الخاص بـ
+  Anthropic يرجع يبعتها أول حاجة في الـ turn ده. وهي تفضل موجودة بعد الـ
+  step التالية، والـ checkpoint، والاستئناف بعد crash، وتوقّف الـ approval
+  (الموافقة)، لأنها جزء من الرسائل المحفوظة.
+- الـ reasoning غير الموقَّع (OpenAI و Ollama و OpenRouter) وreasoning
+  الرد النهائي لا يُحفظان في `messages`. وعناصر الـ reasoning المشفّرة عند
+  OpenAI لا تنتقل بين الخطوات.
+- باقي الـ providers تتجاهل `message.reasoning`.

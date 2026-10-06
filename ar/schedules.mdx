@@ -1,13 +1,13 @@
 ---
-title: "الجداول الزمنية"
+title: "Schedules"
 ---
 {/* Generated from docs/schedules.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-**الجدول الزمني** يشغّل الوكيل وفق تعبير cron، دون أن يطلب أحد ذلك: ملخص صباحي، أو تنظيف ليلي. `defineSchedule()` يعرّف جدولًا، و[مجلد الوكيل](/ar/agent-directories) يلتقط الجداول من `schedules/`، و`startSchedules()` (أو خادم node) يشغّلها داخل العملية. وتحلّ الجداول الزمنية محلّ `CronTriggerAdapter` المُهمَلة (راجع [المُشغِّلات](/ar/triggers#جداول-cron-الزمنية)).
+الـ **schedule** يشغّل الـ agent على تعبير cron، بدون أن يطلبه أحد: ملخص صباحي، تنظيف ليلي. تعرّف واحدًا بـ `defineSchedule()`، ومجلد الـ agent يلتقطها من `schedules/`، و`startSchedules()` (أو سيرفر node) يشغّلها داخل العملية. الـ schedules بديل عن `CronTriggerAdapter` الـ deprecated (راجع [Triggers](/ar/triggers#جداول-cron)).
 
-## عرّف جدولًا زمنيًا
+## عرّف schedule
 
-حدّد تعبير cron وواحدًا فقط من `prompt` (نص يُرسل إلى الوكيل دورةً جديدة) أو `run` (دالتك الخاصة).
+أعطِ تعبير cron وواحدًا فقط من اثنين: `prompt` (نص يُرسَل للـ agent كـ turn جديد) أو `run` (دالة تكتبها أنت).
 
 ```ts
 import { createAgent, createMockProvider, defineSchedule, startSchedules } from '@lousho/build-ai-agent';
@@ -28,12 +28,12 @@ const running = startSchedules(agent, [morning, cleanup]);
 running.stop();
 ```
 
-- `cron`: خمسة حقول (`minute hour day-of-month month day-of-week`) أو `@hourly` أو `@daily` أو `@weekly` أو `@monthly`؛ يُقيَّم في `timezone` (اسم IANA، والافتراضي المنطقة الزمنية للجهاز). التعبير غير الصالح، أو تحديد `prompt` و`run` معًا أو عدم تحديد أي منهما، يرمي `LOUSHO_SCHEDULE_INVALID` من `defineSchedule()`، لا عند أول إطلاق. راجع [الأخطاء](/ar/errors#lousho_schedule_invalid).
+- `cron`: خمسة حقول (`minute hour day-of-month month day-of-week`) أو `@hourly` أو `@daily` أو `@weekly` أو `@monthly`، ويُحسَب في `timezone` (اسم IANA، والافتراضي منطقة الجهاز الزمنية). إذا كان التعبير غير صالح، أو حدّدت `prompt` و`run` معًا، أو ما حدّدت أي واحد منهما، `defineSchedule()` يرمي `LOUSHO_SCHEDULE_INVALID` مباشرة — لا عند أول firing. راجع [الأخطاء](/ar/errors#lousho_schedule_invalid).
 - `run` تستقبل `{ agent, firedAt, name }`.
 
-`startSchedules(agent, schedules, { now?, setTimer?, onError? })` يحتفظ بمؤقِّت واحد لكل جدول. التشغيل الذي يرمي استثناءً يذهب إلى `onError` (الافتراضي: `console.error`) ولا يوقف الجداول الأخرى أبدًا. ولا يتداخل الجدول مع نفسه: إذا كان الإطلاق السابق ما زال جاريًا، يُتخطّى التالي ويُبلَّغ به `onError`. والإطلاقات الفائتة أثناء تعليق العملية تُتخطّى ولا تُعاد. ويمكن حقن `now` و`setTimer` كي لا تضطر الاختبارات إلى الانتظار أبدًا.
+`startSchedules(agent, schedules, { now?, setTimer?, onError? })` يحتفظ بمؤقّت واحد لكل schedule. أي run يرمي خطأ يروح إلى `onError` (الافتراضي: `console.error`) ولا يوقّف باقي الـ schedules أبدًا. الـ schedule لا يتداخل مع نفسه: لو الـ firing السابق ما زال شغّالًا، يتخطّى `startSchedules` الإطلاق التالي ويبلّغ `onError`. والـ fires التي فاتت أثناء تعليق العملية يتخطّاها بدل إعادة تشغيلها. `now` و`setTimer` تحقنهما بنفسك حتى لا تنام الاختبارات أبدًا.
 
-## في مجلد الوكيل
+## في مجلد الـ agent
 
 ```text
 my-agent/
@@ -43,7 +43,7 @@ my-agent/
     nightly.ts         # name defaults to the file name ("nightly") unless the schedule sets `name`
 ```
 
-يُعيدها `resolveAgentDir()` في `schedules` (وأسماءها في `manifest.schedules`)؛ أما `loadAgentDir()` فلا يشغّلها. والمجلد الذي لا يحتوي `schedules/` يُحمَّل تمامًا كما كان من قبل.
+`resolveAgentDir()` يرجعها في `schedules` (وأسماءها في `manifest.schedules`)؛ أما `loadAgentDir()` فلا يشغّلها. والمجلد الذي لا يحتوي `schedules/` يُحمَّل كما كان تمامًا.
 
 ```ts
 import { createAgent, resolveAgentDir, startSchedules } from '@lousho/build-ai-agent';
@@ -53,17 +53,17 @@ const agent = createAgent(config);
 const running = startSchedules(agent, schedules);
 ```
 
-## على خادم node
+## على سيرفر node
 
-يبدأ `createDeployedServer(agent, { schedules })` (المساعِد الداخلي وراء الخادم الذي يُخرجه `lousho build` للهدفين `node-server` و`docker`) الجداول حين يبدأ الاستماع ويوقفها حين يُغلق. والأمر `lousho build ./my-agent --target=node-server` (أو `docker`) يبني مجلد الوكيل في خادم كهذا، فتعمل جداول `schedules/` الخاصة به في العملية المنشورة ([النشر](/ar/deployment#مجلدات-الوكيل)). ومُشغِّلات cron في ملف المواصفات، أي `triggers` (`{ type: 'cron', cron, input, name?, timezone? }`)، تعمل على هذين الهدفين أيضًا: `lousho build spec.yaml --target=node-server` يحوّلها بالقواعد نفسها المتبعة في Worker ويبدؤها الخادم المبني حين يبدأ الاستماع (`timezone` مدعوم؛ والمُشغِّل غير الصالح يُفشل البناء بالخطأ `LOUSHO_SCHEDULE_INVALID`). تُجرى استدعاءات النموذج في عملية الخادم، فيجب أن تكون حزمة المزوّد مثبَّتة حيث يعمل. أما على Cloudflare Workers فانظر أدناه.
+`createDeployedServer(agent, { schedules })` — الـ helper الداخلي وراء السيرفر الذي يولّده `lousho build` للهدفين `node-server` و`docker` — يشغّل الـ schedules عند بدء الاستماع ويوقفها عند الإغلاق. `lousho build ./my-agent --target=node-server` (أو `docker`) يبني مجلد الـ agent إلى سيرفر من هذا النوع، فتعمل `schedules/` الخاصة به داخل العملية المنشورة ([النشر](/ar/deployment#مجلدات-الـagent)). الـ `triggers` من نوع cron في ملف الـ spec (`{ type: 'cron', cron, input, name?, timezone? }`) تعمل على هذين الهدفين أيضًا: `lousho build spec.yaml --target=node-server` يحوّلها بنفس قواعد الـ Worker، والسيرفر المبني يشغّلها عند بدء الاستماع (`timezone` مدعوم؛ والـ trigger غير الصالح يفشل البناء بـ `LOUSHO_SCHEDULE_INVALID`). استدعاءات الـ model تتم داخل عملية السيرفر، فلازم تكون حزمة الـ provider مثبَّتة حيث يعمل. على Cloudflare Workers راجع القسم التالي.
 
 ## في `lousho dev`
 
-يبدأ `lousho dev ./my-agent` جداول المجلد، فيُطلَق cron أثناء التطوير، وإعادة التحميل السريعة (hot reload) توقف الجداول القديمة قبل بدء الجديدة. بدء الجداول هو السلوك الافتراضي كي يتصرف dev مثل الخادم المنشور؛ ولأن إطلاق cron (وإنفاق استدعاءات النموذج) أثناء التحرير غير مرغوب فيه غالبًا، فإن `--no-schedules` يركّب القنوات ولا يبدأ أي جدول.
+`lousho dev ./my-agent` يشغّل schedules المجلد، فينطلق cron وأنت تطوّر، والـ hot reload يوقّف الـ schedules القديمة قبل بدء الجديدة. التشغيل هو الوضع الافتراضي حتى يتصرّف `dev` مثل السيرفر المنشور؛ ولأن إطلاق الـ crons (وصرف استدعاءات الـ model) وأنت تعدّل غير مرغوب فيه غالبًا، `--no-schedules` يركّب الـ channels ولا يشغّل أي schedule.
 
 ## على Cloudflare Workers
 
-ليس لـWorker عملية طويلة العمر، فلا مؤقِّتات: تستدعي Cloudflare المعالج `scheduled()` في Worker مرة لكل تعبير cron مدرج تحت `[triggers] crons` في `wrangler.toml`. والهدف `cloudflare-worker` يولّد الاثنين من `triggers` في ملف مواصفات الوكيل — وفي مجلد الوكيل، من ملفات `schedules/` الخاصة به، التي تتبع القواعد نفسها أدناه:
+الـ Worker ما فيه process طويلة العمر، فلا timers: Cloudflare تنادي الـ handler `scheduled()` في الـ Worker مرة لكل تعبير cron مدرَج تحت `[triggers] crons` في `wrangler.toml`. هدف `cloudflare-worker` يولّد الاثنين من `triggers` في ملف الـ spec الخاص بالـ agent — وفي مجلد الـ agent، من ملفات `schedules/`، وهي تتبع نفس القواعد أدناه:
 
 ```yaml
 triggers:
@@ -73,8 +73,8 @@ triggers:
     input: Summarise last week.
 ```
 
-يكتب `lousho build` التعبيرات بعد إزالة المكرر منها في `[triggers] crons`، وينفّذ `scheduled()` في Worker كل مُشغِّل يساوي `cron` الخاص به التعبير المستدعى، دورةَ وكيل داخل `ctx.waitUntil()`. لكل مُشغِّل جلسته الخاصة، `schedule-<name>`، فيمكن فحص تشغيلاته في مخزن الجلسات KV عند ربط `AGENT_CHECKPOINTS` (`GET /chat/schedule-weekly-report`). والتشغيل يحدث داخل `ctx.waitUntil()`، بعد انتهاء عمر الطلب، فامنح الوكيل مخزنًا (`KVStore` على `AGENT_CHECKPOINTS`) — فالمخزن في الذاكرة يحفظ جلسات `schedule-<name>` إلى أن يُعاد تدوير العزل فقط. المُشغِّل الفاشل يُسجَّل عبر `console.error` (الاسم ورمز الخطأ) ولا يوقف غيره أبدًا، و`scheduled()` لا يرمي استثناءً أبدًا.
+`lousho build` يكتب التعبيرات بعد إزالة المكرر في `[triggers] crons`، و`scheduled()` في الـ Worker يشغّل كل trigger يساوي `cron` فيه التعبيرَ المستدعى، كـ turn للـ agent داخل `ctx.waitUntil()`. كل trigger له session خاصة به، `schedule-<name>`، فيمكنك فحص تشغيلاته في الـ session store على KV عند ربط `AGENT_CHECKPOINTS` (`GET /chat/schedule-weekly-report`). الـ run يتم داخل `ctx.waitUntil()`، بعد انتهاء عمر الطلب، فأعطِ الـ agent ‏store ‏(`KVStore` على `AGENT_CHECKPOINTS`) — الـ in-memory store يحفظ جلسات `schedule-<name>` فقط إلى أن يُعاد تدوير الـ isolate. إذا فشل trigger يُسجَّل بـ `console.error` (الاسم ورمز الخطأ) ولا يوقّف الباقي أبدًا، و`scheduled()` لا يرمي أبدًا.
 
-تختلف مُشغِّلات cron في Cloudflare عن تلك العاملة داخل العملية، ولذلك يفشل البناء بالخطأ `LOUSHO_SCHEDULE_INVALID` مع ذكر اسم المُشغِّل بدل أن يُخرج إعدادًا يُنشر ولا يُطلَق أبدًا: التعبيرات بتوقيت UTC (لا `timezone`)، وخمسة حقول بالضبط (لا ثوانٍ، ولا `@daily`)، ويوم الأسبوع يجب أن يكون `*` أو أسماء (`MON-FRI`)، لأن Cloudflare ترقّم الأيام من 1 إلى 7 بدءًا من الأحد. أدق فاصل زمني هو دقيقة واحدة، وقد تبدأ Cloudflare التشغيل متأخرة بضع ثوانٍ.
+الـ cron triggers في Cloudflare تختلف عن التي تعمل داخل العملية، لذلك يفشل البناء بـ `LOUSHO_SCHEDULE_INVALID` مع ذكر اسم الـ trigger، بدل أن يُخرج config يُنشَر ولا ينطلق أبدًا: التعبيرات بتوقيت UTC (لا `timezone`)، وخمسة حقول بالضبط (بلا ثوانٍ وبلا `@daily`)، ويوم الأسبوع لازم يكون `*` أو أسماء (`MON-FRI`)، لأن Cloudflare ترقّم الأيام من 1 إلى 7 بدءًا من الأحد. أصغر فاصل زمني ممكن دقيقة واحدة، وقد تبدأ Cloudflare الـ run متأخرةً بضع ثوانٍ.
 
-لربط نقطة دخول Worker خاصة بك، راجع [Cloudflare Workers](/ar/cloudflare-workers#التشغيلات-المجدولة).
+لو تريد ربط نقطة دخول Worker بنفسك، راجع [Cloudflare Workers](/ar/cloudflare-workers#scheduled-runs).

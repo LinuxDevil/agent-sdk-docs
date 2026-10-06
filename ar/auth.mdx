@@ -1,9 +1,9 @@
 ---
-title: "مصادقة المسارات والهويات (principals)"
+title: "Route auth والـ principals"
 ---
 {/* Generated from docs/auth.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-يحتاج الوكيل الذي يُقدَّم عبر HTTP إلى معرفة أمرين عن كل طلب: هل يحق له الاستدعاء أصلًا، ومن هو صاحبه. تجيب الوحدة `@lousho/build-ai-agent/auth` عن السؤالين. تعطي المسار قائمة مرتبة من مدخلات المصادقة (`jwt()` أو `oidc()` أو `basic()` أو `apiToken()` أو `anonymous()` أو دالة من كتابتك)؛ فيُعيد أول مدخل يقبل الطلب **هوية (principal)**، وتدخل هذه الهوية في التشغيل، حيث تستطيع دوال `model` و`instructions` و`tools` ونطاقات الذاكرة قراءتها.
+أي agent يشتغل على HTTP يحتاج يعرف شغلتين عن كل request: هل مسموح له يمرّ أصلًا، ومين المتصل. `@lousho/build-ai-agent/auth` تجاوب على الاثنين. إنت تعطي الـ route قائمة مرتبة من مدخلات auth: `jwt()` أو `oidc()` أو `basic()` أو `apiToken()` أو `anonymous()`، أو function تكتبها بنفسك. أول entry يقبل الـ request يرجع **principal** (هوية المتصل بعد ما auth تحققت منه)، وهذا الـ principal يدخل الـ run، وهناك تقدر دوال `model` و`instructions` و`tools` ونطاقات الـ memory تقرأه.
 
 ```ts
 import { createAgent, createRouteHandler } from '@lousho/build-ai-agent';
@@ -23,19 +23,19 @@ export const { GET, POST } = createRouteHandler(agent, {
 });
 ```
 
-## قائمة المصادقة
+## قائمة الـ auth
 
-تُنفَّذ المدخلات بالترتيب، ويفعل كل مدخل واحدًا من ثلاثة أشياء:
+المدخلات تشتغل بالترتيب، وكل واحد منها يسوي واحدة من ثلاثة:
 
-| عندما ... المدخل | يحدث التالي |
+| الـ entry ... | يصير إيه |
 | --- | --- |
-| يُعيد `Principal` | يُقبل الطلب، ولا تُسأل المدخلات اللاحقة |
-| يُعيد `null` أو `undefined` | يتجاوز الطلب: يُسأل المدخل التالي |
-| يرمي `AuthError(401)` أو `AuthError(403)` | يُرفض الطلب بهذه الحالة، ولا تُسأل المدخلات اللاحقة |
+| يرجع `Principal` | الـ request ينقبل، والمدخلات اللي بعده ما تدخل الصورة |
+| يرجع `null` أو `undefined` | يتخطّى: السؤال ينتقل للـ entry اللي بعده |
+| يرمي `AuthError(401)` أو `AuthError(403)` | الـ request ينرفض بهذا الـ status، والمدخلات اللي بعده ما تدخل الصورة |
 
-إذا تجاوزت كل المدخلات الطلب، يحصل على `401`. والقائمة الفارغة ترفض كل الطلبات. أما المدخل الذي يرمي أي خطأ آخر فهو خلل برمجي: يحصل الطلب على `500` بجسم عام، ويُسجَّل الخطأ بـ `console.error` (ولا يُرسَل أبدًا).
+لو كل المدخلات عملت skip، الـ request ياخذ `401`. والقائمة الفاضية ترفض كل request. أما الـ entry اللي يرمي أي خطأ آخر فهذا bug: الـ request ياخذ `500` بـ body عام، والخطأ يتسجّل بـ `console.error` (وما ينبعت للمتصل أبدًا).
 
-لا ترمي الأدوات المساعدة المضمّنة أي خطأ عند بيانات اعتماد سيئة: كلمة مرور خاطئة أو رمز منتهي الصلاحية أو رمز مُصدَر لجمهور (audience) آخر، كلها تتجاوز الطلب، فتُتاح الفرصة للمدخل التالي (يعمل مدخلا `jwt()` لمُصدِرَين مختلفين)، وينتهي الطلب الذي لا يقبله أحد بالـ `401` نفسه.
+الـ helpers الجاهزة ما ترمي أبدًا على credential غلط: كلمة مرور غلط، أو token منتهي، أو token مصدر لـ audience آخر — كلها تعمل skip. يعني الـ entry اللي بعده ياخذ فرصته (يعني عادي يكون عندك مدخلين `jwt()` لـ issuerين مختلفين)، والـ request اللي ما قبله أحد ينتهي بنفس الـ `401`.
 
 الـ `Principal` هو:
 
@@ -49,19 +49,19 @@ interface Principal {
 }
 ```
 
-## الأدوات المساعدة
+## الـ helpers
 
-تُنشأ كل الأدوات المساعدة مرة واحدة عند بدء التشغيل، وتتحقق من خياراتها حينها: الأداة التي لا يمكنها العمل ترمي [`LOUSHO_AUTH_CONFIG_INVALID`](/ar/errors#lousho_auth_config_invalid) بدلًا من أن ترفض كل الطلبات لاحقًا.
+كل الـ helpers تتعمل مرة واحدة عند التشغيل، وتفحص خياراتها وقتها: الـ helper اللي ما يقدر يشتغل يرمي [`LOUSHO_AUTH_CONFIG_INVALID`](/ar/errors#lousho_auth_config_invalid) بدل ما يرفض كل request بعدين.
 
 ### `jwt()`
 
-تقبل `Authorization: Bearer <JWT>` الموقّع بالمفتاح الذي تضبطه. أعطِ مصدر مفتاح واحدًا بالضبط:
+تقبل `Authorization: Bearer <JWT>` الموقّع بالمفتاح اللي إنت تضبطه. مرّر مصدر مفتاح واحد بالضبط:
 
-| الخيار | المفتاح | الخوارزميات (الافتراضي: كل خوارزميات عائلة المفتاح) |
+| الخيار | المفتاح | الخوارزميات (الافتراضي: كل عائلة المفتاح) |
 | --- | --- | --- |
-| `secret` | سر HMAC من 32 بايت على الأقل | `HS256` و`HS384` و`HS512` |
-| `publicKey` | مفتاح PEM بصيغة `-----BEGIN PUBLIC KEY-----` أو JWK | `RS256` و`RS384` و`RS512` (RSA بطول 2048 بت أو أكثر) و`ES256` (P-256) و`ES384` (P-384) |
-| `jwksUrl` | نقطة JWKS (https، أو http على localhost) | `RS256` و`ES256` افتراضيًا؛ مفاتيح RSA وEC فقط |
+| `secret` | سر HMAC بطول 32 بايت على الأقل | `HS256` و`HS384` و`HS512` |
+| `publicKey` | مفتاح PEM بصيغة `-----BEGIN PUBLIC KEY-----` أو JWK | `RS256` و`RS384` و`RS512` (RSA بطول 2048 بت أو أكثر)، `ES256` (P-256)، `ES384` (P-384) |
+| `jwksUrl` | JWKS endpoint (https، أو http على localhost) | `RS256` و`ES256` افتراضيًا؛ مفاتيح RSA وEC فقط |
 
 ```ts
 import { jwt } from '@lousho/build-ai-agent/auth';
@@ -75,20 +75,20 @@ const fromOurAuthServer = jwt({
 });
 ```
 
-ما الذي يُفحَص:
+اللي ينفحص:
 
-- يجب أن تكون قيمة `alg` في الترويسة إحدى قيم `algorithms`؛ ويُرفض `none` دائمًا، وكذلك الرمز الذي تعلن ترويسته امتدادًا بـ `crit`.
-- يجب أن تناسب الخوارزمية المفتاح: لا يُستخدم المفتاح العام أبدًا كسر HMAC مهما قالت ترويسة الرمز، ولا توفّر مجموعة المفاتيح مفتاح HMAC أبدًا.
-- الحقل `exp` مطلوب؛ ويُعمل بـ `nbf` و`iat`. وتسمح الثلاثة بفارق ساعة قدره `clockToleranceSec` (الافتراضي 60، والحد الأقصى 300).
-- يجب أن يساوي `iss` إحدى قيم `issuer` تمامًا (دون تسامح مع الشرطة المائلة الأخيرة)، عندما تضبط `issuer`.
-- يجب أن يحتوي `aud` (نصًّا أو قائمة) على إحدى قيم `audience`. والخيار `audience` مطلوب؛ مرّر `allowAnyAudience: true` لتخطّي هذا الفحص عن قصد.
-- تُجلب مجموعة المفاتيح بمهلة 5 ثوانٍ، وتُخزَّن مؤقتًا 10 دقائق، وتُعاد جلبها مرة واحدة كل 30 ثانية على الأكثر حين يذكر رمز `kid` لا تعرفه (وتُعاد محاولة الجلب الفاشل بالحد الزمني نفسه البالغ 30 ثانية). وعنوانها إعداد فقط: تُتجاهل ترويسات `jku` و`x5u` و`jwk` في الرمز.
+- قيمة `alg` في الـ header لازم تكون من `algorithms`. `none` مرفوضة دائمًا، وكذلك الـ token اللي هيدره معلّم extension بـ `crit`.
+- الخوارزمية لازم تناسب المفتاح: الـ public key ما ينستخدم أبدًا كسر HMAC مهما يقول هيدر الـ token، ومجموعة المفاتيح ما تعطي مفتاح HMAC أبدًا.
+- `exp` مطلوب، و`nbf` و`iat` محترمين. الثلاثة تسمح بفرق ساعة قدره `clockToleranceSec` (الافتراضي 60، والحد الأقصى 300).
+- لما تضبط `issuer`، لازم `iss` يساوي وحدة من قيم `issuer` بالضبط. ما في تسامح مع سلاش زيادة في الآخر.
+- `aud` (string أو قائمة) لازم يحتوي وحدة من `audience`. و`audience` مطلوبة؛ مرّر `allowAnyAudience: true` لو قاصد تتخطّى هذا الفحص.
+- مجموعة المفاتيح تتجلب بمهلة 5 ثوانٍ، وتعيش في الكاش 10 دقائق، ويُعاد جلبها مرة واحدة كل 30 ثانية كحد أقصى لما يجي token بـ `kid` ما تعرفه (والجلب الفاشل يتعاد بنفس حد الـ 30 ثانية). عنوانها إعداد فقط: هيدرات `jku` و`x5u` و`jwk` في الـ token تتجاهل.
 
-الهوية الافتراضية هي `{ id: sub, type: 'user', authenticator: 'jwt', issuer: iss, claims }`؛ والرمز الذي لا يحوي `sub` يُتجاوز.
+الـ principal الافتراضي هو `{ id: sub, type: 'user', authenticator: 'jwt', issuer: iss, claims }`؛ والـ token اللي ما فيه `sub` يتخطّى.
 
 ### `oidc()`
 
-هي `jwt()` تأتي مفاتيحها من مزوّد OpenID Connect. تجلب `<issuer>/.well-known/openid-configuration` مرة واحدة (أو `discoveryUrl`)، وتشترط أن يساوي `issuer` في الوثيقة قيمتك تمامًا، وتستخدم `jwks_uri` منها (https، أو http على `localhost` / `127.0.0.1` / `[::1]` — القاعدة نفسها التي يتبعها `jwksUrl` في `jwt()`). الخوارزميات الافتراضية `RS256` و`ES256`؛ ولا يُسمح بـ HMAC.
+هي `jwt()` بس مفاتيحها تجي من OpenID Connect provider. تجلب `<issuer>/.well-known/openid-configuration` مرة واحدة (أو `discoveryUrl` لو مررته)، وتشترط إن `issuer` في الوثيقة يساوي قيمتك بالضبط، وتستخدم `jwks_uri` منها (https، أو http على `localhost` / `127.0.0.1` / `[::1]` — نفس قاعدة `jwksUrl` في `jwt()`). الخوارزميات الافتراضية `RS256` و`ES256`؛ وHMAC ممنوع.
 
 ```ts
 import { oidc } from '@lousho/build-ai-agent/auth';
@@ -96,11 +96,11 @@ import { oidc } from '@lousho/build-ai-agent/auth';
 const google = oidc({ issuer: 'https://accounts.google.com', audience: process.env.GOOGLE_CLIENT_ID ?? 'client-id' });
 ```
 
-تحمل الهوية `authenticator: 'oidc'`، و`iss` الخاص بالمزوّد في `issuer`.
+الـ principal يكون `authenticator: 'oidc'`، و`issuer` فيه `iss` اللي رجّعه الـ provider.
 
 ### `basic()`
 
-بيانات اعتماد HTTP Basic. تُطبَّع أسماء المستخدمين وكلمات المرور بصيغة NFC وتُقارَن في زمن ثابت، ويُقارَن كل مستخدم مضبوط في كل طلب، فيستغرق المستخدم المجهول الوقت نفسه الذي تستغرقه كلمة المرور الخاطئة. ويحمل الرد `401` الترويسة `WWW-Authenticate: Basic realm="<realm>", charset="UTF-8"` لتعرض المتصفحات نافذة تسجيل الدخول.
+credentials بتاع HTTP Basic. أسماء المستخدمين وكلمات المرور تتطبّع NFC وتتقارن في زمن ثابت، وكل user مضبوط يتقارن مع كل request، فالـ user المجهول ياخذ نفس وقت كلمة المرور الغلط. والـ `401` يحمل الهيدر `WWW-Authenticate: Basic realm="<realm>", charset="UTF-8"` عشان المتصفحات تعرض نافذة تسجيل الدخول.
 
 ```ts
 import { basic } from '@lousho/build-ai-agent/auth';
@@ -110,17 +110,17 @@ const operators = basic({ users: { ops: process.env.OPS_PASSWORD ?? 'change-me' 
 const fromDatabase = basic({ users: async (user, password) => user === 'svc' && password === (process.env.SVC_PASSWORD ?? '') });
 ```
 
-**لا تستخدم `basic()` إلا عبر HTTPS**: فكلمة المرور تنتقل مع كل طلب.
+**ما تستخدم `basic()` إلا على HTTPS**: كلمة المرور تسافر مع كل request.
 
 ### `apiToken()` و`anonymous()`
 
-تقبل `apiToken(token, { id })` الترويسة `Authorization: Bearer <token>` (تُقارَن في زمن ثابت) بوصفها الهوية الخدمية `{ id: id ?? 'api-token', type: 'service', authenticator: 'api-token' }`. وهي ما كان يعنيه النص الرمزي دائمًا: `createRouteHandler({ auth: '<token>' })` و`LOUSHO_API_TOKEN` هما `apiToken()`.
+`apiToken(token, { id })` تقبل `Authorization: Bearer <token>` (يتقارن في زمن ثابت) كـ service principal `{ id: id ?? 'api-token', type: 'service', authenticator: 'api-token' }`. وهذا من زمان هو معنى الـ token كـ string: `createRouteHandler({ auth: '<token>' })` و`LOUSHO_API_TOKEN` الاثنين `apiToken()`.
 
-تقبل `anonymous()` الجميع بالهوية `{ id: 'anonymous', type: 'user', authenticator: 'anonymous' }`: ضعها أخيرًا في المسارات التي تخدم المستخدمين المسجّلين والمجهولين معًا، واقرأ `principal.authenticator` أثناء التشغيل.
+`anonymous()` تقبل الكل كـ `{ id: 'anonymous', type: 'user', authenticator: 'anonymous' }`: حطها آخر وحدة في الـ routes اللي تخدم المتصلين المسجلين والمجهولين مع بعض، واقرأ `principal.authenticator` في الـ run.
 
-### مدخل من كتابتك
+### entry من عندك
 
-أي دالة تأخذ `Request` تصلح مدخلًا. أعلِن التحديات (challenges) التي تردّ بها بالحالة `401`، وإلا أعلنت `Bearer`:
+أي function تاخذ `Request` تشتغل كـ entry. صرّح بالـ challenges اللي ترد بها على `401`، وإلا تعلن `Bearer`:
 
 ```ts
 import { AuthError, type AuthFn } from '@lousho/build-ai-agent/auth';
@@ -134,35 +134,35 @@ const tenantKey: AuthFn = async (request) => {
 tenantKey.challenges = [{ scheme: 'Bearer', realm: 'tenants' }];
 ```
 
-## الحالتان 401 و403 والترويسة `WWW-Authenticate`
+## `401` و`403` و`WWW-Authenticate`
 
-- لم يقبل أحد الطلب (أو رمى مدخل `AuthError(401)`): تُعاد `401` مع `{ "error": "Unauthorized" }` وترويسة `WWW-Authenticate` واحدة لكل تحدٍّ مميّز في القائمة، بالترتيب (`Bearer` لـ `jwt` و`oidc` و`apiToken`؛ و`Basic realm="..."` لـ `basic`).
-- رمى مدخل `AuthError(403)`: تُعاد `403` مع `{ "error": "Forbidden" }`.
-- فشل مدخل بطريقة أخرى: تُعاد `500` مع `{ "error": "Internal Server Error" }`.
+- ما حد قبل الـ request (أو entry رمى `AuthError(401)`): `401` مع `{ "error": "Unauthorized" }` وهيدر `WWW-Authenticate` واحد لكل challenge مختلف في القائمة، بالترتيب (`Bearer` لـ `jwt` و`oidc` و`apiToken`؛ و`Basic realm="..."` لـ `basic`).
+- entry رمى `AuthError(403)`: `403` مع `{ "error": "Forbidden" }`.
+- entry فشل بطريقة أخرى: `500` مع `{ "error": "Internal Server Error" }`.
 
-لا يذكر الجسم أبدًا أي فحص فشل: فالرمز المنتهي والتوقيع السيئ والجمهور الخاطئ كلها تحصل على `401` نفسها. ويحمل كل ردّ مصادقة الترويسة `Cache-Control: no-store`. ولا تُسجَّل الرموز وكلمات المرور أبدًا.
+الـ body ما يقول أبدًا أي فحص فشل: الـ token المنتهي والتوقيع الغلط والـ audience الغلط كلها تاخذ نفس الـ `401`. وكل رد auth يحمل `Cache-Control: no-store`. والـ tokens وكلمات المرور ما تتسجّل أبدًا.
 
-## أين يعمل
+## أين يشتغل
 
-| الأداة أو الخادم | Node 22+ | Cloudflare Workers وVercel Edge وBun وDeno |
+| الـ helper أو السيرفر | Node 22+ | Cloudflare Workers وVercel Edge وBun وDeno |
 | --- | --- | --- |
-| `jwt()` و`oidc()` و`basic()` و`apiToken()` و`anonymous()` و`routeAuth()` | نعم | نعم: Web Crypto و`fetch` فقط، دون استيراد `node:` |
+| `jwt()` و`oidc()` و`basic()` و`apiToken()` و`anonymous()` و`routeAuth()` | نعم | نعم: Web Crypto و`fetch` فقط، وما في استيراد `node:` |
 | `createRouteHandler({ auth })` | نعم | نعم |
-| `createDeployedServer({ auth })`، والهدفان `node-server` و`docker` | نعم | لا (Node `http`) |
-| الملف `auth.ts` في مجلد الوكيل | نعم (`node-server` و`docker`) | لا |
-| هدف البناء `cloudflare-worker` | | `LOUSHO_API_TOKEN` فقط؛ لا قائمة مصادقة بعد |
+| `createDeployedServer({ auth })`، والـ targetين `node-server` و`docker` | نعم | لا (Node `http`) |
+| ملف `auth.ts` في مجلد الـ agent | نعم (`node-server` و`docker`) | لا |
+| الـ build target `cloudflare-worker` | | `LOUSHO_API_TOKEN` فقط؛ ما في قائمة auth حتى الآن |
 
-تحتاج `oidc()` و`jwt({ jwksUrl })` إلى `fetch` صادر إلى مجموعة المفاتيح، وهو متاح في كل بيئات التشغيل المذكورة. وفي Worker مكتوب يدويًا، استدعِ `createRouteHandler` أو `routeAuth()` بنفسك مع أي أداة مساعدة.
+`oidc()` و`jwt({ jwksUrl })` تحتاج `fetch` خارجي لمجموعة المفاتيح، وكل الـ runtimes المذكورة عندها. وفي Worker مكتوب يدويًا، نادِ `createRouteHandler` أو `routeAuth()` بنفسك مع أي helper.
 
 ## `createRouteHandler`
 
-يقبل `auth` القائمة، أو مدخلًا واحدًا، أو نص رمز، أو (كما في السابق) دالة تُعيد قيمة منطقية. تقبل `true` الطلب بالهوية `{ id: 'anonymous', type: 'user', authenticator: 'custom' }`، وتعني `false` الحالة `401`. وبلا `auth` يكون المسار مفتوحًا، وفي بيئة الإنتاج (`NODE_ENV=production`) يُسجَّل تحذير واحد. والمسار `GET <basePath>/health` ليس خلف `auth` أبدًا. وتصل الهوية المقبولة إلى كل المسارات: `POST <basePath>` و`/chat` والموافقات ونقطة `useChat`. راجع [Next.js](/ar/nextjs#المسارات).
+`auth` ياخذ القائمة، أو entry واحد، أو token string، أو (زي قبل) function ترجع boolean. `true` تقبل بالـ principal `{ id: 'anonymous', type: 'user', authenticator: 'custom' }`، و`false` تعني `401`. من دون `auth` يكون الـ route مفتوح، وفي الإنتاج (`NODE_ENV=production`) يسجّل تحذير واحد. `GET <basePath>/health` ما يكون ورا `auth` أبدًا. والـ principal المقبول يوصل لكل route: `POST <basePath>` و`/chat` والـ approvals (الموافقات) وendpoint `useChat`. شوف [Next.js](/ar/nextjs#المسارات).
 
-## خادم Node و`auth.ts`
+## سيرفر Node و`auth.ts`
 
-يأخذ `createDeployedServer(agent, { auth })` القائمة نفسها (أو مدخلًا واحدًا). وعند ضبط `LOUSHO_API_TOKEN`، تُلحَق `apiToken(LOUSHO_API_TOKEN)` بعد مدخلاتك، فيظل رمز المشغّل صالحًا. أما القنوات تحت `/channels/<name>` فليست خلف القائمة: فهي تتحقق من طلباتها بنفسها.
+`createDeployedServer(agent, { auth })` ياخذ نفس القائمة (أو entry واحد). ولما `LOUSHO_API_TOKEN` يكون مضبوط، `apiToken(LOUSHO_API_TOKEN)` تتلحق ورا مدخلاتك، فيظل token المشغّل شغّال. الـ channels تحت `/channels/<name>` ما هي ورا القائمة: هي تتحقق من طلباتها بنفسها.
 
-في [مجلد الوكيل](/ar/agent-directories)، ضع القائمة في `auth.ts` (أو `auth.js`) بجوار `agent.ts`:
+في [مجلد الـ agent](/ar/agent-directories)، حط القائمة في `auth.ts` (أو `auth.js`) جنب `agent.ts`:
 
 ```ts
 // my-agent/auth.ts
@@ -174,11 +174,11 @@ export default [
 ];
 ```
 
-يجمّعها `lousho build --target=node-server` (أو `docker`) ويستخدمها الخادم المبني (تُعيدها `resolveAgentDir()` باسم `auth`؛ ويذكر البيان `auth: true`). ومع وجود `auth.ts`، لا يُستخدم الرمز المضمَّن عبر `adapter.scaffold(..., { auth: { token } })`؛ أما `LOUSHO_API_TOKEN` فيبقى مستخدمًا. ويقدّم الهدف `cloudflare-worker` ملفات المواصفات فقط ويُبقي رمز `LOUSHO_API_TOKEN`؛ راجع [النشر](/ar/deployment#المصادقة).
+`lousho build --target=node-server` (أو `docker`) يجمّعها، والسيرفر المبني يستخدمها (`resolveAgentDir()` ترجعها كـ `auth`، والـ manifest يقول `auth: true`). ومع وجود `auth.ts`، الـ token المخبوز عبر `adapter.scaffold(..., { auth: { token } })` ما ينستخدم؛ أما `LOUSHO_API_TOKEN` فيظل شغّال. والـ target `cloudflare-worker` يقدّم ملفات الـ spec فقط ويحتفظ بـ token `LOUSHO_API_TOKEN`؛ شوف [النشر](/ar/deployment#المصادقة).
 
-## قراءة الهوية أثناء التشغيل
+## قراءة الـ principal في الـ run
 
-تكون الهوية في سياق التشغيل بجوار `sessionId` و`metadata`. وتختار بادئة النموذج `vendor/` المزوّد؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`):
+الـ principal موجود على سياق الـ run جنب `sessionId` و`metadata`. بادئة `vendor/` في الـ model هي اللي تختار الـ provider؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`).
 
 ```ts
 import { createAgent, defineMemory, inMemoryMemory, type Principal } from '@lousho/build-ai-agent';
@@ -204,31 +204,31 @@ await agent.send('Hello', { principal: caller });
 await agent.session({ id: 'chat-1' }).send('Hello again', { principal: caller });
 ```
 
-الحقل `principal` منفصل عن `metadata` عن قصد: فـ `metadata` هو ما أرسله المستدعي، و`principal` هو ما تحقّقت منه المصادقة. والتشغيل المُستأنف من نقطة الحفظ أو بعد موافقة يحتفظ بالهوية التي بدأ بها. وتضبط قنوات Slack وDiscord وTeams وGitHub وTelegram المُرسِل هويةً (`authenticator: 'slack'` و`'discord'` وهكذا). وترى الأدوات وسياسات الموافقة وقواعد الصلاحيات والوكلاء الفرعيون الهوية أيضًا: راجع [الهويات في الأدوات والموافقات](#الهويات-في-الأدوات-والموافقات).
+`principal` منفصل عن `metadata` عن قصد: `metadata` هو اللي المتصل أرسله، و`principal` هو اللي auth تحققت منه. والـ run اللي يتستأنف من checkpoint أو بعد approval يحتفظ بالـ principal اللي بدأ فيه. والـ channels (Slack وDiscord وTeams وGitHub وTelegram) تحط الـ sender كـ principal (`authenticator: 'slack'`، `'discord'`، إلخ). والـ tools وسياسات الـ approval وقواعد الـ permissions والـ sub-agents يشوفوه كمان: شوف [Principals in tools and approvals](#principals-in-tools-and-approvals).
 
 ## ملاحظات أمنية
 
-- **لا تتحقق مصادقة المسار ممن يملك الجلسة.** يستطيع أي مستدعٍ يجتاز المصادقة ويعرف معرّف جلسة أن يقرأ نصّها (`GET /chat/:id`) ويتابعها ويبتّ في موافقاتها المعلّقة. استخدم معرّفات جلسات لا يمكن تخمينها، أو اشتقّها من الهوية في جانبك، أو تحقق من الملكية في مسارك قبل استدعاء المعالج. يُسجَّل المستدعي الذي يبتّ في موافقة مستدعٍ آخر على أنه المُوافِق (`ctx.approval.by`)؛ ويظل التشغيل يعمل نيابةً عن المستدعي الذي بدأه.
-- لا تستخدم `basic()` إلا عبر HTTPS؛ والرمز الحامل (bearer) كلمة مرور أيضًا، لذا أنهِ TLS أمام أي خادم ليس على localhost.
-- أبقِ `issuer` و`audience` مضبوطين في `jwt()`: وإلا قُبل هنا رمز صُدر لخدمة أخرى من خدماتك.
+- **الـ route auth ما يفحص مين مالك الـ session (الجلسة).** أي متصل يعدّي الـ auth ويعرف session id يقدر يقرأ transcript الـ session (`GET /chat/:id`)، ويكمّلها، ويحسم الـ approvals المعلّقة فيها. استخدم session ids ما تتخمّن، أو اشتقّها من الـ principal عندك، أو افحص الملكية في الـ route تبعك قبل ما تنادي الـ handler. المتصل اللي يحسم approval لمتصل آخر يتسجّل كـ approver (`ctx.approval.by`)؛ والـ run يظل يشتغل لصالح المتصل اللي بدأه.
+- `basic()` بس على HTTPS؛ والـ bearer token كمان كلمة مرور، فأنهِ TLS قدّام أي سيرفر ما هو على localhost.
+- خلّي `issuer` و`audience` مضبوطين في `jwt()`: وإلا token صادر لخدمة أخرى من خدماتك ينقبل هنا.
 
-## الهويات في الأدوات والموافقات
+## Principals in tools and approvals
 
-كل ما يقرّر أو يتصرف نيابةً عن المستدعي يحصل على هوية التشغيل، وهي مجمّدة (أي أداة أو سياسة تحاول الإسناد إليها تُلقي خطأ):
+كل حاجة تقرّر أو تتصرف نيابة عن المتصل تاخذ principal الـ run، وهو frozen (أي tool أو policy تحاول تسنّد له قيمة ترمي خطأ):
 
 | أين | كيف |
 | --- | --- |
-| الدالة `execute(args, ctx)` في أداة | `ctx.principal` |
-| الدالة `needsApproval` | `ctx.principal` (وسيطها الثاني) |
-| الدالة `when(args, ctx)` في قاعدة صلاحية | `ctx.principal` |
-| الخطّافان `preToolCall` و`postToolCall` | `ctx.principal` |
-| `onPermissionDecision(entry, { principal })` | الوسيط الثاني؛ والمُدخَل نفسه لا يحمل هوية |
-| موافقة معلّقة (`agent.approvals.list()` و`approve` ودالة `approvers` في قناة) | `request.principal`: صاحب الاستدعاء |
-| الوكلاء الفرعيون داخل العملية (`task` والمهام الخلفية) | هوية الوكيل الرئيسي، في كل ما سبق |
+| `execute(args, ctx)` في الـ tool | `ctx.principal` |
+| function `needsApproval` | `ctx.principal` (الوسيط الثاني) |
+| `when(args, ctx)` في قاعدة permission | `ctx.principal` |
+| الـ hooks `preToolCall` و`postToolCall` | `ctx.principal` |
+| `onPermissionDecision(entry, { principal })` | الوسيط الثاني؛ والـ entry نفسه ما يحمل principal |
+| approval معلّق (`agent.approvals.list()` و`approve` وfunction `approvers` في الـ channel) | `request.principal`: مين المتصل |
+| الـ sub-agents داخل الـ process (`task` والمهام الخلفية) | principal الـ lead، في كل اللي فوق |
 
-والتشغيل الذي لا هوية له (لا مصادقة مسار، أو `send()` من دون `principal`) لا هوية له في أي من هذه المواضع.
+والـ run اللي ما فيه principal (ما في route auth، أو `send()` من دون `principal`) ما يكون له principal في أي موضع من اللي فوق.
 
-### في أداة
+### في tool
 
 ```ts
 import { defineTool } from '@lousho/build-ai-agent';
@@ -246,9 +246,9 @@ export const myOrders = defineTool({
 });
 ```
 
-تأتي الهوية من مصادقة المسار أو من المُرسِل الذي تحقّقت منه القناة فقط، ولا تأتي أبدًا من جسم الطلب ولا من النموذج، ولا تستطيع الأداة تغييرها.
+الـ principal يجي بس من route auth أو من sender تحققت منه الـ channel، وما يجي أبدًا من body الـ request ولا من الـ model، والـ tool ما تقدر تغيّره.
 
-### سياسات الموافقة وقواعد الصلاحيات
+### سياسات الـ approval وقواعد الـ permissions
 
 ```ts
 import { createAgent, defineTool } from '@lousho/build-ai-agent';
@@ -276,7 +276,7 @@ await agent.send('Deploy the API', { principal: { id: 'ci', type: 'service', aut
 
 ### من وافق
 
-يمكن أن يُسمّي القرار من اتخذه. وترى الأداة الموافَق عليها صاحب القرار في `ctx.approval.by`، بجوار `ctx.approval.note`:
+القرار يقدر يسمّي مين اتخذه. والـ tool الموافَق عليه يشوف صاحب القرار في `ctx.approval.by`، جنب `ctx.approval.note`:
 
 ```ts
 import { createAgent, defineTool, type Principal } from '@lousho/build-ai-agent';
@@ -303,20 +303,20 @@ const paused = await agent.send('Email Sam', { principal: alice });
 await agent.approvals.resolve({ id: paused.approvalId!, approved: true }, { principal: lead });
 ```
 
-تقبل `resolve()` و`answer()` و`streamResolve()` و`streamAnswer()` الوسيط `{ principal }`. ويمرّر مسار الموافقات (`POST /chat/:sessionId/approvals/:id`) المستدعي الذي قبلته قائمة المصادقة لديه؛ ولا تستطيع حقول الجسم ضبطه. وتمرّر `mountChannels()` المستخدم الذي ضغط الزر على هيئة `{ id, type: 'user', authenticator: <channel name> }`، أو مُرسِل الرسالة إن كان السؤال قد أُجيب برسالة. أما القرارات التي تتخذها دالة `approve` أو التي تُرسَل إلى `/channels/<name>/approvals/:id` فلا مُوافِق لها.
+`resolve()` و`answer()` و`streamResolve()` و`streamAnswer()` تاخذ `{ principal }`. والـ approvals route (`POST /chat/:sessionId/approvals/:id`) يمرّر المتصل اللي قبلته قائمة الـ auth؛ حقول الـ body ما تقدر تضبطه. و`mountChannels()` تمرّر الـ user اللي ضغط كـ `{ id, type: 'user', authenticator: <channel name> }`، أو، لو السؤال اتجاوب برسالة، مُرسل الرسالة. أما القرارات اللي تعملها callback `approve` أو اللي تنرسل لـ `/channels/<name>/approvals/:id` فما فيها approver.
 
-لا يصير المُوافِق هوية التشغيل أبدًا: فالاستدعاء الموافَق عليه وبقية التشغيل يعملان نيابةً عن المستدعي الذي أوقفه. وأي بيانات اعتماد أو منحة تخص ذلك المستدعي لا تُستخدم إلا في استدعاءاته هو، أيًّا كان من يوافق.
+الـ approver ما يصير principal الـ run أبدًا: الـ call الموافَق عليه وباقي الـ run يشتغل لصالح المتصل اللي وقّفه. وأي credential أو grant تخص هذا المتصل تُستخدم بس لاتصالاته هو، مهما كان مين اللي وافق.
 
-### الإيقافات والأعطال والتفرّعات
+### الوقف والكراش والـ fork
 
-تُحفظ الهوية مع نقاط حفظ التشغيل ولقطات الموافقات، فيعمل التشغيل المُستأنف في عملية أخرى (بعد إعادة تشغيل، أو `agent.approvals.resolve()`، أو `agent.resume()`، أو دورة معلّقة في جلسة) نيابةً عن المستدعي نفسه. والاستدعاء الذي يتابع تشغيلًا غير مكتمل له نقطة حفظ يجب ألا يمرّر هوية (فيتابع بالهوية المحفوظة) أو يمرّر الهوية نفسها؛ أما `send(message, { sessionId, principal })` من مستدعٍ آخر فيُلقي `LOUSHO_CONFIG_INVALID`، حتى لا يعمل مُدخَله تحت هوية غيره. ونقاط الحفظ واللقطات المحفوظة قبل هذا الإصدار لا هوية فيها وتُستأنف من دونها.
+الـ principal ينحفظ مع checkpoints الـ run وsnapshots الـ approvals، فالـ run اللي يتستأنف في process أخرى (بعد restart، أو `agent.approvals.resolve()`، أو `agent.resume()`، أو turn معلّق في session) يشتغل لصالح نفس المتصل. والـ call اللي يكمّل run غير مكتمل له checkpoint لازم ما يمرّر principal (فيكمّل بالمحفوظ) أو يمرّر نفسه؛ أما `send(message, { sessionId, principal })` من متصل آخر فيرمي `LOUSHO_CONFIG_INVALID`، عشان مدخله ما يشتغل بهوية غيره. والـ checkpoints والـ snapshots المحفوظة قبل هذا الإصدار ما فيها principal وتستأنف بدونه.
 
-تنسخ `agent.fork()` و`AgentExecutor.fork()` نقطة حفظ التشغيل مع هويته: فالتفرّع هو تشغيل المستدعي نفسه. ولا تُنسخ الموافقة المعلّقة؛ إذ يطلبها التفرّع من جديد. أما `session.fork()` فتنسخ المحادثة وحدها: لا هوية للتفرّع من تلقاء نفسه، وكل دورة من دوراته تعمل بالهوية التي يمرّرها `send()`، وتبقى الموافقة المعلّقة مع الجلسة الأصلية.
+`agent.fork()` و`AgentExecutor.fork()` تنسخ checkpoint الـ run مع الـ principal: يعني الـ fork هو run لنفس المتصل. والـ approval المعلّق ما ينسخ؛ الـ fork يطلبه من جديد. أما `session.fork()` فتنسخ المحادثة فقط: الـ fork ما فيه principal خاص، وكل turn فيه يشتغل بالـ principal اللي `send()` تمرّره، والـ approval المعلّق يظل مع الـ session الأصلية.
 
-### الوكلاء الفرعيون
+### الـ sub-agents
 
-يعمل الوكلاء الفرعيون داخل العملية (الأداة `task` والمهام الخلفية) نيابةً عن مستدعي الوكيل الرئيسي، حتى عند استئناف موافقتهم. أما [الوكيل الفرعي عن بُعد](/ar/sub-agents) (`remoteAgent()`) فلا يُخبَر بهوية المستدعي: تقرّر مصادقة المسار في الخادم البعيد هويته (مثل هوية الخدمة من `apiToken()` لرمز الوكيل الرئيسي).
+الـ sub-agents داخل الـ process (الـ tool `task` والمهام الخلفية) تشتغل لصالح متصل الـ lead، وحتى عند استئناف الـ approval الخاص بها. أما الـ [remote sub-agent](/ar/sub-agents) (`remoteAgent()`) فما يعرف مين المتصل: الـ route auth على السيرفر البعيد هو اللي يقرر الـ principal (مثلًا الـ service principal اللي يطلع من `apiToken()` على token الـ lead).
 
-### ما يُخزَّن وما يُسجَّل
+### اللي يتخزن واللي يتسجّل
 
-تُخزَّن الهوية، بما فيها المطالبات (claims)، في نقاط الحفظ وسجلات الموافقات التي تحوي أصلًا نص المحادثة؛ فعامل هذه المخازن على أنها بيانات شخصية. ولا تُضاف إلى أحداث `AgentEvent` (ومنها `permission.decision`) ولا إلى مقاطع التتبّع (spans) في OpenTelemetry ولا إلى ملفات التتبّع، ولا تذكر رسائل الأخطاء أسماء المستدعين.
+الـ principal، ومعه الـ claims، يتخزن في الـ checkpoints وسجلات الـ approvals اللي أصلًا فيها transcript المحادثة؛ فعامل هذه الـ stores كبيانات شخصية. وما يتضاف لأحداث `AgentEvent` (حتى `permission.decision`)، ولا لـ spans في OpenTelemetry، ولا ملفات الـ trace، ورسائل الأخطاء ما تسمّي المتصلين.

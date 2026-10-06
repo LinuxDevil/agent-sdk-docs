@@ -1,26 +1,26 @@
 ---
-title: "التقييمات"
+title: "Evals"
 ---
 {/* Generated from docs/evals.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-التقييمات (evals) اختبارات تراجع (regression) *لسلوك* الوكيل: أي الأدوات استدعى،
-وبأي ترتيب، وبأي وسائط، وكم خطوة استغرق، وماذا قال.
-تُكتب بـ `defineEval()`، وتوضع في ملفات `*.eval.ts`، وتعمل على
-[vitest](https://vitest.dev)، وأفضل طريقة لتشغيلها في CI هي `lousho eval`، الذي
-يطبع ملخصًا ويكتب تقريرَي JUnit وJSON.
+الـ evals هي regression tests لسلوك الـ *agent*: أي tools نادى،
+بأي ترتيب، بأي arguments، كم خطوة أخذ، وما قال.
+تكتبها بـ `defineEval()`، وتعيش في ملفات `*.eval.ts`، وتشتغل على
+[vitest](https://vitest.dev). أفضل مكان تشغّلها فيه هو CI عبر `lousho eval`،
+الذي يطبع ملخصًا ويكتب تقارير JUnit وJSON.
 
 ```bash
 npm install --save-dev vitest
 npx lousho eval
 ```
 
-## كتابة تقييم لمسار التنفيذ
+## كتابة trajectory eval
 
-أعطِ `defineEval()` وكيلًا (من `createAgent()`) ودالة `test`. أرسل
-الرسائل بـ `t.send()`، ثم اكتب تأكيداتك (assertions) على التشغيل. واستخدام `mockModel`
-مزوّدًا للوكيل يجعل التقييم حتميًّا: لا شبكة، ولا مفتاح API، ولا
-نتائج متذبذبة. **هذه هي الطريقة الافتراضية لكتابة تقييم**؛ ولا تستخدم نموذجًا حقيقيًا إلا
-في [تقييمات المحكِّم](#تقييمات-المحكِّم) أدناه.
+مرّر لـ `defineEval()` agent (من `createAgent()`) ودالة `test`. أرسل
+الرسائل بـ `t.send()`، وبعدها اعمل assert على الـ run. لو خلّيت `mockModel`
+هو الـ provider، يصير الـ eval deterministic: لا شبكة، لا API key، لا
+flakiness. **هذه هي الطريقة الافتراضية لكتابة eval**؛ استخدم model حقيقي
+فقط في [judge evals](#judge-evals) بالأسفل.
 
 ```ts
 // refund.eval.ts
@@ -59,33 +59,33 @@ defineEval({
 });
 ```
 
-ما زالت `defineEval()` تقبل أيضًا الصيغة الأصلية
-(`{ name, agent, input, provider, score, threshold }`): تعمل
-كما هي دون تغيير، وتظهر نتيجتها في `lousho eval` تأكيدَ `score` واحدًا.
+`defineEval()` تقبل أيضًا الصيغة الأصلية
+(`{ name, agent, input, provider, score, threshold }`): تشتغل كما هي
+بدون تغيير، ونتيجتها تظهر في `lousho eval` كـ assertion واحدة على `score`.
 
-### التأكيدات
+### Assertions
 
-كل تأكيد يُسجَّل؛ وتفشل الحالة في النهاية وتسرد **كل** تأكيد
-إلزامي فشل، فيُظهر تشغيل واحد كل ما هو خاطئ.
+كل assertion يتسجّل. الـ case تفشل في النهاية وتعدّ **كل** gate فاشلة،
+فتشوف كل المشاكل من run واحد.
 
-| الاستدعاء | النوع | ينجح حين |
+| Call | Kind | تنجح حين |
 | --- | --- | --- |
-| `t.completed()` | إلزامي (gate) | انتهى آخر تشغيل بـ `stop` عادي (لا بخطأ، ولا إلغاء، ولا موافقة معلّقة، ولا قطع عند `maxSteps`) |
-| `t.calledTool(name, { args?, times? })` | إلزامي | استُدعيت الأداة؛ و`args` مطابقة عميقة جزئية (يجب أن تحوي وسائط الاستدعاء هذه المفاتيح بقيم مساوية)؛ و`times` عدد مضبوط للاستدعاءات المطابقة |
-| `t.notCalledTool(name)` | إلزامي | لم تُستدعَ الأداة قط |
-| `t.toolOrder([a, b])` | إلزامي | استُدعيت الأدوات بهذا الترتيب (ويجوز أن تتخللها استدعاءات أخرى) |
-| `t.maxSteps(n)` | إلزامي | لم يتجاوز الوكيل `n` من خطوات النموذج |
-| `t.maxTokens(n)` | إلزامي | لم يتجاوز استهلاك الوكيل `n` من الرموز (tokens) |
-| `t.maxCostUsd(n)` | إلزامي | لم تتجاوز التكلفة المُبلَّغ عنها للتشغيل `n` دولارًا أمريكيًا. يُتخطى (يُحتسب ناجحًا ويوسم بـ `skipped`) حين لا يبلّغ SDK عن تكلفة |
-| `t.check(name, value, check)` | إلزامي | ينجح `check` على `value` |
-| `t.soft(name, value, check)` | مرن (soft) | لا يُفشل التشغيل أبدًا (إلا مع `--strict`)؛ تُسجَّل الدرجة وتظهر في التقرير |
-| `await t.judge(rubric)` | لا ينطبق | يُرجع درجة من 0 إلى 1 من محكِّم LLM (انظر [تقييمات المحكِّم](#تقييمات-المحكِّم)) |
+| `t.completed()` | gate | آخر run انتهى بـ `stop` عادي: لا error، ولا abort، ولا approval معلّق، ولا قطع عند `maxSteps` |
+| `t.calledTool(name, { args?, times? })` | gate | الـ agent نادى الـ tool؛ `args` هي partial deep match (لازم تحتوي arguments الـ call هذه المفاتيح بقيم متساوية)؛ `times` عدد دقيق للـ calls المطابقة |
+| `t.notCalledTool(name)` | gate | الـ tool ما اتنادت أبدًا |
+| `t.toolOrder([a, b])` | gate | الـ tools اتنادت بهذا الترتيب (ممكن calls أخرى بينهم) |
+| `t.maxSteps(n)` | gate | الـ agent أخذ `n` خطوات model كحد أقصى |
+| `t.maxTokens(n)` | gate | الـ agent استهلك `n` tokens كحد أقصى |
+| `t.maxCostUsd(n)` | gate | تكلفة الـ run المُبلَّغ عنها `n` دولار كحد أقصى. تتخطى (تنحسب ناجحة، بعلامة `skipped`) إذا الـ SDK ما بلّغ عن تكلفة |
+| `t.check(name, value, check)` | gate | الـ `check` ينجح على `value` |
+| `t.soft(name, value, check)` | soft | ما تفشل الـ run أبدًا (إلا مع `--strict`)؛ الدرجة تتسجّل وتظهر في التقرير |
+| `await t.judge(rubric)` | n/a | ترجع درجة من 0 إلى 1 من judge هو LLM (شوف [Judge evals](#judge-evals)) |
 
-الفحوص المتاحة لـ `t.check()` و`t.soft()`: `includes(text)` و`matches(regex)`
-و`equals(value)` (نعم/لا، والدرجة 1 أو 0)، و`atLeast(n)` و`atMost(n)` (والعدد
-نفسه هو الدرجة).
+الـ checks المتاحة لـ `t.check()` و`t.soft()`: `includes(text)` و`matches(regex)`
+و`equals(value)` (نعم/لا، درجة 1 أو 0)، و`atLeast(n)` و`atMost(n)`
+(الرقم نفسه هو الدرجة).
 
-رسائل الفشل تذكر ما شوهد فعلًا:
+رسائل الفشل تقول لك بالضبط ما ظهر:
 
 ```text
 calledTool('lookup_order') failed: tools called were [search_docs, issue_refund]
@@ -93,14 +93,14 @@ calledTool('lookup_order', {"args":{"orderId":"41"}}) failed: 'lookup_order' was
 completed() failed: finishReason was 'max-steps' (the run hit maxSteps while still calling tools)
 ```
 
-أعضاء السياق الأخرى: `t.reply` (نص آخر رد)، و`t.result` (آخر
-`ExecutionResult`)، و`t.toolCalls` (كل الاستدعاءات حتى اللحظة، بوسائطها المحلَّلة).
-يمكنك استدعاء `send()` أكثر من مرة؛ فتتراكم الخطوات والرموز واستدعاءات الأدوات.
+باقي أعضاء الـ context: `t.reply` (نص آخر رد)، و`t.result` (آخر
+`ExecutionResult`)، و`t.toolCalls` (كل الـ calls حتى الآن، مع arguments محلّلة).
+تقدر تستدعي `send()` أكثر من مرة؛ الخطوات والـ tokens والـ tool calls تتراكم.
 
-### مجموعات البيانات
+### Datasets
 
-مرّر `cases` فتعمل `test` مرة لكل حالة، وتظهر كل حالة في التقرير على حدة. الحالة
-أي كائن؛ ويسمّيها `label` (أو `name`، أو `input`) الخاص بها.
+مرّر `cases` و`test` تشتغل مرة لكل case، وكل case تظهر في التقرير لحالها.
+الـ case أي object؛ `label` حقها (أو `name`، أو `input`) هو الذي يسمّيها.
 
 ```ts
 import { z } from 'zod';
@@ -135,16 +135,15 @@ defineEval({
 });
 ```
 
-مرّر **دالة مُنشئة** (factory) (`agent: () => createAgent(...)`) لتحصل كل حالة على
-وكيلها الخاص وعلى سيناريو `mockModel` الخاص بها. فمع وكيل واحد مشترك، تنفد
-دورات النموذج المُعَدّ سلفًا عند الحالة الثانية.
+مرّر **factory** (`agent: () => createAgent(...)`) حتى كل case تأخذ agent
+جديد وسكربت `mockModel` جديد. مع agent واحدة مشتركة، الـ scripted model
+تخلص عنده الـ turns عند ثاني case.
 
-## تقييمات المحكِّم
+## Judge evals
 
-`t.judge(rubric)` يقيّم آخر رد بواسطة LLM ويُرجع درجة من
-0 إلى 1. يحتاج إلى مزوّد للمحكِّم، ولا يستدعي lousho أي LLM حقيقي ما لم
-تضبط واحدًا: فمن دون `judge` يرمي `t.judge()` خطأً يوضّح كيف
-تعالجه.
+`t.judge(rubric)` يقيّم آخر رد بـ LLM ويرجع درجة من
+0 إلى 1. يحتاج provider للـ judge، وlousho ما ينادي أي LLM حقيقي إلا لو
+ضبطت واحد: بدون `judge`، `t.judge()` يرمي خطأ يشرح لك كيف تصلحه.
 
 ```ts
 // tone.judge.eval.ts: run with `lousho eval --judge`
@@ -163,9 +162,9 @@ defineEval({
 });
 ```
 
-الملفات المسمّاة `*.judge.eval.ts` لا يلتقطها التشغيل العادي أبدًا (ولا
-`npm test`)؛ ولا يشغّلها إلا `lousho eval --judge` (أو `npm run test:evals:judge` في هذا
-المستودع).
+ملفات `*.judge.eval.ts` ما يلتقطها الـ run العادي أبدًا (ولا
+`npm test`)؛ ما يشغّلها إلا `lousho eval --judge` (أو `npm run test:evals:judge`
+في هذا الـ repo).
 
 ## `lousho eval`
 
@@ -175,38 +174,38 @@ lousho eval [globs...] [--tag t] [--junit path] [--json path] [--strict] [--judg
 
 | الخيار | المعنى |
 | --- | --- |
-| `globs...` | ملفات التقييم المراد تشغيلها (الافتراضي: كل `**/*.eval.ts`، أو `**/*.judge.eval.ts` مع `--judge`) |
-| `--tag t` | تشغيل التقييمات التي تتضمن `tags` فيها `t` فقط (كرّر الخيار أو افصل بفواصل لأكثر من وسم) |
-| `--junit path` | كتابة تقرير JUnit بصيغة XML |
-| `--json path` | كتابة الملخص وكل النتائج المنظَّمة بصيغة JSON |
-| `--strict` | الإخفاقات المرنة تُفشل التشغيل |
-| `--judge` | تشغيل ملفات `*.judge.eval.ts` بدل الملفات العادية |
-| `--url base` | تشغيل كل حالة على الوكيل المنشور عند `base` بدل التشغيل داخل العملية؛ و`--token` (أو `LOUSHO_EVAL_TOKEN`) هو رمز bearer. انظر [تشغيل التقييمات على نشر قائم](#تشغيل-التقييمات-على-نشر-قائم) |
-| `--config path` | استخدام إعدادات vitest الخاصة بك بدل الإعدادات المولَّدة |
-| `--record` | التشغيل على المزوّد الحقيقي وكتابة شريط تسجيل (cassette) واحد لكل حالة ([أدناه](#التسجيل-وإعادة-التشغيل-والانحراف)) |
-| `--replay` | تشغيل كل حالة من شريط تسجيلها، دون شبكة؛ وغياب الشريط يُفشل الحالة |
-| `--drift` | إعادة التسجيل في مجلد مؤقت والإبلاغ عن تغيّر مسار التنفيذ في كل حالة (و`--drift-usage` يقارن الرموز أيضًا) |
+| `globs...` | ملفات الـ eval المطلوب تشغيلها (الافتراضي: كل `**/*.eval.ts`، أو `**/*.judge.eval.ts` مع `--judge`) |
+| `--tag t` | يشغّل فقط الـ evals التي `tags` فيها تتضمن `t` (كرّره أو افصل بفواصل لأكثر من tag) |
+| `--junit path` | يكتب تقرير JUnit XML |
+| `--json path` | يكتب الملخص وكل نتيجة structured كـ JSON |
+| `--strict` | إخفاقات الـ soft تفشل الـ run |
+| `--judge` | يشغّل ملفات `*.judge.eval.ts` بدل الملفات العادية |
+| `--url base` | يشغّل كل case على الـ agent المنشور عند `base` بدل داخل العملية؛ `--token` (أو `LOUSHO_EVAL_TOKEN`) هو الـ bearer token. شوف [تشغيل evals على deployment](#تشغيل-evals-على-deployment) |
+| `--config path` | يستخدم vitest config الخاص بك بدل المولَّد |
+| `--record` | يشغّل على الـ provider الحقيقي ويكتب cassette (ملف تسجيل) واحد لكل case ([بالأسفل](#record-replay-and-drift)) |
+| `--replay` | يشغّل كل case من الـ cassette الخاص بها، بدون شبكة؛ cassette مفقودة تفشل الـ case |
+| `--drift` | يعيد التسجيل في مجلد مؤقت ويبلّغ كيف تغيّرت trajectory كل case (`--drift-usage` يقارن الـ tokens أيضًا) |
 
-يشغّل الأمر نسخة vitest المثبّتة في مشروعك (vitest اعتمادية *تخصك أنت*؛ فإن
-كانت مفقودة طبع الأمر `npm install --save-dev vitest` وخرج بالرمز 2)،
-ثم يطبع صفًّا لكل حالة فيه درجاتها ومدتها، ثم المجاميع، ثم إخفاقات التأكيدات
-الإلزامية والإخفاقات المرنة كلٌّ في قائمة مستقلة.
+الأمر يشغّل نسخة vitest المثبّتة في مشروعك (vitest dependency *تخصك أنت*؛
+لو مفقودة، يطبع الأمر `npm install --save-dev vitest` ويخرج بـ 2)،
+ثم يطبع سطر لكل case بدرجاتها ومدتها، ثم المجاميع، ثم إخفاقات الـ gate
+وإخفاقات الـ soft كل وحدة لحالها.
 
-**رمز الخروج:** `1` عند أي إخفاق إلزامي (أو إخفاق مرن مع `--strict`، أو حين
-يفشل vitest نفسه، كملف لا يُحمَّل مثلًا)، و`2` حين يتعذر
-التشغيل أصلًا (وسائط خاطئة، أو vitest مفقود)، و`0` فيما عدا ذلك.
+**رمز الخروج:** `1` عند أي إخفاق gate (أو إخفاق soft مع `--strict`، أو حين
+يفشل vitest نفسه، مثل ملف ما يتحمّل)، و`2` حين ما يقدر يشتغل أصلًا
+(arguments غلط، vitest مفقود)، و`0` فيما عدا ذلك.
 
-كيف تُجمع النتائج: كل حالة تُلحق سطر JSON واحدًا بملف يسمّيه
-متغير البيئة `LOUSHO_EVAL_RESULTS`، الذي يضبطه `lousho eval` ثم
-يقرؤه. وهذا أمتن من مُراسل (reporter) مخصص لـ vitest: يعمل مع
-مختلف إصدارات vitest ومجمّعات العمّال (worker pools)، ولا يحتاج إلى تحميل أي وحدة من مشروعك.
+كيف تُجمَع النتائج: كل case تضيف سطر JSON واحد لملف اسمه محدّد في
+env var `LOUSHO_EVAL_RESULTS`، التي يضبطها `lousho eval` ثم يرجع يقراها.
+هذا أثبت من reporter مخصص لـ vitest: يشتغل عبر إصدارات vitest المختلفة
+وworker pools، وما يحتاج تحميل أي module من مشروعك.
 
 ### JUnit
 
-التقرير بصيغة JUnit القياسية: `testsuite` واحد لكل تقييم، و`testcase` واحد لكل حالة.
-التأكيد الإلزامي الفاشل هو `<failure message="...">` يحمل رسالة التشخيص؛
-والحالة التي رمت خطأً هي `<error>`؛ والإخفاقات المرنة ملاحظات `<system-out>` (أو
-إخفاقات مع `--strict`).
+التقرير JUnit قياسي: `testsuite` واحد لكل eval، و`testcase` واحد لكل case.
+الـ gate الفاشلة تصير `<failure message="...">` تحمل رسالة التشخيص؛
+والـ case التي رمت خطأ تصير `<error>`؛ وإخفاقات الـ soft تكون ملاحظات
+`<system-out>` (أو failures مع `--strict`).
 
 ### في CI
 
@@ -234,16 +233,16 @@ jobs:
           report_paths: reports/evals.xml
 ```
 
-شغّل `--tag smoke` عند كل طلب دمج (pull request) والمجموعة الكاملة كل ليلة؛ ولا تشغّل
-`--judge` إلا حيث تقبل استدعاءات LLM حقيقية وتكلفتها.
+شغّل `--tag smoke` على كل pull request والمجموعة الكاملة كل ليلة؛
+و`--judge` شغّله فقط حيث تقبل calls حقيقية لـ LLM وتكلفتها.
 
-## التسجيل وإعادة التشغيل والانحراف
+## Record, replay and drift
 
-التقييم على نموذج حقيقي بطيء، ومكلف، ويحتاج إلى مفتاح؛ والتقييم نفسه
-على `mockModel` لا يختبر إلا السيناريو الذي كتبته أنت. و`lousho eval` يقف
-بينهما: يسجّل كل حالة مرة واحدة على المزوّد الحقيقي عبر
-[`recordReplay`](/ar/testing#التسجيل-والإعادة) ثم يعيد تشغيل التسجيل في CI.
-وملفات تقييمك لا تتغير.
+الـ eval على model حقيقي بطيء ويكلّف ويحتاج مفتاح؛ ونفس الـ eval على
+`mockModel` ما يختبر إلا السكربت الذي كتبته أنت. `lousho eval` يقف في النص:
+يسجّل كل case مرة واحدة على الـ provider الحقيقي عبر
+[`recordReplay`](/ar/testing#record-و-replay) ويعيد تشغيل التسجيل في CI.
+ملفات الـ eval عندك ما تتغير.
 
 ```bash
 npx lousho eval --record        # real provider: writes the cassettes, commit them
@@ -251,29 +250,29 @@ npx lousho eval --replay        # every case from its cassette, no network, no k
 npx lousho eval --drift         # re-record and diff each case's trajectory
 ```
 
-- **`--record`** يشغّل كل حالة بالمزوّد الحقيقي لوكيلها ويكتب
-  شريط تسجيل واحدًا لكل حالة بجوار ملف التقييم:
-  `__cassettes__/<eval-name>/<case>.json` (تُحوَّل الأسماء إلى صيغة slug، مثل
-  `refund-flow/polite.json`؛ والتقييم الذي بلا `cases` يكتب `default.json`).
-  أعطِ كل حالة `label` فريدًا لتبقى الأسماء ثابتة. والحالة التي يستخدم وكيلها
-  أكثر من مزوّد (وكيل فرعي على نموذج آخر) تحصل على
-  `<case>.2.json` وهكذا. تستخدم الملفات صيغة شريط التسجيل المعتادة، مع
-  حجب مفاتيح API؛ راجعها ثم أودعها في المستودع (commit).
-- **`--replay`** لا يستدعي النموذج أبدًا. الحالة التي بلا شريط تسجيل تفشل بالرسالة
+- **`--record`** يشغّل كل case بالـ provider الحقيقي لـ agentها ويكتب
+  cassette واحد لكل case جنب ملف الـ eval:
+  `__cassettes__/<eval-name>/<case>.json` (الأسماء تتحول لـ slug، مثل
+  `refund-flow/polite.json`؛ والـ eval بدون `cases` يكتب `default.json`).
+  أعط كل case `label` فريد حتى تبقى الأسماء ثابتة. والـ case التي agentها
+  يستخدم أكثر من provider (مثل sub-agent على model ثاني) تأخذ
+  `<case>.2.json` وهكذا. الملفات تستخدم صيغة الـ cassette العادية، مع
+  إخفاء مفاتيح الـ API؛ راجعها واعمل لها commit.
+- **`--replay`** ما ينادي الـ model أبدًا. الـ case بدون cassette تفشل بـ
   `no cassette for "<eval> [<case>]" at ...` مع أمر `--record` المطلوب تشغيله؛
-  وحين تتغير طلبات الوكيل، يفشل استدعاء النموذج المُعاد تشغيله بخطأ
-  `CassetteMismatchError` يسمّي أول اختلاف. أما
-  `lousho eval` المجرد مع ضبط `CI` فيعيد تشغيل كل حالة لها شريط تسجيل ويشغّل
-  البقية تشغيلًا حيًّا؛ ومن دون `CI` يشغّل تشغيلًا حيًّا كما كان من قبل.
-- **`--drift`** يعيد تسجيل كل حالة في مجلد مؤقت (ولا تُمسّ
-  الأشرطة المودَعة في المستودع) ويقارن كل تسجيل بشريطه المودَع:
-  أسماء الأدوات بترتيبها، ووسائط كل استدعاء (بعد توحيد صيغة JSON، فلا يُعتدّ
-  بترتيب المفاتيح)، وعدد الخطوات، وسبب الانتهاء. استهلاك الرموز يتغير
-  في كل تشغيل حقيقي، فلا يُقارن إلا مع `--drift-usage`. ويُضاف إلى الملخص
-  جدول `Drift:` (التقييم، الحالة، الحقل، المودَع، الحالي)؛ وكل حالة
-  انحرفت تحصل على تأكيد `drift` مرن، فتظهر بالصيغة `PASS (soft fail)` وملاحظةَ
-  `<system-out>` في تقرير JUnit. ومع `--strict` يصير الانحراف إخفاقًا
-  إلزاميًا: تفشل الحالة، ويحوي JUnit عنصر `<failure>`، ويخرج التشغيل بالرمز 1.
+  ولو طلبات الـ agent تغيّرت، الـ model call المعاد يفشل بـ
+  `CassetteMismatchError` يسمّي أول اختلاف. أما `lousho eval` العادي مع `CI`
+  مضبوطة فيعيد تشغيل كل case عندها cassette ويشغّل الباقي live؛ وبدون `CI`
+  يشتغل live كالمعتاد.
+- **`--drift`** يعيد تسجيل كل case في مجلد مؤقت (الـ cassettes المُعمّل لها
+  commit ما تنمسّ) ويقارن كل واحدة بالـ cassette المودعة:
+  أسماء الـ tools بترتيبها، وarguments كل call (بعد تطبيع JSON، فترتيب
+  المفاتيح ما يُعتدّ به)، وعدد الخطوات، وسبب الانتهاء. استهلاك الـ tokens
+  يتغير في كل run حقيقي، فما ينقارن إلا مع `--drift-usage`. الملخص يأخذ
+  جدول `Drift:` (eval، case، field، committed، current)؛ وكل case انحرفت
+  تأخذ assertion soft اسمها `drift`، فتظهر كـ `PASS (soft fail)` وكملاحظة
+  `<system-out>` في تقرير JUnit. مع `--strict` يصير الـ drift إخفاق gate:
+  الـ case تفشل، JUnit فيه `<failure>`، والـ run يخرج بـ 1.
 
 ```text
 Drift:
@@ -281,55 +280,56 @@ EVAL         CASE    FIELD  COMMITTED                     CURRENT
 refund flow  polite  args   lookup_order {"orderId":"42"}  lookup_order {"orderId":"43"}
 ```
 
-شغّل `--drift` كل ليلة أو قبل ترقية النموذج، و`--replay` (أو
-`lousho eval` المجرد في CI) عند كل طلب دمج. المحكِّمون لا يُسجَّلون: لا تقيّم
-بمحكِّم حقيقي إلا في ملفات `*.judge.eval.ts`.
+شغّل `--drift` كل ليلة أو قبل ترقية الـ model، و`--replay` (أو
+`lousho eval` العادي في CI) على كل pull request. الـ judges ما يتسجّلون:
+قيّم بـ judge حقيقي فقط في ملفات `*.judge.eval.ts`.
 
-كيف يعمل ذلك: حلقة التشغيل ترسل كل استدعاء للنموذج (`generate` أو `stream`، سواء من
-تشغيل عادي، أو تشغيل مبثوث، أو وكيل فرعي، أو استئناف بعد موافقة) عبر نقطة
-اعتراض واحدة للمزوّد، هي `setProviderInterceptor()` (مُصدَّرة من
+كيف تشتغل: الـ run loop يمرّر كل model call (`generate` أو `stream`، سواء من
+run عادي، أو run مبثوث، أو sub-agent، أو استئناف بعد approval) عبر seam
+واحدة لاعتراض الـ provider: `setProviderInterceptor()` (مُصدَّرة من
 `@lousho/build-ai-agent/testing`؛ و`src/providers/interception.ts` في
-المصدر). لا شيء مثبَّت فيها افتراضيًا، فلا كلفة
-لها. وحين تعمل حالة في أحد هذه الأوضاع، يجيب `lousho eval` عندها
-بالمزوّد مغلَّفًا بـ `recordReplay()` لشريط تسجيل تلك الحالة. ويمكنك استخدام
-نقطة الاعتراض بنفسك لوضع أي مغلِّف عند حدّ النموذج: يستقبل المعترِض
-مزوّد التشغيل ويُرجع المزوّد المراد استدعاؤه (ويجب أن يُرجع المغلِّف نفسه
-للمزوّد نفسه، وألا يمسّ مزوّدًا سبق أن غلّفه). وأي فشل في شريط التسجيل
-ينشئه — عدم تطابق في إعادة التشغيل أو شريط مفقود — يصل إلى `send()`
-مُنمَّطًا (`CassetteMismatchError`، `LOUSHO_CASSETTE_INVALID`)، لا كخطأ مزوّد
+المصدر). ما في شي مثبّت فيها افتراضيًا، فهي بلا كلفة. وطالما الـ case شغالة
+في أحد هذه الأوضاع، `lousho eval` يجاوبها بالـ provider مغلّف بـ
+`recordReplay()` لـ cassette تلك الـ case. وتقدر تستخدم الـ seam بنفسك لتحط
+أي wrapper عند حدود الـ model: الـ interceptor يستقبل provider الـ run
+ويرجع الـ provider المطلوب نداؤه (لازم يرجع نفس الـ wrapper لنفس الـ
+provider، وما يمس provider سبق وغلّفه). وأي فشل cassette يطلعه —
+mismatch في الـ replay أو cassette مفقودة — يوصل لـ `send()` بشكل typed
+(`CassetteMismatchError`، `LOUSHO_CASSETTE_INVALID`)، وليس كخطأ provider
 مضغوط.
 
-## تشغيل التقييمات على نشر قائم
+## تشغيل evals على deployment
 
-ملف التقييم نفسه الذي يحرس CI داخل العملية يصلح لاختبار دخاني (smoke test) لوكيل منشور
-([خادم node أو Cloudflare Worker](/ar/deployment#واجهة-http)). وجّه `lousho eval` إلى عنوانه
-الأساسي فتعمل كل حالة على النشر بدل الوكيل داخل العملية:
+نفس ملف الـ eval الذي يحرس CI داخل العملية يقدر يعمل smoke test لـ agent
+منشور ([سيرفر node أو Cloudflare Worker](/ar/deployment#http-api)). وجّه
+`lousho eval` على الـ base URL الخاص به وكل case تشتغل على الـ deployment
+بدل الـ agent داخل العملية:
 
 ```bash
 npx lousho eval --url https://agent.example.com --token "$DEPLOY_TOKEN"   # or LOUSHO_EVAL_TOKEN
 ```
 
-تحصل كل حالة على جلستها البعيدة الخاصة (`POST /chat { sessionId, input }`، جلسة
-واحدة لكل حالة، تتشاركها استدعاءات `t.send()` فيها) ويُقرأ بث SSE حتى
-`run.done`. وتتحول الأحداث إلى النتيجة نفسها التي ينتجها التشغيل داخل العملية: استدعاءات
-الأدوات، والرد النهائي، وسبب الانتهاء، والخطوات، والاستهلاك. فتعمل `t.calledTool()`
-و`t.completed()` ودوال التقييم و`t.judge()` والملخص و`--junit` دون
-تغيير. و`agent` المذكور في الملف لا يُستخدم؛ فاجعل نموذج النشر نفسه
-وأدواته على السلوك الذي تريد فحصه.
+كل case تأخذ session بعيدة خاصة فيها (`POST /chat { sessionId, input }`،
+session واحدة لكل case، تتشاركها كل استدعاءات `t.send()` فيها) ويُقرأ
+الـ SSE stream حتى `run.done`. الأحداث تتحول لنفس النتيجة التي ينتجها الـ
+run داخل العملية: الـ tool calls، الرد النهائي، سبب الانتهاء، الخطوات،
+والاستهلاك. فتشتغل `t.calledTool()` و`t.completed()` والـ scorers
+و`t.judge()` والملخص و`--junit` بدون تغيير. الـ `agent` في الملف ما
+يُستخدم؛ خلّي model الـ deployment وtoolsه على السلوك الذي تريد فحصه.
 
-- الفحص الذي يحتاج إلى بيانات لا يحملها البث يفشل ويصرّح بذلك (مثل
-  `maxTokens` حين لا يحوي `run.done` بيانات استهلاك)؛ و`maxCostUsd` يُبلَّغ عنه
-  متخطًّى حين لا توجد تكلفة.
-- لا يمكن الجمع بين `--url` و`--record` أو `--replay` أو `--drift`
-  (`LOUSHO_CONFIG_CONFLICTING_OPTIONS`): فأشرطة التسجيل تسجّل مزوّدًا داخل العملية.
-  وتقييمات الدرجة/العتبة (صيغة `score:`) تحتاج هي أيضًا إلى مزوّد داخل العملية وتفشل
-  بالرمز نفسه؛ فاستخدم تقييمات مسار التنفيذ.
-- النشر الذي يتعذر الوصول إليه، أو الرد بغير 2xx، أو البث المبتور يُفشل تلك
-  الحالة بالخطأ `LOUSHO_REMOTE_REQUEST_FAILED`، و`401` بالخطأ
-  `LOUSHO_REMOTE_UNAUTHORIZED`؛ ويستمر التشغيل. ولا يُطبع الرمز أبدًا ولا
-  يُكتب في أي تقرير.
+- الـ check الذي يحتاج بيانات الـ stream ما يحملها يفشل ويقول ذلك (مثل
+  `maxTokens` حين `run.done` ما فيه usage)؛ و`maxCostUsd` يُبلَّغ عنه
+  `skipped` حين ما في تكلفة.
+- `--url` ما يجتمع مع `--record` أو `--replay` أو `--drift`
+  (`LOUSHO_CONFIG_CONFLICTING_OPTIONS`): الـ cassettes تسجّل provider داخل
+  العملية. وevals صيغة `score:`/`threshold` تحتاج أيضًا provider داخل
+  العملية وتفشل بنفس الكود؛ استخدم trajectory evals.
+- الـ deployment الذي ما يوصل، أو رد غير 2xx، أو stream منقطع يفشل تلك
+  الـ case بـ `LOUSHO_REMOTE_REQUEST_FAILED`، و`401` بـ
+  `LOUSHO_REMOTE_UNAUTHORIZED`؛ والـ run يكمل. الـ token ما يُطبع أبدًا
+  ولا يُكتب في أي تقرير.
 
-في الشيفرة، مرّر `target` (وهو يغلب `agent`؛ و`--url` يغلب الاثنين):
+في الكود، مرّر `target` (يغلّب `agent`؛ و`--url` يغلّب الاثنين):
 
 ```ts
 import { defineEval, remoteTarget } from '@lousho/build-ai-agent';
@@ -345,5 +345,6 @@ defineEval({
 });
 ```
 
-`remoteTarget({ url, auth?, fetch? })` يقبل `fetch` قابلة للحقن، وبهذه الطريقة
-تشغّل اختبارات SDK نفسها المسارات الحقيقية داخل العملية دون مقبس (socket).
+`remoteTarget({ url, auth?, fetch? })` تقبل `fetch` تحقنها بنفسك، وبهذه
+الطريقة اختبارات الـ SDK نفسها تشغّل الـ routes الحقيقية داخل العملية بدون
+socket.

@@ -1,9 +1,9 @@
 ---
-title: "الأدوات"
+title: "Tools"
 ---
 {/* Generated from docs/tools.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-الأداة دالة ذات أنواع محدّدة يستطيع النموذج استدعاءها. عرّفها بـ `defineTool()`: تُستنتج أنواع الوسائط والنتيجة من مخطط zod في `input`، ويُتحقَّق من صحة الوسائط قبل تشغيل `execute`، ويصلح الناتج للاستخدام في أي موضع يقبل الأدوات (`createAgent({ tools: [...] })`، `ToolRegistry.register(tool)`، `AgentBuilder.addTool(tool)`).
+الـ tool هو دالة typed يقدر الـ model يستدعيها. عرّفه بـ `defineTool()`: أنواع الوسائط والنتيجة تُستنتج من zod `input`، الوسائط تمر على validation قبل ما `execute` تشتغل، والنتيجة تنحط في أي مكان يقبل tools (`createAgent({ tools: [...] })`، `ToolRegistry.register(tool)`، `AgentBuilder.addTool(tool)`).
 
 ```ts
 import { defineTool, createAgent, type ToolInput, type ToolOutput } from '@lousho/build-ai-agent';
@@ -22,82 +22,82 @@ type WeatherResult = ToolOutput<typeof weather>; // { temperature: number; condi
 const agent = createAgent({ prompt: '...', provider, tools: [weather] });
 ```
 
+الـ tools اللي الـ provider نفسه يشغّلها (web search، code interpreter، file search) تحطها في نفس قائمة `tools`؛ شوف [Hosted provider tools](/ar/hosted-tools).
+
+لو عندك tools كثيرة، علّمها `deferLoading` عشان الـ model يلاقيها بـ `tool_search` (tool مدمج) بدل ما يستلم كل التعريفات في كل call؛ شوف [Tool search](/ar/tool-search).
+
 ## خيارات `defineTool()`
 
-| الخيار | إلزامي | الوصف |
+| الخيار | مطلوب | الوصف |
 | ------ | -------- | ----------- |
-| `name` | نعم | الاسم الذي يستدعي به النموذج الأداة. يجب أن يطابق `^[a-zA-Z0-9_-]{1,64}$` (وهو القيد الذي يفرضه مزوّدو LLM على أسماء الدوال). |
-| `description` | نعم | ما تفعله الأداة. يقرؤه النموذج ليقرر متى يستدعيها. |
-| `input` | نعم | مخطط zod للوسائط (zod 3 أو zod 4، أو أي Standard Schema آخر يوفّر `~standard.jsonSchema`). تستقبل `execute` و`needsApproval` و`sandboxExecute` نوعه بعد التحليل (نوع المخرجات). |
-| `execute(args, ctx)` | نعم | تنفّذ الأداة. يحمل `ctx` قيمتَي `toolCallId` و`abortSignal` الخاصتين بالاستدعاء. ويُحفَظ نوع القيمة المُرجَعة على الأداة (`ToolOutput`). |
-| `displayName` | لا | تسمية لواجهات المستخدم. قيمتها الافتراضية `name`. |
-| `needsApproval` | لا | `true`، أو دالة شرطية تُستمد أنواعها من `input`، للتوقف بانتظار قرار بشري قبل تنفيذ الاستدعاء. راجع [الموافقات](/ar/approvals). |
-| `annotations` | لا | تلميحات MCP (`readOnlyHint` و`destructiveHint` و...)، وتُخزَّن في `metadata.mcp.annotations`. القيمة `readOnlyHint: true` تتيح للأداة أن تعمل في [وضع plan](/ar/permission-modes#أي-الأدوات-للقراءة-فقط). |
-| `deferLoading` | لا | يحجب تعريف الأداة عن النموذج إلى أن يجدها بـ`tool_search`. راجع [البحث عن الأدوات](/ar/tool-search). |
-| `editsFiles` | لا | الأداة تعدّل الملفات: [`permissionMode: 'acceptEdits'`](/ar/permission-modes#تعديل-الملفات-العلامة-editsfiles) يشغّل استدعاءاتها من دون سؤال. وتُخزَّن في `metadata.editsFiles`. |
-| `requiresSandbox` | لا | تشغيل الأداة عبر `SandboxAdapter` المُعَدّ بدلًا من تشغيلها داخل العملية (يتطلب `sandboxExecute`). راجع [حواجز الحماية وبيئات العزل](/ar/guardrails#الأدوات-المعزولة). |
-| `sandboxExecute(args, sandbox)` | لا | مسار التنفيذ داخل البيئة المعزولة، ويُستخدم عندما تكون قيمة `requiresSandbox` هي true. |
+| `name` | نعم | الاسم اللي الـ model ينادي به الـ tool. لازم يطابق `^[a-zA-Z0-9_-]{1,64}$` (الحد اللي يفرضه مزوّدو LLM على أسماء الدوال). |
+| `description` | نعم | اللي الـ tool يسوّيه. الـ model يقرأه عشان يقرر متى يستدعيها. |
+| `input` | نعم | zod schema للوسائط (zod 3 أو zod 4، أو أي Standard Schema ثاني يوفّر `~standard.jsonSchema`). `execute` و`needsApproval` و`sandboxExecute` يستلموا نوعه بعد الـ parsing (نوع الـ output). |
+| `execute(args, ctx)` | نعم | يشغّل الـ tool. `ctx` فيه `toolCallId` و`abortSignal` الخاصين بالـ call. نوع القيمة الراجعة يبقى على الـ tool (`ToolOutput`). |
+| `displayName` | لا | اسم يظهر في الواجهات. الافتراضي `name`. |
+| `needsApproval` | لا | `true` أو predicate معرّفة الأنواع من `input`، توقّف الـ call لحد ما إنسان يقرر قبل ما يشتغل. شوف [Approvals](/ar/approvals). |
+| `annotations` | لا | تلميحات MCP (`readOnlyHint`، `destructiveHint`، ...) تتخزّن في `metadata.mcp.annotations`. `readOnlyHint: true` تخلّي الـ tool يشتغل في [plan mode](/ar/permission-modes#أي-الـ-tools-read-only). |
+| `deferLoading` | لا | يحجب تعريف الـ tool عن الـ model لحد ما يلاقيه بـ `tool_search`. شوف [Tool search](/ar/tool-search). |
+| `editsFiles` | لا | الـ tool يعدّل ملفات: [`permissionMode: 'acceptEdits'`](/ar/permission-modes#تعديل-الملفات-علامة-editsfiles) يشغّل الـ calls بدون سؤال. تتخزّن في `metadata.editsFiles`. |
+| `requiresSandbox` | لا | يشغّل الـ tool عبر `SandboxAdapter` المعدّ بدل ما يشتغل في العملية نفسها (يحتاج `sandboxExecute`). شوف [Guardrails و sandboxing](/ar/guardrails#sandboxed-tools). |
+| `sandboxExecute(args, sandbox)` | لا | مسار التنفيذ داخل الـ sandbox، يُستخدم لما `requiresSandbox` تكون true. |
 
-تُوضع الأدوات التي يشغّلها مزوّد النموذج نفسه (البحث على الويب ومفسّر الشيفرة والبحث في الملفات) في قائمة `tools` نفسها؛ راجع [أدوات المزوّد المستضافة](/ar/hosted-tools).
+`defineTool()` تفحص الاسم والوصف وzod `input` لما تستدعيها، وترمي خطأ يقول لك كيف تصلّح القيمة الغلط. تسجيل toolين بنفس الاسم يرمي خطأ يسمّي التعارض.
 
-مع كثرة الأدوات، علّمها بـ`deferLoading` ليجدها النموذج بأداة مدمجة اسمها `tool_search` بدل أن يتلقى كل التعريفات في كل استدعاء؛ راجع [البحث عن الأدوات](/ar/tool-search).
+الـ tool المعرف هو `ToolDescriptor` عادي: يحمل الـ schema في `inputSchema` (نفس الـ schema اللي في `input`) ودالة `execute` مباشرة. أما حقل `.tool` (كائن `{ description, parameters, execute }` من `ai` v4) فقديم: لسّا يتبنى للتوافق، ويُقرأ حقل حقل — descriptor مكتوب بإيدك بدون `inputSchema` يسوّي fallback على `tool.parameters`، وواحد بدون `execute` يسوّي fallback على `tool.execute`، كل واحد لحاله.
 
-تتحقق `defineTool()` من الاسم والوصف ومخطط zod في `input` عند استدعائها، وترمي خطأً يبيّن كيفية إصلاح القيمة غير الصالحة. وتسجيل أداتين بالاسم نفسه يرمي خطأً يذكر التعارض.
+## ماذا يحدث لما الـ model يستدعي tool
 
-الأداة المعرَّفة هي `ToolDescriptor` عادي: تحمل مخططها في `inputSchema` (وهو المخطط نفسه في `input`) وتحمل دالة `execute` مباشرة. أما الحقل `.tool` (كائن `{ description, parameters, execute }` من `ai` v4) فقديم: ما زال يُبنى للتوافق، ويُقرأ حقلًا حقلًا — فالواصف المكتوب يدويًا الذي لا يحمل `inputSchema` يعود إلى `tool.parameters`، والذي لا يحمل `execute` يعود إلى `tool.execute`، كلٌّ على حدة.
+- **الـ validation أول.** وسائط الـ model تتحلل بـ `inputSchema` (الـ defaults والـ coercions والـ transforms تتطبّق) قبل ما الـ hooks و`needsApproval` و`execute` يشوفوها. الوسائط اللي ما تطابق ما توصل `execute` أبد: الـ model يستلم نتيجة `ToolArgumentsValidationError` منظّمة ويقدر يسوّي retry.
+- **الأخطاء نتائج.** الـ tool اللي يرمي يعطي الـ model `{ error, toolName, message, kind }` (بدون stack trace) والـ run يكمل. شوف [الأخطاء](#الأخطاء).
+- **Calls متوازية.** أكثر من call في model turn واحد يشتغلوا بالتوازي؛ حدّهم بـ `toolConcurrency` (`1` للتسلسل الكامل). النتائج توصل الـ transcript بترتيب calls الـ model. شوف [الـ tool calls المتوازية](/ar/runs#tool-calls-متوازية).
+- **الإلغاء.** الـ `AbortSignal` الخاص بالـ run يوصل كل call كـ `ctx.abortSignal`، فيقدر الشغل الطويل يوقف بدري.
+- **التقدّم.** `execute` مكتوبة كـ `async function*` تبث snapshots من مخرجاتها وهي شغالة؛ آخر snapshot هو النتيجة. شوف [Streaming للنتائج الجزئية](#streaming-للنتائج-الجزئية).
+- **Calls كثيرة في خطوة وحدة.** مع `createAgent({ codeMode })` يقدر الـ model كمان يستدعي tools من برنامج JavaScript قصير (`run_code`)، وكل call يمر بنفس الفحوص. شوف [Code mode](/ar/code-mode).
+- **Retry بعد crash.** مع durable execution ممكن الـ tool يشتغل أكثر من مرة عبر crash؛ استخدم `ctx.toolCallId` كـ idempotency key. شوف [Durable execution](/ar/durable-execution#at-least-once-tools-خلّي-الـ-side-effects-idempotent).
 
-## ما يحدث عندما يستدعي النموذج أداة
+## سياق `execute`
 
-- **التحقق أولًا.** تُحلَّل وسائط النموذج بـ `inputSchema` (مع تطبيق القيم الافتراضية وتحويلات الأنواع والتحويلات المخصّصة) قبل أن تراها الخطّافات و`needsApproval` و`execute`. الوسائط غير المطابقة لا تصل إلى `execute` أبدًا: يحصل النموذج على نتيجة منظَّمة `ToolArgumentsValidationError` ويستطيع إعادة المحاولة.
-- **الأخطاء نتائج.** الأداة التي ترمي خطأً تعطي النموذج `{ error, toolName, message, kind }` (دون تتبّع المكدّس stack trace) ويستمر التشغيل. راجع [الأخطاء](#الأخطاء).
-- **الاستدعاءات المتوازية.** الاستدعاءات المتعددة في دورة نموذج واحدة تُنفَّذ بالتزامن؛ ضع لها حدًّا بـ `toolConcurrency` (`1` للتنفيذ التسلسلي الصارم). وتصل النتائج إلى سجل المحادثة بترتيب استدعاءات النموذج. راجع [استدعاءات الأدوات المتوازية](/ar/runs#استدعاءات-الأدوات-المتوازية).
-- **الإلغاء.** تصل `AbortSignal` الخاصة بالتشغيل إلى كل استدعاء في `ctx.abortSignal`، فيمكن إيقاف العمل الطويل مبكرًا.
-- **التقدّم.** الأداة التي تُكتب `execute` فيها بصيغة `async function*` تبثّ لقطات من مخرجاتها أثناء عملها؛ وآخر لقطة هي النتيجة. راجع [بث النتائج الجزئية](#بث-النتائج-الجزئية).
-- **استدعاءات كثيرة في خطوة واحدة.** مع `createAgent({ codeMode })` يستطيع النموذج أيضًا استدعاء الأدوات من برنامج JavaScript قصير (`run_code`)، ويمر كل استدعاء بالفحوص نفسها. راجع [وضع الشيفرة](/ar/code-mode).
-- **إعادة المحاولة بعد انهيار.** مع التنفيذ المتين قد تُنفَّذ الأداة أكثر من مرة إذا وقع انهيار؛ استخدم `ctx.toolCallId` مفتاحًا يمنع تكرار الأثر (idempotency key). راجع [التنفيذ المتين](/ar/durable-execution#الأدوات-تُنفَّذ-مرة-واحدة-على-الأقل-اجعل-الآثار-الجانبية-آمنة-عند-التكرار).
-
-## سياق التنفيذ
-
-تحصل `execute(args, ctx)` دائمًا على وسيط ثانٍ حقيقي، نوعه `ToolExecutionContext` (مصدَّر من جذر الحزمة؛ ويحلّ محل `ToolExecutionOptions` في `ai` SDK)، في كل مسار ينفّذ أداة: الحلقة الرئيسية، والاستدعاء الذي يُنفَّذ بعد موافقة، والأدوات التي تعمل في بيئة معزولة (`sandboxExecute(args, sandbox, ctx)`)، وعقدة استدعاء الأداة في مسار عمل.
+`execute(args, ctx)` تستلم دايمًا وسيط ثاني حقيقي، نوعه `ToolExecutionContext` (exported من جذر الحزمة؛ يحل محل `ToolExecutionOptions` حق `ai` SDK)، في كل مسار يشغّل tool: اللوب الرئيسية، والـ call اللي يشتغل بعد approval، والـ tools اللي تشتغل في sandbox (`sandboxExecute(args, sandbox, ctx)`)، وnode استدعاء الـ tool في flow.
 
 | الحقل | القيمة |
 | --- | --- |
-| `ctx.toolCallId` | معرّف النموذج لهذا الاستدعاء. يبقى كما هو عند إعادة تنفيذ الاستدعاء بعد انهيار. والاستدعاء الذي لا تقف وراءه دورة نموذج (عقدة في مسار عمل) يحصل على معرّف مولَّد. |
-| `ctx.messages` | نسخة للقراءة فقط من سجل المحادثة الذي رآه النموذج قبل أن يُجري الاستدعاء: بلا موجّه النظام وبلا دورة المساعد التي أجرت الاستدعاء. وتكون فارغة لعقدة في مسار عمل. |
-| `ctx.abortSignal` | `AbortSignal` الخاصة بالتشغيل، وتُضبط حين يكون للتشغيل واحدة. |
-| `ctx.sessionId` | معرّف جلسة التشغيل — معرّف `agent.session({ id })` أو `sessionId` الممرَّر إلى `send()` / `AgentExecutor.execute()`؛ ويغيب حين لا تكون للتشغيل جلسة. |
-| `ctx.principal` | من يعمل التشغيل نيابةً عنه (مستدعي مصادقة المسارات، أو مرسل قناة)، وهو مجمَّد؛ ويغيب حين لا يوجد. انظر [المبادئ في الأدوات والموافقات](/ar/auth#الهويات-في-الأدوات-والموافقات). |
-| `ctx.approval` | يُضبط حين يعمل الاستدعاء لأن إنسانًا وافق عليه: `note` القرار، و`by` وهو من اتخذ القرار، إذا سمّاه القرار. |
+| `ctx.toolCallId` | الـ id اللي الـ model أعطاه لهذا الـ call. يبقى نفسه لما الـ call يتعاد بعد crash. الـ call اللي ما فيه model turn وراه (node في flow) ياخذ id مولّد. |
+| `ctx.messages` | نسخة read-only من الـ transcript اللي الـ model شافه قبل ما يسوّي الـ call: بدون system prompt وبدون turn المساعد اللي سوّى الـ call. فاضية لـ node في flow. |
+| `ctx.abortSignal` | الـ `AbortSignal` الخاص بالـ run، يتضبط لما يكون للـ run واحد. |
+| `ctx.sessionId` | الـ session id الخاص بالـ run — الـ id في `agent.session({ id })` أو `sessionId` الممرر لـ `send()` / `AgentExecutor.execute()`؛ يغيب لما ما في session. |
+| `ctx.principal` | مين الـ run يشتغل بالنيابة عنه (المستدعي في route auth، مرسل القناة)، frozen؛ يغيب لما ما فيه واحد. شوف [Principals في الـ tools والـ approvals](/ar/auth#principals-in-tools-and-approvals). |
+| `ctx.approval` | يتضبط لما الـ call يشتغل لأن إنسان وافق عليه: `note` حق القرار، و`by` أي مين قرّر، لما القرار يسمّيه. |
 
-الدالة `sandboxExecute(args, sandbox)` التي تتجاهل الوسيط الثالث تبقى تعمل.
+الدالة `sandboxExecute(args, sandbox)` اللي تتجاهل الوسيط الثالث تظل شغالة.
 
 ## الأخطاء
 
-كل طريقة يمكن أن يفشل بها استدعاء أداة تصل إلى النموذج بالنتيجة نفسها، فيكفي فحص واحد في كل الحالات (ومنها الاستدعاء الذي يُنفَّذ بعد موافقة):
+أي طريقة يفشل فيها tool call توصل الـ model بنفس النتيجة، ففحص واحد يكفي في كل الحالات (ومنها الـ call اللي يشتغل بعد approval):
 
 ```json
 { "error": "TypeError", "toolName": "search", "message": "query must not be empty", "kind": "execution" }
 ```
 
-- `error`: اسم الخطأ (`TypeError`، `ToolArgumentsValidationError`، ...)، أو الاسم الافتراضي لنوع الفشل عندما لا يكون الفشل خطأً مرميًّا.
-- `toolName` و`message`: الرسالة فقط، دون مكدّس الاستدعاءات أبدًا، وبحد أقصى 2,000 حرف (العلامة `... (truncated)` تدل على القطع).
-- `kind`: سبب فشل الاستدعاء.
-- بعض الأنواع تضيف حقولًا: `issues` مع `validation`، و`note` مع `rejected`، و`reason` مع `denied`.
+- `error`: اسم الخطأ (`TypeError`، `ToolArgumentsValidationError`، ...)، أو الاسم الافتراضي للـ kind لما الفشل مو خطأ مرمي.
+- `toolName` و`message`: الرسالة بس، ما في stack أبد، بحد أقصى 2,000 حرف (`... (truncated)` علامة القص).
+- `kind`: سبب فشل الـ call.
+- بعض الأنواع تزيد حقول: `issues` لـ `validation`، `note` لـ `rejected`، `reason` لـ `denied`.
 
-تحمل رسالة سجل المحادثة `isError: true`؛ وترى أحداث `tool-result` و`onToolResult` وخطّافات `postToolCall` وأحداث `tool.error` الاستدعاء فاشلًا.
+رسالة الـ transcript تحمل `isError: true`؛ أحداث `tool-result` و`onToolResult` وhooks الـ `postToolCall` وأحداث `tool.error` تشوف الـ call فاشل.
 
 | `kind` | `error` | متى |
 | ------ | ------- | ---- |
-| `execution` | اسم الخطأ المرمي | رمت `execute` (أو `needsApproval`) خطأً. |
-| `validation` | `ToolArgumentsValidationError` | لم تطابق الوسائط `inputSchema`؛ ولم تُنفَّذ `execute`. يضيف `issues`. |
-| `not-found` | `ToolNotFoundError` | استدعى النموذج أداة غير موجودة في السجل (أو أن التشغيل بلا سجل). |
-| `rejected` | `ToolRejectedError` | رفض مراجِعٌ الاستدعاء عند طلب الموافقة. يضيف `note` إن أُعطيت. |
-| `not-run` | `ToolNotRunError` | لم يبدأ الاستدعاء قط (تشغيل مستأنَف حُفظت موافقته دون استدعاءاته المتبقية). |
-| `mcp` | `McpToolError` | أجاب خادم MCP بـ `isError: true`؛ و`message` هو نص الخادم. |
-| `sandbox` | `SandboxRequiredError` | الأداة تحمل `requiresSandbox` لكن بلا `sandboxExecute`، فرُفضت بدلًا من تشغيلها خارج البيئة المعزولة. |
-| `denied` | `ToolDeniedError` | رفض الاستدعاءَ [قاعدةُ صلاحيات](/ar/approvals#سياسات-الصلاحيات) من نوع `deny`، أو `needsApproval` الخاصة بالأداة حين تعيد `'deny'`، أو `deny` من خطّاف `preToolCall`، أو وضع الصلاحيات؛ ولم تُنفَّذ `execute`. يضيف `reason` حين يُعطى. |
+| `execution` | اسم الخطأ المرمي | `execute` (أو `needsApproval`) رمت خطأ. |
+| `validation` | `ToolArgumentsValidationError` | الوسائط ما طابقت `inputSchema`؛ `execute` ما اشتغلت. تزيد `issues`. |
+| `not-found` | `ToolNotFoundError` | الـ model استدعى tool مو موجود في الـ registry (أو الـ run ما فيه registry). |
+| `rejected` | `ToolRejectedError` | مراجع رفض الـ call عند approval. يزيد `note` لما تُعطى. |
+| `not-run` | `ToolNotRunError` | الـ call ما بدأ أصلًا (run مستأنف اتخزّن الـ approval حقه بدون الـ calls الباقية). |
+| `mcp` | `McpToolError` | سيرفر MCP جاوب `isError: true`؛ `message` هو نص السيرفر. |
+| `sandbox` | `SandboxRequiredError` | الـ tool فيه `requiresSandbox` بس ما فيه `sandboxExecute`، فانرفض بدل ما يشتغل بدون sandbox. |
+| `denied` | `ToolDeniedError` | [قاعدة صلاحيات](/ar/approvals#سياسات-الصلاحيات) من نوع `deny` رفضت الـ call، أو `needsApproval` حق الـ tool رجّعت `'deny'`، أو `deny` من hook `preToolCall`، أو الـ permission mode رفض الـ call؛ `execute` ما اشتغلت. يزيد `reason` لما يُعطى. |
 
-**التحقق من الوسائط.** تُحلَّل وسائط النموذج بمخطط zod الخاص بالأداة `inputSchema` (وفي الواصف القديم `tool.parameters`) قبل تشغيل الأداة، فتستقبل خطّافات ما قبل الأداة ودالة `needsApproval` الشرطية و`execute` جميعًا القيمة **بعد التحليل**. أما الأدوات التي لا تحمل مخطط zod فتُمرَّر وسائطها دون تغيير. وإذا لم تطابق الوسائط المخطط فلا تُستدعى `execute` وتُتخطّى خطّافات `preToolCall`، إذ لا يوجد استدعاء صالح. ويحصل النموذج على نتيجة `validation` يستطيع إعادة المحاولة بناءً عليها:
+**الـ validation حق الوسائط.** وسائط الـ model تتحلل بـ zod `inputSchema` الخاصة بالـ tool (للـ descriptor القديم، `tool.parameters`) قبل ما الـ tool يشتغل، فـ hooks ما قبل الـ tool و`needsApproval` و`execute` كلهم يستلموا القيمة **المتحللة** (parsed). الـ tools اللي بدون zod schema وسائطها تعدي زي ما هي. لو الوسائط ما طابقت، `execute` ما يتنادى وhooks الـ `preToolCall` تتخطى، لأنه ما في call صالح. الـ model يستلم نتيجة `validation` يقدر يسوّي منها retry:
 
 ```json
 {
@@ -112,30 +112,30 @@ const agent = createAgent({ prompt: '...', provider, tools: [weather] });
 }
 ```
 
-يُصدَّر `ToolArgumentsValidationError` (مع مصفوفة `issues` محدّدة الأنواع) من جذر الحزمة.
+`ToolArgumentsValidationError` (مع مصفوفة `issues` typed) exported من جذر الحزمة.
 
-تبني `toolErrorResult({ toolName, error, kind?, toolCallId?, details? })` هذه النتيجة؛ استخدمها في مغلِّفات الأدوات الخاصة بك لتكون نتائجها مطابقة. ويستطيع الخطأ المرمي أن يختار نوعه بحمل خاصية `toolErrorKind`. أما الخطأ الذي يرث من `PropagatingToolError` فليس نتيجة: إنه يُنهي التشغيل.
+`toolErrorResult({ toolName, error, kind?, toolCallId?, details? })` تبني هذه النتيجة؛ استخدمها في الـ wrappers حقك عشان تطلع نفس الشكل. الخطأ المرمي يقدر يختار kindه بحمل خاصية `toolErrorKind`. أما الخطأ اللي يورث `PropagatingToolError` فمو نتيجة: يوقّف الـ run.
 
-## الأدوات المضمَّنة
+## Tools مدمجة
 
-| التصدير | الأداة |
+| التصدير | الـ tool |
 | ------ | ---- |
-| `httpTool`, `createHttpTool(options)` | `http_request`: طلبات HTTP (أي method، مع الترويسات والمحتوى)، مع حماية من SSRF: تُرفض الوجهات الحلقية (loopback) والخاصة والمحلية للرابط (link-local) في كل قفزة، ويتصل الاتصال بالعنوان الذي جرى فحصه. على Node فقط. |
-| `webFetchTool`, `createWebFetchTool(options)` | `web_fetch`: يرسل `GET` إلى صفحة ويب عامة واحدة ويعيدها نصًّا، بالحماية نفسها من SSRF وبحدود على عدد عمليات إعادة التوجيه والحجم والوقت. على Node فقط؛ انظر أدناه. |
-| `currentDateTool`, `dayNameTool` | التاريخ والوقت الحاليان (ISO، UTC) واسم يوم الأسبوع. |
-| `createTodoTools()` | `todo_write` / `todo_read` ليتمكن الوكيل من تخطيط عمل متعدد الخطوات؛ راجع [أدوات قائمة المهام](#أدوات-قائمة-المهام). |
-| `askQuestionTool()`, `createAgent({ askQuestion: true })` | `ask_question`: يطرح الوكيل سؤالًا على المستخدم ويتوقف التشغيل إلى حين استدعاء `agent.approvals.answer()`؛ راجع [طرح سؤال على المستخدم](/ar/approvals#طرح-سؤال-على-المستخدم). |
-| `createFsTools()`, `createShellTool()` | أدوات نظام الملفات والصدفة (shell) لوكلاء البرمجة؛ راجع [أدوات مساحة العمل](/ar/workspace-tools). |
-| `createEmailTool()`, `createSlackTool()`, `createGitHubTools()`, `createJiraTools()` (من `@lousho/build-ai-agent/integrations`) | تكاملات تحتاج إلى بيانات اعتماد، ولذلك تُبنى بخيارات. |
-| `createAgent({ mcpServers })`, `connectMcp(servers)` | كل أدوات خوادم MCP المعطاة في الإعدادات (`command` عبر stdio أو `url` عبر HTTP)، وتُسمّى `<server>__<tool>`؛ راجع [استخدام خوادم MCP في وكيل](/ar/mcp-integration#استخدام-خوادم-mcp-في-وكيل). |
-| `openApiTools(document, options)` | أداة واحدة لكل عملية في مستند OpenAPI 3.0 / 3.1؛ والعمليات التي تغيّر البيانات تطلب موافقة. راجع [أدوات OpenAPI](/ar/openapi-tools). |
-| `loadMcpTools(client, name)` | كل أدوات خادم MCP متصل؛ راجع [أدوات MCP](/ar/mcp-integration#أدوات-من-عميل-اتصلتَ-به-بنفسك). |
+| `httpTool`, `createHttpTool(options)` | `http_request`: طلبات HTTP (أي method، headers، body)، مع حماية من SSRF: وجهات loopback والخاصة وlink-local تنرفض في كل hop، والاتصال يروح للعنوان اللي اتفحص. Node بس. |
+| `webFetchTool`, `createWebFetchTool(options)` | `web_fetch`: `GET` لصفحة ويب عامة وحدة ويرجعها نص، بنفس حماية SSRF وبحدود على الـ redirects والحجم والوقت. Node بس؛ شوف تحت. |
+| `currentDateTool`, `dayNameTool` | التاريخ والوقت الحاليين (ISO، UTC) ويوم الأسبوع. |
+| `createTodoTools()` | `todo_write` / `todo_read` عشان الـ agent يخطط شغل متعدد الخطوات؛ شوف [Todo tools](#todo-tools). |
+| `askQuestionTool()`, `createAgent({ askQuestion: true })` | `ask_question`: الـ agent يسأل المستخدم شي والـ run يوقف لحد `agent.approvals.answer()`؛ شوف [سؤال المستخدم](/ar/approvals#سؤال-المستخدم). |
+| `createFsTools()`, `createShellTool()` | tools لنظام الملفات والـ shell للـ coding agents؛ شوف [Workspace tools](/ar/workspace-tools). |
+| `createEmailTool()`, `createSlackTool()`, `createGitHubTools()`, `createJiraTools()` (من `@lousho/build-ai-agent/integrations`) | تكاملات تحتاج credentials، فتتبنى بخيارات. |
+| `createAgent({ mcpServers })`, `connectMcp(servers)` | كل tools سيرفرات MCP المعطاة في الإعداد (`command` لـ stdio أو `url` لـ HTTP)، بأسماء `<server>__<tool>`؛ شوف [استخدام سيرفرات MCP في agent](/ar/mcp-integration#استخدام-سيرفرات-mcp-داخل-agent). |
+| `openApiTools(document, options)` | tool لكل operation في مستند OpenAPI 3.0 / 3.1؛ العمليات اللي تغيّر بيانات تطلب approval. شوف [OpenAPI tools](/ar/openapi-tools). |
+| `loadMcpTools(client, name)` | كل tools سيرفر MCP متصل؛ شوف [MCP tools](/ar/mcp-integration#tools-من-client-اتصلت-به-بنفسك). |
 
-تُمرَّر الواصفات المضمَّنة في كائن مفاتيحه الأسماء التي يستخدمها الوكيل: `createAgent({ tools: { current_date: currentDateTool } })`. وتشير ملفات المواصفات إلى `http` و`web-fetch` و`current-date` و`day-name` بالاسم (راجع [الإعدادات](/ar/configuration#الأدوات-التي-يمكن-لملف-المواصفات-الإشارة-إليها)).
+الـ descriptors المدمجة تتمرر keyed بالاسم اللي الـ agent يستخدمه: `createAgent({ tools: { current_date: currentDateTool } })`. ملفات الـ spec تشير لـ `http` و`web-fetch` و`current-date` و`day-name` بالاسم (شوف [الإعدادات](/ar/configuration#الـ-tools-التي-يمكن-للـ-spec-الإشارة-إليها)).
 
-كيف ترفض `http_request` و`web_fetch` الوجهات الخاصة: يُفحص المضيف إذا كان عنوان IP صريحًا قبل إرسال الطلب؛ أما اسم المضيف فيُحلَّل مرة واحدة عند فتح الاتصال، ويُفحص كل عنوان ينتج عنه (الحلقي loopback، وRFC 1918، والمحلي للرابط link-local بما فيه عنوان بيانات السحابة الوصفية، وCGNAT، ونطاقات البث المتعدد والنطاقات المحجوزة، وIPv6 المقابل لـ IPv4، وNAT64 و6to4)، ثم يتصل المقبس بالعنوان الذي جرى فحصه. وتُتبع عمليات إعادة التوجيه يدويًا ويُفحص كل قفزة بالطريقة نفسها. أما الاسم الذي يستغل DNS rebinding، أي الذي يجيب بعنوان عام أولًا ثم بعنوان خاص لاحقًا، فلا يجد استعلامًا ثانيًا يجيب عنه. وعندما تعمل `http_request` عبر بيئة معزولة يُحلَّل المضيف ويُفحص في عملية الوكيل، وتتصل العملية المعزولة بذلك العنوان. وتقبل الأداتان كلتاهما الخيار `allowPrivate` (أنماط مضيفين مثل `intranet.example` أو `*.corp.example`) للمضيفين الذين يجوز أن يُحلَّلوا إلى عناوين خاصة.
+كيف `http_request` و`web_fetch` يرفضوا الوجهات الخاصة: الـ host اللي مكتوب IP صريح ينفحص قبل الطلب؛ اسم الـ host ينحل مرة وحدة لما الاتصال ينفتح، وكل عنوان يطلع منه ينفحص (loopback، RFC 1918، link-local ومنه عنوان cloud metadata، CGNAT، نطاقات multicast والمحجوزة، IPv4-mapped IPv6، NAT64 و6to4)، والـ socket يتصل بالعنوان اللي اتفحص. الـ redirects تتبع يدوي وكل hop ينفحص بنفس الطريقة. اسم يسوّي DNS rebinding — يجاوب عنوان عام أول وبعدين خاص — ما يلقى lookup ثاني يجاوب فيه. ولما `http_request` تشتغل عبر sandbox، الـ host ينحل وينفحص في عملية الـ agent، والعملية داخل الـ sandbox تتصل بنفس العنوان. الأداتين ياخذوا `allowPrivate` (أنماط hosts زي `intranet.example` أو `*.corp.example`) لـ hosts ممكن تنحل لعناوين خاصة.
 
-تأخذ `web_fetch` الوسيط `{ url }` (بروتوكول `http:` أو `https:`، دون `user:password@`) وتعيد `{ url, finalUrl, status, contentType, content, truncated }`. وهي ترسل `GET` فقط، دون محتوى ولا ملفات تعريف ارتباط ولا ترويسات يختارها المستدعي. يتحوّل HTML إلى نص عادي (تُزال السكربتات والأنماط وما شابهها، وتوضع عناصر الكتل كل منها في سطر، وتُكتب روابط URL بين قوسين، وتُفك الكيانات)؛ ويُعاد JSON و`text/*` كما أُرسلا؛ وتعيد الأنواع الأخرى (الصور وملفات PDF والملفات الثنائية) ملاحظة بدلًا من المحتوى. وتُعاد استجابة 4xx أو 5xx مع محتواها ولا تُرمى خطأً، ليتمكن النموذج من قراءة صفحة الخطأ. أما حالات الرفض والمهلات وكثرة عمليات إعادة التوجيه وعناوين URL الخاطئة فهي أخطاء أداة تذكر المضيف. والصفحة مُدخَل غير موثوق: وصف الأداة يخبر النموذج بذلك، وقد ضُبط `readOnlyHint` و`openWorldHint`. خيارات `createWebFetchTool()` (بادئة النموذج `vendor/` هي التي تختار المزوّد؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>`، مثل `openrouter/openai/gpt-4o-mini`):
+`web_fetch` تاخذ `{ url }` (`http:` أو `https:`، بدون `user:password@`) وترجع `{ url, finalUrl, status, contentType, content, truncated }`. ترسل `GET` بس، بدون body ولا cookies ولا headers يختارها المستدعي. الـ HTML يتحول لنص عادي (الـ scripts والـ styles وشبهها تتشال، عناصر الـ block كل وحدة في سطر، روابط الـ URL بين قوسين، والـ entities تتفك)؛ JSON و`text/*` يرجعوا زي ما انبعثوا؛ الأنواع الثانية (صور، PDF، binaries) ترجع ملاحظة بدل المحتوى. رد 4xx أو 5xx يرجع مع bodyه وما ينرمي كخطأ، عشان الـ model يقرأ صفحة الخطأ. الرفض والـ timeouts وكثرة الـ redirects والـ URLs الخاطئة هي tool errors تسمّي الـ host. الصفحة input غير موثوق: وصف الـ tool يقول هذا للـ model، و`readOnlyHint` و`openWorldHint` مضبوطين. خيارات `createWebFetchTool()` (بادئة `vendor/` في الـ model هي اللي تختار الـ provider؛ مع OpenRouter استخدم `openrouter/<vendor>/<model>` زي `openrouter/openai/gpt-4o-mini`):
 
 ```ts
 import { createAgent, createWebFetchTool } from '@lousho/build-ai-agent';
@@ -154,11 +154,11 @@ const webFetch = createWebFetchTool({
 const agent = createAgent({ model: 'openai/gpt-4o-mini', tools: [webFetch] });
 ```
 
-لكل `createWebFetchTool()` مجمّع اتصالات خاص بها، يبقى ما بقيت الأداة ويُحرَّر معها بجمع المهملات (garbage collection) (ولا توجد دالة إغلاق). و`web_fetch` غير موجودة في بناء Cloudflare Worker، أما `http_request` في Worker فأداة مختلفة لا تصل إلا إلى أسماء المضيفين المدرجة في ربط `LOUSHO_HTTP_ALLOW`؛ راجع [Cloudflare Workers](/ar/cloudflare-workers#المزوّدون-والأدوات).
+كل `createWebFetchTool()` لها connection pool خاصة فيها، تبقى ما دامت الـ tool موجودة وتتحرر معها بالـ garbage collection (ما في دالة close). `web_fetch` مو موجودة في بناء Cloudflare Worker، و`http_request` حق الـ Worker هي tool مختلفة توصل بس لأسماء الـ hosts المدرجة في binding `LOUSHO_HTTP_ALLOW`؛ شوف [Cloudflare Workers](/ar/cloudflare-workers#providers-and-tools).
 
-## أدوات قائمة المهام
+## Todo tools
 
-تمنح `createTodoTools(options?)` الوكلاء طويلي التشغيل خطة يتتبعونها: تستبدل `todo_write` القائمة كلها (عناصر `{ id?, content, status }`، والحالة `pending` أو `in_progress` أو `completed`، وعنصر واحد على الأكثر بحالة `in_progress`) وتعيد القائمة مع الأعداد؛ وتعيدها `todo_read`. تُسند المعرّفات تلقائيًا وتبقى ثابتة إذا كرّرت كتابة لاحقة محتوى عنصر. والقوائم غير الصالحة (مثل عنصرين بحالة `in_progress`) تصل إلى النموذج خطأ أداة منظَّمًا ليعيد المحاولة. تعيش القائمة في الذاكرة لكل استدعاء؛ مرّر `store` (`{ get, set }`) لحفظها، و`onChange` لتحديث واجهة المستخدم. وكل `todo_write` ناجح يُصدر أيضًا حدث البث `todo.updated` بالقائمة الجديدة وأعدادها (راجع [أحداث البث](/ar/stream-events))، وتحوّله روابط [React](/ar/react#المهام) و[Vue](/ar/vue#المهام) و[Svelte](/ar/svelte#المهام) إلى `useTodos()` / `loushoTodos()`، فتعرض واجهة المستخدم الخطة مباشرة دون `onChange`.
+`createTodoTools(options?)` تعطي الـ agents طويلة الشغل plan يتبعوه: `todo_write` تستبدل القائمة كلها (عناصر `{ id?, content, status }`، الحالة `pending` | `in_progress` | `completed`، بحد أقصى `in_progress` وحدة) وترجع القائمة مع الأعداد؛ `todo_read` ترجعها. الـ ids تتعين تلقائي وتظل ثابتة لما كتابة بعدها تكرر محتوى عنصر. القوائم الغلط (زي `in_progress` مرتين) توصل الـ model كـ tool error منظّم عشان يسوّي retry. القائمة تعيش في الذاكرة لكل call؛ مرّر `store` (`{ get, set }`) عشان تدّخرها، و`onChange` عشان تحدّث UI. كل `todo_write` ناجحة تصدر كمان حدث stream `todo.updated` بالقائمة الجديدة وأعدادها (شوف [Stream events](/ar/stream-events))، وروابط [React](/ar/react#todos) و[Vue](/ar/vue#todos) و[Svelte](/ar/svelte#todos) تحوله لـ `useTodos()` / `loushoTodos()`، فالـ UI يعرض الخطة مباشرة بدون `onChange`.
 
 ```ts
 import { createAgent, createTodoTools, type TodoStore } from '@lousho/build-ai-agent';
@@ -176,7 +176,7 @@ createTodoTools({ store: { get: () => saved, set: (next) => void (saved = next) 
 
 ## متقدم: `ToolRegistry`
 
-تبني `createAgent()` سجلًا لك؛ لا تملأ سجلًا بنفسك إلا مع `AgentExecutor.execute()` (راجع [واجهة المنفِّذ](/ar/executor-api)) أو لمشاركة الأدوات بين الوكلاء: `register(tool)` لناتج `defineTool()`، و`register(name, descriptor)` لواصف `ToolDescriptor` خام (أداة مضمَّنة، أو أداة MCP، أو `tool()` قائمة من `ai` SDK)، و`registerMany()` لكائن من الواصفات أو مصفوفة من الأدوات المعرَّفة.
+`createAgent()` تبني registry لك؛ عبّي واحد بنفسك بس مع `AgentExecutor.execute()` (شوف [executor API](/ar/executor-api)) أو عشان تشارك tools بين agents: `register(tool)` لناتج `defineTool()`، و`register(name, descriptor)` لـ `ToolDescriptor` خام (tool مدمجة، tool من MCP، أو `tool()` جاهزة من `ai` SDK)، و`registerMany()` لـ record من descriptors أو مصفوفة من tools معرفة.
 
 ```ts
 import { ToolRegistry } from '@lousho/build-ai-agent/tools';
@@ -195,11 +195,11 @@ tools.register(lookupOrder);
 tools.register('current_date', currentDateTool);
 ```
 
-مرّره في `toolRegistry` إلى `AgentExecutor.execute()`؛ وخريطة `tools` في إعدادات الوكيل تسمّي الأدوات التي يجوز له استخدامها.
+مرّره في `toolRegistry` لـ `AgentExecutor.execute()`؛ خريطة `tools` في إعداد الـ agent تسمّي الـ tools اللي يقدر يستخدمها.
 
-## بث النتائج الجزئية
+## Streaming للنتائج الجزئية
 
-تستطيع أداة طويلة (منشئ تقارير، بحث في مصادر كثيرة) أن تُظهر التقدّم أثناء عملها: اكتب `execute` بصيغة `async function*`. كل `yield` لقطة كاملة من المخرجات حتى تلك اللحظة، وتحلّ محل السابقة، وتصل إلى أحداث التشغيل بصيغة `tool.partial` (راجع [أحداث البث](/ar/stream-events)). وآخر قيمة تُمرَّر بـ`yield` هي نتيجة الأداة: يحصل عليها النموذج، وهي `result` الاستدعاء في `tool.done`، فتظهر اللقطة الأخيرة مرتين (آخر `tool.partial` وفي `tool.done`). وقيمة `return` تُهمَل؛ والمولِّد الذي لا يُمرِّر شيئًا نتيجته `null`، وكذلك أي أداة تعيد `undefined`: سجل المحادثة والنموذج و`tool.done` كلها ترى `null`.
+الـ tool الطويلة (تبني تقرير، بحث على مصادر كثيرة) تقدر تورّي التقدم وهي شغالة: اكتب `execute` كـ `async function*`. كل `yield` هو snapshot كامل للمخرجات لحد هذيك اللحظة، يحل محل اللي قبله، ويوصل أحداث الـ run كـ `tool.partial` (شوف [Stream events](/ar/stream-events)). آخر قيمة تتمرر بـ `yield` هي نتيجة الـ tool: الـ model يستلمها، وهي `result` حق الـ call في `tool.done`، فالـ snapshot الأخير يظهر مرتين (آخر `tool.partial` وفي `tool.done`). قيمة `return` تتجاهل؛ والـ generator اللي ما يمرر شي نتيجته `null`، وكذلك أي tool يرجع `undefined`: الـ transcript والـ model و`tool.done` كلهم يشوفوا `null`.
 
 ```ts
 import { createAgent, defineTool, type ToolOutput } from '@lousho/build-ai-agent';
@@ -227,13 +227,13 @@ for await (const event of agent.stream('Write a report on solar power.')) {
 }
 ```
 
-ما ينبغي معرفته:
+اللي لازم تعرفه:
 
-- **تُحفظ النتيجة وحدها.** لا تُرسل اللقطات إلى النموذج، ولا تُضاف إلى سجل المحادثة أو الجلسة، ولا تُحفظ في نقاط الحفظ، ولا تُسجَّل في مقاطع التتبّع. والخطّافات (`postToolCall` و`onToolResult`) ترى النتيجة فقط.
-- **الانهيار يفقدها.** المخرجات الجزئية ليست متينة: فبعد انهيار لا تكون للاستدعاء نتيجة بعد ويُنفَّذ من جديد من البداية (`tool.start` جديد، و`index` من 0). والتوقف لـ[تسجيل دخول](/ar/oauth) داخل المولِّد يعيد تشغيله من البداية أيضًا، لكن التشغيل المستأنف يُبلغ عن `tool.resume` لا `tool.start` ثانٍ، ومع `index` من 0 أيضًا. وتبقى اللقطات التي بُثّت في سجل الأحداث؛ وينبغي لواجهة المستخدم أن تتخلص منها حين يتوقف الاستدعاء أو يبدأ من جديد (وتفعل ذلك [روابط واجهة المستخدم](/ar/react)).
-- **الموافقات والصلاحيات أولًا.** أداة المولِّد التي تحتاج إلى موافقة تعمل، وتبثّ، بعد القرار فقط (وكذلك في استئناف مبثوث، `agent.approvals.streamResolve()`).
-- **الإلغاء.** حين يُلغى التشغيل، يتوقف الـSDK عن قراءة المولِّد فورًا، ويُنهي الاستدعاء بوصفه ملغى، ويستدعي `return()` الخاصة به، فتعمل كتل `finally` فيه - بعد أن ينتهي الـ`await` الذي هو فيه، فمرّر `ctx.abortSignal` إلى العمل الذي تنتظره.
-- **تُحجب الرموز في اللقطات أيضًا.** اللقطة التي تحتوي رمزًا حصلت عليه الأداة من `ctx.getToken()` يُستبدل به `[REDACTED]`، مثل النتيجة. والخطّاف `postToolCall` الذي يعيد كتابة النتيجة لا يرى اللقطات: فإن كان لا بد أن يرشّح خطّاف مخرجات أداة، فرشّحها في الأداة نفسها أو لا تبثّها.
-- **أي القيم تُبثّ.** القيمة التي لها دالة `next()` وهي أيضًا قابلة للتكرار غير المتزامن (async iterable) فقط (وهذا ما تُرجعه `async function*`) هي التي تُبثّ. أما النتيجة القابلة للتكرار غير المتزامن فقط، مثل `ReadableStream`، فنتيجة عادية.
-- **التشغيل كله محسوب.** يحتفظ `toolConcurrency` بالموضع حتى ينتهي المولِّد. واستدعاء `execute` الخاصة بالأداة بنفسك يُرجع المولِّد.
-- **أين.** الحلقة الرئيسية، والاستدعاء الذي يُنفَّذ بعد موافقة، وعقدة استدعاء الأداة في مسار عمل (التي لا تحتفظ إلا بالنتيجة) كلها تكرّر المولِّد؛ أما `sandboxExecute` الخاصة بالأداة فلا تبثّ. وفي بث AI SDK UI تكون اللقطات مخرجات أداة أولية (راجع [AI SDK UI](/ar/ai-sdk-ui#مقابلة-الأحداث)).
+- **بس النتيجة تتخزّن.** الـ snapshots ما تتبعت للـ model، ما تتضاف للـ transcript ولا الـ session، وما يتعملها checkpoint ولا تتسجل في trace spans. الـ hooks (`postToolCall`، `onToolResult`) تشوف بس النتيجة.
+- **الـ crash يضيّعها.** المخرجات الجزئية مو durable: بعد crash الـ call ما فيه نتيجة لسّا ويشتغل من الأول من جديد (`tool.start` جديد، `index` من 0). وقفة لـ[تسجيل دخول](/ar/oauth) جوّا الـ generator تعيده من الأول كمان، بس الـ run المستأنف يبلّغ `tool.resume` مو `tool.start` ثاني، وبرضو `index` من 0. الـ snapshots اللي انبثّت تبقى في سجل الأحداث؛ الـ UI لازم يرميها لما الـ call يوقف أو يبدأ من جديد ([روابط الـ UI](/ar/react) تسوّي كذا).
+- **الـ approvals والصلاحيات أول.** الـ generator tool اللي يحتاج approval يشتغل، ويبث، بس بعد القرار (وكمان على resume مبثوث، `agent.approvals.streamResolve()`).
+- **الإلغاء.** لما الـ run يتلغي، الـ SDK يوقف قراءة الـ generator فورًا، ويختم الـ call كملغي وينادي `return()` حقته، فبلوكات `finally` تشتغل — بعد ما الـ `await` اللي هو فيه يخلص، فمرّر `ctx.abortSignal` للشغل اللي تنتظره.
+- **الـ tokens تتحجب في الـ snapshots كمان.** الـ snapshot اللي فيه token الـ tool أخذه من `ctx.getToken()` ينستبدل بـ `[REDACTED]`، زي النتيجة. الـ hook `postToolCall` اللي يعيد كتابة النتيجة ما يشوف الـ snapshots: لو مخرجات tool لازم تتفلتر بـ hook، فلترها جوّا الـ tool أو ما تبثّها.
+- **أي قيم تبث.** بس القيمة اللي فيها `next()` وهي كمان async iterable (اللي `async function*` ترجعه) هي اللي تبث. نتيجة async iterable بس، زي `ReadableStream`، هي نتيجة عادية.
+- **الـ run كله محسوب.** `toolConcurrency` يحجز الـ slot لحد ما الـ generator يخلص. لو ناديت `execute` حق الـ tool بنفسك يرجع لك الـ generator.
+- **وين.** اللوب الرئيسية، والـ call اللي يشتغل بعد approval، وnode استدعاء الـ tool في الـ flow (اللي تحتفظ بس بالنتيجة) كلهم يمشوا على الـ generator؛ `sandboxExecute` حق الـ tool ما يبث. في AI SDK UI stream، الـ snapshots هي مخرجات tool أولية (شوف [AI SDK UI](/ar/ai-sdk-ui#event-mapping)).

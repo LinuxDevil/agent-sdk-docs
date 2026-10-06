@@ -4,27 +4,29 @@ sidebarTitle: "MCP"
 ---
 {/* Generated from docs/mcp.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-يعمل MCP في اتجاهين. يستطيع وكيلك أن يستدعي أدوات خوادم MCP، أو يستطيع
-وكيلك أن يكون هو نفسه خادم MCP يستدعيه Claude Code وCursor وغيرهما من عملاء MCP.
-كلا الاتجاهين في المسار الفرعي `@lousho/build-ai-agent/mcp`، وحزمة
-`@modelcontextprotocol/sdk` اعتمادية نظيرة (peer dependency) اختيارية: ثبّتها لاستخدام أي من الاتجاهين.
+MCP يشتغل في الاتجاهين. الـ agent يستطيع مناداة tools موجودة في سيرفرات MCP،
+أو يكون هو نفسه سيرفر MCP يناديه Claude Code وCursor وغيرهما من MCP clients.
+الاتجاهان موجودان في الـ subpath `@lousho/build-ai-agent/mcp`، وحزمة
+`@modelcontextprotocol/sdk` هي peer dependency اختيارية: ثبّتها لاستخدام أي اتجاه منهما.
 
 ```sh
 npm install @modelcontextprotocol/sdk
 ```
 
-الدوال `connectMcp` و`loadMcpTools` و`serveMcp` مُصدَّرة من
-`@lousho/build-ai-agent/mcp`؛ وتصدّرها كذلك جذر الحزمة و`@lousho/build-ai-agent/tools`.
-أما `createAgent({ mcpServers })` فلا يحتاج إلى أي استيراد من المسار الفرعي.
+`connectMcp` و`loadMcpTools` و`serveMcp` مُصدَّرة من
+`@lousho/build-ai-agent/mcp`؛ وجذر الحزمة و`@lousho/build-ai-agent/tools`
+يصدّرانها أيضًا. أما `createAgent({ mcpServers })` فلا يحتاج أي import من الـ subpath.
 
-## استخدام خوادم MCP في وكيل
+## استخدام سيرفرات MCP داخل agent
 
-يقبل `createAgent({ mcpServers })` الخريطة نفسها. تتصل الخوادم عند `await agent.ready()`
-أو تلقائيًا عند أول `send()` / `stream()`؛
-وتُضاف أدوات كل خادم باسم `<server>__<tool>` (مثل `docs__search`).
-الخادم الذي يتعذر اتصاله يُفشل ذلك الاستدعاء، ويحاول الاستدعاء التالي مرة أخرى.
-يقطع `agent.close()` الاتصال بها (ويوقف عمليات stdio)؛ وأي استدعاء أداة لاحق
-يعيد الاتصال. وبلا `mcpServers` لا تفعل `ready()` ولا `close()` شيئًا. تختار بادئة النموذج `vendor/` المزوّد؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`).
+`createAgent({ mcpServers })` يأخذ نفس الـ map. السيرفرات تتصل عند
+`await agent.ready()`، أو تلقائيًا عند أول `send()` / `stream()`.
+tools كل سيرفر تنضاف باسم `<server>__<tool>` (مثل `docs__search`).
+إذا سيرفر فشل في الاتصال، النداء يفشل، والنداء التالي يحاول من جديد.
+`agent.close()` يقطع الاتصال بها (ويوقف عمليات stdio)؛ وأي tool call بعده
+يعيد الاتصال. بدون `mcpServers` لا تفعل `ready()` و`close()` شيئًا.
+بادئة `vendor/` في الـ model تحدد الـ provider؛ ومع OpenRouter استخدم
+`openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`).
 
 ```ts
 import { createAgent } from '@lousho/build-ai-agent';
@@ -40,39 +42,42 @@ const { text } = await agent.send('List the files here.');
 await agent.close();
 ```
 
-تُشغَّل مدخلات stdio بالقيمتين `command` و`args`؛ وتُضاف `env` إلى
-البيئة الافتراضية (`PATH` وما شابهه)، فهي ليست بديلًا عنها. أما مدخلات HTTP
-فتستخدم نقل HTTP القابل للبث (streamable HTTP) وترسل الترويسات الثابتة `headers` مع كل
-طلب. ويمكن لمدخل HTTP أيضًا تسجيل الدخول بـ OAuth، كما تصفه مواصفات تفويض MCP: أضف `oauth: { redirectUri }` فيسجّل مشغّلٌ دخول الوكيل مرة واحدة؛ انظر [خوادم MCP مع OAuth](/ar/oauth#خوادم-mcp-مع-oauth).
+مدخلات stdio تنطلق بـ`command` و`args`؛ و`env` تنضاف إلى
+البيئة الافتراضية (`PATH` وما شابه) وليست بديلًا عنها. مدخلات HTTP
+تستخدم streamable HTTP transport وترسل الـ `headers` الثابتة مع كل
+طلب. ويمكن لمدخل HTTP أيضًا تسجيل الدخول عبر OAuth كما يصفه MCP
+authorization spec: أضف `oauth: { redirectUri }` فيسجّل operator دخول
+الـ agent مرة واحدة؛ انظر [سيرفرات MCP مع OAuth](/ar/oauth#خوادم-mcp-مع-oauth).
 
-الخريطة هي نفسها التي يعلنها ملف المواصفات؛ انظر
+الـ map هو نفسه الذي يعرّفه ملف spec؛ انظر
 [الإعدادات](/ar/configuration) (قسم `mcpServers`) لصيغة YAML.
 
-### مشاركة الخوادم عبر `connectMcp()`
+### مشاركة السيرفرات عبر `connectMcp()`
 
-لمشاركة الخوادم بين عدة وكلاء، أو لاختيار طريقة معالجة الإخفاقات، استدعِ
-`connectMcp(servers, options?)` ومرّر `tools` الناتجة عنها بنفسك. تتصل بكل
-خادم وتسرد أدواته قبل أن تكتمل، فتكون الأدوات معروفة سلفًا.
+لمشاركة السيرفرات بين أكثر من agent، أو لتختار كيف تُعالَج الأعطال، استدعِ
+`connectMcp(servers, options?)` ومرّر `tools` الناتجة عنها بنفسك. هي تتصل
+بكل سيرفر وتسرد tools قبل أن تُكمِل، فتكون الـ tools معروفة من البداية.
 الخيارات:
 
-- `onError`: القيمة `'throw'` (الافتراضية) ترفض الوعد حين يتعذر اتصال خادم، بعد
-  إغلاق الخوادم الأخرى؛ والقيمة `'skip'` تستبعد ذلك الخادم وتحذّر عبر `logger`.
-- `lazy` (الافتراضية `true`): بعد `close()` أو انقطاع الاتصال، يعيد استدعاء
-  الأداة التالي الاتصال. أما مع `false` فيفشل ذلك الاستدعاء. وسرد الأدوات
-  يحتاج إلى اتصال، فلا تؤخّر `lazy` أول اتصال أبدًا.
-- `logger`: يتلقى تحذيرات الخوادم والأدوات المتخطّاة (الافتراضي: لا شيء).
-- `tokens`: مخزن الرموز (`AgentStore.tokens`) للخوادم التي لها `oauth`؛
-  وهو مطلوب حين يكون لأي خادم `oauth`.
+- `onError`: القيمة `'throw'` (الافتراضية) ترفض الـ promise إذا سيرفر فشل
+  في الاتصال، بعد إغلاق الباقي؛ والقيمة `'skip'` تتجاوز ذلك السيرفر وتحذّر عبر `logger`.
+- `lazy` (الافتراضية `true`): بعد `close()` أو انقطاع الاتصال، الـ tool call
+  التالي يعيد الاتصال. مع `false` النداء يفشل بدل ذلك. سرد الـ tools
+  يحتاج اتصالًا، لذلك `lazy` لا تؤجّل أول اتصال أبدًا.
+- `logger`: يستقبل تحذيرات السيرفرات والـ tools المتخطّاة (الافتراضي: لا شيء).
+- `tokens`: الـ token store (`AgentStore.tokens`) للسيرفرات التي فيها `oauth`؛
+  مطلوب إذا كان أي سيرفر عنده `oauth`.
 
-تعيد `{ tools, close(), status() }`؛ وتربط `status()` كل خادم بإحدى القيم
-`'idle'` أو `'connected'` أو `'failed'` أو `'needs-auth'` (خادم له `oauth` لم يسجّل التطبيق دخوله إليه).
+ترجع `{ tools, close(), status() }`؛ و`status()` تعطي لكل سيرفر واحدة من القيم
+`'idle'` أو `'connected'` أو `'failed'` أو `'needs-auth'` (سيرفر `oauth`
+لم يسجّل التطبيق دخوله إليه).
 
-`tools` هي `Record<string, ToolDescriptor>` مفتاحها `<server>__<tool>` —
-خريطة، لا المصفوفة التي تصنعها نتائج `defineTool()`. وتقبل
-`createAgent({ tools })` الصورتين معًا وتجمعهما: `tools: [myTool, mcp.tools]`
-تسجّل عناصر المصفوفة بأسمائها وعناصر الخريطة بمفاتيحها، فتجتمع أدواتك
-الخاصة وأدوات MCP في قائمة واحدة. (والنشر في خريطة واحدة،
-`tools: { ...mcp.tools, my_tool: myTool }`، يعمل أيضًا.)
+`tools` هي `Record<string, ToolDescriptor>` بمفتاح `<server>__<tool>` —
+يعني record، وليست الـ array التي تنتجها `defineTool()`. و`createAgent({ tools })`
+يقبل الشكلين ويجمعهما: `tools: [myTool, mcp.tools]` تسجّل عناصر الـ array
+بأسمائها وعناصر الـ record بمفاتيحها، فتجتمع الـ tools الخاصة بك وtools MCP
+في قائمة واحدة. (النشر داخل record واحد، `tools: { ...mcp.tools, my_tool: myTool }`،
+يشتغل أيضًا.)
 
 ```ts
 import { createAgent } from '@lousho/build-ai-agent';
@@ -88,32 +93,32 @@ await agent.send('List the files here.');
 await mcp.close();
 ```
 
-`mcp.tools` خريطة، و`tools` تقبل المصفوفة أيضًا، فتختلط الصورتان:
+`mcp.tools` record، و`tools` يقبل array أيضًا، فالشكلان يندمجان:
 `tools: [mcp.tools, weatherTool]` أو
-`tools: [...createFsTools(workspace), ...Object.values(mcp.tools)]` (يحمل كل
-واصف MCP اسم `<server>__<tool>` الخاص به، فيعمل `Object.values` أيضًا).
+`tools: [...createFsTools(workspace), ...Object.values(mcp.tools)]` (كل
+descriptor من MCP يحمل اسم `<server>__<tool>` الخاص به، فيشتغل `Object.values` أيضًا).
 
-### الموافقة على أدوات MCP
+### الـ approval على tools MCP
 
-تصف خوادم MCP كل أداة بتوصيفات (annotations): `readOnlyHint` و
-`destructiveHint` و`idempotentHint` و`openWorldHint` و`title`. وهي
-تلميحات، لكن SDK تستخدمها قاعدةً افتراضية لـ[الموافقات](/ar/approvals):
-الأداة ذات `readOnlyHint: true` تعمل؛ والأداة ذات `destructiveHint: true`، أو
-التي لا ترسل `destructiveHint` (الافتراضي في مواصفة MCP أنها مدمِّرة)،
-توقف التشغيل حتى يوافق إنسان؛ وذات `destructiveHint: false` تعمل. وعليه فالأداة
-بلا توصيفات تطلب الموافقة. تبقى التوصيفات الخام في
-`descriptor.metadata.mcp.annotations`، ويصير `title` هو `displayName`.
+سيرفرات MCP تصف كل tool بـ annotations: `readOnlyHint` و
+`destructiveHint` و`idempotentHint` و`openWorldHint` و`title`. هي مجرد
+hints، لكن الـ SDK يستخدمها إعدادًا افتراضيًا لـ[الـ approvals](/ar/approvals)
+(الموافقات): الـ tool مع `readOnlyHint: true` يشتغل مباشرة. والـ tool مع
+`destructiveHint: true`، أو الذي لا يرسل `destructiveHint` أصلًا (الافتراضي في
+spec MCP أنه destructive)، يوقف الـ run حتى إنسان يوافق. و`destructiveHint: false`
+يشتغل. يعني الـ tool بدون annotations يسأل دائمًا. الـ annotations الخام
+تبقى في `descriptor.metadata.mcp.annotations`، و`title` يصبح `displayName`.
 
-اضبط `approval` في مدخل الخادم (`mcpServers` أو `createAgent` أو `connectMcp()`) أو
+اضبط `approval` في مدخل السيرفر (`mcpServers` أو `createAgent` أو `connectMcp()`) أو
 في `loadMcpTools(client, name, { approval })`:
 
-- `'annotations'` (الافتراضية): كما سبق.
-- `'always'` / `'never'`: اطلب الموافقة لكل الأدوات / لا تطلبها لأي منها.
-- دالة `({ name, annotations }) => boolean` تقرر لكل أداة (`name` هو
-  اسم الأداة المجرّد؛ و`annotations` هي `{}` حين لا يرسل الخادم شيئًا). في الشيفرة
-  فقط؛ أما ملف المواصفات فيقبل السلاسل الثلاث.
+- `'annotations'` (الافتراضية): كما في الأعلى.
+- `'always'` / `'never'`: اسأل عن كل tool / لا تسأل عن أي منها.
+- دالة `({ name, annotations }) => boolean` تقرر لكل tool (`name` هو
+  اسم الـ tool المجرّد؛ و`annotations` هي `{}` إذا السيرفر لم يرسل شيئًا).
+  في الكود فقط؛ أما ملف spec فيأخذ السلاسل الثلاث.
 
-[قواعد الصلاحيات](/ar/approvals#سياسات-الصلاحيات) تعمل أولًا، ويظل بوسعها
+[قواعد الصلاحيات](/ar/approvals#سياسات-الصلاحيات) تشتغل أولًا، ولا يزال بإمكانها
 `allow` أو `deny` أو `ask`.
 
 ```ts
@@ -131,10 +136,10 @@ const agent = createAgent({
 });
 ```
 
-### أدوات من عميل اتصلتَ به بنفسك
+### tools من client اتصلت به بنفسك
 
-اتصل بنفسك بـ`Client` من `@modelcontextprotocol/sdk` ثم حمّل
-أدواته بـ`loadMcpTools()`، ومرّر النتيجة إلى `createAgent()` (أو
+اتصل بـ`Client` من `@modelcontextprotocol/sdk` بنفسك، وحمّل
+tools بـ`loadMcpTools()`، ثم مرّر النتيجة إلى `createAgent()` (أو
 سجّلها في `ToolRegistry`):
 
 ```ts
@@ -145,14 +150,14 @@ const tools = await loadMcpTools(mcpClient, 'my-server');
 const agent = createAgent({ prompt: '...', provider, tools });
 ```
 
-تتوفر `loadMcpTools` أيضًا من جذر الحزمة ومن
+`loadMcpTools` متوفرة أيضًا من جذر الحزمة ومن
 `@lousho/build-ai-agent/tools`.
 
-## تقديم وكيل عبر MCP
+## تشغيل agent كسيرفر MCP
 
-تعكس `serveMcp()` عمل `loadMcpTools()`: فهي تعرض وكيلًا (واختياريًا بعض
-أدواته) على أنه خادم MCP، فيستطيع Claude Code وCursor وغيرهما من عملاء MCP
-استدعاءه.
+`serveMcp()` عكس `loadMcpTools()`: تعرض الـ agent (واختياريًا بعض
+tools) كسيرفر MCP، فيستطيع Claude Code وCursor وغيرهما من MCP clients
+مناداته.
 
 ```ts
 import { createAgent, defineTool } from '@lousho/build-ai-agent';
@@ -178,28 +183,30 @@ const server = await serveMcp({
 await server.close();
 ```
 
-- **بلا حالة.** كل استدعاء لأداة الوكيل محادثة جديدة.
-- **الإلغاء.** إلغاء طلب MCP يُجهض تشغيل الوكيل
+- **Stateless.** كل نداء لـ tool الـ agent محادثة جديدة.
+- **الإلغاء.** إلغاء طلب MCP يوقف الـ run
   (`agent.send(message, { signal })`).
-- **الأخطاء.** يعود إخفاق الوكيل نتيجةَ MCP فيها `isError: true`.
-- **الموافقات.** لا يمكن الموافقة على الأدوات المشروطة بموافقة عبر MCP. التشغيل الذي
-  يتوقف للموافقة يعيد `isError: true` مع رسالة تقول ذلك. والأدوات
-  المعلَّمة بـ`needsApproval` لا تُعرض مباشرة ما لم تمرّر
-  `allowApprovalTools: true`؛ وإن فعلت، شغّلها العملاء **دون أي بوابة بشرية**.
-- **stdio.** لا يُكتب إلى stdout غير بروتوكول MCP؛ وتذهب التحذيرات إلى stderr.
-- **HTTP.** يرتبط افتراضيًا بالعنوان `127.0.0.1`. أضف `auth: { type: 'bearer', token }`
-  لاشتراط ترويسة `Authorization: Bearer`؛ والارتباط بمضيف غير loopback
-  دون `auth` يسجّل تحذيرًا.
+- **الأخطاء.** فشل الـ agent يرجع نتيجة MCP فيها `isError: true`.
+- **الـ approvals.** الـ tools المشروطة بـ approval لا يمكن الموافقة عليها عبر
+  MCP. الـ run الذي يتوقف بانتظار approval يرجع `isError: true` مع رسالة
+  توضّح ذلك. والـ tools المعلَّمة `needsApproval` لا تُعرض مباشرة إلا إذا
+  مرّرت `allowApprovalTools: true`؛ وإذا فعلت، الـ clients يشغّلونها **بدون أي
+  موافقة بشرية**.
+- **stdio.** لا يُكتب على stdout شيء غير بروتوكول MCP؛ التحذيرات تذهب إلى stderr.
+- **HTTP.** يربط `127.0.0.1` افتراضيًا. أضف `auth: { type: 'bearer', token }`
+  لاشتراط ترويسة `Authorization: Bearer`. والربط بـ host غير loopback
+  بدون `auth` يسجّل تحذيرًا.
 
-### التوصيفات
+### Annotations
 
-تحمل `tools/list` توصيفات MCP ليعرف العملاء ما تفعله الأداة. الأداة
-التي تحتاج إلى موافقة تُعلَن بـ`readOnlyHint: false, destructiveHint: true`؛
-وحدّد التلميحات بنفسك عبر `annotations` (تُرسَل كما هي). والأداة التي بلا تلميحات لا ترسل
-شيئًا، فيظل وكيل Lousho الذي يستهلك هذا الخادم يسأل قبل تشغيلها (انظر
-`approval` في `connectMcp()`)؛ أما `readOnlyHint: true` فتعمل دون سؤال. والأداة التي
-تحتاج إلى موافقة لا تُعلَن أبدًا للقراءة فقط. الأدوات المضمّنة `read_file` و`list_dir` و
-`glob` و`grep` و`todo_read` و`current_date` و`day_name` للقراءة فقط.
+`tools/list` تحمل annotations MCP حتى يعرف الـ clients ماذا يفعل كل tool.
+الـ tool الذي يحتاج approval يُعلَن بـ`readOnlyHint: false, destructiveHint: true`؛
+وحدّد الـ hints بنفسك عبر `annotations` (تُرسَل كما هي). الـ tool بلا hints
+لا يرسل شيئًا، فيظل agent من Lousho يستهلك هذا السيرفر يسأل قبل تشغيله (انظر
+`approval` في `connectMcp()`)؛ أما `readOnlyHint: true` فيشتغل بدون سؤال.
+الـ tool الذي يحتاج approval لا يُعلَن أبدًا read-only. الـ tools المدمجة
+`read_file` و`list_dir` و`glob` و`grep` و`todo_read` و`current_date` و
+`day_name` كلها read-only.
 
 ```ts
 import { defineTool } from '@lousho/build-ai-agent';
@@ -214,16 +221,16 @@ const lookupOrder = defineTool({
 });
 ```
 
-### من سطر الأوامر
+### من الـ CLI
 
-يقدّم `lousho mcp` ملف مواصفات وكيل (عبر stdio افتراضيًا):
+`lousho mcp` يقدّم ملف spec لـ agent (عبر stdio افتراضيًا):
 
 ```sh
 npx lousho mcp agent.yaml
 npx lousho mcp agent.yaml --http --port 3920 --host 127.0.0.1
 ```
 
-لاستخدامه من عميل MCP، أضفه إلى إعدادات MCP الخاصة بالعميل (مثل
+لاستخدامه من MCP client، أضفه إلى إعدادات MCP عند العميل (مثل
 `.mcp.json` في Claude Code):
 
 ```json
@@ -234,8 +241,8 @@ npx lousho mcp agent.yaml --http --port 3920 --host 127.0.0.1
 }
 ```
 
-## الحدود
+## القيود
 
-- لا يمكن الموافقة على الأدوات المشروطة بموافقة عبر MCP حين تقدّم وكيلًا: التشغيل الذي يتوقف للموافقة يعيد `isError: true`، والأدوات المعلَّمة بـ`needsApproval` لا تُعرض ما لم تُضبط `allowApprovalTools`.
-- يرسل عملاء HTTP الترويسات الثابتة `headers` مع كل طلب. أما OAuth (`oauth`) فيملكه التطبيق: منحة واحدة لكل خادم للوكيل كله، يسجّل دخولها مشغّل؛ ولا توجد منح MCP لكل مستخدم بعد.
-- استدعاءات `serveMcp()` بلا حالة: كل استدعاء لأداة الوكيل محادثة جديدة، ولا يقبل نقل HTTP غير `POST`.
+- الـ tools المشروطة بـ approval لا يمكن الموافقة عليها عبر MCP عندما تقدّم agent: الـ run الذي يتوقف لـ approval يرجع `isError: true`، والـ tools المعلَّمة `needsApproval` لا تُعرض إلا إذا ضُبطت `allowApprovalTools`.
+- الـ clients عبر HTTP يرسلون الـ `headers` الثابتة مع كل طلب. أما OAuth (`oauth`) فملك التطبيق: grant واحدة لكل سيرفر للـ agent كله، يسجّل دخولها operator؛ ولا توجد grants لكل مستخدم حتى الآن.
+- نداءات `serveMcp()` stateless: كل نداء لـ tool الـ agent محادثة جديدة، وHTTP transport يقبل `POST` فقط.

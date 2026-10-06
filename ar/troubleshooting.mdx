@@ -1,146 +1,146 @@
 ---
-title: "استكشاف الأخطاء وإصلاحها"
+title: "حل المشاكل"
 ---
 {/* Generated from docs/troubleshooting.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-تبدأ هذه الصفحة مما تراه، وتدلّك على السبب والحل والصفحة التي تشرح الأمر. شغّل أولًا `npx lousho doctor` ([ما الذي يفحصه](/ar/installation#استكشاف-الأخطاء-وإصلاحها-lousho-doctor))، ثم، إن كان لديك رمز خطأ (`LOUSHO_...`)، ابحث عنه في [الأخطاء](/ar/errors).
+الصفحة هذه تبدأ من الشيء الذي تراه، وتدلّك على السبب والحل والصفحة التي تشرحه. شغّل أولًا `npx lousho doctor` ([ماذا يفحص](/ar/installation#استكشاف-الأخطاء-lousho-doctor))، وبعدها إذا عندك رمز خطأ (`LOUSHO_...`) ابحث عنه في [الأخطاء](/ar/errors).
 
 ## الإعداد
 
-### الرسالة "No model configured"
+### "No model configured"
 
-- **السبب:** لم تحصل `createAgent()` على `model` أو `provider`، ولم تجد شيئًا في البيئة (`LOUSHO_CONFIG_MISSING_PROVIDER`).
-- **الحل:** مرّر `model: 'openai/gpt-4o-mini'` (أي `<provider>/<model>`)، أو اضبط `LOUSHO_MODEL` أو مفتاح مزوّد مثل `OPENAI_API_KEY`.
-- **للمزيد:** [المزوّدون](/ar/providers)، [الخطأ](/ar/errors#lousho_config_missing_provider).
+- **السبب:** استدعيت `createAgent()` بدون `model` ولا `provider`، ولم تجد شيئًا في البيئة (`LOUSHO_CONFIG_MISSING_PROVIDER`).
+- **الحل:** مرّر `model: 'openai/gpt-4o-mini'` (أي `<provider>/<model>`)، أو اضبط `LOUSHO_MODEL` أو مفتاح provider مثل `OPENAI_API_KEY`.
+- **للمزيد:** [Providers](/ar/providers)، [الخطأ](/ar/errors#lousho_config_missing_provider).
 
-### الرسالة "The API key is not set"
+### "The API key is not set"
 
-- **السبب:** متغير مفتاح المزوّد (`OPENAI_API_KEY` أو `ANTHROPIC_API_KEY` أو `OPENROUTER_API_KEY`) غير موجود في بيئة العملية التي تشغّل الوكيل (`LOUSHO_PROVIDER_MISSING_API_KEY`).
-- **الحل:** اضبطه، أو مرّر نسخة مزوّد مضبوطة. يطبع `npx lousho doctor` الكلمة `set` أو `not set` لكل مفتاح، ولا يطبع القيمة أبدًا. وبادئة النموذج `vendor/` تختار المزوّد؛ فمع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`) — فـ`model: 'openai/gpt-4o-mini'` يحتاج إلى `OPENAI_API_KEY` حتى لو لم يُضبط سوى `OPENROUTER_API_KEY`.
+- **السبب:** متغير مفتاح الـ provider (`OPENAI_API_KEY` أو `ANTHROPIC_API_KEY` أو `OPENROUTER_API_KEY`) غير موجود في بيئة العملية التي تشغّل الـ agent (`LOUSHO_PROVIDER_MISSING_API_KEY`).
+- **الحل:** اضبطه، أو مرّر instance جاهز من الـ provider. `npx lousho doctor` يطبع `set` أو `not set` لكل مفتاح، ولا يطبع القيمة أبدًا. بادئة `vendor/` في اسم الـ model هي التي تختار الـ provider؛ مع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثال `openrouter/openai/gpt-4o-mini`) — `model: 'openai/gpt-4o-mini'` يحتاج `OPENAI_API_KEY` حتى لو `OPENROUTER_API_KEY` هو الوحيد المضبوط.
 - **للمزيد:** [الخطأ](/ar/errors#lousho_provider_missing_api_key).
 
-### الرسالة "Cannot find package `@ai-sdk/openai`" أو "install the optional peer"
+### "Cannot find package `@ai-sdk/openai`" أو "install the optional peer"
 
-- **السبب:** كل مزوّد تدعمه حزمة اختيارية تُحمَّل عند أول استخدام، بالإصدار الرئيسي المقابل لإصدار `ai` الرئيسي لديك (`LOUSHO_PEER_MISSING`). ويغطي الخطأ نفسه الاعتماديات النظيرة الاختيارية الأخرى، مثل `dockerode` و`@modelcontextprotocol/sdk`.
-- **الحل:** نفّذ أمر `npm install` الوارد في الرسالة (وهو أيضًا في `error.installCommand`)، أو ابحث عن إصدار `ai` الرئيسي لديك في جدول المقابلة.
-- **للمزيد:** [حزم المزوّدين](/ar/installation#حزم-المزوّدين)، [الاعتماديات النظيرة الاختيارية](/ar/installation#الحزم-النظيرة-الاختيارية)، [الخطأ](/ar/errors#lousho_peer_missing).
+- **السبب:** كل provider يعتمد على حزمة اختيارية تُحمَّل عند أول استخدام، بإصدار رئيسي يقابل إصدار `ai` الرئيسي عندك (`LOUSHO_PEER_MISSING`). نفس الخطأ يغطي باقي الـ peer dependencies الاختيارية، مثل `dockerode` و`@modelcontextprotocol/sdk`.
+- **الحل:** نفّذ أمر `npm install` الموجود في الرسالة (موجود أيضًا في `error.installCommand`)، أو ابحث عن إصدار `ai` الرئيسي عندك في جدول الاقتران.
+- **للمزيد:** [حزم الـ providers](/ar/installation#حزم-الـ-providers)، [الـ peer dependencies الاختيارية](/ar/installation#optional-peers)، [الخطأ](/ar/errors#lousho_peer_missing).
 
-### الرسالة "`ai` 5 is installed"
+### "`ai` 5 is installed"
 
-- **السبب:** الإصدار 5 من `ai` غير مدعوم. تقبل الحزمة `ai` بالمدى `^4.3.19` أو `^6.0.0` أو `^7.0.0`.
-- **الحل:** ثبّت أحد هذه الإصدارات الرئيسية مع صفّ حزمة المزوّد المقابل له.
+- **السبب:** `ai` 5 غير مدعوم. الـ SDK يقبل `ai` `^4.3.19` أو `^6.0.0` أو `^7.0.0`.
+- **الحل:** ثبّت واحد من هذه الإصدارات الرئيسية مع حزمة الـ provider التي تقابله في الجدول.
 - **للمزيد:** [تثبيت الحزمة](/ar/installation#تثبيت-الحزمة).
 
-### الرسالة "Top-level await is only available in ES modules"
+### "Top-level await is only available in ES modules"
 
-- **السبب:** يستخدم البدء السريع `await` على المستوى الأعلى، فيجب أن يكون الملف وحدة ES.
-- **الحل:** سمِّ الملف بالامتداد `.mts`، أو اضبط `"type": "module"` في `package.json`.
-- **للمزيد:** [البدء السريع في README](https://github.com/LinuxDevil/agent-sdk/blob/main/README.md#quickstart).
+- **السبب:** الـ quickstart يستخدم `await` على المستوى الأعلى، فالملف يجب أن يكون ES module.
+- **الحل:** سمِّ الملف `.mts`، أو اضبط `"type": "module"` في `package.json`.
+- **للمزيد:** [الـ quickstart في README](https://github.com/LinuxDevil/agent-sdk/blob/main/README.md#quickstart).
 
 ### إصدار Node قديم جدًا
 
-- **السبب:** تحتاج الحزمة إلى Node.js 22.19 أو أحدث (`engines.node`).
-- **الحل:** حدّث Node. يقارن `npx lousho doctor` إصدارك بالمتطلب.
+- **السبب:** الـ SDK يحتاج Node.js 22.19 أو أحدث (`engines.node`).
+- **الحل:** حدّث Node. `npx lousho doctor` يقارن إصدارك مع المطلوب.
 - **للمزيد:** [المتطلبات](/ar/installation#المتطلبات).
 
-### تعارض إصداري Ollama وzod
+### تعارض إصداري Ollama و zod
 
-- **السبب:** تعلن `ollama-ai-provider-v2` (حزمة Ollama لـ `ai` 6 و7) أن zod 4 اعتمادية نظيرة، ولا يحقق zod 3 ذلك.
-- **الحل:** استخدم zod 4 مع `ai` 6 أو 7، أو استخدم `ai@^4.3.19` مع `ollama-ai-provider@^1.2.0`.
-- **للمزيد:** [حزم المزوّدين](/ar/installation#حزم-المزوّدين).
+- **السبب:** `ollama-ai-provider-v2` (حزمة Ollama لـ `ai` 6 و7) تعلن zod 4 كـ peer dependency، و zod 3 لا يفي بهذا.
+- **الحل:** استخدم zod 4 مع `ai` 6 أو 7، أو `ai@^4.3.19` مع `ollama-ai-provider@^1.2.0`.
+- **للمزيد:** [حزم الـ providers](/ar/installation#حزم-الـ-providers).
 
-## تشغيلات تنتهي دون إجابة
+## Runs تنتهي بدون جواب
 
-### عادت `send()` لكن `text` فارغ
+### `send()` رجّعت لكن `text` فارغ
 
-- **السبب:** التشغيل الذي يتوقف مبكرًا يكتمل ولا يرمي خطأ. ويبيّن `result.finishReason` السبب. هذه هي الحالات التي تترك `text` فارغًا أو ناقصًا:
+- **السبب:** الـ run الذي يقف مبكرًا يكتمل عادي، لا يرمي خطأ. `result.finishReason` يقول لك السبب. هذه الحالات التي تترك `text` فارغ أو ناقص:
 
-  - `'awaiting-approval'`: استدعاء أداة يحتاج إلى إنسان. بُتّ فيه (الفقرة التالية). [الموافقات](/ar/approvals).
-  - `'max-steps'`: نفدت ميزانية `maxSteps` (الافتراضي 10) بينما كان النموذج لا يزال يريد المتابعة. ارفع `maxSteps` أو بسّط المهمة. [أسباب الانتهاء](/ar/runs#أسباب-الانتهاء).
-  - `'budget-exceeded'`: تجاوز التشغيل ميزانية في `limits` مثل `maxTokens` أو `maxCostUsd`؛ ويبيّن `result.budget` أيّها. ارفع الحد. [الميزانيات](/ar/configuration#الميزانيات).
-  - `'guardrail'`: حجب حاجز حماية للمدخلات أو المخرجات أو الأدوات التشغيل؛ ويبيّن `result.guardrail` أيّها. [حواجز الحماية](/ar/guardrails#حواجز-حماية-المدخلات-والمخرجات).
-  - `'output-invalid'`: لم يطابق الرد مخطط `output` حتى بعد خطوة الإصلاح. [المخرجات المنظَّمة](/ar/structured-output).
+  - `'awaiting-approval'`: في tool call يحتاج إنسان يقرر. حلّه (البند التالي). [Approvals](/ar/approvals).
+  - `'max-steps'`: ميزانية `maxSteps` (الافتراضي 10) نفدت بينما الـ model كان ما زال يريد المتابعة. ارفع `maxSteps` أو بسّط المهمة. [Finish reasons](/ar/runs#أسباب-الانتهاء).
+  - `'budget-exceeded'`: ميزانية في `limits` مثل `maxTokens` أو `maxCostUsd` انضربت؛ `result.budget` يقول لك أي واحدة. ارفع الحد. [الميزانيات](/ar/configuration#الميزانيات).
+  - `'guardrail'`: guardrail على المدخلات أو المخرجات أو الأدوات حجب الـ run؛ `result.guardrail` يقول أي واحد. [Guardrails](/ar/guardrails#input-و-output-guardrails).
+  - `'output-invalid'`: الرد لم يطابق الـ schema المعرف في `output` حتى بعد خطوة الـ repair. [Structured output](/ar/structured-output).
 
-- **الحل:** افحص `result.finishReason` قبل قراءة `result.text`.
+- **الحل:** افحص `result.finishReason` قبل ما تقرأ `result.text`.
 
-### يبدو التشغيل عالقًا عند أداة
+### الـ run يبدو واقف عند tool
 
-- **السبب:** هناك موافقة معلّقة. تنتهي `send()` الموقوفة بـ `finishReason: 'awaiting-approval'` وبـ `approvalId`؛ ولا يعمل شيء حتى يقرر أحد.
-- **الحل:** اعرض الاستدعاءات المعلّقة بـ `agent.approvals.list()`، ثم `agent.approvals.resolve({ id, approved })`.
-- **للمزيد:** [وكلاء `createAgent()`](/ar/approvals#وكلاء-createagent).
+- **السبب:** في approval معلّق. الـ `send()` الموقوف يرجّع `finishReason: 'awaiting-approval'` مع `approvalId`؛ ولا شيء يعمل حتى يقرر أحد.
+- **الحل:** اعرض الـ calls المعلقة بـ `agent.approvals.list()`، ثم `agent.approvals.resolve({ id, approved })`.
+- **للمزيد:** [`createAgent()` agents](/ar/approvals#وكلاء-createagent).
 
 ### `LOUSHO_SESSION_AWAITING_APPROVAL` أو `LOUSHO_SESSION_BUSY`
 
-- **السبب:** الجلسة الموقوفة عند موافقة لا تقبل مدخلات جديدة (`LOUSHO_SESSION_AWAITING_APPROVAL`)؛ أو استُدعيت `session.compact()` أو `session.clear()` أثناء تشغيل دورة أو وجودها في الطابور (`LOUSHO_SESSION_BUSY`).
-- **الحل:** بُتّ في الموافقة ثم أرسل مجددًا؛ أو انتظر `send()` الخاصة بالدورة (أو ألغِها)، ثم استدعِ مرة أخرى.
-- **للمزيد:** [بانتظار الموافقة](/ar/errors#lousho_session_awaiting_approval)، [مشغولة](/ar/errors#lousho_session_busy).
+- **السبب:** الـ session الموقوفة على approval لا تقبل مدخل جديد (`LOUSHO_SESSION_AWAITING_APPROVAL`)؛ أو أن `session.compact()` أو `session.clear()` استُدعيت وفي turn شغّال أو في الطابور (`LOUSHO_SESSION_BUSY`).
+- **الحل:** حسم الـ approval ثم أرسل مجددًا؛ أو انتظر `send()` الخاصة بالـ turn (أو ألغِها)، ثم استدعِ من جديد.
+- **للمزيد:** [بانتظار الـ approval](/ar/errors#lousho_session_awaiting_approval)، [مشغولة](/ar/errors#lousho_session_busy).
 
-## الأدوات
+## Tools
 
-### لا يستدعي النموذج أداتي أبدًا
+### الـ model ما يستدعي الـ tool أبدًا
 
-- **السبب:** يقرر النموذج انطلاقًا من `description` الأداة ومخطط مدخلاتها، فالوصف الغامض أو الحقول غير الواضحة لا تترك له ما يستند إليه. ويجب أن يطابق `name` النمط `^[a-zA-Z0-9_-]{1,64}$` (من 1 إلى 64 حرفًا من الحروف والأرقام و`_` و`-`).
-- **الحل:** قل في `description` ما تفعله الأداة ومتى تُستخدم، واستخدم `.describe()` لكل حقل مدخل.
+- **السبب:** الـ model يقرر من `description` الخاص بالـ tool ومن الـ input schema، فالوصف الغامض أو الحقول غير الواضحة لا تعطيه شيئًا يمشي عليه. الـ `name` يجب أن يطابق `^[a-zA-Z0-9_-]{1,64}$` (من 1 إلى 64 حرف: حروف وأرقام و`_` و`-`).
+- **الحل:** اكتب في الـ `description` ما تفعله الـ tool ومتى تُستخدم، واستخدم `.describe()` على كل حقل إدخال.
 - **للمزيد:** [خيارات `defineTool()`](/ar/tools#خيارات-definetool).
 
-### أداتي ترمي خطأ ويستمر التشغيل
+### الـ tool ترمي خطأ والـ run يكمل
 
-- **السبب:** هذا بالتصميم. الأداة التي ترمي خطأ تعطي النموذج نتيجة خطأ (`{ error, toolName, message, kind }`) ويستمر التشغيل ليتمكن النموذج من التصرف.
-- **الحل:** إذا كان يجب أن يوقف الخطأ التشغيل، فارمِ خطأ يمتد من `PropagatingToolError`؛ فهذا يرفض التشغيل بدلًا من ذلك.
-- **للمزيد:** [أخطاء الأدوات](/ar/tools#الأخطاء).
+- **السبب:** هذا مقصود. الـ tool التي ترمي تعطي الـ model نتيجة خطأ (`{ error, toolName, message, kind }`) والـ run يكمل، حتى يقدر الـ model يتعامل معها.
+- **الحل:** إذا الخطأ لازم يوقف الـ run، ارمِ error يمتد من `PropagatingToolError`؛ هذا يرفض الـ run بدل ما يكمله.
+- **للمزيد:** [أخطاء الـ tools](/ar/tools#الأخطاء).
 
 ### `LOUSHO_TOOL_ARGS_INVALID`
 
-- **السبب:** أرسل النموذج وسيطات لا تطابق مخطط مدخلات الأداة. وداخل التشغيل يستعيد المشكلات نتيجةً ويستطيع إعادة المحاولة، لذا نادرًا ما ينتهي التشغيل بسببه.
-- **الحل:** إذا ظل النموذج يخطئ في حقل ما، فاجعل نص `.describe()` الخاص به أوضح. وإذا استدعيت الأداة بنفسك، فصحّح الوسيطات المذكورة في الرسالة.
+- **السبب:** الـ model أرسل arguments لا تطابق الـ input schema للـ tool. داخل الـ run ترجع له الـ issues كنتيجة ويقدر يعيد المحاولة، فنادرًا ما ينتهي run بسببه.
+- **الحل:** إذا الـ model يغلط في نفس الحقل، خلّ نص `.describe()` أوضح. وإذا إنت استدعيت الـ tool بنفسك، صحّح الـ arguments المذكورة في الرسالة.
 - **للمزيد:** [الخطأ](/ar/errors#lousho_tool_args_invalid).
 
-## المزوّدون والنماذج
+## Providers و models
 
-### حدود المعدل والاستدعاءات غير المستقرة
+### Rate limits و calls غير مستقرة
 
-- **السبب:** خفّض المزوّد سرعة الاستدعاء (`LOUSHO_PROVIDER_RATE_LIMITED`) أو فشل فشلًا عابرًا.
-- **الحل:** تعيد `createAgent()` محاولة الاستدعاء الفاشل مرتين أصلًا — لكن لنموذج مُعطى كسلسلة `provider/model` أو محلول من البيئة فحسب؛ أما نسخة `provider` تمرّرها أنت فلا تُعاد محاولاتها إلا حين تضبط `retry`. ارفع العدد بـ `retry: { maxRetries: 3 }`، واضبط `fallbackModels` للانتقال إلى النموذج التالي إذا استمر فشل الاستدعاء.
-- **للمزيد:** [إعادة المحاولة والنماذج البديلة](/ar/providers#إعادة-المحاولة-والنماذج-الاحتياطية)، [الخطأ](/ar/errors#lousho_provider_rate_limited).
+- **السبب:** الـ provider طبّق rate limit على الاستدعاء (`LOUSHO_PROVIDER_RATE_LIMITED`) أو فشل فشلًا عابرًا.
+- **الحل:** `createAgent()` أصلًا تعيد الاستدعاء الفاشل مرتين — لكن فقط لـ model مُمرّر كسلسلة `provider/model` أو محلول من البيئة؛ أما `provider` instance تمرّره إنت فلا تُعاد محاولاته إلا إذا ضبطت `retry`. ارفعها بـ `retry: { maxRetries: 3 }`، واضبط `fallbackModels` للانتقال إلى الـ model التالي إذا الاستدعاء ظل يفشل.
+- **للمزيد:** [إعادة المحاولة و fallback models](/ar/providers#retry-ونماذج-fallback)، [الخطأ](/ar/errors#lousho_provider_rate_limited).
 
-### لا يقرأ النموذج ملفاتي
+### الـ model لا يقرأ ملفاتي
 
-- **السبب:** يرسل المزوّد المضمَّن جزء الملف لأنواع الوسائط التي يدعمها على إصدار `ai` الرئيسي لديك فقط: في `ai` 6/7 يصل `application/pdf` إلى `openai` و`anthropic` (التي ترسل `text/plain` أيضًا) و`openrouter`. أما كل نوع وسائط آخر — وكل ملف على `ai` 4 أو `ollama` — فيُرسَل ملاحظة نصية (`[file report.pdf (application/pdf) not sent]`) ويحذّر المزوّد مرة واحدة. أما الصور فتُرسَل.
-- **الحل:** استخدم `ai` 6 أو 7 مع نوع وسائط يرسله المزوّد (راجع الجدول)، أو ضع نص الملف في الرسالة، أو استخدم صنفًا فرعيًا من المزوّد يقبل نموذجه الملفات.
-- **للمزيد:** [المدخلات متعددة الوسائط](/ar/providers#الإدخال-متعدد-الوسائط).
+- **السبب:** الـ provider المدمج يرسل الـ file part فقط لأنواع media التي يدعمها على إصدار `ai` الرئيسي عندك: على `ai` 6/7 يوصل `application/pdf` إلى `openai` و`anthropic` (الذي يرسل `text/plain` أيضًا) و`openrouter`. كل media type آخر — وكل ملف على `ai` 4 أو `ollama` — يُرسَل كملاحظة نصية (`[file report.pdf (application/pdf) not sent]`) ويحذّر الـ provider مرة واحدة. الصور تُرسَل.
+- **الحل:** استخدم `ai` 6 أو 7 مع media type يرسله الـ provider (راجع الجدول)، أو ضع نص الملف في الرسالة، أو استخدم subclass من الـ provider يستطيع الـ model فيه استقبال ملفات.
+- **للمزيد:** [Multimodal input](/ar/providers#إدخال-multimodal).
 
-### لا أرى استدلال النموذج
+### لا أرى reasoning الخاص بالـ model
 
-- **السبب:** يُبلَّغ عن الاستدلال منفصلًا عن الإجابة، على شكل أحداث `reasoning.*` في `agent.stream()` وبوصفه `result.reasoning`؛ وليس في `result.text`. ولا تُرسَل الخيارات إلا إلى عائلات النماذج المعروفة بقبولها، ولا يرسل `reasoning: 'none'` شيئًا.
-- **الحل:** اقرأ `result.reasoning` أو أحداث `reasoning.delta`؛ ولنموذج خارج العائلات المعروفة، مرّر `{ effort, force: true }`.
-- **للمزيد:** [الاستدلال](/ar/reasoning).
+- **السبب:** الـ reasoning يُبلَّغ عنه منفصل عن الجواب، كأحداث `reasoning.*` في `agent.stream()` وكـ `result.reasoning`؛ وليس في `result.text`. الخيارات تُرسَل فقط لعائلات الـ models المعروف أنها تقبلها، و`reasoning: 'none'` لا يرسل شيئًا.
+- **الحل:** اقرأ `result.reasoning` أو أحداث `reasoning.delta`؛ ولـ model خارج العائلات المعروفة مرّر `{ effort, force: true }`.
+- **للمزيد:** [Reasoning](/ar/reasoning).
 
-## البيئة المعزولة وMCP والنشر
+## Sandbox و MCP والنشر
 
-### بيئة Docker المعزولة: "egress is unsupported"
+### Docker sandbox: "egress is unsupported"
 
-- **السبب:** `SubprocessSandbox` مع `network: { allow }` و`broker` تحتاج أن يكون الوسيط (broker) المنفذ الوحيد للحاوية إلى الخارج. ولا يستطيع Docker Desktop ولا Docker بلا صلاحيات الجذر ولا خدمة على جهاز آخر ولا محرك أقدم من 25.0.5 ذلك، فلا تبدأ أي حاوية (`LOUSHO_SANDBOX_EGRESS_UNSUPPORTED`). ويُرفض هذا عن قصد بدلًا من منح خروج مفتوح.
-- **الحل:** شغّل الوكيل على مضيف Linux يعمل عليه Docker Engine 25.0.5 أو أحدث، أو استخدم `network: 'none'`.
-- **للمزيد:** [الصدفة المعزولة](/ar/workspace-tools#واجهة-أوامر-معزولة-sandboxshell)، [الخطأ](/ar/errors#lousho_sandbox_egress_unsupported).
+- **السبب:** `SubprocessSandbox` مع `network: { allow }` و`broker` يحتاج الـ broker يكون المخرج الوحيد للحاوية. Docker Desktop وrootless Docker وdaemon على جهاز آخر وEngine أقدم من 25.0.5 كلها ما تقدر تعطيك هذا، فلا تبدأ أي حاوية (`LOUSHO_SANDBOX_EGRESS_UNSUPPORTED`). الرفض مقصود، بدل فتح egress مفتوح.
+- **الحل:** شغّل الـ agent على Linux host عليه Docker Engine 25.0.5 أو أحدث، أو استخدم `network: 'none'`.
+- **للمزيد:** [Sandboxed shell](/ar/workspace-tools#sandboxed-shell-sandboxshell)، [الخطأ](/ar/errors#lousho_sandbox_egress_unsupported).
 
-### لا تظهر أدوات خادم MCP
+### أدوات سيرفر MCP ما تظهر
 
-- **السبب:** تتصل الخوادم عند `await agent.ready()` أو عند أول `send()` / `stream()`، والخادم الذي لا يستطيع الاتصال يُفشل ذلك الاستدعاء. وتُسمّى كل أداة `<server>__<tool>` (مثل `docs__search`)، فابحث عن هذا الاسم لا عن اسم الخادم نفسه.
-- **الحل:** `await agent.ready()` لترى خطأ الاتصال. ومع `connectMcp()`، افحص `status()` الذي يربط كل خادم بـ `'idle'` أو `'connected'` أو `'failed'` أو `'needs-auth'` (خادم `oauth` لا يزال تطبيقه بحاجة إلى تسجيل الدخول — راجع `agent.oauth.mcpSignInUrl()`)؛ ويستبعد `onError: 'skip'` الخادم الفاشل ويحذّر عبر `logger`. ويحتاج MCP إلى الاعتمادية النظيرة الاختيارية `@modelcontextprotocol/sdk`.
-- **للمزيد:** [استخدام خوادم MCP في وكيل](/ar/mcp-integration#استخدام-خوادم-mcp-في-وكيل).
+- **السبب:** السيرفرات تتصل عند `await agent.ready()` أو عند أول `send()` / `stream()`، والسيرفر الذي يفشل اتصاله يُفشِل ذلك الاستدعاء. كل tool اسمه `<server>__<tool>` (مثال `docs__search`)، فابحث عن هذا الاسم لا اسم السيرفر نفسه.
+- **الحل:** `await agent.ready()` لترى خطأ الاتصال. مع `connectMcp()` افحص `status()` التي تعطي كل سيرفر `'idle'` أو `'connected'` أو `'failed'` أو `'needs-auth'` (سيرفر `oauth` تطبيقه لا يزال يحتاج تسجيل دخول — راجع `agent.oauth.mcpSignInUrl()`)؛ و`onError: 'skip'` يستبعد السيرفر الفاشل ويحذّر عبر `logger`. MCP يحتاج الـ peer dependency الاختيارية `@modelcontextprotocol/sdk`.
+- **للمزيد:** [استخدام سيرفرات MCP في agent](/ar/mcp-integration#استخدام-سيرفرات-mcp-داخل-agent).
 
-### يرفض بناء Worker المزوّد أو الأداة
+### بناء الـ Worker يرفض الـ provider أو الـ tool
 
-- **السبب:** يدعم الهدف `cloudflare-worker` المزوّدين `mock` و`openai` و`anthropic` و`openrouter`، والأدوات `current-date` و`day-name` و`http` (تصل `http` إلى المضيفين المدرجين في الربط `LOUSHO_HTTP_ALLOW` فقط). أما `ollama` والأداة `web-fetch` فغير مدعومين هناك، ويفشل `lousho build` برسالة خطأ تسمّي ما رفضه.
-- **الحل:** استخدم مزوّدًا أو أداة أخرى، أو ابنِ للهدف `node-server` أو `docker`.
-- **للمزيد:** [Cloudflare Workers](/ar/cloudflare-workers#المزوّدون-والأدوات).
+- **السبب:** هدف `cloudflare-worker` يدعم الـ providers `mock` و`openai` و`anthropic` و`openrouter`، والـ tools `current-date` و`day-name` و`http` (`http` توصل فقط للـ hosts المدرجة في binding `LOUSHO_HTTP_ALLOW`). أما `ollama` والـ tool `web-fetch` فغير مدعومين هناك، و`lousho build` يفشل بخطأ يسمي الذي رفضه.
+- **الحل:** استخدم provider أو tool آخر، أو ابنِ لهدف `node-server` أو `docker`.
+- **للمزيد:** [Cloudflare Workers](/ar/cloudflare-workers#providers-and-tools).
 
-## طلب المساعدة
+## طلب مساعدة
 
-افتح مسألة (issue) على [https://github.com/LinuxDevil/agent-sdk/issues](https://github.com/LinuxDevil/agent-sdk/issues). أرفق:
+افتح issue على [https://github.com/LinuxDevil/agent-sdk/issues](https://github.com/LinuxDevil/agent-sdk/issues). أرفق:
 
-- مخرجات `npx lousho doctor --json`،
+- ناتج `npx lousho doctor --json`،
 - رمز الخطأ (`LOUSHO_...`) والرسالة كاملة،
-- إصدار الحزمة (`npm ls @lousho/build-ai-agent`) وإصدار `ai` لديك.
+- إصدار الـ SDK (`npm ls @lousho/build-ai-agent`) وإصدار `ai` عندك.
 
 لا تلصق مفتاح API أبدًا.

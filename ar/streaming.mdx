@@ -1,14 +1,15 @@
 ---
-title: "البث"
+title: "Streaming"
 ---
 {/* Generated from docs/streaming.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-تشغّل `agent.stream()` الوكيل تمامًا كما تفعل `agent.send()`، وتُبلغ عن التشغيل
-في صورة بثّ من الأحداث محدَّدة الأنواع: نص النموذج فور وصوله، وكل استدعاء أداة،
-وحدود الخطوات، وطلبات الموافقة، ثم الحدث الختامي `run.done`. كل حدث كائن JSON
-عادي، فيمكنك تمريره إلى المتصفح عبر Server-Sent Events أو WebSocket دون أي
-تحويل. بادئة النموذج `vendor/` هي التي تختار المزوّد؛ ومع OpenRouter استخدم
-`openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`).
+`agent.stream()` تشغّل الـ agent بنفس طريقة `agent.send()` بالضبط، وترجع لك
+الـ run كـ stream من أحداث typed: نص الـ model أول ما يوصل، كل tool call،
+حدود الخطوات، طلبات الـ approval (الموافقة)، وفي الآخر `run.done`. كل event
+كائن JSON عادي، فتقدر تمرّره للمتصفح عبر Server-Sent Events أو WebSocket
+بدون أي تحويل. بادئة `vendor/` في اسم الـ model هي التي تختار الـ provider؛
+ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثال
+`openrouter/openai/gpt-4o-mini`).
 
 ```ts
 import { createAgent } from '@lousho/build-ai-agent';
@@ -20,17 +21,17 @@ for await (const event of agent.stream('Weather in Paris?')) {
 }
 ```
 
-الواجهة الكاملة (full API) فيها الدالة نفسها: تقبل `AgentExecutor.stream(options)`
-الخيارات نفسها التي تقبلها `AgentExecutor.execute()` (مخزن الموافقات، نقاط الحفظ،
-الخطّافات، التتبّع، `toolConcurrency`، ...).
+نفس الدالة موجودة في الـ API الكامل: `AgentExecutor.stream(options)` تأخذ
+نفس خيارات `AgentExecutor.execute()` (الـ approval store، والـ checkpoints،
+والـ hooks، والـ tracing، و`toolConcurrency`، ...).
 
-هذه الأحداث، أي الاتحاد `AgentEvent`، هي نظام الأحداث الوحيد في الـ SDK: البث،
-و[خيارات المستمع](#الاستماع-دون-المرور-على-الأحداث)، و`session.on()`، وخطّافات واجهة
-المستخدم، ومسارات الخادم، و ACP والقنوات كلها تنقل هذه الأحداث نفسها.
+هذه الأحداث، أي الـ union `AgentEvent`، هي نظام الأحداث الوحيد في الـ SDK:
+الـ stream، و[خيارات الـ listener](#الاستماع-بدون-iterating)، و`session.on()`،
+والـ UI hooks، وroutes السيرفر، وACP والقنوات — كلها تنقل نفس الأحداث.
 
-## المقبض `AgentRun`
+## الـ `AgentRun`
 
-تُرجع `stream()` كائنًا من النوع `AgentRun`:
+`stream()` ترجع `AgentRun`:
 
 ```ts
 interface AgentRun extends AsyncIterable<AgentEvent> {
@@ -41,28 +42,29 @@ interface AgentRun extends AsyncIterable<AgentEvent> {
 }
 ```
 
-- **يبدأ التشغيل فورًا.** لست مضطرًا إلى المرور على الأحداث: يكفي
-  `await run.result` وحده ليمضي التشغيل حتى نهايته.
-- **`result`** وعد يُنجَز (resolve) بالقيمة `ExecutionResult` نفسها التي تُرجعها
-  `send()`، ويُرفَض (reject) بالخطأ نفسه الذي كانت `send()` سترفض به. التشغيل
-  المُلغى يُنجَز بـ `finishReason: 'aborted'`؛ والتشغيل المتوقف مؤقتًا بانتظار
-  موافقة يُنجَز بـ `finishReason: 'awaiting-approval'` مع `approvalId`. وترك
-  `result` دون `await` لا يسبّب أبدًا رفضًا غير معالَج (unhandled rejection).
-- **الخروج المبكر من حلقة `for await` يُلغي التشغيل** (عبر المسار نفسه الذي
-  يسلكه `signal`، انظر [الإلغاء](#الإلغاء)). وعندها يُنجَز `result` بـ
+- **الـ run يبدأ فورًا.** لا تحتاج تعمل iterate عليه: `await run.result`
+  لوحده يوصّل الـ run للنهاية.
+- **`result`** يرجع بنفس `ExecutionResult` التي ترجعها `send()`، ويرفض بنفس
+  الخطأ الذي كانت `send()` سترفضه. الـ run الملغي يرجع
+  `finishReason: 'aborted'`؛ والـ run الموقوف بانتظار approval يرجع
+  `finishReason: 'awaiting-approval'` مع `approvalId`. ترك `result` بدون
+  `await` لن يسبّب أبدًا unhandled rejection.
+- **لو خرجت من حلقة `for await` مبكرًا، الـ run يتلغي** (عبر نفس مسار
+  `signal`، شوف [الإلغاء](#الإلغاء)). وعندها `result` يرجع
   `finishReason: 'aborted'`.
-- **لا ضغط عكسي (backpressure)، ولا يُسقَط شيء.** التشغيل لا ينتظر المستهلك
-  أبدًا. تُخزَّن الأحداث مؤقتًا إلى أن تقرأها، فالمستهلك البطيء يرى كل حدث
-  وبالترتيب. والمرور على الأحداث بعد انتهاء التشغيل يعطيك أحداثه كلها أيضًا.
-- **`enqueue(input)`** تضيف مدخلات المستخدم إلى التشغيل وهو يعمل: تنضم إلى سجل
-  المحادثة قبل استدعاء النموذج التالي. انظر
-  [المدخلات في قائمة الانتظار](/ar/queue-and-steer#المدخلات-المصطفّة).
-- **`steer(input)`** تعيد توجيه التشغيل: استدعاء النموذج الذي لم يُنتج شيئًا بعدُ
-  يُلغى ويُعاد مع المدخلات الجديدة. انظر [التوجيه](/ar/queue-and-steer#التوجيه).
-- **مستهلك واحد.** لا يمكن المرور على `AgentRun` إلا مرة واحدة؛ وحلقة
-  `for await` ثانية ترمي خطأً. لتوزيع الأحداث على أكثر من جهة، اجمعها بنفسك.
-- الخيارات غير الصالحة (غياب `provider` أو `agent` أو `input`، أو قيمة
-  `toolConcurrency` خاطئة) تجعل `stream()` ترمي الخطأ بشكل متزامن.
+- **لا backpressure ولا شيء يضيع.** الـ run ما ينتظر المستهلك أبدًا. الأحداث
+  تتراكم في buffer حتى تقرأها، فالمستهلك البطيء يشوف كل حدث وبالترتيب. وحتى
+  لو عملت iterate بعد نهاية الـ run، توصلك أحداثه كلها.
+- **`enqueue(input)`** تضيف input من المستخدم للـ run وهو شغال: تدخل سجل
+  المحادثة قبل الـ model call التالي. شوف
+  [الـ input المنتظر](/ar/queue-and-steer#queued-input).
+- **`steer(input)`** تعيد توجيه الـ run: الـ model call التي لم تُنتج شيئًا
+  بعد تُلغى وتتكرر مع الـ input الجديد. شوف
+  [الـ steering](/ar/queue-and-steer#steering).
+- **مستهلك واحد.** ما تقدر تعمل iterate على `AgentRun` إلا مرة واحدة؛
+  `for await` ثانية ترمي خطأ. لتوزيع الأحداث على أكثر من جهة، اجمعها بنفسك.
+- الخيارات غير الصالحة — غياب `provider` أو `agent` أو `input`، أو
+  `toolConcurrency` غلط — تجعل `stream()` يرمي الخطأ بشكل متزامن.
 
 ```ts
 import { createAgent } from '@lousho/build-ai-agent';
@@ -74,20 +76,20 @@ const result = await run.result; // no iteration needed
 console.log(result.finishReason, result.text);
 ```
 
-## الاستماع دون المرور على الأحداث
+## الاستماع بدون iterating
 
-لمراقبة كل تشغيل دون المرور على بثّه، أعطِ الوكيل مستمعًا:
-`createAgent({ onEvent })`، أو `onAgentEvent` ضمن خيارات
-`AgentExecutor.execute()` / `stream()` / `resumeAfterApproval()`. يُستدعى
-المستمع بشكل متزامن مع كل `AgentEvent` لحظة وقوعه، في `send()` كما في
-`stream()`، وفي دورات الجلسات وفي التشغيلات المستأنَفة بعد موافقة. ويتلقى
-الأحداث نفسها وبالترتيب نفسه كما لو مررت على البث: فمع وجود مستمع، تبثّ
-`send()` / `execute()` كل استدعاء للنموذج أيضًا، فيصل نص الخطوة في عدة أحداث
-`text.delta` (حدث `text.delta` واحد لكل خطوة حين لا يستطيع المزوّد البث). اضمُمها
-معًا، أو استخدم `text.done` للحصول على النص الكامل لكل خطوة؛
-و`AgentExecutor.execute({ streamModelCalls: false })` تولّد الخطوات كاملة.
-وتبقى حواجز حماية المخرجات تفحص الرد النهائي لـ `send()` وحده، كما في غياب
-المستمع. وتصل أحداث الوكلاء الفرعيين موسومة بالحقل `subagent`.
+لمراقبة كل run بدون ما تعمل iterate على stream، أعطِ الـ agent listener:
+`createAgent({ onEvent })`، أو `onAgentEvent` في خيارات
+`AgentExecutor.execute()` / `stream()` / `resumeAfterApproval()`. الـ listener
+يوصله كل `AgentEvent` لحظة حدوثه وبشكل متزامن، في `send()` كما في `stream()`،
+وفي turns الـ session وفي الـ runs التي ترجع بعد approval. ويوصله نفس
+الأحداث وبنفس الترتيب الذي كنت ستشوفه لو عملت iterate على الـ stream: مع وجود
+listener، حتى `send()` و`execute()` يعملون stream لكل model call، فنص الخطوة
+يوصلك على عدة أحداث `text.delta` (لو الـ provider ما يقدر يعمل stream، يوصل
+`text.delta` واحد لكل خطوة). جمّعها مع بعضها، أو استخدم `text.done` للنص
+الكامل لكل خطوة؛ و`AgentExecutor.execute({ streamModelCalls: false })` تولّد
+خطوات كاملة. الـ output guardrails تفحص فقط الرد النهائي لـ `send()`، نفس
+الوضع بدون listener. وأحداث الـ sub-agents توصل موسومة بـ `subagent`.
 
 ```ts
 import { createAgent } from '@lousho/build-ai-agent';
@@ -105,40 +107,41 @@ await agent.send('Weather in Paris?');
 
 ### الانتقال من `onEvent` / `ExecutionEvent`
 
-أُزيل الخيار `ExecuteOptions.onEvent` ونوعه `ExecutionEvent` في هذا الإصدار
-(وكانا مُهمَلَين منذ LOU-D41). مرّر بدلًا منهما `onAgentEvent` إلى
+`ExecuteOptions.onEvent` ونوعه `ExecutionEvent` حُذفا في هذا الإصدار (كانا
+deprecated منذ LOU-D41). مرّر بدلها `onAgentEvent` إلى
 `AgentExecutor.execute()` / `stream()` / `resumeAfterApproval()` — أما
-`createAgent({ onEvent })` فيستقبل أحداث `AgentEvent` أصلًا ولم يتغيّر.
-يطابق الجدول أدناه أسماء الأحداث القديمة بأحداث `AgentEvent` التي يصل إليها
-المستمع الآن:
+`createAgent({ onEvent })` فتستقبل أحداث `AgentEvent` أصلًا ولم تتغير.
+الجدول تحت يربط أسماء الأحداث القديمة بأحداث `AgentEvent` التي يستقبلها الـ
+listener الآن:
 
 | `ExecutionEvent` (`onEvent`) | `AgentEvent` (`onAgentEvent`) |
 | --- | --- |
 | `start` (`agentId`, `agentName`) | `run.start` (`agentId`, `agentName`) |
-| `text-delta` (لا يصدر أبدًا) | `text.delta` (`text`) |
-| `text-complete` (`text`, `stepUsage`) | `text.done` (`text`)؛ واستهلاك الخطوة موجود في `step.done` (`usage`) |
+| `text-delta` (لم يكن يصدر أبدًا) | `text.delta` (`text`) |
+| `text-complete` (`text`, `stepUsage`) | `text.done` (`text`)؛ استهلاك الخطوة على `step.done` (`usage`) |
 | `tool-call` (`toolCall`) | `tool.start` (`toolCallId`, `toolName`، و`args` بعد تحليلها) |
 | `tool-result` (`toolResult`) | `tool.done` (`result`, `durationMs`, `replacedByHook`)، أو `tool.error` (`error.name`, `error.message`) |
 | `error` (`error: Error`) | `error` (`error: { name, message }`) |
-| `abort` (`abortReason`, `usage`) | `run.done` مع `finishReason: 'aborted'` (والسبب هو `reason` الخاص بإشارتك) |
-| `finish` (`finishReason`, `usage: RunUsage`) | `run.done` (`finishReason`, `text`, `usage`, `object`)؛ وقيمة `RunUsage` الكاملة موجودة في `result.usage` |
-| حدثا `start` / `finish` لوكيل فرعي (مع `subagent`) | حدثا `tool.start` / `tool.done` لدى الوكيل الرئيسي للاستدعاء الذي بدأه |
-| (لا شيء: كان التشغيل وكيلًا واحدًا) | `handoff` (`from` و`to` و`toolCallId`): سلّم التشغيل المحادثة إلى وكيل آخر ([التسليم](/ar/handoffs)) |
-| `timestamp: Date` | `timestamp`: سلسلة نصية بصيغة ISO-8601؛ إضافةً إلى `runId` و`seq` و`v` |
+| `abort` (`abortReason`, `usage`) | `run.done` مع `finishReason: 'aborted'` (والسبب هو `reason` في الـ signal) |
+| `finish` (`finishReason`, `usage: RunUsage`) | `run.done` (`finishReason`, `text`, `usage`, `object`)؛ الـ `RunUsage` الكامل على `result.usage` |
+| `start` / `finish` لـ sub-agent (مع `subagent`) | `tool.start` / `tool.done` للـ lead الخاصة بالـ call التي بدأته |
+| (لا شيء: كان الـ run يمثل agent واحد) | `handoff` (`from`، `to`، `toolCallId`): الـ run سلّم المحادثة لـ agent آخر ([Handoffs](/ar/handoffs)) |
+| `timestamp: Date` | `timestamp`: string بصيغة ISO-8601؛ زيادةً على `runId` و`seq` و`v` |
 
-ويُبلغ `AgentEvent` كذلك عمّا لم يكن `ExecutionEvent` يُبلغ عنه قط: حدود
-الخطوات، وطلبات الموافقة، وقرارات الصلاحيات، والميزانيات، وحواجز الحماية،
-والمدخلات المنتظِرة والموجَّهة، وضغط السياق، والاستدلال، وإعادة المحاولة لدى
-المزوّد، وانحراف الوكيل، وعمليات التسليم (انظر [المخطط](/ar/stream-events#مخطط-الأحداث-الإصدار-1)).
+`AgentEvent` يبلغك أيضًا عن أشياء `ExecutionEvent` ما كان يوصّلها أبدًا: حدود
+الخطوات، طلبات الـ approval، قرارات الصلاحيات، الـ budgets، الـ guardrails،
+الـ input المنتظر والموجَّه (queued وsteered)، الـ compaction، الـ reasoning،
+retries الـ provider، الـ agent drift، والـ handoffs (شوف
+[الـ schema](/ar/stream-events#event-schema-version-1)).
 
-## بث دورة في جلسة
+## الـ streaming لـ turn في session
 
-تبثّ `session.stream(input, { signal })` دورة واحدة من
-[جلسة](/ar/sessions) متعددة الدورات وتُرجع المقبض `AgentRun` نفسه. يرى التشغيل
-المحادثة حتى تلك اللحظة، وعند انتهائه تُحفظ دورته في مخزن الجلسة، تمامًا كما
-تحفظها `session.send()`. ويُسلَّم `run.done` بعد الحفظ، فيكون سجل المحادثة
-مكتملًا حين تنتهي الحلقة. أما التشغيل المُلغى أو الفاشل، أو الذي تتوقف عن
-قراءته مبكرًا، فلا يُحفظ.
+`session.stream(input, { signal })` تعمل stream لـ turn واحد من
+[session](/ar/sessions) (جلسة) متعددة الـ turns وترجع نفس `AgentRun`. الـ run
+يشوف المحادثة حتى تلك اللحظة، ولما يخلص يُحفظ الـ turn في store الـ session،
+تمامًا كما تحفظه `session.send()`. و`run.done` يوصل بعد الحفظ، فيكون سجل
+المحادثة كامل لما تنتهي الحلقة. أما الـ run الملغي أو الفاشل، أو الذي وقفت
+تقرأه مبكرًا، فلا يُحفظ.
 
 ```ts
 import { createAgent } from '@lousho/build-ai-agent';
@@ -153,19 +156,20 @@ const again = session.stream('What is my name?'); // streams with the first turn
 console.log((await again.result).text);
 ```
 
-## البث بعد الموافقة
+## الـ streaming بعد الـ approval
 
-التشغيل الذي توقف مؤقتًا بانتظار [موافقة](/ar/approvals) يمكن أن يُكمَل في صورة
-بث أيضًا. تُرجع `agent.approvals.streamResolve()` (أو `streamAnswer()`) كائن
-`AgentRun` قيمة `result` فيه هي ما تُرجعه `agent.approvals.resolve()`. أحداثه هي
-`run.start`، ثم `tool.resume` و`tool.done` للاستدعاء الذي حُسم أمره
-(و`tool.error` في حالة الرفض — `tool.resume` لا `tool.start` ثانٍ، لأن التشغيل
-المتوقف قد أبلغ عن بدء ذلك الاستدعاء من قبل)، ثم أحداث التتمّة تمامًا كما في تشغيل جديد، حتى
-`run.done`؛ وأي توقف مؤقت آخر ينهيه بـ `approval.requested` (مع `kind: 'sign-in'` ورابط `signIn` حين تنتظر أداةٌ [تسجيل دخول OAuth](/ar/oauth#ما-يراه-المستخدم)). يعمل الإلغاء
-و`enqueue()` و`steer()` كما في أي تشغيل، ويمكن أن تأتي الموافقة من عملية
-(process) أخرى، لأن كل شيء يُقرأ من مخزن الموافقات. وإذا كان النموذج يُختار
-لكل تشغيل (`model` على هيئة دالة) فالنموذج المستخدَم هو الذي استخدمه التشغيل
-المتوقف.
+الـ run الذي توقف بانتظار [approval](/ar/approvals) يقدر يكمل كـ stream
+أيضًا. `agent.approvals.streamResolve()` (أو `streamAnswer()`) ترجع
+`AgentRun` الـ `result` فيه هو نفس ما ترجعه `agent.approvals.resolve()`.
+أحداثه: `run.start`، ثم `tool.resume` و`tool.done` للـ call التي حُسم أمرها
+(`tool.error` في حالة الرفض — `tool.resume` وليس `tool.start` ثانية، لأن الـ
+run الموقوف كان قد أبلغ عن بداية تلك الـ call)، ثم أحداث الاستكمال نفسها كما
+في run جديد، حتى `run.done`. ولو صار توقف ثاني، ينتهي الـ stream بـ
+`approval.requested` (مع `kind: 'sign-in'` ورابط `signIn` لما تنتظر أداة
+[تسجيل دخول OAuth](/ar/oauth#ما-يراه-المستخدم)). الإلغاء و`enqueue()`
+و`steer()` يعملون بنفس الطريقة، والـ approval يمكن أن تأتي من process أخرى،
+لأن كل شيء يُقرأ من الـ approval store. ولو كان الـ model يُختار لكل run
+(`model` دالة)، فالذي يُستخدم هو نفس الذي استخدمه الـ run الموقوف.
 
 ```ts
 import { createAgent } from '@lousho/build-ai-agent';
@@ -180,11 +184,11 @@ for await (const event of run) {
 }
 ```
 
-#### متقدم: واجهة المنفّذ
+#### متقدّم: executor API
 
-مع المنفّذ مباشرة، تأخذ `streamResumeAfterApproval()` وسائط
-`resumeAfterApproval()` (انظر [واجهة المنفّذ](/ar/executor-api)) وتُرجع
-`AgentRun` نفسه.
+مع الـ executor مباشرة، `streamResumeAfterApproval()` تأخذ وسائط
+`resumeAfterApproval()` نفسها (شوف [الـ executor API](/ar/executor-api))
+وترجع نفس `AgentRun`.
 
 ```ts
 import { AgentExecutor, streamResumeAfterApproval } from '@lousho/build-ai-agent/executor';
@@ -197,29 +201,30 @@ for await (const event of run) {
 }
 ```
 
-لكل حدث `type` و`runId` و`seq` و`timestamp` و`v`. القائمة الكاملة لأنواع الأحداث، وضمانات الترتيب، ومساعدات TypeScript، وقواعد إدارة الإصدارات في [أحداث البث](/ar/stream-events).
+كل event فيه `type` و`runId` و`seq` و`timestamp` و`v`. القائمة الكاملة لأنواع
+الأحداث وضمانات الترتيب ومساعدات TypeScript وقواعد الإصدارات موجودة في
+[Stream events](/ar/stream-events).
 
-## الوكلاء الفرعيون
+## Sub-agents
 
-حين يفوّض الوكيل العمل عبر الأداة `task`
-(انظر [الوكلاء الفرعيون](/ar/sub-agents))، يُبَث تشغيل
-الوكيل الفرعي داخل البث نفسه: تظهر خطواته وأحداث `text.delta` و`text.done`
-وأحداث الأدوات والأخطاء الخاصة به بين `tool.start` و`tool.done` (أو
-`tool.error`) لدى الوكيل الرئيسي لذلك الاستدعاء، وكلٌّ منها يحمل الحقل
-`subagent`:
+لما الـ agent يفوّض الشغل عن طريق أداة `task`
+(شوف [Sub-agents](/ar/sub-agents))، run الـ sub-agent يوصل داخل نفس الـ
+stream: خطواته وأحداث `text.delta` و`text.done` وأحداث الـ tool والأخطاء تظهر
+بين `tool.start` و`tool.done` (أو `tool.error`) للـ lead في تلك الـ call،
+وكلها تحمل حقل `subagent`:
 
 ```json
 { "name": "researcher", "depth": 1, "toolCallId": "call_1", "description": "find sources" }
 ```
 
-الحقل `toolCallId` هو استدعاء الأداة لدى الوكيل الرئيسي الذي بدأ الوكيل
-الفرعي؛ والوكيل الفرعي لوكيل فرعي يحمل `depth: 2` ويحمل الوكيلَ الذي يحتويه في
-`parent`. الأحداث التي ليس فيها `subagent` تخص التشغيل في المستوى الأعلى:
-ضمانات الترتيب أعلاه تسري عليها، وتسري على حدة على خطوات كل وكيل فرعي (وأحداث
-عدة وكلاء فرعيين يعملون بالتوازي تتداخل). `run.start` و`run.done` يخصّان
-التشغيل في المستوى الأعلى وحده، فيظلان يصدران مرة واحدة بالضبط. والوكيل الفرعي
-الذي يتوقف مؤقتًا بانتظار موافقة يُبلَغ عنه مرة واحدة، عبر `approval.requested`
-في المستوى الأعلى (وهو يحمل استدعاء الوكيل الفرعي).
+`toolCallId` هو الـ tool call لدى الـ lead الذي بدأ الـ sub-agent؛ والـ
+sub-agent التابع لـ sub-agent آخر يحمل `depth: 2` والذي يحتويه في `parent`.
+الأحداث التي ما فيها `subagent` تخص الـ run في المستوى الأعلى: ضمانات الترتيب
+المذكورة أعلاه تسري عليها، وتسري بشكل مستقل على خطوات كل sub-agent (وعدة
+sub-agents يعملون بالتوازي تتداخل أحداثهم). `run.start` و`run.done` يخصّان
+الـ run في المستوى الأعلى فقط، فيظهران مرة واحدة بالضبط. والـ sub-agent الذي
+يتوقف بانتظار approval يُبلَغ عنه مرة واحدة، عبر `approval.requested` في
+المستوى الأعلى (وهي تحمل الـ call الخاصة بالـ sub-agent).
 
 ```ts
 import { createAgent } from '@lousho/build-ai-agent';
@@ -233,32 +238,33 @@ for await (const event of lead.stream('Write about bicycles')) {
 }
 ```
 
-## بث الرموز والمزوّدون
+## Token streaming والـ providers
 
-حين ينفّذ المزوّد الدالة `stream()` (وهذا حال كل المزوّدين المضمَّنين
-و`mockModel`)، تُبَث كل خطوة نموذج وتصل أحداث `text.delta` أثناء إنتاج النموذج
-للنص. وتُجمَّع استدعاءات الأدوات من البث. وحين لا يملك المزوّد `stream()`، أو
-تُرجع دالته `supportsStreaming(model)` القيمة `false`، ترجع الخطوة إلى
-`generate()` ويصل نصها في `text.delta` واحد يتبعه `text.done`.
+لما الـ provider ينفّذ `stream()` (كل الـ providers المدمجين ينفذونها،
+و`mockModel` كذلك)، كل خطوة model تطلع كـ stream وتوصل أحداث `text.delta` مع
+إنتاج الـ model للنص. والـ tool calls تتجمّع من الـ stream. ولو الـ provider
+ما عنده `stream()`، أو `supportsStreaming(model)` ترجع `false`، ترجع الخطوة
+إلى `generate()` ويوصل نصها في `text.delta` واحد يتبعه `text.done`.
 
-البث لا يغيّر إلا طريقة الحصول على خطوة نموذج واحدة. الخطّافات، والتحقق من
-الوسائط، والموافقات، واستدعاءات الأدوات المتوازية، ونقاط الحفظ، والإلغاء،
-ومقاطع التتبّع (spans)، وسائر دوال رد النداء في `execute()` تتصرف تمامًا كما في
-`send()`. وتبثّ `send()` و`execute()` بالطريقة نفسها حين يكون لهما مستمع
-(`onEvent` / `onAgentEvent`)؛ وبدونه تستخدمان `generate()`.
+الـ streaming يغيّر فقط طريقة الحصول على خطوة model واحدة. الـ hooks،
+والتحقق من الـ arguments، والـ approvals، والـ tool calls المتوازية، والـ
+checkpoints، والإلغاء، والـ tracing spans، وباقي callbacks في `execute()` —
+كلها تتصرف تمامًا كما في `send()`. و`send()` و`execute()` يعملون stream بنفس
+الطريقة لما يكون عندهم listener (`onEvent` / `onAgentEvent`)؛ وبدونه
+يستخدمون `generate()`.
 
-ينبغي أن تُخرج الدالة `stream()` في المزوّد المخصَّص قطعًا من النوع
-`text-delta` ثم قطعة `finish` ختامية فيها `finishReason` و`usage`. يمكن إخراج
-استدعاءات الأدوات في قطع `tool-call`، أو إنجازها عبر الوعد `toolCalls` في
-`StreamResult`. وقطعة `error` تُفشل الخطوة.
+`stream()` في الـ provider المخصص لازم تُخرج chunks من نوع `text-delta`
+وchunk أخير `finish` فيه `finishReason` و`usage`. الـ tool calls تقدر تُخرجها
+كـ chunks من نوع `tool-call`، أو تُنجزها على الـ promise `toolCalls` في
+`StreamResult`. وchunk من نوع `error` يفشّل الخطوة.
 
 ## الإلغاء
 
-مرّر `signal` لإيقاف التشغيل من الخارج، أو اخرج من الحلقة. كلاهما ينهي التشغيل
-بالطريقة نفسها التي ينتهي بها `send()` مُلغى: تُفحص الإشارة بين قطع البث، وقبل
-كل استدعاء للنموذج وكل استدعاء أداة، وتصل إلى المزوّد وإلى الأدوات. ينتهي البث
-بـ `step.done` (`'aborted'`، إن كانت هناك خطوة تعمل) ثم `run.done`
-(`'aborted'`)، ويُنجَز `result` بـ `finishReason: 'aborted'`.
+مرّر `signal` لإيقاف run من الخارج، أو اخرج من الحلقة. كلاهما ينهي الـ run
+بنفس طريقة `send()` الملغاة: الـ signal يُفحص بين chunks الـ stream، وقبل كل
+model call وكل tool call، ويوصل للـ provider وللـ tools. الـ stream ينتهي بـ
+`step.done` (`'aborted'` لو كانت هناك خطوة تعمل) ثم `run.done`
+(`'aborted'`)، و`result` يرجع `finishReason: 'aborted'`.
 
 ```ts
 import { createAgent } from '@lousho/build-ai-agent';
@@ -274,9 +280,11 @@ for await (const event of run) {
 console.log((await run.result).finishReason); // 'aborted'
 ```
 
-لإضافة مدخلات إلى تشغيل ما زال جاريًا، أو لإعادة توجيهه، انظر [المدخلات في قائمة الانتظار والتوجيه](/ar/queue-and-steer): تنتظر `run.enqueue(input)` النقطة الآمنة التالية، وتقاطع `run.steer(input)` استدعاء النموذج الحالي.
+لإضافة input لـ run ما زال يعمل، أو لإعادة توجيهه، شوف [الـ queued input
+والـ steering](/ar/queue-and-steer): `run.enqueue(input)` تنتظر النقطة
+الآمنة التالية، و`run.steer(input)` تقاطع الـ model call الحالي.
 
-## مثال: الطرفية
+## مثال: terminal
 
 ```ts
 import { createAgent, defineTool } from '@lousho/build-ai-agent';
@@ -311,8 +319,8 @@ for await (const event of agent.stream('Weather in Paris?')) {
 
 ## مثال: Server-Sent Events
 
-الأحداث قابلة للتحويل إلى JSON، فنقطة نهاية SSE ليست أكثر من `res.write` واحد
-لكل حدث. ألغِ التشغيل حين ينقطع اتصال العميل.
+كل event serializable كـ JSON، فنقطة نهاية SSE ما هي إلا `res.write` واحد
+لكل event. ألغِ الـ run لما ينقطع اتصال العميل.
 
 ```ts
 import { createServer } from 'node:http';
@@ -344,19 +352,19 @@ source.onmessage = (message) => {
 };
 ```
 
-لواجهة محادثة بـ React فوق نقطة نهاية من هذا النوع، انظر [React](/ar/react):
-يرسل `useLoushoAgent()` المدخلات بطلب POST ويقرأ أسطر `data:` نفسها.
+لواجهة chat بـ React فوق endpoint من هذا النوع، شوف [React](/ar/react):
+`useLoushoAgent()` يرسل الـ input بـ POST ويقرأ نفس أسطر `data:`.
 
-يقدّم `lousho dev` هذه الصيغة بجلسة لكل تبويب في المتصفح: الطلب `POST /chat`
-مع `{ sessionId, input }` يبثّ `agent.session({ id }).stream(input)` في أسطر
-`data:` تنتهي بـ `event: done`، وتُحسم الموافقات عبر
-`POST /chat/:sessionId/approvals/:id` (انظر [CLI](/ar/cli#lousho-dev)).
+`lousho dev` يقدّم نفس الصيغة بـ session لكل تبويب في المتصفح: `POST /chat`
+مع `{ sessionId, input }` يعمل stream لـ `agent.session({ id }).stream(input)`
+كأسطر `data:` تنتهي بـ `event: done`، والـ approvals تُحسم عبر
+`POST /chat/:sessionId/approvals/:id` (شوف [CLI](/ar/cli#lousho-dev)).
 
-## متقدم: واجهة المنفّذ
+## متقدّم: executor API
 
-تقبل `AgentExecutor.stream()` كل خيارات `execute()` (انظر
-[واجهة المنفّذ](/ar/executor-api)). وهنا أداة تحتاج إلى موافقة
-تنهي البث بـ `approval.requested`:
+`AgentExecutor.stream()` تقبل كل خيارات `execute()` (شوف
+[الـ executor API](/ar/executor-api)). هنا tool يحتاج approval ينهي الـ
+stream بـ `approval.requested`:
 
 ```ts
 import { AgentExecutor } from '@lousho/build-ai-agent/executor';
