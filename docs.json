@@ -48,32 +48,56 @@
                   "quickstart",
                   "installation",
                   "troubleshooting",
-                  "coding-agents"
+                  "coding-agents",
+                  "build-a-coding-agent"
                 ]
               },
               {
-                "group": "Build an agent",
+                "group": "Models and output",
                 "pages": [
-                  "tools",
-                  "openapi-tools",
-                  "hosted-tools",
-                  "tool-search",
-                  "code-mode",
-                  "approvals",
-                  "permission-modes",
-                  "hooks",
-                  "sessions",
-                  "runs",
-                  "memory",
-                  "structured-output",
-                  "streaming",
-                  "stream-events",
-                  "prompting-techniques",
-                  "queue-and-steer",
-                  "reasoning",
                   "providers",
                   "models-and-cost",
-                  "build-a-coding-agent"
+                  "reasoning",
+                  "structured-output",
+                  "streaming",
+                  "stream-events"
+                ]
+              },
+              {
+                "group": "Prompting and context",
+                "pages": [
+                  "prompting-techniques",
+                  "memory",
+                  "compaction"
+                ]
+              },
+              {
+                "group": "Tools",
+                "pages": [
+                  "tools",
+                  "workspace-tools",
+                  "hosted-tools",
+                  "openapi-tools",
+                  "tool-search",
+                  "code-mode"
+                ]
+              },
+              {
+                "group": "Sessions and runs",
+                "pages": [
+                  "sessions",
+                  "runs",
+                  "queue-and-steer",
+                  "durable-execution"
+                ]
+              },
+              {
+                "group": "Approvals and safety",
+                "pages": [
+                  "approvals",
+                  "permission-modes",
+                  "guardrails",
+                  "hooks"
                 ]
               },
               {
@@ -82,36 +106,42 @@
                   "sub-agents",
                   "handoffs",
                   "skills",
-                  "mcp-integration",
-                  "connectors",
-                  "agent-directories",
-                  "claude-projects",
                   "flows"
                 ]
               },
               {
-                "group": "Run it reliably",
+                "group": "Project structure",
                 "pages": [
-                  "durable-execution",
-                  "compaction",
-                  "guardrails",
-                  "workspace-tools"
+                  "agent-directories",
+                  "claude-projects"
                 ]
               },
               {
-                "group": "Put it in front of people",
+                "group": "Integrations",
+                "pages": [
+                  "mcp-integration",
+                  "connectors"
+                ]
+              },
+              {
+                "group": "User interfaces",
                 "pages": [
                   "react",
                   "vue",
                   "svelte",
                   "ai-sdk-ui",
                   "nextjs",
+                  "acp"
+                ]
+              },
+              {
+                "group": "Access and events",
+                "pages": [
                   "auth",
                   "oauth",
                   "channels",
                   "schedules",
-                  "triggers",
-                  "acp"
+                  "triggers"
                 ]
               },
               {
@@ -182,11 +212,11 @@
         "language": "ar",
         "tabs": [
           {
-            "tab": "التوثيق",
+            "tab": "\u00d8\u00a7\u00d9\u201e\u00d8\u00aa\u00d9\u02c6\u00d8\u00ab\u00d9\u0160\u00d9\u201a",
             "icon": "book-open",
             "groups": [
               {
-                "group": "البداية",
+                "group": "\u00d8\u00a7\u00d9\u201e\u00d8\u00a8\u00d8\u00af\u00d8\u00a7\u00d9\u0160\u00d8\u00a9",
                 "pages": [
                   "ar/introduction",
                   "ar/quickstart",
@@ -196,7 +226,7 @@
                 ]
               },
               {
-                "group": "بناء وكيل",
+                "group": "\u00d8\u00a8\u00d9\u2020\u00d8\u00a7\u00d8\u00a1 \u00d9\u02c6\u00d9\u0192\u00d9\u0160\u00d9\u201e",
                 "pages": [
                   "ar/tools",
                   "ar/openapi-tools",
@@ -220,7 +250,7 @@
                 ]
               },
               {
-                "group": "تركيب الوكلاء",
+                "group": "\u00d8\u00aa\u00d8\u00b1\u00d9\u0192\u00d9\u0160\u00d8\u00a8 \u00d8\u00a7\u00d9\u201e\u00d9\u02c6\u00d9\u0192\u00d9\u201e\u00d8\u00a7\u00d8\u00a1",
                 "pages": [
                   "ar/sub-agents",
                   "ar/handoffs",
@@ -231,7 +261,7 @@
                 ]
               },
               {
-                "group": "تشغيل موثوق",
+                "group": "\u00d8\u00aa\u00d8\u00b4\u00d8\u00ba\u00d9\u0160\u00d9\u201e \u00d9\u2026\u00d9\u02c6\u00d8\u00ab\u00d9\u02c6\u00d9\u201a",
                 "pages": [
                   "ar/durable-execution",
                   "ar/compaction",
@@ -240,7 +270,7 @@
                 ]
               },
               {
-                "group": "واجهات المستخدمين",
+                "group": "\u00d9\u02c6\u00d8\u00a7\u00d8\u00ac\u00d9\u2021\u00d8\u00a7\u00d8\u00aa \u00d8\u00a7\u00d9\u201e\u00d9\u2026\u00d8\u00b3\u00d8\u00aa\u00d8\u00ae\u00d8\u00af\u00d9\u2026\u00d9\u0160\u00d9\u2020",
                 "pages": [
                   "ar/react",
                   "ar/vue",
@@ -256,7 +286,7 @@
                 ]
               },
               {
-                "group": "الاختبار والمراقبة",
+                "group": "\u00d8\u00a7\u00d9\u201e\u00d8\u00a7\u00d8\u00ae\u00d8\u00aa\u00d8\u00a8\u00d8\u00a7\u00d8\u00b1 \u00d9\u02c6\u00d8\u00a7\u00d9\u201e\u00d9\u2026\u00d8\u00b1\u00d8\u00a7\u00d9\u201a\u00d8\u00a8\u00d8\u00a9",
                 "pages": [
                   "ar/testing",
                   "ar/evals",
@@ -264,7 +294,7 @@
                 ]
               },
               {
-                "group": "النشر",
+                "group": "\u00d8\u00a7\u00d9\u201e\u00d9\u2020\u00d8\u00b4\u00d8\u00b1",
                 "pages": [
                   "ar/cli",
                   "ar/deployment",
@@ -276,11 +306,11 @@
             ]
           },
           {
-            "tab": "أمثلة",
+            "tab": "\u00d8\u00a3\u00d9\u2026\u00d8\u00ab\u00d9\u201e\u00d8\u00a9",
             "icon": "chef-hat",
             "groups": [
               {
-                "group": "أمثلة",
+                "group": "\u00d8\u00a3\u00d9\u2026\u00d8\u00ab\u00d9\u201e\u00d8\u00a9",
                 "pages": [
                   "ar/examples"
                 ]
@@ -288,11 +318,11 @@
             ]
           },
           {
-            "tab": "المرجع",
+            "tab": "\u00d8\u00a7\u00d9\u201e\u00d9\u2026\u00d8\u00b1\u00d8\u00ac\u00d8\u00b9",
             "icon": "code",
             "groups": [
               {
-                "group": "المرجع",
+                "group": "\u00d8\u00a7\u00d9\u201e\u00d9\u2026\u00d8\u00b1\u00d8\u00ac\u00d8\u00b9",
                 "pages": [
                   "ar/api-overview",
                   "ar/executor-api",
@@ -303,7 +333,7 @@
                 ]
               },
               {
-                "group": "الإصدارات",
+                "group": "\u00d8\u00a7\u00d9\u201e\u00d8\u00a5\u00d8\u00b5\u00d8\u00af\u00d8\u00a7\u00d8\u00b1\u00d8\u00a7\u00d8\u00aa",
                 "pages": [
                   "ar/upgrading"
                 ]
