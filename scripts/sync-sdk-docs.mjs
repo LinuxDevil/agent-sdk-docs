@@ -83,6 +83,7 @@ const PAGES = {
   'docs/queue-and-steer.md': 'queue-and-steer',
   'docs/openapi-tools.md': 'openapi-tools',
   'docs/prompting-techniques.md': 'prompting-techniques',
+  'docs/decisions.md': 'decisions',
   'docs/connectors.md': 'connectors',
   'docs/claude-projects.md': 'claude-projects',
   'docs/hostinger-vps.md': 'hostinger-vps',

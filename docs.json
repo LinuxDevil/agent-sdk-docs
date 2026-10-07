@@ -58,6 +58,7 @@
                   "providers",
                   "models-and-cost",
                   "reasoning",
+                  "decisions",
                   "structured-output",
                   "streaming",
                   "stream-events"
