@@ -116,8 +116,12 @@ cd .lousho/build/cloudflare-worker && npx wrangler deploy
   reports the problem.
 - `subagents/<name>/` directories are embedded recursively, with the same layout rules as the
   parent's. Each needs a `description` in its config (the parent model reads it to decide
-  when to delegate); the parent's tools gain a `delegate_to_<name>` tool that runs the
-  sub-agent's turn. A sub-agent inherits the parent's model unless its config sets its own.
+  when to delegate). Each is a native sub-agent of the parent, as with `loadAgentDir()`: the
+  parent delegates with the `task` tool or its `delegate_to_<name>` alias, and the sub-agent
+  runs inside the parent's run, so the parent's `permissions` rules hold in it, its approvals
+  pause the parent (its own inline `approve` decides them first) and its usage is added to the
+  parent's (see [Sub-agents](/agent-directories#sub-agents)). A sub-agent inherits the
+  parent's model unless its config sets its own.
 - `schedules/` files become [cron triggers](#scheduled-runs): the build evaluates each file
   to write its cron expression to `wrangler.toml`'s `[triggers] crons` (the same UTC /
   five-field / day-name rules as a spec's triggers), and the generated Worker exports a
@@ -128,7 +132,7 @@ cd .lousho/build/cloudflare-worker && npx wrangler deploy
   `LOUSHO_API_TOKEN` does not cover them. A turn that outlives its acknowledged webhook
   keeps running under `ctx.waitUntil`.
 - `memory/` slots need a provider that works without a file system. `kvMemory()` keeps a
-  slot's items under `memory/<scope>` keys of the `AGENT_CHECKPOINTS` KV namespace (or of
+  slot's items under `memory/<slot>#<scope>` keys of the `AGENT_CHECKPOINTS` KV namespace (or of
   the binding its `binding` option names); without that binding, items live in one
   isolate's memory. `inMemoryMemory()` works the same way; `fileMemory()` cannot run here.
 - `projectInstructions: true` reads the nearest `AGENTS.md` / `CLAUDE.md` **at build time**
@@ -226,10 +230,11 @@ Worker reads). `KVStore`'s keys, with an optional `prefix` before each:
 | Key | Value |
 | --- | ----- |
 | `sessions/<id>` | The transcript as JSON (image and file bytes as `{ "$bytes": "<base64>" }`, like `FileSessionStore`). |
-| `checkpoints/<id>` | The `Checkpoint` of a durable run or session turn (`KVCheckpointStore`, with its history under `checkpoints/<id>#history`). |
-| `approvals/<id>` | A paused approval and the snapshot that resumes it (deleted when it is decided). |
+| `checkpoints/<id>` | The `Checkpoint` of a durable run or session turn (`KVCheckpointStore`, with its history under `checkpoints/<id>#history`; bytes encoded the same way). |
+| `approvals/<id>` | A paused approval and the snapshot that resumes it (deleted when it is decided; bytes encoded the same way). |
+| `approvals/<id>#claim` | The claim of the request deciding that approval (a random token, expires after 60 seconds; see below). |
 | `oauth/tokens/<key>`, `oauth/pending/<state>` | OAuth tokens and pending sign-ins, encrypted with `tokenKey` (the `LOUSHO_TOKEN_KEY` secret in the generated Worker); see [OAuth](/oauth#token-storage). |
-| `memory/<scopeKey>` | The items of a `kvMemory()` memory slot (`global`, `session:<id>` or a custom scope's key) - written by the provider itself, not `KVStore`. |
+| `memory/<slot>#<scope>` | The items of a `kvMemory()` memory slot (`notes#global`, `prefs#session:<id>` or a custom scope's key) - written by the provider itself, not `KVStore`. |
 
 `ttl: { sessions?, checkpoints?, approvals? }` (seconds, KV accepts 60 or more)
 makes each kind of record expire that long after its last write; by default
@@ -242,6 +247,45 @@ resumed run: the decided call's `tool.resume` and `tool.done` (`tool.error` for
 a rejection), then the turn's events, ending with a `run.done` that carries
 the final text.
 
+### Deciding one approval twice
+
+KV has no compare-and-swap, so `KVStore` cannot claim an approval atomically
+the way `fileStore` and `SqliteStore` do. To decide one, a request writes a
+random token under `approvals/<id>#claim` (unless a claim is already there),
+reads it back, and only the request whose token is still there deletes the
+approval and runs the call. A double click, a retried webhook or two reviewers
+deciding at once then run the approved tool once in the common case.
+
+This narrows the race but does not close it: two requests served by different
+edge locations within KV's propagation delay (up to about 60 seconds) can both
+read their own token and both run the call. For a tool with a side effect that
+must happen once (a payment, an email), pass `ctx.approval.id` on as an
+idempotency key. It is the same for every attempt to run one decided call:
+
+```ts
+import { defineTool } from '@lousho/build-ai-agent';
+import { z } from 'zod';
+
+// `payments` stands in for your payment client.
+declare const payments: {
+  create(payment: { invoice: string; cents: number }, options: { idempotencyKey: string }): Promise<unknown>;
+};
+
+const payout = defineTool({
+  name: 'payout',
+  description: 'Pay a vendor invoice',
+  input: z.object({ invoice: z.string(), cents: z.number() }),
+  needsApproval: true,
+  execute: async ({ invoice, cents }, ctx) =>
+    payments.create({ invoice, cents }, { idempotencyKey: ctx.approval?.id ?? ctx.toolCallId }),
+});
+```
+
+When it has to be exact, keep the approvals in a store with an atomic claim: a
+Durable Object, or D1 through an `ApprovalStore` of your own whose `resolve()`
+deletes and returns the record in one statement. The generated Worker binds
+no Durable Object, so it uses `KVStore`.
+
 The deprecated `POST /chat { "message", "sessionId"? }` keeps its earlier
 behaviour on Workers: with a `sessionId` the run is checkpointed to
 `checkpoints/<sessionId>` after each tool result and rehydrated by a later
@@ -252,7 +296,7 @@ request that reuses the `sessionId` (after a crash or a recycled isolate).
 Cron triggers in the spec (`triggers: [{ type: 'cron', cron: '0 9 * * MON', input: '...' }]`)
 become `[triggers] crons = [...]` in `wrangler.toml`, and the generated Worker
 exports a `scheduled()` handler that runs them as agent turns (session
-`schedule-<name>`, see [Schedules](/schedules#on-cloudflare-workers)). An agent
+`schedule-<name>-<fire time>`, see [Schedules](/schedules#on-cloudflare-workers)). An agent
 directory's `schedules/` files work the same way: the build evaluates them for
 the expressions and generates the `scheduled()` export. Cloudflare
 evaluates the expressions in **UTC** with a granularity of one minute; the
@@ -266,7 +310,7 @@ specifier in the generated code is a virtual one that only `lousho build`'s
 bundler resolves; do not import it yourself). It runs the schedules whose
 `cron` equals `controller.cron` inside `ctx.waitUntil()` and never throws; list
 the same expressions under `[triggers] crons` yourself. Give the agent a store
-— without one, a scheduled run's `schedule-<name>` session lives in one
+— without one, a scheduled run's session lives in one
 isolate's memory and is gone when it is recycled:
 
 ```ts

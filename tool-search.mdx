@@ -105,8 +105,15 @@ tool (approvals, permissions and guardrails apply as usual). `stream()` reports
 The default ranking compares the query's words with each deferred tool's name
 (split on `_`, `-`, `__` and camelCase) and description, case-insensitively.
 A word found in the name counts three times as much as one found in the
-description; ties are ordered by name. The same function is exported as
-`rankToolsByKeywords(query, tools)`.
+description; plurals are folded (`statuses` finds `status`). A related word
+gets partial credit: the same word family (`sending` finds `send`) or a synonym
+from a small built-in table of common tool verbs and nouns (`fetch` / `get` /
+`retrieve`, `delete` / `remove`, `share` / `stock` / `equity`,
+`value` / `price` / `quote`), so `share value` finds `fetch_equity_quote`.
+Exact words still rank above related ones; ties are ordered by name. The same
+function is exported as `rankToolsByKeywords(query, tools)`. It stays
+lexical: for real semantic search, pass your own `search` (for example
+embeddings).
 
 ## `toolSearch` options
 
@@ -118,7 +125,7 @@ the search. Deferral itself is turned on by marking tools or servers
 | ------ | ------- | ----------- |
 | `thresholdPercent` | `0.1` | Defer only when the deferred definitions reach this share of the context window. `0` always defers. |
 | `maxResults` | `5` | Tools loaded per search. |
-| `contextWindow` | the model registry, else 128,000 | The model's context window, for the threshold. |
+| `contextWindow` | the model registry, else 128,000 | The model's context window, for the threshold. The 128,000 fallback logs a one-time `console.warn`; set it (or `registerModel()`) for local models. |
 | `search(query, tools)` | keyword ranking | Your own ranking (for example embeddings): return tool names, best first. Unknown names and duplicates are dropped. If it throws, the call is a tool error and loads nothing. |
 
 ```ts
@@ -179,8 +186,9 @@ loaded tool into a `LOUSHO_MCP_AUTH_REQUIRED` tool error, as without deferral.
 
 ## Prompt caching
 
-The tool list changes when tools load. Providers that cache the request prefix
-(Anthropic prompt caching, OpenAI's automatic caching) put tool definitions at
-the start of it, so a step that loads tools can miss the cache from that point.
-Loading happens a few times per run at most; if your runs reuse a long cached
+The tool list changes when tools load. OpenAI caches the request prefix
+automatically, and for Claude models the SDK marks Anthropic cache breakpoints
+([`promptCaching: 'auto'`](/models-and-cost#prompt-caching)). Both put tool
+definitions at the start of the prefix, so a step that loads tools misses the
+cache from that point and writes a new entry. Loading happens a few times per run at most. If your runs reuse a long cached
 prefix across many calls, compare the cost with `toolSearch: false`.

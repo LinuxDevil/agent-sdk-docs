@@ -40,12 +40,12 @@ const result = await FlowExecutor.execute(flow, { agent, provider, variables: { 
 | `type` | What it does |
 | ------ | ------------ |
 | `sequence` | Runs its `steps` one after another. |
-| `parallel` | Runs its steps at the same time. |
+| `parallel` | Runs its steps at the same time. If one fails, the others are cancelled (see [Cancelling a flow](#cancelling-a-flow)). |
 | `llmCall` | Calls the model with a `prompt` (with `{{variable}}` placeholders); `outputVariable` stores the reply. |
 | `toolCall` | Calls a tool with `arguments` (placeholders interpolated). |
 | `setVariable` | Sets `variable` to `value`. |
 | `oneOf` | Takes the first branch whose condition matches. |
-| `forEach` | Runs a step for each item of `items`, one after another. |
+| `forEach` | Runs a step for each item of `items`, one after another. The item and index (`itemVariable`, default `item`; `indexVariable`, default `index`) belong to that iteration only, so loops in `parallel` branches never see each other's item; other variables the step sets are written to the flow's variables. |
 | `evaluator` | Evaluates an expression over the flow's variables. |
 | `return`, `end` | Produce the node's `value` as the result. |
 | `throw` | Fails the flow with the node's `message` (`{{variable}}` placeholders interpolated; default `'Flow error'`). |
@@ -54,6 +54,220 @@ const result = await FlowExecutor.execute(flow, { agent, provider, variables: { 
 language (no `eval`, no host code; `{{name}}` placeholders are bound as
 values, never pasted into the expression). Its grammar and failure rules are
 in [Flow expressions](#flow-expressions).
+
+## Tool calls
+
+A `toolCall` step passes the same checks as a tool call in an agent run before
+its tool runs:
+
+- Its arguments, after `{{variable}}` interpolation, are validated against the
+  tool's input schema. Arguments that do not match fail the step with
+  `LOUSHO_TOOL_ARGS_INVALID`, listing each problem, and the tool is not called.
+- The flow context's `permissions`, `permissionMode` and `onPermissionDecision`
+  apply as they do for `createAgent()` (see [Permission policies](/approvals#permission-policies) and [Permission modes](/permission-modes)).
+- A call that needs approval (the tool's `needsApproval`, or an `ask` rule) is
+  decided by the context's `approve` callback, which has the same shape as
+  `createAgent({ approve })`. `true` (or a note) runs the tool. `false` refuses
+  it with `LOUSHO_FLOW_TOOL_DENIED`. When `approve` returns `'defer'`, or there
+  is no `approve` callback, a [durable run](#durable-runs) pauses until a person
+  decides (see [Pausing for approval](#pausing-for-approval)). A run that is
+  not durable refuses the call with `LOUSHO_FLOW_TOOL_DENIED`. The tool is
+  never run unapproved.
+
+```ts
+import { FlowExecutor, type AgentFlow } from '@lousho/build-ai-agent/flows';
+
+declare const flow: AgentFlow;
+
+const result = await FlowExecutor.execute(flow, {
+  agent,
+  provider,
+  toolRegistry,
+  variables: { invoiceId: 'inv-1' },
+  approve: ({ toolName, args }) => toolName !== 'pay_vendor' || Number(args.amount) < 1000,
+});
+```
+
+A flow's declared inputs are checked before the first step runs. A missing
+`required` input, or a value of the wrong type, fails the flow with
+`LOUSHO_VALIDATION_FAILED`.
+
+## Cancelling a flow
+
+Pass `signal` in the context to cancel a run. It is checked before every step:
+once it is aborted, no further step starts and the flow fails with the signal's
+`reason`. The step that is running gets the signal too: an `llmCall` passes it
+to the model request, and a `toolCall` hands it to the tool as `ctx.abortSignal`.
+
+```ts
+import { FlowExecutor, type AgentFlow } from '@lousho/build-ai-agent/flows';
+
+declare const flow: AgentFlow;
+
+const result = await FlowExecutor.execute(flow, {
+  agent,
+  provider,
+  variables: {},
+  signal: AbortSignal.timeout(30_000),
+});
+```
+
+When a branch of a `parallel` step fails, its sibling branches are cancelled
+the same way: they start no further step, and their running `llmCall` or
+`toolCall` gets an aborted signal. The flow returns the first branch's error
+only once every branch has settled, so no tool runs and no event is added to
+`result.events` after the result is returned. A tool that ignores
+`ctx.abortSignal` still runs to the end, and the flow waits for it.
+
+`result.usage` sums the model usage (`promptTokens`, `completionTokens`,
+`totalTokens`, and `cachedInputTokens`, `reasoningTokens`, `costUsd` when
+reported) of every `llmCall` in the run, including a failed one.
+
+A step without an `id` gets one that is unique within the run (`step-1`,
+`step-2`, ... in the order the steps start), so `step-start` and
+`step-complete` events can be paired by `stepId`.
+
+## Retries and time limits
+
+Any node can have `retry` and `timeoutMs`. That includes `llmCall`,
+`toolCall`, `sequence`, `parallel` and `forEach`.
+
+- `retry: { maxAttempts, backoffMs? }` runs a failing node again, up to
+  `maxAttempts` attempts in all. It waits `backoffMs * 2^(attempt - 1)` ms
+  before each retry (default `0`). Each failed attempt that is retried emits a
+  `step-retry` event with `{ attempt, maxAttempts, delayMs }` and the
+  attempt's `error`. Only the last failure emits `step-error`. A cancelled run
+  (`signal`) is not retried.
+- `timeoutMs` fails an attempt that runs longer with `LOUSHO_OPERATION_TIMEOUT`
+  (a `TimeoutError`). The attempt's model request or tool call gets an aborted
+  signal. A timed-out attempt is retried like any other failure. A tool that
+  ignores `ctx.abortSignal` keeps running in the background.
+
+Invalid values (`maxAttempts` < 1 or not an integer, a negative `backoffMs`,
+a `timeoutMs` <= 0) fail the step with `LOUSHO_FLOW_INVALID`.
+
+```ts
+import type { EditorStep } from '@lousho/build-ai-agent/flows';
+
+const fetchInvoice: EditorStep = {
+  type: 'toolCall',
+  tool: 'fetch_invoice',
+  arguments: { id: '{{invoiceId}}' },
+  outputVariable: 'invoice',
+  retry: { maxAttempts: 3, backoffMs: 500 },
+  timeoutMs: 10_000,
+};
+```
+
+A retried container runs its children again. The exception is a durable run
+(below): there, children that completed in an earlier attempt are skipped.
+
+## Durable runs
+
+Pass a `checkpointStore` and a `runId` to make a run durable. The run's
+variables, the nodes that completed (with their results), the branch each
+`oneOf` took and the usage so far are saved under `runId` after every node
+that completes, and again when the flow finishes. Any `CheckpointStore` works,
+such as `memoryStore().checkpoints` or a SQLite store (see
+[Durable execution](/durable-execution)).
+
+After a crash, or when a step failed, continue the run with
+`FlowExecutor.resume(flow, context)`. Pass the same `checkpointStore` and
+`runId`. Completed nodes are not run again: each one returns its saved result,
+and a `oneOf` takes the branch it took before. Everything else runs as usual,
+from the saved variables. `result.usage` and `result.steps` include the
+earlier attempts.
+
+```ts
+import { FlowExecutor, type AgentFlow } from '@lousho/build-ai-agent/flows';
+import { memoryStore } from '@lousho/build-ai-agent';
+
+declare const flow: AgentFlow;
+const checkpointStore = memoryStore().checkpoints;
+
+const first = await FlowExecutor.execute(flow, { agent, provider, toolRegistry, variables: { orderId: 'o-42' }, checkpointStore, runId: 'order-o-42' });
+if (!first.success) {
+  // Fix the cause, then continue where it stopped.
+  const result = await FlowExecutor.resume(flow, { agent, provider, toolRegistry, checkpointStore, runId: 'order-o-42' });
+}
+```
+
+- A node is identified by its place in the flow, not its `id`. Resume a run
+  with the flow that started it. A resume with a flow of another `code` is
+  refused with `LOUSHO_CONFIG_INVALID`. A changed flow with the same `code` is
+  not detected.
+- Resuming a finished run returns its saved result with no events, and runs
+  nothing. `execute()` with the `runId` of a finished run starts a new run.
+  `execute()` with the `runId` of an unfinished run is refused with
+  `LOUSHO_CONFIG_INVALID`; resume it instead, or use a new `runId`.
+- A run with no checkpoint is refused with `LOUSHO_CHECKPOINT_NOT_FOUND`.
+- A node that completed is only skipped once its checkpoint was saved. A node
+  interrupted while running (an `llmCall` or a `toolCall`) runs again, so make
+  side-effecting tools idempotent.
+- Variables and node results must survive `structuredClone`, so no functions
+  and no class instances.
+- The item and index of a `forEach` iteration are not saved. An interrupted
+  iteration runs again with its item. Completed iterations are skipped.
+
+`result.status` is `'completed'`, `'failed'`, or `'awaiting-approval'` (see
+below).
+
+### Pausing for approval
+
+In a durable run, a `toolCall` that needs approval pauses the flow when
+`approve` returns `'defer'` or there is no `approve` callback. The tool is not
+run. The run is saved with status `'awaiting-approval'`, and `execute()` (or
+`resume()`) returns:
+
+- `status: 'awaiting-approval'` and `success: false`, with no `error`
+- `approvalId`: the id to decide
+- `pendingApproval`: `{ approvalId, nodeId, toolName, args }`, the call waiting
+  for the decision
+
+A pause is not a failure, so it emits no `step-error` or `flow-error` and is
+not retried. If the paused step is in a `parallel` node, its sibling branches
+are cancelled. Steps they completed are kept, and the rest run again on resume.
+
+To continue, pass the decision to `resume()`:
+
+```ts
+import { FlowExecutor, type AgentFlow } from '@lousho/build-ai-agent/flows';
+import { memoryStore } from '@lousho/build-ai-agent';
+
+declare const flow: AgentFlow;
+const checkpointStore = memoryStore().checkpoints;
+
+const paused = await FlowExecutor.execute(flow, {
+  agent, provider, toolRegistry, variables: { amount: '900.00' }, checkpointStore, runId: 'payout-7',
+  approve: ({ args }) => (Number(args.amount) < 100 ? true : 'defer'),
+});
+if (paused.status === 'awaiting-approval') {
+  // later, once a person decided (in another process too):
+  const result = await FlowExecutor.resume(flow, {
+    agent, provider, toolRegistry, checkpointStore, runId: 'payout-7',
+    approval: { approvalId: paused.approvalId!, approved: true },
+  });
+}
+```
+
+What each decision does:
+
+- **Approved:** the paused step runs its tool with the saved arguments, and
+  `approve` is not asked again.
+- **Rejected:** the step fails with `LOUSHO_FLOW_TOOL_DENIED`, like `approve`
+  returning `false`.
+- **Used once:** after one resume, the run no longer waits for that approval.
+  A later resume runs the step again, so it needs a new decision.
+
+These resume calls are refused:
+
+- A resume of a paused run without `approval`: `LOUSHO_SESSION_AWAITING_APPROVAL`.
+- A resume with another `approvalId`, or with an approval for a run that is
+  not paused: `LOUSHO_APPROVAL_NOT_FOUND`.
+
+Flow approvals are not listed in an agent's approval store. Keep the
+`approvalId` (or read `checkpoint.flow.pendingApproval` from the store) to
+decide later.
 
 ## Flows, sub-agents or skills?
 

@@ -8,6 +8,8 @@ Flag a tool `needsApproval` and the run pauses before calling it, until a human
 `ApprovalStore`, so the decision can come minutes or days later, from another
 request or another process, and the run then continues where it stopped.
 
+> Snippets on this page leave some names to you: `provider` is any `LLMProvider` (offline: `createMockProvider()`); `agent` is a `createAgent()` result; `input` is the user's text, a `string`; `emailTool` is a tool built with `defineTool()`; `storage` is a `StorageService`; `toolRegistry` is a `ToolRegistry`.
+
 ```ts
 import { createAgent, defineTool } from '@lousho/build-ai-agent';
 import { z } from 'zod';
@@ -52,15 +54,16 @@ const sendEmail = defineTool({
 The predicate can also deny a call or approve it only once per session; see
 [Approve, deny or ask](#approve-deny-or-ask).
 
-When the model asks for several tools in one turn, the first call that needs
-approval stops the batch: the calls before it run, the run pauses on it, and
-the calls after it run once it is decided (see
-[Approvals in the middle of a tool batch](/durable-execution#approvals-in-the-middle-of-a-tool-batch)).
+When the model asks for several tools in one turn, the calls that need no
+approval run, and the run pauses once on **every** call that needs approval:
+each gets its own approval id, and they run together once all of them are
+decided (see [Several calls in one step](#several-calls-in-one-step)).
 
-MCP tools set `needsApproval` from the server's tool annotations: `readOnlyHint:
-true` runs, while `destructiveHint` true or absent (the MCP default) asks. Choose
-per server with `approval: 'annotations' | 'always' | 'never'` or a function; see
-[MCP tool approval](/mcp-integration#approval-for-mcp-tools).
+MCP tools ask for approval by default (`approval: 'always'`). With
+`approval: 'annotations'` a server's tool annotations decide instead:
+`readOnlyHint: true` runs, while `destructiveHint` true or absent (the MCP
+default) asks. Choose per server with `approval: 'always' | 'annotations' |
+'never'` or a function; see [MCP tool approval](/mcp-integration#approval-for-mcp-tools).
 
 ## Permission policies
 
@@ -155,8 +158,9 @@ and returns (or resolves to):
 Three helpers cover the common policies: `always()` (the same as `true`),
 `never()` (`false`) and `once()`. `once()` asks the first time the tool is
 called in a session; once a human approves a call, later calls of that tool in
-the same session run without asking. A rejection is not remembered, and a new
-session asks again. `once({ per: 'args' })` remembers approvals per tool and
+the same session run without asking. A rejection is not remembered, nor is a
+yes from a `createAgent({ approve })` callback (that callback is asked again
+for each call), and a new session asks again. `once({ per: 'args' })` remembers approvals per tool and
 arguments instead, so a call with different arguments asks again. The memory
 lives in the transcript (the approved call's `tool` message carries
 `metadata.approval`), so it is saved wherever the session, checkpoint or
@@ -195,26 +199,35 @@ task.
 ## `createAgent()` agents
 
 - A paused `send()` resolves (it does not throw) with
-  `finishReason: 'awaiting-approval'` and an `approvalId`.
-- `agent.approvals.list()` returns the pending calls this agent paused on in
-  this process, oldest first: `{ id, toolCallId, toolName, args, createdAt }`,
+  `finishReason: 'awaiting-approval'`, an `approvalId` and `approvalIds`: every
+  call the step waits on, in call order (`approvalId` is the first; one entry
+  when one call paused).
+- `agent.approvals.list()` returns the pending calls, oldest first: the ones
+  this agent paused on in this process and, with an `approvalStore` that
+  implements `list()` (the file, SQLite, KV and in-memory stores do), the ones
+  the store holds from another process or from before a restart. A pause that
+  another process already decided is left out. Each entry is
+  `{ id, toolCallId, toolName, args, createdAt }`,
   plus `subagentPath` when the call belongs to a sub-agent and `expiresAt`
   when the pause has a deadline (see [Approval expiry](#approval-expiry)). An
   entry past `expiresAt` stays listed until it is decided - the run is still
   paused - but deciding it denies the call.
-- `agent.approvals.get(id)` returns one pending call without deciding it:
-  `list()`'s entries first, then - with an `approvalStore` that implements
-  `load()` - a pause saved before a restart, `undefined` when the id is
-  unknown or already resolved.
+- `agent.approvals.get(id)` returns one pending call without deciding it.
+  With an `approvalStore` that implements `load()` the store answers first,
+  so a pause saved before a restart is found and a pause another process
+  decided is not; `undefined` when the id is unknown (malformed ids included)
+  or already resolved.
 - `agent.approvals.resolve({ id, approved, note? })` runs the call (approved)
   or gives the model a rejection with your `note` (rejected), continues the
   run, and resolves with the continued run's result, which may pause again.
-  It throws when `id` is unknown or already resolved.
+  It throws when `id` is unknown or already resolved. Two more options apply
+  to an approval (see [Don't ask again, approve with edits](#dont-ask-again-approve-with-edits)):
+  `remember: 'session'` and `args`.
 - A run that paused inside `agent.session()` continues in that session: the
   tool call, its result and the final answer join the session's transcript.
 - `agent.stream()` and `session.stream()` end at the pause with an
-  `approval.requested` event and `run.done` (`'awaiting-approval'`); resolve it
-  the same way.
+  `approval.requested` event per paused call and `run.done`
+  (`'awaiting-approval'`); resolve it the same way.
 
 Pauses are kept in a per-agent `InMemoryApprovalStore` unless you pass
 `approvalStore` or a `store` with `approvals`. To decide a pause after a
@@ -229,11 +242,87 @@ const store = new SqliteStore('./.lousho/agent.db');
 const agent = createAgent({ provider, tools: [emailTool], store }); // or approvalStore: store.approvals
 ```
 
-`list()` only knows the pauses made by this agent object; `get(id)` also finds
-a pause the durable store still holds (for example one saved before a
-restart). Keep the `approvalId` (or read the store) to resolve a pause from
-somewhere else. A continued run joins a session only when it is resolved
-through the agent that owns that session object.
+With a durable store, `list()` and `get(id)` read the store, so after a
+restart (or from another process) they show every pause it still holds, and
+stop showing one as soon as any process decides it. A stored pause that no
+session of this process has run yet is listed without its `sessionId`. With a
+custom `ApprovalStore` that has no `list()`, `list()` only knows the pauses
+made by this agent object.
+
+### Several calls in one step
+
+When one model step has several calls that need approval, the run pauses once
+on all of them. `result.approvalIds` lists them in call order, each is its own
+`agent.approvals.list()` entry, and a stream reports one `approval.requested`
+event per call. Decide them in any order:
+
+- Deciding a call while others of the step are still undecided runs nothing:
+  `resolve()` resolves with `finishReason: 'awaiting-approval'` and the ids
+  still to decide in `approvalIds` (and `approvalId`, the first of them).
+- The decision that completes the step runs it: the approved calls run in call
+  order, each rejected one gives the model its rejection, and the run
+  continues. No call runs before the human saw all of them.
+- `agent.approvals.resolveAll([{ id, approved, args?, remember?, note? }, ...])`
+  decides several at once (one after the other, in the order given) and
+  resolves with the last decision's result.
+
+The step's calls that need no approval do not wait: they run when the step
+does, before the pause.
+
+```ts
+import { createAgent } from '@lousho/build-ai-agent';
+
+const agent = createAgent({ model: 'openai/gpt-4o-mini' /* , tools: [payInvoice, archiveThread] */ });
+const paused = await agent.send('Pay the invoice and archive the thread');
+// paused.approvalIds: ['…pay', '…archive']
+const result = await agent.approvals.resolveAll([
+  { id: paused.approvalIds![0], approved: true, args: { amount: 120 } },
+  { id: paused.approvalIds![1], approved: false, note: 'keep it for now' },
+]);
+```
+
+Each decision is stored with the step's other pending calls, so they can be
+decided from different requests, processes or channels, and after a restart,
+with a durable store. Decide the calls of one step from one process at a
+time: two decisions on the same step racing in two processes can fail with
+`LOUSHO_APPROVAL_CONFLICT` (nothing runs; decide again). A paused session
+reports the ids still to decide in `session.pending()` (`approvalIds`). An
+`approve` callback is asked about each call of the step; a call it defers
+waits for a human while it decides the rest.
+
+A sub-agent whose step pauses on several calls pauses the lead on all of them
+(each listed with `subagentPath`), and they are decided the same way. A
+sub-agent started by a step that also pauses on calls of its own runs with
+the step; when it pauses too, the run pauses on it once the step's calls are
+decided.
+
+### Don't ask again, approve with edits
+
+- `remember: 'session'` approves this call and every later call of the same
+  tool **with the same arguments** in the same session, without pausing (the
+  tool's `needsApproval` is not asked again; a permission rule's `ask` still
+  pauses). Calls with other arguments ask as before. Like `once()`, the memory
+  is the transcript, so it holds after a restart and is gone in a new session.
+- `args` approves with edited arguments ("approve with edits"). They are
+  validated against the tool's input schema; invalid arguments throw
+  `LOUSHO_TOOL_ARGS_INVALID` and leave the approval pending, so you can decide
+  again. The model's tool call in the transcript is rewritten to the edited
+  arguments, so the model sees what ran. `args` applies to a tool call, not
+  to a question, a sign-in or a handoff, and is ignored with
+  `approved: false`.
+
+```ts
+import { createAgent } from '@lousho/build-ai-agent';
+
+const agent = createAgent({ model: 'openai/gpt-4o-mini', tools: [emailTool] });
+const support = agent.session({ id: 'support-42' });
+const paused = await support.send('Email the report to sam@example.com');
+// Send it to the team list instead, and stop asking for that exact email in this session.
+await agent.approvals.resolve({ id: paused.approvalId!, approved: true, args: { to: 'team@example.com' }, remember: 'session' });
+```
+
+`remember` and `args` are for decisions people make. An `approve` callback
+decides each call it is asked about, and `once()` does not count its yes.
 
 ### Approval expiry
 
@@ -242,9 +331,11 @@ makes: the pending approval records `expiresAt` (an ISO-8601 timestamp, like
 `createdAt`), and the `approval.requested` stream event carries it too, so a
 UI can show the deadline. Past it, the pause can no longer be approved -
 deciding it, whenever and wherever that happens, denies the call: the model
-gets a `kind: 'denied'` tool error with reason `'approval expired'` (the
-`APPROVAL_EXPIRED_REASON` export) and the run goes on, like a rejection. An
-expired pause resolved with `approved: true` does not run the tool.
+gets a `kind: 'denied'` tool error (`Approval of 'send_email' expired before it was
+decided`, with no separate `reason` field) and the run goes on, like a rejection.
+The reason string `'approval expired'` (the `APPROVAL_EXPIRED_REASON` export)
+is only on the audit entry (`onPermissionDecision`). An expired pause resolved
+with `approved: true` does not run the tool.
 
 ```ts
 import { createAgent, defineTool } from '@lousho/build-ai-agent';
@@ -444,6 +535,13 @@ continued run as an `AgentRun` (see
 | `StorageServiceApprovalStore(storage)` | JSON files through a `StorageService`. |
 | `fileStore(dir)` | One JSON file per pause, `<dir>/approvals/<id>.json`, on one machine; an approval can be resolved by only one process (see [Choosing a store](/sessions#choosing-a-store)). |
 | `SqliteStore.approvals` | One SQLite file, shared safely by several processes; an approval can be resolved by only one of them. |
+
+An `ApprovalStore` needs `save()` and `resolve()`. `load(id)` (read a pause
+without claiming it) and `list()` (every pause not resolved yet, oldest first)
+are optional; `agent.approvals.get()` and `list()` use them to see pauses other
+processes saved or decided. The built-in stores implement both (`KVStore` lists
+only when its namespace binding has `list`, as a real one does).
+`StorageServiceApprovalStore` implements `load()` only.
 
 ## Elsewhere
 

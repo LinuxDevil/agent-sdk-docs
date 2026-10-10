@@ -74,7 +74,9 @@ const agent = createAgent({
 
 The `model` string and each fallback are resolved with the `ai` SDK's own
 retries off, so `retry` is the only retry layer. A `provider` instance is
-wrapped only when you set `retry`. `agent.stream()` reports `provider.retry`
+wrapped only when you set `retry`, and then its own `ai` SDK retries are off
+too (`retry: false` sends each call once). A streamed step that fails before
+any text or tool call (after reasoning only) is retried as well. `agent.stream()` reports `provider.retry`
 and `provider.fallback` events. Details in
 [Provider retries and fallback](/configuration#provider-retries-and-fallback).
 
@@ -95,7 +97,9 @@ by a hard-coded one.
 bytes as a `Uint8Array`) and `{ type: 'file', data, mimeType, filename? }`.
 `agent.send()`, `agent.stream()`, `session.send()` / `stream()`, `t.send()` in
 evals and the React hook's `send()` all take an `AgentInput`: a string, a list
-of parts (sent as one user message) or a `Message[]` (passed through as it is).
+of parts (sent as one user message) or a `Message[]` (passed through as it is;
+the agent's system prompt is added in front unless the list already starts
+with it, so a `result.messages` can be sent back with a new user message).
 Parts sent through `createAgent()`:
 
 ```ts
@@ -143,17 +147,22 @@ console.log(textOf(messages[0]), '->', result.text);
 
   | Provider | `ai` 4 | `ai` 6 / 7 |
   | -------- | ------ | ---------- |
-  | `openai` | text note | `application/pdf` |
-  | `anthropic` | text note | `application/pdf`, `text/plain` |
-  | `openrouter` | text note | `application/pdf` |
-  | `ollama` | text note | text note |
-  | `pi` | text note | text note (pi has no file part) |
+  | `openai` | none | `application/pdf` |
+  | `anthropic` | none | `application/pdf`, `text/plain` |
+  | `openrouter` | none | `application/pdf` |
+  | `ollama` | none | none |
+  | `pi` | none (always a text note) | none (always a text note; pi has no file part) |
 
-  Any other file part is sent as a text note
-  (`[file report.pdf (application/pdf) not sent]`), and the provider warns once
-  per media type, naming it and the `ai` major. On `ai` 4 the accepted
-  `@ai-sdk/*` range includes 0.0.x packages that have no file parts, so every
-  file becomes the note there. A provider subclass whose model takes more types
+  Any other file part rejects the call with
+  [`LOUSHO_UNSUPPORTED_CONTENT`](/errors#lousho_unsupported_content)
+  before anything is sent, so the model never answers without the file (and
+  under `withFallback()` the next provider gets the call). To send a text note
+  in its place instead (`[file report.pdf (application/pdf) not sent]`, with
+  one warning per media type), set the provider config's
+  `unsupportedFiles: 'text-note'` (`fromAiSdk()` takes the same option). On
+  `ai` 4 the accepted `@ai-sdk/*` range includes 0.0.x packages that have no
+  file parts, so every file is unsupported there. The `pi` provider still
+  sends every file part as a text note with a one-time warning. A provider subclass whose model takes more types
   overrides `protected fileMediaTypes(): readonly string[]` to list them, or
   sets `protected readonly acceptsFileParts = true` to send every type.
 - `system`, `assistant` and `tool` messages are sent as their text parts.
@@ -204,7 +213,37 @@ then wrap its model with `fromAiSdk()` (below). Otherwise implement the
 `LLMProvider` interface (`name`, `generate()`, `stream()`, `supportsTools()`,
 `supportsStreaming()`, `getModels()`, optionally `defaultModel`) and pass the
 instance as `provider`, or register a factory with
-`LLMProviderRegistry.register(name, factory)`.
+`LLMProviderRegistry.register(name, factory)`; a registered name then works in a
+model string (`model: 'name/model-id'`), and the factory receives `defaultModel` and reads its
+own credentials.
+
+### Slow local models: a custom `fetch`
+
+`OpenAIProvider`, `AnthropicProvider`, `OpenRouterProvider` and
+`OllamaProvider` take a `fetch` option that their model calls go through.
+Node's built-in `fetch` gives up on a response whose headers take over 300
+seconds (`Headers Timeout Error`), which a large local model can hit on a
+long non-streamed generation. The SDK classifies that failure as a retryable
+`timeout`, but every retry starts the generation over, so raise the limit
+instead. Install `undici` and pass its `Agent` as the dispatcher:
+
+```ts
+import { Agent } from 'undici';
+import { createAgent, OpenAIProvider } from '@lousho/build-ai-agent';
+
+// Wait up to 15 minutes for the response headers and between body chunks.
+const dispatcher = new Agent({ headersTimeout: 15 * 60_000, bodyTimeout: 15 * 60_000 });
+
+const agent = createAgent({
+  provider: new OpenAIProvider({
+    apiKey: 'lm-studio',
+    baseURL: 'http://localhost:1234/v1',
+    defaultModel: 'qwen3-32b',
+    fetch: (input, init) => fetch(input, { ...init, dispatcher } as RequestInit),
+  }),
+  retry: { maxRetries: 2 },
+});
+```
 
 ### Any AI SDK model: fromAiSdk()
 
@@ -231,7 +270,8 @@ your installed `ai`, so install the provider package major that pairs with it
 | Option | Default | Description |
 | ------ | ------- | ----------- |
 | `name` | the model's `provider` field, else `'ai-sdk'` | Provider name in events, spans and warnings. |
-| `fileMediaTypes` | `[]` | Media types sent as `file` parts; other file parts become a text note. Images are always sent. |
+| `fileMediaTypes` | `[]` | Media types sent as `file` parts. Images are always sent. |
+| `unsupportedFiles` | `'error'` | Any other file part: reject the call with `LOUSHO_UNSUPPORTED_CONTENT` (`'error'`), or send a text note in its place (`'text-note'`). |
 | `replaysReasoning` | `false` | Send signed reasoning blocks back on assistant turns (Anthropic models). |
 | `maxRetries` | `0` | The AI SDK's own retries per call; `createAgent()` retries through its `retry` option. |
 
@@ -256,7 +296,7 @@ mapped). Each throws `LOUSHO_CONFIG_INVALID`:
 package:
 
 ```bash
-npm install @earendil-works/pi-ai@1.0.3
+npm install @earendil-works/pi-ai@^1.0.3
 ```
 
 ```ts
@@ -298,6 +338,75 @@ private catalog) ahead of the built-in list. `pi` is Node-only: the
 `cloudflare-worker` target refuses `pi/...` specs and its bundle redirects
 the package to a coded shim.
 
+## Local and OpenAI-compatible servers
+
+LM Studio, Ollama's `/v1`, vLLM, llama.cpp's `llama-server` and hosted
+OpenAI-compatible APIs (Groq, DeepSeek, Together, ...) all speak the OpenAI
+wire format. Point `OpenAIProvider` at the server's `/v1` URL and pick the API
+it implements with `api`:
+
+```ts
+import { createAgent, OpenAIProvider } from '@lousho/build-ai-agent';
+
+const agent = createAgent({
+  provider: new OpenAIProvider({
+    name: 'openai',
+    baseURL: 'http://localhost:1234/v1', // LM Studio
+    apiKey: 'any', // local servers ignore the key, but one is required
+    api: 'chat', // POST /v1/chat/completions
+    defaultModel: 'qwen3-8b',
+  }),
+  compaction: { contextWindow: 8_192 }, // the window the model is loaded with
+  instructions: 'You are a helpful assistant.',
+});
+```
+
+| Server | Base URL | API |
+| ------ | -------- | --- |
+| LM Studio | `http://localhost:1234/v1` | `'chat'` or `'responses'` |
+| Ollama | `http://localhost:11434/v1` | `'chat'` (or use the native `ollama/<model>` provider) |
+| vLLM (`vllm serve`) | `http://localhost:8000/v1` | `'chat'` |
+| llama.cpp (`llama-server`) | `http://localhost:8080/v1` | `'chat'` |
+
+- `api` defaults to `'responses'` (`POST /v1/responses`, what api.openai.com
+  serves). Most compatible servers implement only Chat Completions, and then a
+  call fails with a 404, so set `api: 'chat'`. With `'chat'` the built-in hosted
+  tools (`webSearch()`, `codeInterpreter()`, `fileSearch()`) are refused, since
+  they are Responses API tools; `hostedTool()` still passes through, and
+  `reasoning` sends only the effort (no `summary`).
+- The key is a dummy: the provider needs a non-empty `apiKey`, and local servers
+  ignore it.
+- Structured output: LM Studio's `/v1/responses` does not enforce the JSON
+  schema, so the model follows it from the prompt alone. Use `api: 'chat'`, which
+  sends the schema as `response_format`.
+- Set the context window. The model registry does not know local models, so
+  compaction assumes `128_000` tokens and warns once. Pass
+  `compaction: { contextWindow }`, or call
+  `registerModel({ id, provider: 'openai', contextWindow })` once (see
+  [Local and unknown models](/compaction#local-and-unknown-models)).
+
+**The `openai/<model>` string with `OPENAI_BASE_URL`.** `@ai-sdk/openai` reads
+`OPENAI_BASE_URL`, so `createAgent({ model: 'openai/qwen3-8b' })` with
+`OPENAI_BASE_URL=http://localhost:1234/v1` and a dummy `OPENAI_API_KEY=any`
+calls the local server without code changes. That route always uses the
+Responses API, so it works only with servers that implement `/v1/responses`
+(LM Studio does); for the others construct `OpenAIProvider` with `api: 'chat'`.
+
+**Any AI SDK model.** `fromAiSdk()` wraps a Chat Completions model built with
+`@ai-sdk/openai` directly (or `@ai-sdk/openai-compatible`, if you use it):
+
+```ts
+import { createOpenAI } from '@ai-sdk/openai';
+import { createAgent, fromAiSdk } from '@lousho/build-ai-agent';
+
+const local = createOpenAI({ baseURL: 'http://localhost:8080/v1', apiKey: 'any' });
+const agent = createAgent({ provider: fromAiSdk(local.chat('qwen3-8b')), instructions: 'You are a helpful assistant.' });
+```
+
+`npx lousho doctor` shows `OPENAI_BASE_URL` when it is set, and
+`npx lousho doctor --ping` calls `GET <base>/models` on each configured
+provider to check that the server answers.
+
 ## Vercel AI SDK versions
 
 Every built-in provider except `pi` is an adapter over the Vercel AI SDK
@@ -320,7 +429,10 @@ provider packages:
 
 The install hint of a missing provider package and `lousho doctor` name the
 version for the `ai` you have installed, and `lousho doctor` flags a mismatched
-pair (for example `ai` 7 with `@ai-sdk/openai` 1.x). `OllamaProvider` loads
+pair (for example `ai` 7 with `@ai-sdk/openai` 1.x). Only `lousho doctor` and
+`fromAiSdk()` check the pairing: a built-in provider (a `model` string) loads
+whatever major is installed without checking it, so run `lousho doctor` to catch
+a mismatch before the first call. `OllamaProvider` loads
 `ollama-ai-provider` on `ai` 4 and `ollama-ai-provider-v2` on `ai` 6/7; the v2
 package peers on zod 4, which the SDK accepts, so install zod 4
 with it (zod 3 projects use Ollama with `ai` 4). `lousho init` scaffolds `ai@^7.0.0` with `@ai-sdk/*@^4.0.0` for

@@ -9,6 +9,8 @@ are validated before `execute` runs, and the result drops in anywhere tools are
 accepted (`createAgent({ tools: [...] })`, `ToolRegistry.register(tool)`,
 `AgentBuilder.addTool(tool)`).
 
+> Snippets on this page leave some names to you: `provider` is any `LLMProvider` (offline: `createMockProvider()`).
+
 ```ts
 import { defineTool, createAgent, type ToolInput, type ToolOutput } from '@lousho/build-ai-agent';
 import { z } from 'zod';
@@ -50,6 +52,16 @@ With many tools, mark them `deferLoading` so the model finds them with a built-i
 called, and throws an error that says how to fix a bad value. Registering two
 tools with the same name throws an error naming the conflict.
 
+It also refuses (`LOUSHO_CONFIG_INVALID`) an `input` no model can satisfy:
+
+- **The root must be an object.** Providers send tool arguments as a JSON
+  object, so `z.string()` or `z.array(...)` at the root is rejected. Wrap it:
+  `z.object({ value: z.string() })`.
+- **No `z.date()` or `z.bigint()` fields.** A model writes an ISO string or a
+  number there, and those schemas reject both, so every call would fail. Use
+  `z.coerce.date()` (or `z.iso.datetime()` to keep the string) and
+  `z.coerce.bigint()` (or `z.number().int()`).
+
 A defined tool is a regular `ToolDescriptor`: it carries its schema as
 `inputSchema` (the same schema as `input`) and its `execute` function directly.
 The `.tool` field (an `ai` v4 `{ description, parameters, execute }` object) is
@@ -71,6 +83,11 @@ and one without `execute` falls back to `tool.execute`, independently.
   them with `toolConcurrency` (`1` for strictly sequential). Results reach the
   transcript in the model's call order. See
   [Parallel tool calls](/runs#parallel-tool-calls).
+- **Size cap.** A result whose JSON is longer than `maxToolResultChars`
+  (`createAgent({ maxToolResultChars })`, default `50_000` characters, about
+  12k tokens) reaches the model, and the transcript, as its head and tail with
+  a marker saying how many characters were cut. `Infinity` turns the cap off.
+  `onToolResult`, hooks and `tool.done` events still get the whole result.
 - **Cancellation.** A run's `AbortSignal` reaches each call as
   `ctx.abortSignal`, so long-running work can stop early.
 - **Progress.** An `execute` written as `async function*` streams snapshots
@@ -97,9 +114,9 @@ node.
 | `ctx.toolCallId` | The model's id for this call. It stays the same when the call is re-run after a crash. A call with no model turn behind it (a flow node) gets a generated id. |
 | `ctx.messages` | A read-only copy of the transcript the model had seen before it made the call: no system prompt and not the assistant turn that made the call. Empty for a flow node. |
 | `ctx.abortSignal` | The run's `AbortSignal`, set when the run has one. |
-| `ctx.sessionId` | The run's session id — `agent.session({ id })`'s id or `send()`'s / `AgentExecutor.execute()`'s `sessionId`; absent when the run has none. |
+| `ctx.sessionId` | The run's session id — `agent.session({ id })`'s id or `send()`'s / `AgentExecutor.execute()`'s `sessionId` (`send({ sessionId })` needs `createAgent({ store })` with checkpoints, else it throws `LOUSHO_CONFIG_MISSING_CHECKPOINT_STORE`); absent when the run has none. |
 | `ctx.principal` | Who the run acts for (route auth's caller, a channel's sender), frozen; absent without one. See [Principals in tools and approvals](/auth#principals-in-tools-and-approvals). |
-| `ctx.approval` | Set when the call runs because a human approved it: the decision's `note`, and `by`, who decided, when the decision named them. |
+| `ctx.approval` | Set when the call runs because a human approved it: the approval's `id` (an idempotency key for a side effect, see [Cloudflare Workers](/cloudflare-workers#deciding-one-approval-twice)), the decision's `note`, and `by`, who decided, when the decision named them. |
 
 A `sandboxExecute(args, sandbox)` that ignores the third argument keeps working.
 

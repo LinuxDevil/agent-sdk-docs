@@ -11,7 +11,7 @@ Run it with `npx lousho <command>` inside a project that has the SDK installed.
 | Command | What it does | Details |
 | ------- | ------------ | ------- |
 | `lousho init [dir]` | Scaffold a project: an agent with an example tool, an offline test, `.env.example`; installs dependencies and runs `git init`. | [Installation](/installation#scaffolding-a-new-project) |
-| `lousho doctor [spec] [--json]` | Check Node, peer packages, provider keys, and optionally a spec file; prints a fix for every problem. | [Installation](/installation#troubleshooting-lousho-doctor) |
+| `lousho doctor [spec] [--json] [--ping]` | Check Node, peer packages, provider keys, and optionally a spec file; `--ping` also checks each configured provider endpoint answers. Prints a fix for every problem. | [Installation](/installation#troubleshooting-lousho-doctor) |
 | `lousho dev <path>` | Local dev server for a spec file, an agent directory or a TS agent: chat UI with a session per tab and streamed events, hot reload on save. | [Below](#lousho-dev) |
 | `lousho chat <path>` | Terminal REPL for a spec file, an agent directory or a TS agent: streams replies, shows tool calls, asks for approvals and questions. | [Below](#lousho-chat) |
 | `lousho acp <path>` | Serve a spec file, an agent directory or a TS agent to an editor (Zed and other ACP clients) over the Agent Client Protocol on stdio. | [ACP](/acp) |
@@ -35,10 +35,11 @@ lousho acp <spec.yaml|spec.json|agent-dir|agent.ts> [--model provider/model]
 lousho add <name> [--registry <url-or-path>] [--dir <agent-dir>] [--yes] [--allow <list>] [--overwrite] [--dry-run]    (or --list)
 lousho build <agent-dir|spec> --target=<name> [--out=<dir>]    (or --agent=<path>)
 lousho studio [--port N] [--host H] [--prod|--dev]
-lousho mcp <agent.yaml|json> [--http --port N --host H]
-lousho doctor [agent.yaml|json] [--json]
-lousho eval [globs...] [--tag t] [--junit path] [--json path] [--strict] [--judge] [--record | --replay | --drift [--drift-usage]] [--url <base> [--token <bearer>]] [--config vitest.config.ts]
+lousho mcp <agent.yaml|json|agent-dir|agent.ts> [--http --port N --host H]
+lousho doctor [agent.yaml|json] [--json] [--ping]
+lousho eval [globs...] [--tag t] [--junit path] [--json path] [--strict] [--judge] [--record | --replay | --drift [--drift-usage]] [--url <base> [--token <bearer>]] [--config vitest.config.ts] [--timeout <ms>]
 lousho traces [traceId|prefix] [--dir D] [--limit N] [--json] [--content]
+lousho --version
 ```
 
 Every command parses its flags the same way (Node's `parseArgs`, strict):
@@ -90,7 +91,7 @@ endpoints below (1MB body limit). What `<path>` is follows from the path:
 
 Any other extension, a missing path, or a module with no agent export fails
 with a coded error (`LOUSHO_SPEC_UNSUPPORTED_FORMAT`, `LOUSHO_CONFIG_INVALID`)
-and its fix. A `.ts` module is imported by the running Node (22.19 or later
+and its fix. A `.ts` module is imported by the running Node (22.18 or later
 strips types, so relative imports need their file extension); use `.js` for
 code that needs a transpiler.
 
@@ -104,8 +105,8 @@ plus a free-text field. The same endpoints work from `curl` or your own page:
 | Endpoint | What it does |
 | -------- | ------------ |
 | `POST /chat` `{ "sessionId", "input" }` | Runs `agent.session({ id: sessionId }).stream(input)` and streams the turn as SSE: one `data: <AgentEvent JSON>` per event ([Streaming](/streaming)), then `event: done`. History is kept per `sessionId` (1-128 characters of `A-Za-z0-9_-`). |
-| `GET /chat/:sessionId` | The session's transcript: `{ sessionId, messages, pending }`; `pending` is `{ status, approvalId? }` while a turn waits on an approval, else `null`. |
-| `POST /chat/:sessionId/approvals/:id` `{ "approved", "note"? }` or `{ "answer" }` | Decides the pending approval (`agent.approvals.streamResolve()`), or answers a question (`agent.approvals.streamAnswer()`), and streams the continued turn as SSE. It can pause again with another `approval.requested`. `404` when `id` is not pending. |
+| `GET /chat/:sessionId` | The session's transcript: `{ sessionId, messages, pending }`; `pending` is `{ status, approvalId? }` while a turn waits on an approval, else `null`. A turn's messages are saved when it finishes, so while it is paused `messages` does not hold that turn yet: use `pending`. |
+| `POST /chat/:sessionId/approvals/:id` `{ "approved", "note"? }` or `{ "answer" }` | Decides the pending approval (`agent.approvals.streamResolve()`), or answers a question (`agent.approvals.streamAnswer()`), and streams the continued turn as SSE. It can pause again with another `approval.requested`. `404` when `id` is not pending. When the turn's step paused on several calls, each id is decided on its own; a decision that leaves others pending streams `run.done` with `finishReason: 'awaiting-approval'`, and the last one runs the step. |
 | `POST /chat` `{ "message" }` | Deprecated: no session, no streaming. Returns the agent's `ExecutionResult` as JSON, with a `Deprecation: true` header. |
 
 `--traces` (or `--traces=<dir>`) writes every run to local trace files with
@@ -229,7 +230,7 @@ Workers limits are in [Deployment](/deployment).
 ## `lousho studio`
 
 ```bash
-npx lousho studio            # http://127.0.0.1:4750
+npx lousho studio            # prints http://127.0.0.1:4750/?token=<per-launch token>
 npx lousho studio --port 5000
 ```
 

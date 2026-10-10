@@ -11,6 +11,8 @@ or a WebSocket without converting it. The `vendor/` model prefix chooses the
 provider; with OpenRouter use `openrouter/<vendor>/<model>` (e.g.
 `openrouter/openai/gpt-4o-mini`).
 
+> Snippets on this page leave some names to you: `provider` is any `LLMProvider` (offline: `createMockProvider()`); `agent` is a `createAgent()` result; `input` is the user's text, a `string`; `approvalStore` is an `ApprovalStore`; `toolRegistry` is a `ToolRegistry`.
+
 ```ts
 import { createAgent } from '@lousho/build-ai-agent';
 
@@ -49,6 +51,13 @@ interface AgentRun extends AsyncIterable<AgentEvent> {
   resolves with `finishReason: 'aborted'`; a run paused for approval resolves
   with `finishReason: 'awaiting-approval'` and `approvalId`. Leaving `result`
   unawaited never causes an unhandled rejection.
+- **A failed run throws from the loop.** When the run fails, `for await` yields
+  the `error` and `run.done { finishReason: 'error' }` events, then rethrows the
+  error `run.result` rejects with (the one `send()` would throw), so a `try`
+  around the loop catches it. Pass `{ throwOnError: false }` to `stream()` to end
+  the loop normally and read the failure from the events or `run.result`. An
+  abort, an early `break` and a pause for approval never throw. Session and
+  `approvals.streamResolve()` streams keep ending normally.
 - **Breaking out of the `for await` loop early aborts the run** (through the
   same path as `signal`, see [Cancellation](#cancellation)). `result` then
   resolves with `finishReason: 'aborted'`.
@@ -76,6 +85,8 @@ console.log(result.finishReason, result.text);
 ```
 
 ## Listening without iterating
+
+A listener that throws does not fail the run (its tools may already have had side effects): the error is logged once per run with `console.warn` and the run continues.
 
 To observe every run without iterating one, give the agent a listener:
 `createAgent({ onEvent })`, or `onAgentEvent` in the `AgentExecutor.execute()`
@@ -107,7 +118,7 @@ await agent.send('Weather in Paris?');
 ### Migrating from `onEvent` / `ExecutionEvent`
 
 `ExecuteOptions.onEvent` and its `ExecutionEvent` type were removed in this
-release (they had been deprecated since LOU-D41). Pass `onAgentEvent` to
+release (they were deprecated earlier). Pass `onAgentEvent` to
 `AgentExecutor.execute()` / `stream()` / `resumeAfterApproval()` instead -
 `createAgent({ onEvent })` already takes `AgentEvent`s and is unchanged.
 The table below maps the old event names to the `AgentEvent`s a listener
@@ -118,7 +129,7 @@ gets now:
 | `start` (`agentId`, `agentName`) | `run.start` (`agentId`, `agentName`) |
 | `text-delta` (never emitted) | `text.delta` (`text`) |
 | `text-complete` (`text`, `stepUsage`) | `text.done` (`text`); the step's usage is on `step.done` (`usage`) |
-| `tool-call` (`toolCall`) | `tool.start` (`toolCallId`, `toolName`, parsed `args`) |
+| `tool-call` (`toolCall`) | `tool.start` (`toolCallId`, `toolName`, parsed `args`; `rawArgs` when the model's text was not valid JSON as sent) |
 | `tool-result` (`toolResult`) | `tool.done` (`result`, `durationMs`, `replacedByHook`), or `tool.error` (`error.name`, `error.message`) |
 | `error` (`error: Error`) | `error` (`error: { name, message }`) |
 | `abort` (`abortReason`, `usage`) | `run.done` with `finishReason: 'aborted'` (the reason is your signal's `reason`) |
@@ -315,7 +326,9 @@ for await (const event of agent.stream('Weather in Paris?')) {
 ## Example: Server-Sent Events
 
 Events are JSON-serializable, so an SSE endpoint is one `res.write` per
-event. Abort the run when the client disconnects.
+event. Abort the run when the client disconnects. For session turns,
+`createRouteHandler()` does the opposite by default: the turn finishes and is
+saved even when the client leaves (see [Next.js](/nextjs#routes)).
 
 ```ts
 import { createServer } from 'node:http';

@@ -7,6 +7,8 @@ title: "Sessions"
 **session** is a multi-turn conversation: it keeps the transcript and passes it
 to the model on every `send()`.
 
+> Snippets on this page leave some names to you: `provider` is any `LLMProvider` (offline: `createMockProvider()`).
+
 ```ts
 import { createAgent } from '@lousho/build-ai-agent';
 
@@ -27,9 +29,9 @@ console.log(session.id, session.messages.length);
 | `send(input, { signal })` | Sends a user message with the whole conversation so far and resolves with the usual `ExecutionResult`. |
 | `stream(input, { signal })` | Like `send()`, but returns an `AgentRun` that streams the turn as typed events - see [Streaming a session turn](#streaming-a-session-turn). |
 | `messages` | A read-only snapshot of the transcript (user, assistant and tool messages; no system prompt). Editing the snapshot does not change the session. |
-| `load()` | Reads the saved transcript from the store. `send()` does this for you; call it to show history before the first `send()` of a resumed session. |
+| `load()` | Reads the saved transcript from the store. `send()` does this for you; call it to show history before the first `send()` of a resumed session. Every call (`load()`, `send()`, `history()`, ...) reads the store again, so turns another session object committed for the same id are seen. |
 | `compact(options?)` | Compacts the transcript now - see [Compacting a session](/compaction#compacting-a-session). |
-| `clear()` | Empties the transcript and saves it empty (the store holds no messages for the id). Keeps the session id, store and options; deletes an interrupted turn's checkpoint; memory slots are cross-session and untouched. Emits `context.cleared` to `on()` listeners. Rejects with `LOUSHO_SESSION_BUSY` while a turn is running, and with `LOUSHO_SESSION_AWAITING_APPROVAL` while a durable turn waits on an approval. |
+| `clear()` | Empties the transcript and saves it empty (the store holds no messages for the id). Keeps the session id, store and options; deletes every turn's checkpoint and checkpoint history (`<id>.turn-<n>`, which hold copies of the transcript), so `agent.fork('<id>.turn-<n>')` cannot bring the conversation back; memory slots are cross-session and untouched. Emits `context.cleared` to `on()` listeners. Rejects with `LOUSHO_SESSION_BUSY` while a turn is running, and with `LOUSHO_SESSION_AWAITING_APPROVAL` while a durable turn waits on an approval. |
 | `on(listener)` | Listens for the session's events: every turn's events as they happen (`send()` and `stream()` turns, and a paused turn continued by `agent.approvals.resolve()`), plus `compact()` / `clear()` events (`compaction.start`, `compaction.done`, `context.cleared`); returns a function that removes the listener. A turn's events are the `AgentEvent`s its `stream()` yields. |
 | `pending()` | In a [durable session](#durable-sessions), the turn that has not finished (`{ status, approvalId?, approvalKind? }`; `approvalKind` is `'question'` when the turn waits on an `ask_question`), or `null`. |
 | `resume({ signal })` | In a durable session, finishes an interrupted turn and resolves with its result, or `null` when none is pending. |
@@ -83,9 +85,24 @@ console.log((await second) === (await first)); // true: one turn, one result
 `send()` and `stream()` take a string, content parts (`[{ type: 'text', ... }, { type: 'image', ... }]`, one user message) or a `Message[]`; the stores keep the parts, see [Multimodal input](/providers#multimodal-input).
 
 A `send()` that throws (a provider error, or a tool that throws a
-`PropagatingToolError`) or is aborted with `signal` leaves the transcript
-exactly as it was before that call. An aborted `send()` resolves with
-`finishReason: 'aborted'`, as `agent.send()` does. The stored transcript never
+`PropagatingToolError`) leaves the transcript exactly as it was before that
+call. A `send()` aborted with `signal` (a Stop button) keeps what the user and
+the model already said, so `GET /chat/:id` and the next turn still have the
+context:
+
+- the user's message, once the model was called (a signal already aborted
+  before the first model call drops the turn whole);
+- the turn up to the last tool call that ran (the assistant's tool calls and
+  their results; calls of that batch that never started keep a "cancelled"
+  result), so a side effect such as a refund is never missing;
+- the reply the model had streamed when it was stopped, as an assistant
+  message with `metadata: { interrupted: true }` (only `stream()` streams; a
+  plain `send()` call has no partial reply).
+
+An aborted `send()` resolves with `finishReason: 'aborted'`, as `agent.send()`
+does. Its `usage` counts the stopped model call, estimated from the request
+and the streamed text when the provider reported none, so a session's
+`limits.maxCostUsd` is not undercounted. The stored transcript never
 contains an assistant tool-call turn without the matching tool results.
 
 A `send()` that pauses on a `needsApproval` tool resolves with
@@ -125,8 +142,10 @@ const { text } = await session.send('What is my name?');
   exactly as `send()` saves them, and only then is `run.done` delivered. When
   the `for await` loop ends, or `run.result` resolves, the transcript is
   complete. The events carry the `runId` of the returned handle.
-- An aborted run (`signal`, or breaking out of the loop early) or a failed one
-  leaves the transcript as it was before the call, like `send()`. A run that
+- A failed run leaves the transcript as it was before the call, like `send()`.
+  An aborted run (`signal`, or breaking out of the loop early) keeps the user's
+  message, the tool calls that ran and the reply streamed so far (marked
+  `metadata.interrupted`), like an aborted `send()`. A run that
   was already finished when the loop was left is saved. A failed run ends the
   stream with `error` and `run.done` (`finishReason: 'error'`), and
   `run.result` rejects. This includes a store that fails to load or save: the
@@ -140,6 +159,30 @@ const { text } = await session.send('What is my name?');
 Sessions are a thin layer: the session owns the transcript and hands it to the
 executor on each turn. Without a checkpoint store, a turn is saved only when it
 ends, so a crash in the middle of a turn loses it; see the next section.
+
+## Two kinds of conversation id
+
+`agent.session({ id })` and `agent.send(msg, { sessionId })` are different
+conversations. The SDK has two ways to keep a conversation under an id, and they do not share
+storage:
+
+| | `agent.session({ id }).send(msg)` | `agent.send(msg, { sessionId })` |
+| --- | --- | --- |
+| What it is | A session: a transcript, one `send()` per turn | One durable run (see [Durable execution](/durable-execution)); calling it again with the same id continues it |
+| Where the conversation lives | `store.sessions` under `id` (each turn checkpointed as `<id>.turn-<n>` while it runs) | `store.checkpoints` under `sessionId` (the checkpoint's `messages`) |
+| Needs | nothing (in memory by default) | `store.checkpoints` (`LOUSHO_CONFIG_MISSING_CHECKPOINT_STORE` without one) |
+| Read it back with | `session.load()`, `GET /chat/:id` | `store.checkpoints.load(sessionId)` (its `messages`), `agent.fork(sessionId)` |
+| Continue it after a crash with | `agent.session({ id }).resume()` | `agent.resume(sessionId)` |
+
+Use one model per id. An id used both ways holds two unrelated conversations:
+a turn sent one way does not see the turns sent the other way, and
+`GET /chat/:id` shows only the session transcript. `agent.resume(id)` looks for
+a `send({ sessionId })` run first and, only when there is none, resumes the
+session's pending turn, so with both present it finishes the run and leaves the
+session turn pending (finish that with `agent.session({ id }).resume()`).
+Prompt schedules run as `send({ sessionId })` runs (see
+[Schedules](/schedules#prompt-schedules-and-sessions)), so read a schedule's
+reports from `store.checkpoints`, not `GET /chat/:id`.
 
 ## Durable sessions
 
@@ -169,11 +212,14 @@ console.log(finished?.text, await agent.session({ id: 'user-42' }).pending()); /
   agent's, part by part.
 - `agent.resume(id)` is `agent.session({ id }).resume()`, except that it first
   finishes a run started with `agent.send(message, { sessionId: id })` (see
-  [Durable execution](/durable-execution)).
+  [Durable execution](/durable-execution) and
+  [the two kinds of id](#two-kinds-of-conversation-id)).
 - Each turn runs with `sessionId: '<session id>.turn-<n>'` (`n` is the length
   of the transcript when the turn started), so a new process finds the
   interrupted turn without any extra bookkeeping. A finished turn joins the
   transcript, exactly as a plain `send()` does, and its checkpoint is deleted.
+  The turn id is only the checkpoint key: tools, `needsApproval`, permission
+  rules and tool-call hooks still get the session's own id as `ctx.sessionId`.
 - `resume()` continues the turn through the executor's resume path
   (`input: []`): tool calls whose results were recorded do not run again, and
   a recorded model response is not requested again. A tool that was running
@@ -183,6 +229,13 @@ console.log(finished?.text, await agent.session({ id: 'user-42' }).pending()); /
   message, so the model sees the finished turn (the resumed turn's events are
   not streamed). Use `pending()` to check first, or `discardPending()` to drop
   the unfinished turn instead.
+- A turn that fails records the error and the attempt count on its checkpoint
+  (`lastError`, `attempts`). When the error will not go away by retrying (a
+  provider 400 such as a context-length overflow, an auth failure), the next
+  `send()` / `stream()` does not replay the turn: it fails with
+  `LOUSHO_SESSION_TURN_FAILED`. Call `discardPending()` to drop the turn, or
+  `resume()` to retry it once the cause is fixed. Other failures (a crash, a
+  5xx, a network error) are still resumed by the next `send()`.
 - A turn that pauses on a `needsApproval` tool stays in its checkpoint, not in
   the transcript, until it finishes. While it waits, `resume()`, `send()` and
   `stream()` throw `SessionAwaitingApprovalError` (with its `approvalId`), and
@@ -190,8 +243,17 @@ console.log(finished?.text, await agent.session({ id: 'user-42' }).pending()); /
   session. After a restart, open the session and call `resume()` (or `send()`)
   once before resolving, so the agent knows which session the approval belongs
   to; give both agents the same durable `store` (or `approvalStore`).
-- An aborted turn is dropped (its checkpoint is deleted), as without a
-  checkpoint store. `clear()` deletes a pending turn too.
+- A paused turn locks the session id: the session records it under
+  `<id>.paused` in the checkpoint store, so `agent.send(message, { sessionId: id })`,
+  `agent.stream()` with that `sessionId`, and a session object over a different
+  transcript (another store, or one of another length) are refused with
+  `SessionAwaitingApprovalError` (`LOUSHO_SESSION_AWAITING_APPROVAL`) too, and
+  their `pending()` reports the pause. Decide the approval, or drop the turn with
+  `agent.session({ id }).discardPending()`, to take new turns again.
+- An aborted turn's checkpoint is deleted; what it kept (the user's message,
+  the tool calls that ran, the interrupted reply) joins the transcript, as
+  without a checkpoint store. `clear()` deletes a pending turn too, and the checkpoint
+  history of every turn, so cleared turns are no longer forkable.
 
 ## Stores
 
@@ -204,13 +266,29 @@ interface SessionStore {
   load(id: string): Promise<Message[] | undefined>;
   save(id: string, messages: readonly Message[]): Promise<void>;
   delete(id: string): Promise<void>;
+  // Optional compare-and-swap: save only if the stored transcript still has this revision.
+  saveIf?(id: string, expectedRevision: string, messages: readonly Message[]): Promise<boolean>;
 }
 ```
+
+Each turn commits through `saveIf` when the store has it, with
+`transcriptRevision(<the transcript the turn started from>)`. Two processes (or
+two store objects over the same data) that finish a turn on one session at the
+same moment then cannot both commit: one wins, the other's `send()` rejects with
+`LOUSHO_SESSION_BUSY`. `MemorySessionStore`, `FileSessionStore` (a
+`<id>.json.lock` file created exclusively; a lock older than `staleLockMs`,
+default 10 s, is taken over) and `SqliteStore.sessions` (one `BEGIN IMMEDIATE`
+transaction) implement it. A store without it, such as `KVStore.sessions` (KV
+has no compare-and-swap), gets a best-effort load, compare and save, which a
+writer in another process can still slip between, losing one turn.
 
 - `MemorySessionStore` (the default, one new store per session) lives as long as
   the process. Share one instance between sessions to look them up by id.
 - `FileSessionStore(dir)` writes one JSON file per session (`<dir>/<id>.json`),
-  atomically (temp file, then rename), creating `dir` on first save.
+  atomically (temp file, then rename), creating `dir` on first save. Each
+  uppercase letter of the id is written as `^` and the letter in lowercase
+  (`Alice` -> `^alice.json`), so ids that differ only in case get different
+  files on Windows and macOS too.
 
 ```ts
 import { createAgent, FileSessionStore } from '@lousho/build-ai-agent';
@@ -253,7 +331,11 @@ Each one is an `AgentStore` part: pass them together as
 `fileStore(dir)`, `SqliteStore` and `KVStore` are ready-made `AgentStore`s. For
 plain files, `fileStore(dir)` writes one JSON file per session, checkpoint and
 pending approval under `dir`, each written to a temp file and renamed into
-place, with no lock files:
+place, with no lock files. On Windows a rename over, or a read of, a file that
+another writer or reader has open fails for a moment with `EPERM`, `EACCES` or
+`EBUSY`; `fileStore()` and `FileSessionStore` retry it with a short backoff (about
+1.3 s in all) and then fail with `LOUSHO_STORAGE_FAILED`. Concurrent saves to one
+file still end with one of them (the last rename wins):
 
 ```ts
 import { createAgent, fileStore } from '@lousho/build-ai-agent';
@@ -262,6 +344,13 @@ const agent = createAgent({ provider, store: fileStore('./.lousho') });
 // ./.lousho/sessions/user-42.json, ./.lousho/checkpoints/..., ./.lousho/approvals/...
 await agent.session({ id: 'user-42' }).send('Hello');
 ```
+
+In every file name, an uppercase letter of the id is written as `^` and the
+letter in lowercase (`Alice` -> `sessions/^alice.json`): the default
+filesystems of Windows and macOS ignore case, and `alice` and `Alice` must not
+share a transcript. An id without uppercase letters keeps its plain name. A file
+saved by an older version under a mixed-case name (`Alice.json`) is still read
+for exactly that id, and moved to its new name on the next save.
 
 Each `checkpoints/<id>.json` has a `checkpoint-history/<id>.json` next to it:
 the checkpoint's bounded history, oldest first. Directories are created on
@@ -305,7 +394,11 @@ With the executor directly, pass `store.checkpoints` as `checkpointStore` and
   round-trip unchanged.
 - `prune()` removes sessions and checkpoints not updated within `olderThanMs`,
   approvals resolved that long ago and expired pending OAuth sign-ins;
-  unresolved approvals and OAuth tokens are kept.
+  unresolved approvals and OAuth tokens are kept, and so is a turn paused on
+  an unresolved approval (its checkpoint and the session's transcript),
+  however old. Resolving an approval whose paused turn was deleted anyway
+  fails with [`LOUSHO_APPROVAL_ORPHANED`](/errors#lousho_approval_orphaned)
+  without running the tool.
 - A file that is not a SQLite database fails with an error naming the path;
   using the store after `close()` throws a clear error.
 
@@ -384,9 +477,12 @@ console.log(fork.id, reply.text); // 'trip-fork-1', 'Porto has a direct flight a
   has when it forks), so streaming, approvals and checkpointed turns work as on any
   `agent.session()`, and `agent.session({ id: fork.id, store })` continues it
   later, in another process too. Its id is `id` when you pass one, else
-  `<id>-fork-<n>` for the first `n` from 1 that has no transcript. An `id` that
+  `<id>-fork-<n>` for the first `n` from 1 that has no transcript (for an id
+  too long for that suffix, `<start of id>-<8 hex of its hash>-fork-<n>`, still
+  within 128 characters). An `id` that
   already has a transcript (or the session's own id) is refused with
   [`LOUSHO_SESSION_EXISTS`](/errors#lousho_session_exists).
+- The fork's `messages` hold its transcript as soon as `fork()` resolves.
 - The original session's transcript and checkpoints are not changed.
 - Budgets: the spend recorded for `limits` stays on the kept messages, so a
   fork's `limits` start from what the session had spent at the end of the last

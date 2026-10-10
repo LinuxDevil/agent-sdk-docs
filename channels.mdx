@@ -24,6 +24,22 @@ same routes with a `Request` in and a `Response` out (and the host's
 `lousho build --target=cloudflare-worker` mounts an agent directory's
 `channels/` under `/channels` with it.
 
+A channel that acknowledges early (Slack, Discord, Telegram, GitHub, Teams)
+gets its answer back at once only when the turn can keep running after the
+response: the handler's `ctx.waitUntil`, or the `waitUntil` option for a host
+that passes no `ctx`. Without either, the response waits for the whole turn
+(and a warning is logged once), which misses Slack's and Discord's 3-second
+deadline on a slow turn.
+
+```ts
+// Next.js on Vercel (needs @vercel/functions; `agent` and `slack` come from your app)
+import { waitUntil } from '@vercel/functions';
+const channels = mountFetchChannels(agent, [slack], { waitUntil });
+
+// Bun.serve, Deno.serve or a Node fetch server: the process outlives the response
+const channels = mountFetchChannels(agent, [slack], { waitUntil: (turn) => void turn });
+```
+
 ## Quick start
 
 `httpChannel()` is the reference channel: `{ sessionKey, input }` in, JSON out.
@@ -62,7 +78,7 @@ can mount it next to your own routes.
 | `verify(req)` | Optional. Authenticate the request (a signature, a token). Return `true`/`false` or `{ ok, reason? }`; `false` answers `401 {"error":"Unauthorized"}` before anything is parsed or run. |
 | `parse(req, respond, ctx)` | The message: `{ sessionKey, input, metadata?, principal?, replyTo, event? }`; `{ decision: { id, approved?, note?, answer? } }` to resolve a pause this channel's turn stopped on (a button click); or `null` to acknowledge the request without a turn (a bot's own message, a retry). Call `respond(status, body)` to answer before the turn runs (a surface with a short timeout, a handshake). |
 | `reply(ctx)` | Deliver the reply: `ctx.text`, plus `inbound`, `sessionId`, `result`, `events`, `approval`, and `respond(status, body)` while the request is still open. |
-| `onApproval(ctx)` | Optional. Render a pause (buttons, a form). Default: `reply` with a text prompt in `ctx.text` and the request in `ctx.approval`. |
+| `onApproval(ctx)` | Optional. Render a pause (buttons, a form). Default: `reply` with a text prompt in `ctx.text` and the request in `ctx.approval` (`ctx.approvals`: every pending call, when the step paused on several). |
 | `onError(error, { channel, stage, sessionId? })` | Optional. Receives failures after the request was already acknowledged (a reply that could not be delivered, a failed turn or approval continuation). Default: `mountChannels({ onError })`, else `console.error` with the channel, stage, session id and SDK error code (never a token). A failed turn also tells the user "Sorry, that request failed." in the conversation (best effort). |
 | `stream` | Optional. `true` calls `reply` with `partial: true` and the text so far as the model writes, then once more with the final text. |
 | `sessionId(inbound)` | Optional. The session for a message. Default: `` `${name}:${sessionKey}` ``. |
@@ -80,8 +96,11 @@ never over re-serialized JSON), `text` and `native` (the host's request).
 
 A reply that does not call `respond` is followed by `200 {"ok":true}`; a surface
 that delivers replies out of band (posting to a chat API) only needs to
-acknowledge the request. An error thrown by `parse` answers 400 for a
-`SyntaxError` (bad JSON) and 500 otherwise; a body over 1MB gets 413.
+acknowledge the request. An error thrown by `verify` or `parse` answers 400
+for a `SyntaxError` (bad JSON) and 500 otherwise; a body over 1MB gets 413. A
+500 body is only `{ "error": "The request failed. The server log has the
+details.", "code"? }`, as on the session routes: the error itself goes to
+`onError` (stage `'parse'`), never to the caller.
 
 ```ts
 import { createAgent, defineChannel, mountChannels } from '@lousho/build-ai-agent';
@@ -121,8 +140,11 @@ Return a valid id from `sessionId()` to use it unchanged.
 
 Transcripts are kept in `mountChannels(agent, channels, { store })`: a
 `SessionStore` or `{ sessions, checkpoints }` such as a `SqliteStore` (pass the
-one you gave `createAgent({ store })`). Without `store`, the handler keeps them
-in memory.
+one you gave `createAgent({ store })`). Without `store`, the handler uses the
+agent's `createAgent({ store })` when it keeps sessions, so channel turns,
+approval continuations, `agent.session({ id })` and `agent.resume(id)` all see
+one transcript (this also covers `createDeployedServer` and `LOUSHO_STORE`);
+an agent without a session store keeps them in memory.
 
 ## Approvals and questions
 
@@ -134,10 +156,35 @@ through the same channel's `reply` (or `onApproval` again, if it pauses again):
 
 - `handler.resolveApproval({ id, approved, note? })` or
   `handler.resolveApproval({ id, answer })` from your code, e.g. a surface's
-  button callback.
+  button callback. It only decides pauses this process made: after a restart
+  (or on another replica) it throws `LOUSHO_APPROVAL_NOT_FOUND`, because it
+  does not know which conversation to continue. Use the route below with
+  `sessionKey` instead.
 - `POST <basePath>/<name>/approvals/<id>` with `{ approved, note? }` or
   `{ answer }`. The channel's `verify` runs first; an id the channel did not
-  pause on gets 404.
+  pause on gets 404. Add `sessionKey` (the conversation's key, as in its
+  messages) to decide a pause this process forgot: with durable sessions,
+  checkpoints and approvals, the decision is accepted when that
+  conversation's turn waits on exactly this approval (else 404), and the
+  continuation joins its transcript. In process, a `sessionKey` naming another
+  conversation than the one that paused gets 404.
+
+When one model step pauses on several calls (see
+[Several calls in one step](/approvals#several-calls-in-one-step)),
+`onApproval` is called once per call, in call order: each gets its own
+`approval`, all of them get the step's pending calls in `approvals`, and only
+the first gets `respond` (the http channel answers with `approval` and
+`approvals`). Each call is decided on its own, through either way above, with
+the conversation's `sessionKey` after a restart. A decision that leaves other
+calls of the step undecided runs nothing and is answered through `reply` with
+`Decision recorded. Still waiting on: ...`; the decision on the last one runs
+the step and delivers the continuation.
+
+A decision is claimed before `onDecision` runs, so two decisions on one
+approval at once (a double click) decide it once: the second gets
+`409 { code: 'LOUSHO_APPROVAL_CONFLICT' }` while its request is open, and is
+dropped silently once the surface was acknowledged. `resolveApproval()`
+throws `LOUSHO_APPROVAL_CONFLICT` for an approval another request is deciding.
 
 ```ts
 import { createAgent, defineChannel, mountChannels } from '@lousho/build-ai-agent';
@@ -250,9 +297,11 @@ message to the bot starts a session keyed on the DM channel. Replies are posted 
 - The request is answered right away (`200`, or the `url_verification`
   challenge) and the turn runs after the response, within Slack's 3-second
   limit.
-- Retries (`X-Slack-Retry-Num`), bot messages (including the bot's own) and
-  the `message` copy of a mention are acknowledged and skipped, so a turn
-  never runs twice.
+- A redelivered event (the same `event_id`, e.g. a retry with
+  `X-Slack-Retry-Num`), bot messages (including the bot's own) and the
+  `message` copy of a mention are acknowledged and skipped, so a turn never
+  runs twice. A retry of an event this process never received (its first
+  delivery was lost) runs. Delivery ids are kept in memory for an hour.
 - A tool approval is posted in the thread with **Approve** and **Deny**
   buttons; the click resumes the session and the continuation is posted in the
   thread. The clicked message is replaced with the outcome ("Approved by @user"),
@@ -292,7 +341,7 @@ http.createServer((req, res) => {
 }).listen(3000);
 ```
 
-Which threads are active comes from the `store` you pass `mountChannels()`.
+Which threads are active comes from the channels' session store (the `store` you pass `mountChannels()`, else the agent's).
 Pending approvals are resolved from the click itself. A pending `ask_question`
 survives a restart when the session, its checkpoints and the approvals are in
 durable stores (for example `mountChannels(agent, channels, { store: sqlite })`
@@ -315,8 +364,9 @@ Workers). The expected command is `/ask prompt:<text>`: one string option, and
 the `prompt` option (or the first string option) is the message.
 
 - Every request's `X-Signature-Ed25519` / `X-Signature-Timestamp` is verified
-  over `timestamp + body`; a missing or bad signature answers 401, as Discord
-  requires. `PING` is answered with `PONG`.
+  over `timestamp + body`; a missing or bad signature, or a timestamp more
+  than five minutes from local time (a replayed request), answers 401, as
+  Discord requires. `PING` is answered with `PONG`.
 - A command is acknowledged at once with a deferred response (within Discord's
   3-second limit); the reply then edits the original response
   (`PATCH /webhooks/{applicationId}/{token}/messages/@original`). Text over
@@ -389,7 +439,9 @@ library; Web Crypto and `fetch` only, so it also runs on Workers).
   channel has no unauthenticated mode, so always pass `secret_token` to
   `setWebhook`.
 - The update is acknowledged with `200` at once and the turn runs after, so
-  Telegram does not retry the webhook.
+  Telegram does not retry the webhook. An update it redelivers anyway (the
+  same `update_id`) is acknowledged and not run again; ids are kept in memory
+  for an hour.
 - In a private chat every text message (or photo or document caption) is a
   message to the agent. In a group or supergroup only a `/ask` command (or
   `/ask@<botUsername>`), a message containing `@<botUsername>`, or a reply to
@@ -464,7 +516,7 @@ and a replayed tap does not run the tool twice.
 
 ## GitHub
 
-`githubChannel({ webhookSecret, botName, token?, app?, name?, apiUrl?, fetch?, triggers?, approvers?, onError? })`
+`githubChannel({ webhookSecret, botName, token?, app?, name?, apiUrl?, fetch?, triggers?, approvers?, pullRequestOpened?, onError? })`
 lets people summon an agent with `@<botName>` in a GitHub issue, pull-request
 or review comment; the agent answers with a comment in the same thread. It reads
 the webhooks of a GitHub App (or of one repository) and posts through the REST
@@ -477,7 +529,9 @@ so it also runs on Workers.
   unauthenticated mode.
 - The webhook is acknowledged with `200` at once and the turn runs after: GitHub
   waits 10 seconds and does not retry, and a slow reply is posted as a new
-  comment. A `ping` is acknowledged without a turn.
+  comment. A `ping` is acknowledged without a turn. A redelivery (the same
+  `X-GitHub-Delivery`, e.g. "Redeliver" in the app settings) is acknowledged
+  and not run again; ids are kept in memory for an hour.
 - A comment on an issue, on a pull request (the conversation tab) or a review
   comment (on a line of the diff) that contains `@<botName>` as a whole word
   (case-insensitive) starts a turn, with the mention removed from the text. Once
@@ -485,7 +539,12 @@ so it also runs on Workers.
   mention. Edited and deleted comments, comments by bots (`user.type` is `Bot`),
   by `<botName>[bot]`, by `botLogin` and any comment the channel itself posted
   are ignored, so the agent never answers itself. Other events (issues opened,
-  pushes, reactions, check runs) are ignored.
+  pushes, reactions, check runs) are ignored — except `pull_request`: with
+  `pullRequestOpened: true` an `opened` action by a human `triggers` allows
+  starts a turn on the PR's own session (`<owner>/<repo>#<number>`, the same
+  one its comments share), so a review bot can read a PR the moment it opens.
+  `synchronize`, `closed`, `reopened`, bot-opened and untriggered PRs are
+  ignored.
 - One session per issue or pull request (`<owner>/<repo>#<number>`), and one
   per review thread (a review comment and the replies under it).
 - The reply is a new comment: a timeline comment on the issue or pull request,
