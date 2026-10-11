@@ -1,6 +1,12 @@
 ---
 title: "Durable execution"
 ---
+
+{/* pending-translation */}
+<Warning>
+لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/durable-execution).
+</Warning>
+
 {/* Generated from docs/durable-execution.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 مرّر `store` لـ`createAgent()` ومرّر `sessionId` لـ`send()`، والـ run يكمل رغم crash، أو restart، أو abort، أو approval (موافقة) من إنسان ياخد أيام. ولا شيء هنا يعتمد على host معيّن: أي `CheckpointStore` — `memoryStore()`، أو `SqliteStore`، أو store الـ Cloudflare KV اللي يوصّله build `cloudflare-worker`، أو تنفيذك الخاص بثلاث دوال — وأي `ApprovalStore` يشتغلون بنفس الطريقة.

@@ -3,24 +3,22 @@ title: "Lousho with coding agents"
 description: "Give Claude Code, Cursor or another coding agent the SDK's docs in a form it can read, so it writes code against the real API."
 ---
 
-A coding agent writes better Lousho code when it reads the current docs instead of guessing from training data. The SDK ships its documentation in two machine-readable files, and this site serves every page as Markdown.
+A coding agent writes better Lousho code when it reads the current docs instead of guessing from training data. The SDK publishes its documentation in two machine-readable files, and this site serves every page as Markdown.
 
 ## The docs, as files
 
-The npm package contains both files, next to its `README.md`:
+| File | Where | What it is |
+| ---- | ----- | ---------- |
+| `llms.txt` | In the npm package: `node_modules/@lousho/build-ai-agent/llms.txt` | An [llmstxt.org](https://llmstxt.org) index: one line per docs page, with a summary and a link |
+| `llms-full.txt` | In the [SDK repository](https://github.com/LinuxDevil/agent-sdk/blob/main/llms-full.txt), not in the npm package (it is about 1 MB) | The README and every docs page in one file, with absolute links |
 
-| File | What it is |
-| ---- | ---------- |
-| `node_modules/@lousho/build-ai-agent/llms.txt` | An [llmstxt.org](https://llmstxt.org) index: one line per docs page, with a summary and a link |
-| `node_modules/@lousho/build-ai-agent/llms-full.txt` | The README and every docs page in one file, with absolute links |
-
-They are generated from the same docs as this site and checked in the SDK's CI, so they match the version you have installed. Tell your coding agent where they are, for example in your project's `AGENTS.md` or `CLAUDE.md`:
+Both are generated from the same docs as this site and checked in the SDK's CI. The `llms.txt` in `node_modules` matches the version you have installed; the repository's `llms-full.txt` follows the SDK's `main` branch, which can be ahead of the release you installed. Tell your coding agent where they are, for example in your project's `AGENTS.md` or `CLAUDE.md`:
 
 ```markdown
 ## Lousho SDK
 
 This project uses @lousho/build-ai-agent. Before writing or changing agent code,
-read node_modules/@lousho/build-ai-agent/llms-full.txt. It documents the installed version.
+read node_modules/@lousho/build-ai-agent/llms.txt and open the pages it links to.
 Tests must run offline: use mockModel from @lousho/build-ai-agent/testing.
 ```
 

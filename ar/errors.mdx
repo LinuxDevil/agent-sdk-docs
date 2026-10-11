@@ -2,6 +2,12 @@
 title: "الأخطاء"
 description: "تقريبًا كل خطأ يرميه الـ SDK عن قصد هو SDKError (أو subclass منه مثل ConfigurationError أو ValidationError أو MissingPeerDependencyError) وفيه:"
 ---
+
+{/* pending-translation */}
+<Warning>
+لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/errors).
+</Warning>
+
 {/* Generated from docs/errors.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 - `code`: نص ثابت بصيغة `LOUSHO_<AREA>_<NAME>`. فرّع عليه، لا على نص الرسالة — الرسالة ممكن تصير أوضح مع الوقت.
@@ -44,17 +50,17 @@ try {
 | المجال | الأكواد | متى تصادفها |
 | ---- | ----- | ------------------ |
 | [الإعدادات](#الإعدادات) | [`LOUSHO_CONFIG_INVALID`](#lousho_config_invalid)، [`LOUSHO_CONFIG_MISSING_PROVIDER`](#lousho_config_missing_provider)، [`LOUSHO_CONFIG_MISSING_AGENT`](#lousho_config_missing_agent)، [`LOUSHO_CONFIG_MISSING_INPUT`](#lousho_config_missing_input)، [`LOUSHO_CONFIG_CONFLICTING_OPTIONS`](#lousho_config_conflicting_options)، [`LOUSHO_CONFIG_MISSING_CHECKPOINT_STORE`](#lousho_config_missing_checkpoint_store)، [`LOUSHO_CONFIG_RESOLVER_FAILED`](#lousho_config_resolver_failed) | استدعاء `createAgent()` أو executor ناقصه خيارات أو يخلطها، أو config resolver فشل. |
-| [الـ providers والـ peer dependencies](#providers-and-peers) | [`LOUSHO_PROVIDER_SPEC_INVALID`](#lousho_provider_spec_invalid)، [`LOUSHO_PROVIDER_UNKNOWN`](#lousho_provider_unknown)، [`LOUSHO_PROVIDER_MISSING_API_KEY`](#lousho_provider_missing_api_key)، [`LOUSHO_PROVIDER_REQUEST_FAILED`](#lousho_provider_request_failed)، [`LOUSHO_PROVIDER_RATE_LIMITED`](#lousho_provider_rate_limited)، [`LOUSHO_PEER_MISSING`](#lousho_peer_missing)، [`LOUSHO_HOSTED_TOOL_UNSUPPORTED`](#lousho_hosted_tool_unsupported) | حل نص model، أو API key أو حزمة peer ناقصة، أو طلب model فشل أو رجّع rate limit، أو hosted tool الـ provider ما يقدر يشغّلها. |
-| [ملفات الـ AgentSpec](#agent-spec-files) | [`LOUSHO_SPEC_NOT_FOUND`](#lousho_spec_not_found)، [`LOUSHO_SPEC_INVALID`](#lousho_spec_invalid)، [`LOUSHO_SPEC_UNKNOWN_FIELD`](#lousho_spec_unknown_field)، [`LOUSHO_SPEC_UNSUPPORTED_FORMAT`](#lousho_spec_unsupported_format) | تحميل ملف `AgentSpec` بـ `loadSpec()` أو `specToAgent()`. |
+| [الـ providers والـ peer dependencies](#الـ-providers-والـ-peer-dependencies) | [`LOUSHO_PROVIDER_SPEC_INVALID`](#lousho_provider_spec_invalid)، [`LOUSHO_PROVIDER_UNKNOWN`](#lousho_provider_unknown)، [`LOUSHO_PROVIDER_MISSING_API_KEY`](#lousho_provider_missing_api_key)، [`LOUSHO_PROVIDER_REQUEST_FAILED`](#lousho_provider_request_failed)، [`LOUSHO_PROVIDER_RATE_LIMITED`](#lousho_provider_rate_limited)، [`LOUSHO_PEER_MISSING`](#lousho_peer_missing)، [`LOUSHO_HOSTED_TOOL_UNSUPPORTED`](#lousho_hosted_tool_unsupported) | حل نص model، أو API key أو حزمة peer ناقصة، أو طلب model فشل أو رجّع rate limit، أو hosted tool الـ provider ما يقدر يشغّلها. |
+| [ملفات الـ AgentSpec](#ملفات-الـ-agentspec) | [`LOUSHO_SPEC_NOT_FOUND`](#lousho_spec_not_found)، [`LOUSHO_SPEC_INVALID`](#lousho_spec_invalid)، [`LOUSHO_SPEC_UNKNOWN_FIELD`](#lousho_spec_unknown_field)، [`LOUSHO_SPEC_UNSUPPORTED_FORMAT`](#lousho_spec_unsupported_format) | تحميل ملف `AgentSpec` بـ `loadSpec()` أو `specToAgent()`. |
 | [الأدوات](#الأدوات) | [`LOUSHO_TOOL_NOT_FOUND`](#lousho_tool_not_found)، [`LOUSHO_TOOL_NEEDS_CREDENTIALS`](#lousho_tool_needs_credentials)، [`LOUSHO_TOOL_EXECUTION_FAILED`](#lousho_tool_execution_failed)، [`LOUSHO_TOOL_ARGS_INVALID`](#lousho_tool_args_invalid) | tool ناداها الـ model ليست معروفة، أو محتاجة credentials، أو رمت، أو وصلتها arguments غير صالحة. |
-| [الـ approvals والـ sessions](#approvals-and-sessions) | [`LOUSHO_APPROVAL_STORE_MISSING`](#lousho_approval_store_missing)، [`LOUSHO_APPROVAL_NOT_FOUND`](#lousho_approval_not_found)، [`LOUSHO_SESSION_AWAITING_APPROVAL`](#lousho_session_awaiting_approval)، [`LOUSHO_SESSION_ID_INVALID`](#lousho_session_id_invalid)، [`LOUSHO_SESSION_FILE_CORRUPT`](#lousho_session_file_corrupt)، [`LOUSHO_SESSION_BUSY`](#lousho_session_busy)، [`LOUSHO_SESSION_TURN_PENDING`](#lousho_session_turn_pending)، [`LOUSHO_SESSION_STREAM_UNSUPPORTED`](#lousho_session_stream_unsupported)، [`LOUSHO_SESSION_STEP_NOT_FOUND`](#lousho_session_step_not_found)، [`LOUSHO_SESSION_EXISTS`](#lousho_session_exists)، [`LOUSHO_SESSION_FORK_UNSUPPORTED`](#lousho_session_fork_unsupported)، [`LOUSHO_REMOTE_UNAUTHORIZED`](#lousho_remote_unauthorized)، [`LOUSHO_REMOTE_REQUEST_FAILED`](#lousho_remote_request_failed)، [`LOUSHO_SUBAGENT_TASK_NOT_FOUND`](#lousho_subagent_task_not_found)، [`LOUSHO_SUBAGENT_TASK_BUSY`](#lousho_subagent_task_busy)، [`LOUSHO_CHECKPOINT_NOT_FOUND`](#lousho_checkpoint_not_found)، [`LOUSHO_AGENT_DRIFT`](#lousho_agent_drift)، [`LOUSHO_RESUME_TOOL_MISSING`](#lousho_resume_tool_missing)، [`LOUSHO_RUN_ALREADY_ITERATED`](#lousho_run_already_iterated) | approvals (موافقات) وsessions (جلسات) وcheckpoints (نقاط حفظ) والـ resume، والـ remote agents ومهام الـ sub-agents. |
+| [الـ approvals والـ sessions](#الـ-approvals-والـ-sessions) | [`LOUSHO_APPROVAL_STORE_MISSING`](#lousho_approval_store_missing)، [`LOUSHO_APPROVAL_NOT_FOUND`](#lousho_approval_not_found)، [`LOUSHO_SESSION_AWAITING_APPROVAL`](#lousho_session_awaiting_approval)، [`LOUSHO_SESSION_ID_INVALID`](#lousho_session_id_invalid)، [`LOUSHO_SESSION_FILE_CORRUPT`](#lousho_session_file_corrupt)، [`LOUSHO_SESSION_BUSY`](#lousho_session_busy)، [`LOUSHO_SESSION_TURN_PENDING`](#lousho_session_turn_pending)، [`LOUSHO_SESSION_STREAM_UNSUPPORTED`](#lousho_session_stream_unsupported)، [`LOUSHO_SESSION_STEP_NOT_FOUND`](#lousho_session_step_not_found)، [`LOUSHO_SESSION_EXISTS`](#lousho_session_exists)، [`LOUSHO_SESSION_FORK_UNSUPPORTED`](#lousho_session_fork_unsupported)، [`LOUSHO_REMOTE_UNAUTHORIZED`](#lousho_remote_unauthorized)، [`LOUSHO_REMOTE_REQUEST_FAILED`](#lousho_remote_request_failed)، [`LOUSHO_SUBAGENT_TASK_NOT_FOUND`](#lousho_subagent_task_not_found)، [`LOUSHO_SUBAGENT_TASK_BUSY`](#lousho_subagent_task_busy)، [`LOUSHO_CHECKPOINT_NOT_FOUND`](#lousho_checkpoint_not_found)، [`LOUSHO_AGENT_DRIFT`](#lousho_agent_drift)، [`LOUSHO_RESUME_TOOL_MISSING`](#lousho_resume_tool_missing)، [`LOUSHO_RUN_ALREADY_ITERATED`](#lousho_run_already_iterated) | approvals (موافقات) وsessions (جلسات) وcheckpoints (نقاط حفظ) والـ resume، والـ remote agents ومهام الـ sub-agents. |
 | [الجداول الزمنية](#الجداول-الزمنية) | [`LOUSHO_SCHEDULE_INVALID`](#lousho_schedule_invalid) | تعريف schedule أو تحميله. |
 | [القنوات](#القنوات) | [`LOUSHO_CHANNEL_INVALID`](#lousho_channel_invalid)، [`LOUSHO_MEMORY_INVALID`](#lousho_memory_invalid) | تعريف channel أو خانة memory. |
 | [السجل](#السجل) | [`LOUSHO_REGISTRY_UNREACHABLE`](#lousho_registry_unreachable)، [`LOUSHO_REGISTRY_ITEM_NOT_FOUND`](#lousho_registry_item_not_found)، [`LOUSHO_REGISTRY_INVALID`](#lousho_registry_invalid)، [`LOUSHO_REGISTRY_UNSAFE_PATH`](#lousho_registry_unsafe_path)، [`LOUSHO_REGISTRY_FILE_EXISTS`](#lousho_registry_file_exists)، [`LOUSHO_REGISTRY_MANIFEST_MISMATCH`](#lousho_registry_manifest_mismatch) | `lousho add` وهو يجلب أو ينسخ من registry. |
-| [الـ sandbox](#sandbox) | [`LOUSHO_SANDBOX_EGRESS_UNSUPPORTED`](#lousho_sandbox_egress_unsupported) | لما تطلب من الـ sandbox شيء يعجز عنه على المنصة الحالية. |
-| [مجلدات الـ agents والـ skills والـ flows](#agent-directories-skills-and-flows) | [`LOUSHO_AGENT_DIR_INVALID`](#lousho_agent_dir_invalid)، [`LOUSHO_SKILL_INVALID`](#lousho_skill_invalid)، [`LOUSHO_FLOW_INVALID`](#lousho_flow_invalid) | تحميل مجلد agent، أو skill، أو تعريف flow. |
-| [الـ storage والنشر والتكاملات](#storage-deployment-and-integrations) | [`LOUSHO_STORAGE_FAILED`](#lousho_storage_failed)، [`LOUSHO_TRIGGER_INVALID`](#lousho_trigger_invalid)، [`LOUSHO_CHANNEL_REQUEST_FAILED`](#lousho_channel_request_failed)، [`LOUSHO_DEPLOY_FAILED`](#lousho_deploy_failed) | واجهة storage، أو trigger، أو طلب channel، أو `lousho build`. |
-| [الاختبارات والـ evals](#tests-and-evals) | [`LOUSHO_EVALS_INVALID`](#lousho_evals_invalid)، [`LOUSHO_TEST_FAILED`](#lousho_test_failed)، [`LOUSHO_CASSETTE_INVALID`](#lousho_cassette_invalid) | `defineEval()` و`mockModel` والـ cassettes. |
+| [الـ sandbox](#الـ-sandbox) | [`LOUSHO_SANDBOX_EGRESS_UNSUPPORTED`](#lousho_sandbox_egress_unsupported) | لما تطلب من الـ sandbox شيء يعجز عنه على المنصة الحالية. |
+| [مجلدات الـ agents والـ skills والـ flows](#مجلدات-الـ-agents-والـ-skills-والـ-flows) | [`LOUSHO_AGENT_DIR_INVALID`](#lousho_agent_dir_invalid)، [`LOUSHO_SKILL_INVALID`](#lousho_skill_invalid)، [`LOUSHO_FLOW_INVALID`](#lousho_flow_invalid) | تحميل مجلد agent، أو skill، أو تعريف flow. |
+| [الـ storage والنشر والتكاملات](#الـ-storage-والنشر-والتكاملات) | [`LOUSHO_STORAGE_FAILED`](#lousho_storage_failed)، [`LOUSHO_TRIGGER_INVALID`](#lousho_trigger_invalid)، [`LOUSHO_CHANNEL_REQUEST_FAILED`](#lousho_channel_request_failed)، [`LOUSHO_DEPLOY_FAILED`](#lousho_deploy_failed) | واجهة storage، أو trigger، أو طلب channel، أو `lousho build`. |
+| [الاختبارات والـ evals](#الاختبارات-والـ-evals) | [`LOUSHO_EVALS_INVALID`](#lousho_evals_invalid)، [`LOUSHO_TEST_FAILED`](#lousho_test_failed)، [`LOUSHO_CASSETTE_INVALID`](#lousho_cassette_invalid) | `defineEval()` و`mockModel` والـ cassettes. |
 | [عام](#عام) | [`LOUSHO_GENERIC_ERROR`](#lousho_generic_error)، [`LOUSHO_AGENT_EXECUTION_FAILED`](#lousho_agent_execution_failed)، [`LOUSHO_FLOW_EXECUTION_FAILED`](#lousho_flow_execution_failed)، [`LOUSHO_VALIDATION_FAILED`](#lousho_validation_failed)، [`LOUSHO_OPERATION_TIMEOUT`](#lousho_operation_timeout)، [`LOUSHO_OUTPUT_INVALID`](#lousho_output_invalid)، [`LOUSHO_BUDGET_EXCEEDED`](#lousho_budget_exceeded)، [`LOUSHO_GUARDRAIL_TRIPPED`](#lousho_guardrail_tripped) | فشل على مستوى الـ run: timeout، أو وقف بسبب budget أو guardrail، أو output غير صالح، والأكواد العامة. |
 | [المصادقة](#المصادقة) | [`LOUSHO_AUTH_CONFIG_INVALID`](#lousho_auth_config_invalid) | مساعد route auth (`jwt()` أو `oidc()` أو `basic()` أو `apiToken()`) أخذ خيارات ما يقدر يتحقق فيها. |
 | [OAuth](#oauth) | [`LOUSHO_TOKEN_KEY_MISSING`](#lousho_token_key_missing)، [`LOUSHO_TOKEN_DECRYPT_FAILED`](#lousho_token_decrypt_failed)، [`LOUSHO_OAUTH_PRINCIPAL_REQUIRED`](#lousho_oauth_principal_required)، [`LOUSHO_OAUTH_APP_SIGNIN_REQUIRED`](#lousho_oauth_app_signin_required)، [`LOUSHO_OAUTH_STORE_MISSING`](#lousho_oauth_store_missing)، [`LOUSHO_OAUTH_STATE_INVALID`](#lousho_oauth_state_invalid)، [`LOUSHO_SIGNIN_PENDING`](#lousho_signin_pending)، [`LOUSHO_OAUTH_TOKEN_EXCHANGE_FAILED`](#lousho_oauth_token_exchange_failed)، [`LOUSHO_MCP_AUTH_REQUIRED`](#lousho_mcp_auth_required) | تخزين أو قراءة OAuth tokens في ملف أو SQLite أو KV store، والـ sign-in وتبديل الـ tokens لأدوات OAuth وسيرفرات MCP. |
@@ -117,7 +123,7 @@ try {
 
 **مثال:** `createAgent({ provider, model: ({ metadata }) => plans[metadata.plan].model })` مع خطة غير معروفة.
 
-## الـ providers والـ peer dependencies {#providers-and-peers}
+## الـ providers والـ peer dependencies
 
 ### LOUSHO_PROVIDER_SPEC_INVALID
 
@@ -175,7 +181,7 @@ try {
 
 **مثال:** `createAgent({ model: 'ollama/llama3.2', tools: [webSearch()] })` يرفض أول `send()` له.
 
-## ملفات الـ AgentSpec {#agent-spec-files}
+## ملفات الـ AgentSpec
 
 ### LOUSHO_SPEC_NOT_FOUND
 
@@ -247,7 +253,7 @@ loadSpec: 'agent.yaml' failed validation - 'prompt': AgentSpec validation failed
 
 **مثال:** الـ model يرسل `{ to: 42 }` لأداة حقلها `to` نص.
 
-## الـ approvals والـ sessions {#approvals-and-sessions}
+## الـ approvals والـ sessions
 
 ### LOUSHO_APPROVAL_STORE_MISSING
 
@@ -475,7 +481,7 @@ loadSpec: 'agent.yaml' failed validation - 'prompt': AgentSpec validation failed
 
 **مثال:** عنصر tool ملفه يستورد `node:child_process` والـ manifest تبعه خالٍ من `exec`.
 
-## الـ sandbox {#sandbox}
+## الـ sandbox
 
 ### LOUSHO_SANDBOX_EGRESS_UNSUPPORTED
 
@@ -485,7 +491,7 @@ loadSpec: 'agent.yaml' failed validation - 'prompt': AgentSpec validation failed
 
 **مثال:** `new SubprocessSandbox({ network: { allow: ['api.github.com'] }, broker })` مع Docker Desktop.
 
-## مجلدات الـ agents والـ skills والـ flows {#agent-directories-skills-and-flows}
+## مجلدات الـ agents والـ skills والـ flows
 
 ### LOUSHO_AGENT_DIR_INVALID
 
@@ -511,7 +517,7 @@ loadSpec: 'agent.yaml' failed validation - 'prompt': AgentSpec validation failed
 
 **مثال:** نداءين `.input('city')` على `FlowBuilder` واحد.
 
-## الـ storage والنشر والتكاملات {#storage-deployment-and-integrations}
+## الـ storage والنشر والتكاملات
 
 ### LOUSHO_STORAGE_FAILED
 
@@ -545,7 +551,7 @@ loadSpec: 'agent.yaml' failed validation - 'prompt': AgentSpec validation failed
 
 **مثال:** `lousho build --target node-server` بدون `--agent`.
 
-## الاختبارات والـ evals {#tests-and-evals}
+## الاختبارات والـ evals
 
 ### LOUSHO_EVALS_INVALID
 

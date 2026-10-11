@@ -25,7 +25,36 @@ characters from `A-Z`, `a-z`, `0-9`, `_` and `-`) and an owner:
   from another are different owners. With [route auth](/auth), a request's
   principal maps onto it as `{ owner: 'user', principalId: principal.id,
   issuer: principal.issuer }`; a user credential needs that principal,
-  because without one there is no user to own it.
+  because without one there is no user to own it. A principal without an
+  `issuer` (a Slack, GitHub, Telegram or Discord user, `basic()`, `apiToken()`)
+  gets `issuer: 'authenticator:<name>'`, so the same id from two authenticators
+  (Slack `U04ABCDEF` and a GitHub login `U04ABCDEF`) is two owners and never
+  shares a token.
+
+### Migrating tokens stored before the authenticator namespace
+
+Tokens stored for a principal without an issuer sit under the old key
+(`<provider>|user||<id>`). That key was shared by every authenticator, so the
+SDK does not read it as a fallback: doing so would hand one authenticator's
+token to another. Users whose token is not found sign in again. To keep a
+token, an operator who knows which authenticator the old tokens belong to moves
+them once:
+
+```ts
+import { fileStore } from '@lousho/build-ai-agent';
+
+const store = fileStore('./.lousho', { tokenKey: process.env.LOUSHO_TOKEN_KEY });
+const legacy = { owner: 'user', principalId: 'U04ABCDEF' } as const;
+const owner = { ...legacy, issuer: 'authenticator:slack' } as const;
+const token = await store.tokens!.get('gdrive', legacy);
+if (token) {
+  await store.tokens!.set('gdrive', owner, token);
+  await store.tokens!.delete('gdrive', legacy);
+}
+```
+
+A sign-in link issued before the upgrade is refused at its callback; the user
+asks for a fresh one.
 
 `tokenStoreKey(provider, owner)` is the record key of a credential:
 `<provider>|app`, or `<provider>|user|<issuer>|<principalId>` with the issuer
@@ -179,7 +208,11 @@ const agent = createAgent({ provider, tools: [listRepos], store: memoryStore() }
   (`credentialOwner: 'user'`, the default) or the app's own
   (`credentialOwner: 'app'`) from `store.tokens`. A token that expires within
   60 seconds and has a refresh token is refreshed at `tokenUrl` first and
-  saved; a refresh the server refuses deletes it.
+  saved. Concurrent calls in one process that need the same refresh share one
+  request, so a provider that rotates refresh tokens (single use) is not sent
+  the same one twice. A refresh the server refuses deletes the token, unless
+  the store meanwhile holds a different one (another process refreshed it);
+  that one is used instead.
 - Without a usable token the run **pauses**, exactly like an
   [approval](/approvals): `finishReason: 'awaiting-approval'`, a pending
   approval with `kind: 'sign-in'`, durable in the agent's stores. Once the user
@@ -252,8 +285,10 @@ The pause is reported like any approval, with the link to open:
   continue: &lt;url>" without Approve / Deny buttons. Slack sends it with
   `chat.postEphemeral` to the user who started the turn and Discord as an
   ephemeral follow-up, so nobody else in the thread sees the link. Teams and
-  Telegram post it in the conversation (they have no message only one user
-  sees), and GitHub never posts it in a public thread. Behind
+  Telegram have no message only one user sees, so they send the link only in a
+  1:1 chat with the bot; in a group chat or channel they post "please sign in
+  from a private chat with me" instead. GitHub never posts it in a public
+  thread. Behind
   `createDeployedServer()` and `lousho dev`, the callback continues the paused
   channel turn by itself, and the answer is posted where the question was asked.
 - `lousho dev`'s chat page shows the link with "I've signed in" and "Cancel";
@@ -334,12 +369,17 @@ approval.
   issuer is another user. An app credential is only signed in by the operator.
 - **Who sees the link.** Whoever opens a sign-in link binds their own account
   to the user who asked. Show it only to that user: the run's own stream, an
-  ephemeral message in a shared channel (Slack, Discord), never a public
-  thread.
+  ephemeral message in a shared channel (Slack, Discord), a 1:1 chat
+  (Telegram, Teams), never a group chat or a public thread.
 - **Never return a token from a tool.** Return the API's answer. As a safety
-  net, a tool result that contains a token `getToken()` handed out during that
-  call has it replaced with `[REDACTED]` before it is recorded, and a warning
-  names the tool. Tokens never enter agent events, transcripts, checkpoints,
+  net, a tool result or a thrown error that contains a token `getToken()`
+  handed out during that call has it replaced with `[REDACTED]` before it is
+  recorded, and a warning names the tool. The result is checked in its JSON
+  form (values, keys, a `URL`, a class instance's fields), the error in its
+  message, stack and `cause` chain, and the token is matched verbatim and
+  base64 or base64url encoded (a `Basic` header). The redaction is a net, not
+  a guarantee: a token that is hashed, split or otherwise transformed is not
+  found. Tokens never enter agent events, transcripts, checkpoints,
   approval records, trace spans or recorded cassettes.
 
 ## MCP servers with OAuth

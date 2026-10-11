@@ -10,14 +10,14 @@ description: "هذه الصفحة توصلك من agent بسطر واحد إلى
 أسرع طريقة أمر واحد. ينشئ مشروع جاهز للتشغيل (agent، وtool كمثال، واختبار offline، وملف `.env.example` للـ provider)، ويثبّت الـ dependencies، ويشغّل `git init`:
 
 ```bash
-npx lousho init my-agent
+npm create lousho-agent my-agent
 cd my-agent
-cp .env.example .env     # put your API key in .env
+# copy .env.example to .env (cp on macOS/Linux, copy on Windows), then put your API key in it
 npm run dev              # chat with your agent in the terminal
 npm test                 # offline tests: no API key needed
 ```
 
-`npm create lousho-agent my-agent` يعمل نفس الشيء، وكذلك `npx @lousho/build-ai-agent init my-agent` إذا لم يكن الـ SDK مثبّتًا بعد (`npx lousho` لوحده لا يجد أمر `lousho` إلا بعد وجود الـ SDK في `node_modules` لديك). بدون arguments، يسألك `init` عن المجلد والـ provider والقالب. و`lousho init --help` يعرض كل الـ flags.
+`npx @lousho/build-ai-agent init my-agent` يعمل نفس الشيء. لا توجد حزمة npm اسمها `lousho`: أمر `lousho` يأتي مع `@lousho/build-ai-agent`، لذلك `npx lousho ...` لوحده لا يشتغل إلا بعد وجود الـ SDK في `node_modules` لديك. بدون arguments، يسألك `init` عن المجلد والـ provider والقالب. و`npx @lousho/build-ai-agent init --help` يعرض كل الـ flags.
 
 تفضّل تضيف الـ SDK إلى مشروع موجود؟ ثبّته يدويًا (راجع [التثبيت](/ar/installation)):
 

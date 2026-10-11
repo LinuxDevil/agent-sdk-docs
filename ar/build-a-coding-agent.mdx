@@ -2,6 +2,12 @@
 title: "ابنِ coding agent"
 sidebarTitle: "ابنِ coding agent"
 ---
+
+{/* pending-translation */}
+<Warning>
+لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/build-a-coding-agent).
+</Warning>
+
 {/* Generated from docs/build-a-coding-agent.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 هذه الصفحة تبني coding agent يشتغل في الـ terminal على طريقة Claude Code: يقرأ ملفات مشروعك ويعدّلها، يشغّل أوامر، يسألك قبل ما يكتب ملف أو يشغّل شي خطر، ويخلّي المحادثة مكملة لأسئلة المتابعة. تحتاج Node 22، ومفتاح API في متغيّر البيئة اللي يتوقعه الـ provider (`OPENAI_API_KEY` للـ model المستخدم هنا)، ومجلد مشروع تشغّله فيه. الملف الجاهز في آخر [الخطوة 5](#5-خلي-المحادثة-شغالة)، وتشغّله هكذا `npx tsx coding.ts "Fix the failing test"`.
