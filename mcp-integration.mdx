@@ -24,8 +24,8 @@ export them too. `createAgent({ mcpServers })` needs no import from the subpath.
 `await agent.ready()` or, automatically, on the first `send()` / `stream()`;
 each server's tools are added as `<server>__<tool>` (e.g. `docs__search`).
 A server that cannot connect fails that call, and the next call tries again.
-`agent.close()` disconnects them (stops stdio processes); a later tool call
-reconnects. Without `mcpServers`, `ready()` and `close()` do nothing. The
+`agent.close()` disconnects them (stops stdio processes); a later tool call,
+or `ready()`, reconnects. Without `mcpServers`, `ready()` and `close()` do nothing. The
 `vendor/` model prefix chooses the provider; with OpenRouter use
 `openrouter/<vendor>/<model>` (e.g. `openrouter/openai/gpt-4o-mini`).
 
@@ -43,12 +43,36 @@ const { text } = await agent.send('List the files here.');
 await agent.close();
 ```
 
-stdio entries are spawned with `command` and `args`; `env` is added to the
-default environment (`PATH` and the like), not a replacement for it. HTTP
+stdio entries are spawned with `command` and `args` (in `cwd`, when set); `env`
+is added to the default environment (`PATH` and the like), not a replacement for
+it. A server that does not start fails with
+[`LOUSHO_MCP_START_FAILED`](/errors#lousho_mcp_start_failed), whose message
+has the exit code and the last lines the process wrote to stderr.
+`stderr: 'forward'` (default) also copies the process's stderr to this one's,
+`'capture'` only keeps the last lines, and `'inherit'` / `'ignore'` keep none.
+`connectTimeoutMs` (stdio or HTTP) bounds the `initialize` handshake; the
+default is the MCP SDK's 60 seconds. HTTP
 entries use the streamable HTTP transport and send the static `headers` on every
 request. An HTTP entry can also sign in with OAuth, as the MCP authorization
 spec describes: add `oauth: { redirectUri }` and an operator signs the agent in
 once; see [MCP servers with OAuth](/oauth#mcp-servers-with-oauth).
+
+Each tool call gets the run's abort signal, so aborting a run cancels the MCP
+call in flight. `timeoutMs` on an entry (stdio or HTTP) bounds each call to
+that server; without it the MCP SDK's default of 60 seconds applies.
+`loadMcpTools(client, name, { timeoutMs })` takes the same option.
+
+A tool result whose content is only text reaches the model as `{ "text": ... }`.
+The result object still has `content` (the parts) for code that reads it, but
+it is not sent to the model a second time. Results with images, audio or
+resources keep every part, and `structuredContent` is used as the result when
+the server sends it. Base64 data (an image or audio part's `data`, a resource's
+`blob`) stays on the part for code, but the model gets a placeholder such as
+`[image: image/png, 400000 base64 characters, not sent to the model]`. Like
+every tool result, the rest is capped by `maxToolResultChars` (see
+[Tools](/tools#what-happens-when-the-model-calls-a-tool)), and a tool
+description longer than 2,000 characters is cut, since it is sent with every
+request.
 
 The map is the same one a spec file declares; see
 [Configuration](/configuration) (the `mcpServers` section) for the YAML form.
@@ -65,13 +89,24 @@ Options:
 - `lazy` (default `true`): after `close()` or a dropped connection, the next
   tool call reconnects. With `false` that call fails instead. Listing tools
   needs a connection, so `lazy` never delays the first connect.
-- `logger`: receives skipped-server and skipped-tool warnings (default: none).
+- `logger`: receives skipped-server and skipped-tool warnings, and a warning
+  (with the exit code and the last stderr lines) when a server's connection
+  closes without `close()` (default: none).
 - `tokens`: the token store (`AgentStore.tokens`) of servers with `oauth`;
   required when any server has `oauth`.
+- `onToolsChanged(tools)`: called after a server's tool list changed (see below).
 
 It returns `{ tools, close(), status() }`; `status()` maps each server to
-`'idle'`, `'connected'`, `'failed'` or `'needs-auth'` (an `oauth` server the
-app is not signed in to).
+`'idle'` (not connected yet, or after `close()`), `'connected'`, `'failed'`
+(it could not connect, or its connection dropped, e.g. the stdio process
+exited; with `lazy` the next tool call reconnects) or `'needs-auth'` (an
+`oauth` server the app is not signed in to).
+
+Tools are listed through every `tools/list` page (`nextCursor`), up to 100
+pages per server. When a server sends `notifications/tools/list_changed`, its
+tools are listed again: `tools` is updated in place (new tools added, gone ones
+removed) and `onToolsChanged` is called. An agent with `mcpServers` offers the
+new list from its next model call.
 
 `tools` is a `Record<string, ToolDescriptor>` keyed `<server>__<tool>` — a
 map, not the array `defineTool()` results make. `createAgent({ tools })` takes
@@ -99,25 +134,61 @@ mix: `tools: [mcp.tools, weatherTool]` or `tools: [...createFsTools(workspace),
 ...Object.values(mcp.tools)]` (each MCP descriptor carries its
 `<server>__<tool>` name, so `Object.values` works too).
 
+### Tool names and filtering
+
+Providers accept tool names matching `^[a-zA-Z0-9_-]{1,64}$`; MCP allows more.
+A `<server>__<tool>` name with other characters has them replaced by `_`, and a
+name over 64 characters is shortened, with a short hash so names stay distinct;
+names that still collide get a `_2`, `_3` suffix. The server is always called
+with the tool's own name, which `descriptor.metadata.mcp.tool` keeps, and a
+renamed tool is logged as a warning. Valid names are unchanged.
+
+An MCP tool may not take the name of another tool of the agent: if a server's
+`<server>__<tool>` equals a local tool's name, the run fails with
+`LOUSHO_CONFIG_INVALID` instead of the MCP tool replacing the local one (and its
+approval gate). Rename the local tool, or leave the MCP tool out with
+`tools: { exclude }`.
+
+`tools: { include, exclude }` on a server entry (or
+`loadMcpTools(client, name, { tools })`) loads only some of its tools, by their
+MCP names: `include` keeps only those listed, then `exclude` drops those listed.
+An `include` name the server does not offer is logged as a warning.
+
+```ts
+const mcpServers = {
+  hosting: { command: 'npx', args: ['-y', 'hosting-mcp'], tools: { exclude: ['multi-execute'] } },
+};
+```
+
 ### Approval for MCP tools
+
+By default **every MCP tool asks for [approval](/approvals)**: the run
+pauses until a human (or your `approve` callback) decides.
 
 MCP servers describe each tool with annotations (`readOnlyHint`,
 `destructiveHint`, `idempotentHint`, `openWorldHint` and a `title`). They are
-hints, but the SDK uses them as the default for [approvals](/approvals):
-a tool with `readOnlyHint: true` runs; a tool with `destructiveHint: true`, or
-one that sends no `destructiveHint` (the MCP spec's default is destructive),
-pauses the run until a human approves; `destructiveHint: false` runs. A tool
-without annotations therefore asks. The raw annotations stay on
-`descriptor.metadata.mcp.annotations`, and `title` becomes the `displayName`.
+the server's own word, not a guarantee, so the SDK trusts them only when you opt
+in with `approval: 'annotations'`: a tool with `readOnlyHint: true` then runs
+(and may run in [plan mode](/permission-modes)); a tool with
+`destructiveHint: true`, or one that sends no `destructiveHint` (the MCP spec's
+default is destructive), pauses the run until a human approves;
+`destructiveHint: false` runs. The raw annotations stay on
+`descriptor.metadata.mcp.annotations` either way, and `title` becomes the
+`displayName`.
 
 Set `approval` on a server entry (`mcpServers`, `createAgent`, `connectMcp()`) or
 in `loadMcpTools(client, name, { approval })`:
 
-- `'annotations'` (default): as above.
-- `'always'` / `'never'`: ask for every tool / none of them.
-- A function `({ name, annotations }) => boolean` decides per tool (`name` is
-  the bare tool name; `annotations` is `{}` when the server sent none). Only
-  in code; a spec file takes the three strings.
+- `'always'` (default): ask for every tool. Plan mode refuses every tool of the
+  server.
+- `'annotations'`: trust the server's hints, as above. Use it only for servers
+  you trust.
+- `'never'`: ask for none of them.
+- A function `({ name, annotations, args }) => boolean` decides per call
+  (`name` is the bare tool name; `annotations` is `{}` when the server sent
+  none; `args` are the call's arguments). It lets you gate a meta-tool such as
+  `execute({ operation })` by its arguments, since server hints are not always
+  right. Only in code; a spec file takes the three strings.
 
 [Permission rules](/approvals#permission-policies) run first and can still
 `allow`, `deny` or `ask`.
@@ -128,7 +199,10 @@ import { createAgent } from '@lousho/build-ai-agent';
 const agent = createAgent({
   model: 'openai/gpt-4o-mini',
   mcpServers: {
+    // The default: every tool asks.
     files: { command: 'npx', args: ['-y', '@modelcontextprotocol/server-filesystem', '.'] },
+    // A server you trust to label its tools: its read-only tools run.
+    github: { url: 'https://api.githubcopilot.com/mcp/', approval: 'annotations' },
     // Ask before anything except tools whose name starts with `search`.
     docs: { url: 'https://example.com/mcp', approval: ({ name }) => !name.startsWith('search') },
     // A server you trust: never ask.
@@ -195,7 +269,14 @@ await server.close();
 - **stdio.** Nothing but the MCP protocol is written to stdout; warnings go to stderr.
 - **HTTP.** Binds `127.0.0.1` by default. Add `auth: { type: 'bearer', token }`
   to require an `Authorization: Bearer` header; binding a non-loopback host
-  without `auth` logs a warning.
+  without `auth` logs a warning. To block DNS rebinding (a web page re-pointing
+  its own domain at your machine), a loopback bind answers `403` unless the
+  `Host` header is `localhost`, `127.x.x.x` or `[::1]`, and any request whose
+  `Origin` header is not same-origin with `Host` gets `403`. Set
+  `allowedHosts: ['mcp.internal']` to accept other names (it replaces the
+  loopback default; on a non-loopback bind there is no Host check unless you
+  set it) and `allowedOrigins: ['https://app.example']` to accept browser
+  requests from another origin. `['*']` turns either check off.
 
 ### Annotations
 
