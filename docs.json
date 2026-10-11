@@ -159,9 +159,14 @@
                   "cli",
                   "deployment",
                   "cloudflare-workers",
-                  "hostinger-vps",
                   "registry",
-                  "agent-forge"
+                  "agent-forge",
+                  {
+                    "group": "Deployment guides",
+                    "pages": [
+                      "hostinger-vps"
+                    ]
+                  }
                 ]
               }
             ]
@@ -213,11 +218,11 @@
         "language": "ar",
         "tabs": [
           {
-            "tab": "\u00d8\u00a7\u00d9\u201e\u00d8\u00aa\u00d9\u02c6\u00d8\u00ab\u00d9\u0160\u00d9\u201a",
+            "tab": "التوثيق",
             "icon": "book-open",
             "groups": [
               {
-                "group": "\u00d8\u00a7\u00d9\u201e\u00d8\u00a8\u00d8\u00af\u00d8\u00a7\u00d9\u0160\u00d8\u00a9",
+                "group": "البداية",
                 "pages": [
                   "ar/introduction",
                   "ar/quickstart",
@@ -227,7 +232,7 @@
                 ]
               },
               {
-                "group": "\u00d8\u00a8\u00d9\u2020\u00d8\u00a7\u00d8\u00a1 \u00d9\u02c6\u00d9\u0192\u00d9\u0160\u00d9\u201e",
+                "group": "بناء وكيل",
                 "pages": [
                   "ar/tools",
                   "ar/openapi-tools",
@@ -239,30 +244,34 @@
                   "ar/hooks",
                   "ar/sessions",
                   "ar/runs",
+                  "ar/prompting-techniques",
                   "ar/memory",
                   "ar/structured-output",
                   "ar/streaming",
                   "ar/stream-events",
                   "ar/queue-and-steer",
                   "ar/reasoning",
+                  "ar/decisions",
                   "ar/providers",
                   "ar/models-and-cost",
                   "ar/build-a-coding-agent"
                 ]
               },
               {
-                "group": "\u00d8\u00aa\u00d8\u00b1\u00d9\u0192\u00d9\u0160\u00d8\u00a8 \u00d8\u00a7\u00d9\u201e\u00d9\u02c6\u00d9\u0192\u00d9\u201e\u00d8\u00a7\u00d8\u00a1",
+                "group": "تركيب الوكلاء",
                 "pages": [
                   "ar/sub-agents",
                   "ar/handoffs",
                   "ar/skills",
                   "ar/mcp-integration",
+                  "ar/connectors",
                   "ar/agent-directories",
+                  "ar/claude-projects",
                   "ar/flows"
                 ]
               },
               {
-                "group": "\u00d8\u00aa\u00d8\u00b4\u00d8\u00ba\u00d9\u0160\u00d9\u201e \u00d9\u2026\u00d9\u02c6\u00d8\u00ab\u00d9\u02c6\u00d9\u201a",
+                "group": "تشغيل موثوق",
                 "pages": [
                   "ar/durable-execution",
                   "ar/compaction",
@@ -271,7 +280,7 @@
                 ]
               },
               {
-                "group": "\u00d9\u02c6\u00d8\u00a7\u00d8\u00ac\u00d9\u2021\u00d8\u00a7\u00d8\u00aa \u00d8\u00a7\u00d9\u201e\u00d9\u2026\u00d8\u00b3\u00d8\u00aa\u00d8\u00ae\u00d8\u00af\u00d9\u2026\u00d9\u0160\u00d9\u2020",
+                "group": "واجهات المستخدمين",
                 "pages": [
                   "ar/react",
                   "ar/vue",
@@ -287,7 +296,7 @@
                 ]
               },
               {
-                "group": "\u00d8\u00a7\u00d9\u201e\u00d8\u00a7\u00d8\u00ae\u00d8\u00aa\u00d8\u00a8\u00d8\u00a7\u00d8\u00b1 \u00d9\u02c6\u00d8\u00a7\u00d9\u201e\u00d9\u2026\u00d8\u00b1\u00d8\u00a7\u00d9\u201a\u00d8\u00a8\u00d8\u00a9",
+                "group": "الاختبار والمراقبة",
                 "pages": [
                   "ar/testing",
                   "ar/evals",
@@ -295,35 +304,46 @@
                 ]
               },
               {
-                "group": "\u00d8\u00a7\u00d9\u201e\u00d9\u2020\u00d8\u00b4\u00d8\u00b1",
+                "group": "النشر",
                 "pages": [
                   "ar/cli",
                   "ar/deployment",
                   "ar/cloudflare-workers",
                   "ar/registry",
-                  "ar/agent-forge"
+                  "ar/agent-forge",
+                  {
+                    "group": "أدلة النشر",
+                    "pages": [
+                      "ar/hostinger-vps"
+                    ]
+                  }
                 ]
               }
             ]
           },
           {
-            "tab": "\u00d8\u00a3\u00d9\u2026\u00d8\u00ab\u00d9\u201e\u00d8\u00a9",
+            "tab": "أمثلة",
             "icon": "chef-hat",
             "groups": [
               {
-                "group": "\u00d8\u00a3\u00d9\u2026\u00d8\u00ab\u00d9\u201e\u00d8\u00a9",
+                "group": "أمثلة",
                 "pages": [
-                  "ar/examples"
+                  "ar/examples",
+                  "ar/examples/waves",
+                  "ar/examples/phase-pipeline",
+                  "ar/examples/coding-agent-workflows",
+                  "ar/examples/connectors",
+                  "ar/examples/hostinger-deploy"
                 ]
               }
             ]
           },
           {
-            "tab": "\u00d8\u00a7\u00d9\u201e\u00d9\u2026\u00d8\u00b1\u00d8\u00ac\u00d8\u00b9",
+            "tab": "المرجع",
             "icon": "code",
             "groups": [
               {
-                "group": "\u00d8\u00a7\u00d9\u201e\u00d9\u2026\u00d8\u00b1\u00d8\u00ac\u00d8\u00b9",
+                "group": "المرجع",
                 "pages": [
                   "ar/api-overview",
                   "ar/executor-api",
@@ -334,7 +354,7 @@
                 ]
               },
               {
-                "group": "\u00d8\u00a7\u00d9\u201e\u00d8\u00a5\u00d8\u00b5\u00d8\u00af\u00d8\u00a7\u00d8\u00b1\u00d8\u00a7\u00d8\u00aa",
+                "group": "الإصدارات",
                 "pages": [
                   "ar/upgrading"
                 ]
