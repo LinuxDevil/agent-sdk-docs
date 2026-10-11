@@ -24,8 +24,10 @@ npm run sync -- /path/to/agent-sdk
 
 The script (`scripts/sync-sdk-docs.mjs`) adds front matter, rewrites links
 between pages, points links to source files at GitHub, and escapes what MDX
-would otherwise read as JSX. It reports any SDK doc that has no page and any
-page missing from the navigation. It also rewrites links to headings: the SDK
+would otherwise read as JSX. It also drops internal tracker ids (such as
+`LOU-...` tickets) from the prose, since they mean nothing to a reader of the
+site, and prints any it could not remove. It reports any SDK doc that has no
+page and any page missing from the navigation. It also rewrites links to headings: the SDK
 docs use GitHub's heading slugs, and Mintlify renders different ids
 (`scripts/anchors.mjs`).
 
@@ -83,6 +85,10 @@ note that the page is not translated, with a link to the English page. Both
 carry the marker `{/* pending-translation */}`; `node
 scripts/check-translations.mjs --mark-pending` adds the notice to every
 pending page that lacks it.
+
+The example pages (`examples/<name>`) are not checked by the script; their
+Arabic counterparts in `ar/examples/` are stubs with the same pending notice
+until someone translates them.
 
 ### Adding a page later
 

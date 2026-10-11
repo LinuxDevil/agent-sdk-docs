@@ -114,7 +114,7 @@ const SIDEBAR_TITLES = {
   'queue-and-steer': 'Queued input and steering',
   'models-and-cost': 'Models and cost',
   upgrading: 'Upgrading to 1.0',
-  'examples/waves': 'Waves (WAVE engineering)',
+  'examples/waves': 'Waves',
   'examples/phase-pipeline': 'Phase pipeline',
   'examples/coding-agent-workflows': 'Coding agent workflows',
   'examples/connectors': 'Connectors',
@@ -181,16 +181,60 @@ function rewriteLink(target, fromFile) {
   return `${GITHUB}${resolved}${anchor ? `#${anchor}` : ''}`;
 }
 
+/**
+ * The SDK's CHANGELOG cites internal tracker ids ("LOU-D41", "Eve TOOLS-F12") that mean
+ * nothing to a reader of the public site. Drop them from prose: a parenthetical that only
+ * holds ids goes away, ids listed next to real text inside parentheses are removed, and the
+ * few sentences that name an id inline are reworded neutrally.
+ */
+const INTERNAL_REF = /^(?:Eve\b.*|EVE-\d+.*|LOU-[A-Z]+\d+(?:\.\d+)*[a-z]?(?: follow-up)?|[A-Z]+-F\d+|channels(?:-server)? F\d+|E\d+(?: follow-up)?|F\d+)$/;
+const REF = String.raw`LOU-[A-Z]+\d+(?:\.\d+)*[a-z]?`;
+const ref = (source, flags = 'g') => new RegExp(source.replaceAll('REF', REF), flags);
+const INLINE_REWRITES = [
+  [ref(String.raw`,? deprecated since REF`), ', deprecated'],
+  [ref(String.raw` until the egress proxy of REF enforces it`), ' until the egress proxy enforces it'],
+  [ref(String.raw` is REF\.`), ' is a separate follow-up.'],
+  [ref(String.raw` are REF(?: \/ REF)*\.`), ' are separate follow-ups.'],
+  [ref(String.raw`\((?:Eve [^;,()]+|REF)[;,] `), '('],
+  [ref(String.raw` is the follow-up, REF\.`), ' is a separate follow-up.'],
+  [ref(String.raw` through the REF compatibility layer`), ' through a compatibility layer'],
+  [ref(String.raw` is marked deprecated for REF;`), ' is marked deprecated;'],
+  [ref(String.raw` naming REF until that ticket lands`), ' until that is supported'],
+  [ref(String.raw` \(the REF ([^)]*)\)`), ' (the $1)'],
+  [ref(String.raw` \(([^)]*?) (?:there )?are REF\)`), ' ($1 there are a separate follow-up)'],
+  [ref(String.raw`Finishes REF \(`), 'Finishes the earlier change ('],
+  [ref(String.raw` that REF skipped`), ' that were skipped'],
+];
+function scrubInternalRefs(text) {
+  let out = text.replace(/ ?\(([^()]*\b(?:Eve|EVE|LOU)\b[^()]*)\)/g, (whole, inner) => {
+    const parts = inner.split(/\s*(?:[,;]| \/ )\s*/);
+    const kept = parts.filter((part) => !INTERNAL_REF.test(part.trim()));
+    if (!kept.length) return '';
+    if (kept.length === parts.length) return whole;
+    // Rejoining would reformat commas inside inline code; strip only a leading or trailing id there.
+    if (inner.includes('`')) {
+      const trimmed = inner
+        .replace(ref(String.raw`^(?:Eve [^;,()]+|REF)[;,]\s*`, ''), '')
+        .replace(ref(String.raw`[;,]\s*(?:Eve [^;,()]+|REF)$`, ''), '');
+      return ` (${trimmed})`;
+    }
+    return ` (${kept.join(', ')})`;
+  });
+  for (const [pattern, replacement] of INLINE_REWRITES) out = out.replace(pattern, replacement);
+  return out;
+}
+
 function convertProse(lines, fromFile) {
-  let text = lines.join('\n').replace(/<!--[\s\S]*?-->\n?/g, '');
+  let text = scrubInternalRefs(lines.join('\n').replace(/<!--[\s\S]*?-->\n?/g, ''));
   return text
-    .split(/(\n{2,})/)
+    // A list item is its own block too, so one unbalanced backtick cannot swallow the rest of a list.
+    .split(/(\n{2,}|\n(?=[ \t]*(?:[-*+]|\d+\.)[ \t]))/)
     .map((block) =>
       outsideInlineCode(block, (part) =>
         part
           .replace(/\]\(([^)\s]+)\)/g, (_, target) => `](${rewriteLink(target, fromFile)})`)
           .replace(/<(https?:\/\/[^>\s]+)>/g, '[$1]($1)')
-          .replace(/<(?=[A-Za-z/!])/g, '&lt;')
+          .replace(/<(?=[A-Za-z/!=])/g, '&lt;')
           .replace(/\{/g, '&#123;')
           .replace(/\}/g, '&#125;'),
       ),
@@ -301,4 +345,9 @@ console.log(`wrote ${written} pages from ${sdkRoot}`);
 if (unmapped.length) console.log(`SDK docs with no page (add them to PAGES): ${unmapped.join(', ')}`);
 if (notInNav.length) console.log(`pages missing from docs.json navigation: ${notInNav.join(', ')}`);
 if (unresolved.length) console.log(`links to headings that do not exist:\n  ${unresolved.join('\n  ')}`);
+const leftoverRefs = Object.values(PAGES).flatMap((slug) => {
+  const text = readFileSync(join(siteRoot, `${slug}.mdx`), 'utf8');
+  return [...text.matchAll(/\b(?:Eve|LOU-[A-Z]+\d[\w.]*)\b/g)].map((m) => `${slug}: ${m[0]}`);
+});
+if (leftoverRefs.length) console.log(`internal tracker ids left in prose (add a rewrite to INLINE_REWRITES):\n  ${leftoverRefs.join('\n  ')}`);
 if (unmapped.length || notInNav.length) process.exitCode = 1;
