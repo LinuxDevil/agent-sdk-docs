@@ -102,7 +102,7 @@ console.log(result.text); // 'Sent the report to Sam.'
 | `AgentExecutor.execute({ agent, input, provider })` | `agent.send(message)`. الـ model تحدده بـ`model` (سلسلة بصيغة `provider/model`) أو `provider`. |
 | `AgentExecutor.stream(...)` | `agent.stream(message)`؛ راجع [Streaming](/ar/streaming). |
 | `onAgentEvent` | `onEvent` في `createAgent()`؛ و`stream()` يعطي نفس الأحداث. |
-| `onEvent` مع `ExecutionEvent` (deprecated) | `AgentEvent` listeners؛ راجع [الانتقال من `onEvent` / `ExecutionEvent`](/ar/streaming#الانتقال-من-onevent-executionevent). |
+| `onEvent` مع `ExecutionEvent` (deprecated) | `AgentEvent` listeners؛ راجع [الانتقال من `onEvent` / `ExecutionEvent`](/ar/streaming#الانتقال-من-onevent-/-executionevent). |
 | `sessionId` + `checkpointStore` | `store` في `createAgent()` و`agent.send(message, { sessionId })`؛ واستأنف run انقطع بـ`agent.resume(sessionId)`. راجع [Durable execution](/ar/durable-execution). |
 | `approvalStore` | `approvalStore`، أو `store` مع `approvals`. وبدون أي منهما، `InMemoryApprovalStore` خاص بكل agent. |
 | `resumeAfterApproval(decision, store, registry, provider)` | `agent.approvals.resolve({ id, approved, note? })`؛ و`agent.approvals.answer()` للرد على سؤال. راجع [Approvals](/ar/approvals). |

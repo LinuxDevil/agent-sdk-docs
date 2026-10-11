@@ -5,7 +5,7 @@ description: "Lousho مكتبة TypeScript لبناء AI agents تشتغل دا�
 
 معظم كود الـ agents يبدأ كحلقة تلفّ حول استدعاء model. بعدها يأتي الإنتاج ويطلب أكثر: لازم إنسان يوافق على استرداد المبلغ قبل إرساله. العملية تُعاد تشغيلها والـ run في منتصفه. المحادثة لازم تكمل غدًا من سيرفر آخر. وشخص ما يريد اختبار يفشل لما الـ agent يوقف عن استدعاء الـ tool الصحيح.
 
-`@lousho/build-ai-agent` هي هذه الحلقة وهذه الإجابات مدمجة فيها. مكتبة، لا web framework ولا hosted runtime: حلقة استدعاء tools من نوع typed، مع approvals (موافقات) و sessions (جلسات) و streaming و sub-agents و skills و MCP و CLI. ونفس الـ agent يشتغل في سكربت، أو سيرفر Node، أو حاوية Docker، أو Cloudflare Worker.
+`@lousho/build-ai-agent` هي هذه الحلقة وهذه الإجابات مدمجة فيها. مكتبة، لا web framework ولا hosted runtime: حلقة استدعاء tools من نوع typed، مع approvals (موافقات) و sessions (جلسات) و streaming و sub-agents و skills و MCP و CLI. ونفس الـ agent يشتغل في سكربت، أو سيرفر Node، أو حاوية Docker، أو Cloudflare Worker (الـ Worker يدعم [جزءًا](/ar/cloudflare-workers#ما-يعمل-وما-لا-يعمل) فقط من الـ providers والـ tools).
 
 ```mermaid
 flowchart LR
@@ -35,7 +35,7 @@ console.log(text);
     `mockModel` يسكربت ردود الـ model، و`recordReplay` يعيد تشغيل runs حقيقية من cassettes دون اتصال، و`defineEval()` يتحقق من الـ tools التي استُدعيت، وبأي ترتيب، وبأي معاملات.
   </Card>
   <Card title="Node و Workers مع tracing" icon="activity" href="/ar/deployment">
-    `lousho build` ينشر spec واحد للـ agent على سيرفر Node أو Docker أو Worker. كل run يصدر spans وفق OpenTelemetry GenAI، وكل نتيجة تذكر استهلاك الـ tokens والتكلفة بالدولار الأمريكي.
+    `lousho build` ينشر spec واحد للـ agent على سيرفر Node أو Docker أو Worker. كل run يصدر spans وفق OpenTelemetry GenAI، وكل نتيجة تذكر استهلاك الـ tokens، والتكلفة بالدولار الأمريكي للـ models ذات السعر المعروف.
   </Card>
 </CardGroup>
 
@@ -76,28 +76,24 @@ console.log(text);
 
 ## مقارنة بمكتبات أخرى
 
-{/* DRAFT for owner review (issue #206): the rows and cell wording below are a
-    proposal, not approved copy. Remove the Note and this comment once the
-    owner signs off on which rows to keep. */}
+`@lousho/build-ai-agent` يقع في طبقة واحدة فوق استدعاء الـ model: مثل LangGraph أو Mastra أو OpenAI Agents SDK أو Claude Agent SDK، يشغّل agent loop كامل، كمكتبة لا تفرض منصة ولا web framework ولا hosted runtime. وهو مبني فوق Vercel AI SDK وليس بديلًا عنه: الـ providers المدمجة لـ OpenAI و Anthropic و OpenRouter تستخدم `ai` و`@ai-sdk/*`، و`fromAiSdk()` يغلّف أي model آخر من AI SDK. وما يضيفه فوقه هو طبقة الإنتاج: checkpoints، و approvals متينة، و sessions، و channels، وأهداف النشر.
 
-<Note>
-**مسودة — بانتظار مراجعة المالك.** هذه المقارنة مقترح وليست نصًا معتمدًا. فُحصت الادعاءات مقابل توثيق كل مشروع وقت كتابتها، لكن كل هذه المكتبات تتحرك بسرعة؛ لازم إعادة التحقق من كل خلية قبل نشر هذا القسم.
-</Note>
+الجدول ملخص كما في أواخر 2026. هذه المكتبات تتحرك بسرعة، فراجع توثيق كل مشروع قبل أن تعتمد على أي خلية. "جزئي" تعني أن القدرة موجودة لكنها أضيق، أو أنك تركّب جزءًا منها بنفسك.
 
-`@lousho/build-ai-agent` يقع في طبقة واحدة فوق استدعاء الـ model: مثل LangGraph أو Mastra أو OpenAI Agents SDK، يشغّل agent loop كامل، لكن كمكتبة لا تفرض منصة ولا web framework ولا hosted runtime — وعلى عكس AI SDK الخام، يأتي معه قطع الإنتاج (durability و approvals و sessions) بدل ما يتركها لك.
+| القدرة | `@lousho/build-ai-agent` | Vercel AI SDK (v6) | LangChain / LangGraph | Mastra | OpenAI Agents SDK | Claude Agent SDK |
+| ---------- | ---------------------- | ------------------ | --------------------- | ------ | ----------------- | ---------------- |
+| Agent loop | نعم — `createAgent()` | نعم — `ToolLoopAgent`، أو `generateText` / `streamText` مع tools | نعم — graphs، أو agents جاهزة | نعم — `Agent` | نعم — `Agent` و`run()` | نعم — `query()` يشغّل harness الخاص بـ Claude Code |
+| الـ providers | OpenAI و Anthropic و OpenRouter و Ollama و mock مدمجة؛ وأي model من AI SDK عبر `fromAiSdk()` | نعم — أوسع مجموعة providers | نعم — عبر تكاملات LangChain | نعم — عبر AI SDK | جزئي — OpenAI أولًا؛ والباقي عبر adapters | جزئي — models الخاصة بـ Claude فقط (Anthropic API و Bedrock و Vertex) |
+| Typed event stream | نعم — `agent.stream()` يصدر أحداث JSON ذات إصدارات وأرقام تسلسلية عن الـ runs والخطوات والـ tokens والـ tool calls، جاهزة لـ SSE | نعم — أجزاء stream من نوع typed و UI message streams | نعم — أحداث الـ node والـ graph عبر `streamEvents` | نعم — streams للـ agent وللـ workflows | نعم — أحداث run مبثوثة | نعم — رسائل typed من `query()` |
+| Durable execution, checkpoints | نعم — checkpoints في stores قابلة للتبديل (الذاكرة، الملفات، SQLite، Cloudflare KV)؛ والـ run المنقطع أو المتوقف مؤقتًا يستأنف في عملية أخرى. لا يوجد store لـ Postgres أو Redis بعد | جزئي — أنت تحفظ الرسائل؛ والـ workflows المتينة مشروع منفصل | نعم — الـ checkpointer يحفظ حالة الـ thread | نعم — snapshots لـ suspend/resume في الـ workflows | جزئي — `RunState` لـ run متوقف يُسلسَل ويُستأنف في عملية أخرى؛ وتخزينه عليك | جزئي — الـ sessions تُستأنف أو تتفرّع من ملفات transcript محلية |
+| Approvals (human-in-the-loop) | نعم — `needsApproval` يوقف الـ run؛ و`agent.approvals.resolve()` يكمله من أي عملية | نعم — `needsApproval` على الـ tool؛ وأنت تحتفظ بالحالة المعلّقة بين الطلبات | نعم — `interrupt()` و nodes بشرية | نعم — خطوات بشرية في الـ workflows | نعم — function tools تأخذ `needsApproval`؛ والـ run يرجّع interruptions توافق عليها أو ترفضها | نعم — callback اسمه `canUseTool` و permission modes، والقرار داخل العملية |
+| القنوات | نعم — `mountChannels()` يقدّم واجهات Slack و Discord و Teams و Telegram و GitHub و webhook و HTTP، ويرجّع الـ approvals إلى القناة | لا | لا — adapters مجتمعية فقط | جزئي — بعض تكاملات النشر والدردشة | لا | لا |
+| أهداف النشر | `lousho build` ينتج سيرفر Node أو صورة Docker أو Cloudflare Worker من spec واحد (الـ Worker يدعم جزءًا من الـ providers والـ tools) | BYO — يشتغل أينما يشتغل تطبيقك | BYO، أو LangGraph Platform (مستضافة) | `mastra build` يستهدف Node و Vercel و Netlify و Workers | BYO — الحلقة تشتغل داخل عمليتك | BYO — يشتغل حيث يشتغل Claude Code |
+| Sessions | نعم — `agent.session({ id })` فوق stores للذاكرة أو الملفات أو SQLite | لا — أنت تحتفظ بمصفوفة الرسائل | نعم — threads ومساعدات لسجل المحادثة | نعم — threads وذاكرة | نعم — كائنات session تحفظ سجل المحادثة | نعم — استئناف session بالـ id |
+| MCP | عميل (`mcpServers`) وسيرفر (`serveMcp`) | عميل (`createMCPClient`) | عميل عبر adapters | نعم — عميل MCP وسيرفر | نعم — سيرفرات MCP كمصادر للـ tools | عميل، مع سيرفرات SDK داخل العملية |
+| Guardrails | جزئي — guardrails على المدخلات والمخرجات والـ tools، مع فحوصات heuristic للبيانات الشخصية والأسرار و prompt injection (فلتر أول، وليست حدًّا أمنيًا) وفحص moderation يعتمد على model | جزئي — ركّبها عبر middleware | جزئي — guardrails مجتمعية وevaluators من LangSmith | نعم — processors للمدخلات والمخرجات | نعم — guardrails للمدخلات والمخرجات | جزئي — عبر hooks وقواعد الصلاحيات |
 
-| القدرة | `@lousho/build-ai-agent` | Vercel AI SDK | LangChain / LangGraph | Mastra | OpenAI Agents SDK |
-| ---------- | ---------------------- | ------------- | --------------------- | ------ | ----------------- |
-| Typed event stream | نعم — `agent.stream()` يصدر أحداث JSON ذات إصدارات وأرقام تسلسلية عن الـ runs والخطوات والـ tokens والـ tool calls، جاهزة لـ SSE | جزئي — أجزاء `streamText` typed؛ أما حلقة الـ run فأنت تبنيها | نعم — أحداث الـ node والـ graph عبر `streamEvents` | نعم — streams للـ agent وللـ workflows | نعم — أحداث run مبثوثة |
-| Durable execution, checkpoints | نعم — checkpoints في stores قابلة للتبديل (الذاكرة، الملفات، SQLite، Cloudflare KV)؛ والـ run المنقطع أو المتوقف مؤقتًا يستأنف في عملية أخرى | لا — الحالة تبقى في الذاكرة؛ وأنت تحفظها | نعم — الـ checkpointer يحفظ حالة الـ thread | نعم — snapshots لـ suspend/resume في الـ workflows | جزئي — الـ sessions تحفظ السجل؛ أما استئناف الـ run من منتصفه عبر العمليات فغير مدمج |
-| Approvals (human-in-the-loop) | نعم — `needsApproval` يوقف الـ run؛ و`agent.approvals.resolve()` يكمله من أي عملية | تبنيها بنفسك — أنت تتحكم في الـ tool call | نعم — `interrupt()` و nodes بشرية | نعم — خطوات بشرية في الـ workflows | جزئي — فيه approvals للأدوات المستضافة؛ أما التحكم في tools عشوائية فيدوي |
-| القنوات | نعم — `mountChannels()` يقدّم واجهات HTTP و webhook و Slack و Discord، ويرجّع الـ approvals إلى القناة | لا | لا — adapters مجتمعية فقط | جزئي — بعض تكاملات النشر والدردشة | لا |
-| أهداف النشر | `lousho build` ينتج سيرفر Node أو صورة Docker أو Cloudflare Worker من spec واحد | BYO — يشتغل أينما يشتغل تطبيقك | BYO، أو LangGraph Platform (مستضافة) | `mastra build` يستهدف Node و Vercel و Netlify و Workers | BYO — الحلقة تشتغل داخل عمليتك |
-| Sessions | نعم — `agent.session({ id })` فوق stores للذاكرة أو الملفات أو SQLite | لا — أنت تحتفظ بمصفوفة الرسائل | نعم — threads ومساعدات لسجل المحادثة | نعم — threads وذاكرة | نعم — كائنات session تحفظ سجل المحادثة |
-| MCP | عميل (`mcpServers`) وسيرفر (`serveMcp`) | عميل فقط (`experimental_createMCPClient`) | عميل عبر adapters مجتمعية | نعم — عميل MCP وسيرفر | نعم — سيرفرات MCP كمصادر للـ tools |
-| Guardrails | نعم — guardrails على المدخلات والمخرجات ومعاملات الـ tools، مع فحوصات prompt injection و moderation، وtools داخل sandbox | لا — ركّبها بنفسك | جزئي — guardrails مجتمعية وevaluators من LangSmith | نعم — processors للمدخلات والمخرجات | نعم — guardrails للمدخلات والمخرجات |
-
-متى يكون خيار آخر أنسب: إذا كان كل اللي تحتاجه هو بثّ نص الـ model في route من Next.js، فـ AI SDK وحده أخفّ وأقل سطحًا. وإذا فريقك يعمل بـ Python أو يشغّل LangGraph Platform أصلًا، فالبقاء في نفس المنظومة يوفّر عليك stack ثاني. أما `@lousho/build-ai-agent` فهو موجّه لفرق TypeScript التي تريد agent loop فيه durable execution و approvals، ويشتغل داخل عمليتها هي بدون تبنّي منصة.
+متى يكون خيار آخر أنسب: إذا كان كل اللي تحتاجه هو بثّ نص الـ model في route من Next.js، فـ AI SDK وحده أخفّ وأقل سطحًا. وإذا تريد harness الخاص بـ Claude Code وأدواته كما هي، فـ Claude Agent SDK يعطيك ذلك بالضبط. وإذا فريقك يعمل بـ Python أو يشغّل LangGraph Platform أصلًا، فالبقاء في نفس المنظومة يوفّر عليك stack ثاني. أما `@lousho/build-ai-agent` فهو موجّه لفرق TypeScript التي تريد agent loop فيه durable execution و approvals، يشتغل داخل عمليتها هي، وعلى أكثر من provider، بدون تبنّي منصة. وهو في مرحلة alpha: الـ APIs ممكن تتغير.
 
 ## الخطوات التالية
 

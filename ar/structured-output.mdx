@@ -1,6 +1,12 @@
 ---
 title: "Structured output"
 ---
+
+{/* pending-translation */}
+<Warning>
+لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/structured-output).
+</Warning>
+
 {/* Generated from docs/structured-output.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 مرّر للـ agent zod schema في الخيار `output`، والرد النهائي يصير object typed وصالح حسب الـ schema: `result.object`. الـ agent يقدر يعمل tool calls أولًا عادي؛ الإجابة النهائية فقط لازم تطابق الـ schema. بادئة `vendor/` في اسم الـ model هي التي تحدد الـ provider؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثال: `openrouter/openai/gpt-4o-mini`).
