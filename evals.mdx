@@ -76,7 +76,7 @@ failed gate, so one run shows all that is wrong.
 | `t.toolOrder([a, b], { subagent? })` | gate | the tools were called in this order (other calls may sit in between) |
 | `t.maxSteps(n)` | gate | the agent took at most `n` model steps |
 | `t.maxTokens(n)` | gate | the agent used at most `n` tokens |
-| `t.maxCostUsd(n)` | gate | the run's reported cost is at most `n` USD. Skipped (counts as passed, marked `skipped`) when the SDK reports no cost |
+| `t.maxCostUsd(n, { unknownCost? })` | gate | the run's reported cost is at most `n` USD. When the SDK reports no cost (the model has no known price; see `registerModel`) the gate fails, since the budget cannot be checked; with `unknownCost: 'skip'` it is skipped instead (counts as passed, marked `skipped`, with a `console.warn`) |
 | `t.check(name, value, check)` | gate | `check` passes for `value` |
 | `t.soft(name, value, check)` | soft | never fails the run (unless `--strict`); the score is recorded and reported |
 | `await t.judge(rubric)` | n/a | returns a 0 to 1 score from an LLM judge (see [Judge evals](#judge-evals)) |
@@ -348,6 +348,10 @@ so you recognise them in a CI log or a custom runner:
 | Variable | Set from | Meaning |
 | --- | --- | --- |
 | `LOUSHO_EVAL_CASSETTES` | `--record`, `--replay`, CI | Cassette mode for the run: `record`, `replay` or `auto` (replay a case whose cassette exists, run the rest live). Under `replay` and `auto` a `model:` spec resolves without its API key. |
+| `LOUSHO_EVAL_DRIFT_DIR` | `--drift` | With `record`: where the drift run writes its cassettes instead of next to the eval file. |
+| `LOUSHO_EVAL_CONFIG` | `--config` | The config path, so re-record hints can repeat it. |
+| `LOUSHO_EVAL_TAGS` | `--tag` | Comma-separated tags; only cases with one of them run. |
+| `LOUSHO_EVAL_RESULTS` | always | The file each case appends its result line to, which `lousho eval` reads back (see [`lousho eval`](#lousho-eval)). |
 | `LOUSHO_EVAL_URL` | `--url` | Base URL of the deployed agent to run the cases against. |
 | `LOUSHO_EVAL_TOKEN` | `--token` | Bearer token for `--url`. |
 | `LOUSHO_ALLOW_LLM_JUDGE` | `--judge` | Set to `1` inside the judge runner. Without it, `llmJudge()` / `llmCritique()` called outside that runner throw `LOUSHO_EVALS_INVALID`, so a misplaced judge eval never makes a paid model call in a normal test run. |
@@ -446,8 +450,8 @@ unchanged. The `agent` in the file is not used; give the deployment's own model
 and tools the behaviour you want to check.
 
 - A check that needs data the stream does not carry fails and says so (for
-  example `maxTokens` when `run.done` has no usage); `maxCostUsd` is reported as
-  skipped when there is no cost.
+  example `maxTokens` when `run.done` has no usage); `maxCostUsd` fails when there
+  is no cost, unless you pass `{ unknownCost: 'skip' }`.
 - `--url` cannot be combined with `--record`, `--replay` or `--drift`
   (`LOUSHO_CONFIG_CONFLICTING_OPTIONS`): cassettes record a provider in-process.
   Score/threshold evals (`score:` form) also need an in-process provider and fail
