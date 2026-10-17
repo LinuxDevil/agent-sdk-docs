@@ -2,12 +2,6 @@
 title: "Handoffs"
 description: "الـ handoff يمرّر المحادثة كلها لـ agent ثاني. الـ triage agent يقرأ طلب المستخدم ويسلّمه لمتخصص. المتخصص يجاوب المستخدم مباشرة، وفي الـ session (الجلسة) يبقى هو صاحب المحادثة في الدورات التالية."
 ---
-
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/handoffs).
-</Warning>
-
 {/* Generated from docs/handoffs.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 ## handoffs ولا sub-agents؟
@@ -116,7 +110,11 @@ filter يستلم `{ messages, from, to, args }`. و`messages` هي السجل �
 حُوِّل وأي `args` اجتازت الـ validation
 (`[routing note - not from the user] handoff triage -> billing: reason="..."`).
 الرسالة موسومة بـ `metadata.handoff`، فيقدر الـ filter يتعرف عليها. احذفها
-أو استبدلها وشكّل سياق الـ target بنفسك. في فلترين جاهزين:
+أو استبدلها وشكّل سياق الـ target بنفسك. الـ note تبقى في مكانها من السجل،
+لكن لا يوجد طلب model يحمل رسالة system بعد بداية المحادثة: كل طلب يضيف هذه
+الرسائل، بالترتيب، إلى الـ system prompt في أوله. فقوالب المحادثة (chat
+templates) في نماذج Qwen وLlama وMistral (LM Studio وllama.cpp وvLLM وOllama)
+وAPI الخاص بـ Anthropic ترفض رسالة system في وسط المحادثة. في فلترين جاهزين:
 
 - `handoffFilters.removeToolCalls`: يبقي نصوص المستخدم والـ assistant
   (والـ routing note)، ويحذف الـ tool calls ونتائجها.
@@ -140,23 +138,29 @@ handoff، فترجع tools الـ target تطلب الموافقة من جديد
 | --- | --- |
 | الـ instructions (الـ system prompt) والـ model والـ provider | `hooks` و`limits` والإنفاق حتى الآن (ميزانية واحدة) |
 | الـ tools والـ hosted tools والـ skills والـ sub-agents | `maxSteps`، ويُحسب عبر الـ agents كلهم |
-| `reasoning` | إشارة الإلغاء (abort signal) |
+| `reasoning` و`modelSettings` و`toolSearch` (الـ deferred tools الخاصة به، ويُبحث فيها بضبطه هو) | إشارة الإلغاء (abort signal) و`toolConcurrency` |
 | `handoffs` الخاصة به | الـ stores الخاصة بالـ approval والـ checkpoint والـ token |
 | الـ guardrails وقواعد الصلاحيات: قواعد الـ lead أولًا ثم قواعد الـ target | `onEvent` و`exporter` |
 | | `output`: نتيجة الـ run تكون typed حسب schema الـ lead (`output` الخاص بالـ target لا يُستخدم) |
 | | وضع الصلاحيات والـ principal (مَن يعمل الـ run نيابة عنه) |
 | | إعداد الـ approval: `approve` و`approvalStore` و`approvalTtlMs` و`onPermissionDecision` |
+| | خانات [memory](/ar/memory) الخاصة بالـ lead، مربوطة بمفاتيح النطاق (scope keys) الخاصة بالـ run |
 
 الـ agent الذي بدأ به الـ run هو الـ lead. الـ target لا يحصل على tools
-الـ lead ولا sub-agents ولا خانات [memory](/ar/memory)؛ وخانات الـ memory
-الخاصة به نفسها لا تُستخدم أيضًا (مثل الـ sub-agent). وتعليمات `output`
-الخاصة بالـ lead تُضاف إلى system prompt كل target.
+الـ lead ولا sub-agents، لكنه يحتفظ بـ [memory](/ar/memory) الخاصة بالـ lead:
+كتل `<memory>` المسترجَعة تُعاد إلى system prompt الـ target، وأدوات
+`remember_<name>` / `recall_<name>` تظل معروضة، مربوطة بنفس مفاتيح النطاق
+(نفس العميل أو المستخدم أو الـ session). وهذا ينطبق في run الـ handoff وفي
+كل دورة session لاحقة يشغّلها الـ target. خانات الـ memory الخاصة بالـ target
+نفسه لا تُستخدم؛ أعطِ الخانات للـ agent الذي تبدأ به الـ runs. وتعليمات
+`output` الخاصة بالـ lead تُضاف إلى system prompt كل target.
 
-ولأن الـ approvals على مستوى الـ run، خيارات مثل `approve` و`approvalStore`
-و`permissionMode` و`approvalTtlMs` و`store` على الـ target لا تُقرأ أبدًا
-بعد الـ handoff. `createAgent()` يحذّر مرة واحدة (لكل target) إذا كان
-target يمكن الوصول إليه قد أُنشئ بها. اضبطها على الـ agent الذي تبدأ به
-الـ runs.
+ولأن الـ approvals والـ memory على مستوى الـ run، خيارات مثل `approve`
+و`approvalStore` و`permissionMode` و`approvalTtlMs` و`store` أو `memory`
+على الـ target لا تُقرأ أبدًا بعد الـ handoff. الـ agent يحذّر مرة واحدة (لكل
+target)، في أول run له يصل إلى مخطط الـ handoffs (وليس عند استدعاء
+`createAgent()`)، إذا كان target يمكن الوصول إليه قد أُنشئ بها. اضبطها على
+الـ agent الذي تبدأ به الـ runs.
 
 ## Sessions
 

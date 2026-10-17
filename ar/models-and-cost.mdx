@@ -2,12 +2,6 @@
 title: "الـ models والـ tokens والتكلفة"
 sidebarTitle: "الـ models والتكلفة"
 ---
-
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/models-and-cost).
-</Warning>
-
 {/* Generated from docs/models-and-cost.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 ## الـ models وجدول الأسعار
@@ -25,6 +19,8 @@ registerModel({
   contextWindow: 32768,
   inputCostPerMTok: 0.2, // optional; omit for unknown or free
   outputCostPerMTok: 0.6,
+  cachedInputCostPerMTok: 0.02, // optional: prompt-cache reads; omit to bill them as input
+  cacheWriteCostPerMTok: 0.25, // optional: prompt-cache writes; omit to bill them as input
 });
 
 const used = estimateTokens([{ role: 'user', content: 'Summarise this report' }], { model: 'my-llama' });
@@ -34,8 +30,8 @@ const usd = estimateCost({ inputTokens: used, outputTokens: 500 }, 'my-llama'); 
 
 - `estimateTokens(input, { model?, estimator? })` هو heuristic تقريبي: حوالي 4 محارف لكل token في الإنجليزية، وأكثر للـ CJK وباقي أنظمة الكتابة، زائد overhead لكل رسالة ولـ JSON الخاص بالـ tool calls. توقّع خطأ بحوالي 15-20% في الإنجليزية — يكفي للـ compaction (ضغط السياق) والميزانيات، لكنه لا يصلح للفوترة. وصّل tokenizer حقيقي عبر `setTokenEstimator(fn)` أو `options.estimator`.
 - `getModelInfo(id)` يطابق الـ id كما هو أولًا، ثم `provider/id`، ثم الـ snapshots المؤرخة (`gpt-4o-mini-2024-07-18` ترجع `gpt-4o-mini`). الـ models غير المعروفة ترجع `undefined`. (في سلاسل `createAgent({ model })` و`resolveProvider()`، بادئة `vendor/` هي التي تختار الـ provider؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>`، مثل `openrouter/openai/gpt-4o-mini`.)
-- `registerModel(info)` يضيف مدخلًا جديدًا أو يكتب فوق مدخل موجود، وآخر تسجيل هو الذي يُعتمد.
-- `estimateCost(usage, model)` يرجع التكلفة بالدولار (USD)، أو `undefined` (وليس `0`) إذا كان الـ model أو أسعاره غير معروفة.
+- `registerModel(info)` يضيف مدخلًا جديدًا أو يكتب فوق مدخل موجود، وآخر تسجيل هو الذي يُعتمد. سجّل الـ models المحلية (LM Studio وOllama وvLLM) مع الـ context window الذي حُمِّلت به: وإلا فإن [الـ compaction](/ar/compaction#الـmodels-المحلية-وغير-المعروفة) و[الـ tool search](/ar/tool-search) يفترضان 128,000 token ويسجّلان تحذيرًا مرة واحدة. الـ models المحلية ليس لها سعر مضمّن (مدخلات Ollama تحمل الـ context window فقط)، لذلك تكون `costUsd` الخاصة بها `undefined` ويكتفي `limits.maxCostUsd` بالتحذير؛ سجّل لها سعرًا، ولو كان `0`، لكي تُحسب تكلفتها ويُطبَّق الحد: `registerModel({ id: 'llama3', provider: 'ollama', contextWindow: 8192, inputCostPerMTok: 0, outputCostPerMTok: 0 })`.
+- `estimateCost(usage, model)` يرجع التكلفة بالدولار (USD)، أو `undefined` (وليس `0`) إذا كان الـ model أو أسعاره غير معروفة. الحقلان `usage.cachedInputTokens` و`usage.cacheWriteTokens`، إذا مُرِّرا، هما الجزءان من `inputTokens` اللذان قُرئا من الـ prompt cache لدى الـ provider وكُتبا فيه. يُسعَّران بـ`cachedInputCostPerMTok` و`cacheWriteCostPerMTok`، أو بسعر الـ input إذا لم يكن للـ model هذان السعران. مدخلات OpenAI المضمّنة تحمل سعر الـ cached input الخاص بـ OpenAI (مثلًا 50% على `gpt-4o-mini`؛ والكتابة بلا تكلفة إضافية). ومدخلات Anthropic تحسب القراءة بـ 10% والكتابة لمدة 5 دقائق بـ 125% من سعر الـ input.
 
 الـ context windows والأسعار المضمّنة snapshot مؤرخة (تاريخ الجلب والمصادر في أعلى `src/models/modelData.ts`). الـ providers يغيّرون أسعارهم والـ models، فإذا تحتاج أرقامًا بدقة الفوترة اكتب فوق المدخلات بـ`registerModel`.
 
@@ -49,20 +45,21 @@ import { createAgent, formatUsage } from '@lousho/build-ai-agent';
 const result = await createAgent({ provider, instructions: 'You compare cities.' }).send('Compare 3 cities');
 
 result.usage.inputTokens; // all model calls of the run, delegated children included
-result.usage.costUsd; // number, or undefined if any model used has no known price
+result.usage.costUsd; // sum of the calls with a known cost; undefined if none has one
+result.usage.costPartial; // true when some call had no known price and is not in costUsd
 result.usage.estimated; // true if some call reported no usage and was estimated
 result.usage.byModel['gpt-4o-mini']; // { inputTokens, outputTokens, costUsd?, calls }
 result.stepUsage?.[0]; // { step, model, usage, estimated, costUsd? } per model call
 console.log(formatUsage(result.usage)); // 1,234 in / 567 out tokens · $0.0042 (2 model calls)
 ```
 
-- **reported مقابل estimated.** الـ providers يبلّغون عن `promptTokens`/`completionTokens`. والـ providers المضمّنون يمرّرون أيضًا `cachedInputTokens`/`reasoningTokens` إذا حملتها الـ metadata الخاصة بالـ provider في حزمة 'ai' SDK — `usage.cachedInputTokens` و`usage.reasoningTokens` لا يظهران إلا في تلك الحالة. الـ backend الذي لا يبلّغ عن شيء يعطي `usage` بقيمة `undefined`، لا أصفارًا أبدًا. في تلك الخطوة يستعمل الـ executor الدالة `estimateTokens` كـ fallback ويضبط `usage.estimated` (تظهر `~` في بداية ناتج `formatUsage`). والـ provider المخصص يجب أن يترك `GenerateResult.usage` غير مضبوط بدل أن يملأه بأصفار.
-- **التكلفة.** `costUsd` هو مجموع `estimateCost` لكل model. يصير `undefined` — لا مجموعًا جزئيًا مضللًا — بمجرد أن يكون أي model مستخدم بلا سعر معروف، و`byModel` يوضح أيها مسعَّر. `formatUsage` يطبع التكلفة بأربع خانات عشرية تحت $1 (وخانتين عند $1 فأكثر)، فالـ run الذي يقل عن $0.00005 يظهر `$0.0000`.
+- **reported مقابل estimated.** الـ providers يبلّغون عن `promptTokens`/`completionTokens`. والـ providers المضمّنون يمرّرون أيضًا `cachedInputTokens`/`cacheWriteTokens`/`reasoningTokens` إذا بلّغ عنها الـ provider — `usage.cachedInputTokens` و`usage.cacheWriteTokens` و`usage.reasoningTokens` لا تظهر إلا في تلك الحالة. و`inputTokens` يشمل دائمًا الـ tokens المقروءة من الـ cache والمكتوبة فيه أيضًا. الـ backend الذي لا يبلّغ عن شيء يعطي `usage` بقيمة `undefined`، لا أصفارًا أبدًا. في تلك الخطوة يستعمل الـ executor الدالة `estimateTokens` كـ fallback ويضبط `usage.estimated` (تظهر `~` في بداية ناتج `formatUsage`). والـ provider المخصص يجب أن يترك `GenerateResult.usage` غير مضبوط بدل أن يملأه بأصفار.
+- **التكلفة.** `costUsd` هو مجموع تكاليف الاستدعاءات: التكلفة التي بلّغ عنها الـ provider (OpenRouter يرجع `usage.cost` لكل model، مسعَّرًا كان أو لا)، وإلا فـ`estimateCost` للـ model. الاستدعاء الذي ليس له سعر معروف (model غير موجود في الـ registry ولم يبلّغ الـ provider عن تكلفته) يُستبعد من المجموع ويضبط `usage.costPartial: true`، فيصير المجموع حدًا أدنى بدل أن يُهمل كليًا؛ و`byModel` يوضح أي الـ models مسعَّرة (`byModel[model].costPartial` يعلّم الـ model الذي له استدعاءات مسعَّرة وأخرى غير مسعَّرة، و`usage.delegated.costPartial` يفعل الشيء نفسه للـ children). لا تكون `costUsd` بقيمة `undefined` إلا إذا لم يكن لأي استدعاء تكلفة معروفة. ويُفحص `limits.maxCostUsd` مقابل المجموع الجزئي. `formatUsage` يطبع التكلفة بأربع خانات عشرية تحت $1 (وخانتين عند $1 فأكثر)، فالـ run الذي يقل عن $0.00005 يظهر `$0.0000`.
 - **hosted tools.** `usage.hostedToolCalls` يحسب الاستدعاءات التي شغّلها الـ provider للـ [hosted tools](/ar/hosted-tools) لكل اسم tool (مثل `{ web_search: 2 }`). رسوم الاستدعاء يحاسب عليها الـ provider نفسه وهي ليست ضمن `costUsd`.
-- **التفويض.** يُضاف الـ usage الخاص بالـ child المفوَّض إلى مجاميع الأب و`byModel`، ويظهر أيضًا منفردًا في `usage.delegated` (`{ inputTokens, outputTokens, totalTokens, costUsd, modelCalls, estimated, runs }`). أما الـ usage الخاص بالـ[remote sub-agent](/ar/sub-agents#remote-sub-agents) فهو ما يبلّغ عنه الـ agent البعيد، ويُسجَّل تحت `byModel['remote:<name>']` مع `costUsd` الخاصة به.
+- **التفويض.** يُضاف الـ usage الخاص بالـ child المفوَّض إلى مجاميع الأب و`byModel`، ويظهر أيضًا منفردًا في `usage.delegated` (`{ inputTokens, outputTokens, totalTokens, costUsd, modelCalls, estimated, runs }`، زائد `toolErrors`: استدعاءات الـ tools في الـ children التي انتهت بنتيجة خطأ، ولا يظهر إذا لم يحدث ذلك). أما الـ usage الخاص بالـ[remote sub-agent](/ar/sub-agents#remote-sub-agents) فهو ما يبلّغ عنه الـ agent البعيد، ويُسجَّل تحت `byModel['remote:<name>']` مع `costUsd` الخاصة به.
 - **الاستئناف.** الـ run الذي يُستأنف من checkpoint أو بعد موافقة يكمل من المجاميع المحفوظة بدل أن يبدأ من الصفر. الـ checkpoints التي كتبتها إصدارات أقدم تبدأ من أعداد الـ tokens المحفوظة فيها وبتكلفة غير معروفة.
 - **الأحداث والـ tracing.** الحدث `finish` (وكل lifecycle event كان يحمل `usage`) يحمل الآن المجاميع التراكمية. و`text-complete` يحمل أيضًا `stepUsage`، و`onLLMResponse` يستقبل الـ usage الخاص بالاستدعاء كوسيط ثالث. سمات `gen_ai.usage.*` في الـ span `chat` تستخدم نفس الأرقام، مع `lousho.usage.estimated` مضبوطة على `true` إذا كانت الأرقام تقديرية.
-- **streaming.** أحداث `agent.stream()` تحمل نفس المحاسبة: `step.done` و`run.done` فيها `usage` يضم `inputTokens` و`outputTokens` و`estimated` و`costUsd` (وعلى مستوى الـ run أيضًا `modelCalls`)، إلى جانب `promptTokens`/`completionTokens` الأقدم.
+- **streaming.** أحداث `agent.stream()` تحمل نفس المحاسبة: `step.done` و`run.done` فيها `usage` يضم `inputTokens` و`outputTokens` و`estimated` و`costUsd`، و`costPartial` إذا كانت التكلفة جزئية (وعلى مستوى الـ run أيضًا `modelCalls`)، إلى جانب `promptTokens`/`completionTokens` الأقدم.
 - يبقى `promptTokens` و`completionTokens` على `usage` اسمين بديلين deprecated لـ`inputTokens` و`outputTokens`.
 
 الأسعار تأتي من الـ model registry أعلاه، فإذا أردت تكلفة لـ model مخصص أو fine-tuned، سجّله بنفس الـ id الذي تمرّره كـ model:
@@ -78,3 +75,32 @@ registerModel({
   outputCostPerMTok: 1.2,
 });
 ```
+
+## الـ prompt caching
+
+Anthropic لا تخزّن بادئة الطلب في الـ cache إلا حتى breakpoint من نوع `cache_control` يعلّمه الطلب نفسه. أما OpenAI ومعظم الـ providers الآخرين فيخزّنون البادئات الطويلة من تلقاء أنفسهم. مع `promptCaching: 'auto'` (القيمة الافتراضية)، يعلّم الـ provider المضمّن `anthropic` والـ provider `openrouter` الـ breakpoints لـ models Claude (`anthropic/...` و`openrouter/anthropic/...`). ويعلّمان ثلاثة من الأربعة التي تسمح بها Anthropic:
+
+- الـ system prompt (آخر رسالة system)،
+- تعريف آخر tool،
+- آخر turn للمستخدم. ومع الـ provider `anthropic` يُعلَّم أيضًا turn نتيجة الـ tool الأخير، فتقرأ كل خطوة في حلقة الـ tools المحادثة حتى تلك اللحظة من الـ cache.
+
+```ts
+import { readFileSync } from 'node:fs';
+import { createAgent } from '@lousho/build-ai-agent';
+
+const longPolicy = readFileSync('./policy.md', 'utf8'); // a long, stable system prompt
+const agent = createAgent({ model: 'openrouter/anthropic/claude-haiku-4.5', instructions: longPolicy }); // promptCaching: 'auto'
+const first = await agent.send('Where is order 1042?'); // writes the prefix: usage.cacheWriteTokens
+const second = await agent.send('And order 1043?'); // reads it: usage.cachedInputTokens, ~10% of the input price
+createAgent({ model: 'anthropic/claude-haiku-4-5', promptCaching: false }); // no breakpoints
+```
+
+القراءة من الـ cache تكلّف 10% من سعر الـ input. والكتابة فيه تكلّف 125% وتبقى 5 دقائق، فالـ prompt الذي يُرسل مرة واحدة فقط يكلّف أكثر قليلًا مع الـ caching. Anthropic لا تخزّن إلا البادئات التي تتجاوز حدًا أدنى من الطول (من 1,024 إلى 4,096 token حسب الـ model)، والـ prompts الأقصر تُرسل بلا cache. على الـ provider `anthropic`، تحتاج breakpoints الـ tools والـ system إلى `ai` 6 أو 7 (`@ai-sdk/anthropic` 3 أو 4). أما الـ peer `@ai-sdk/anthropic` 0.0.x المثبّت لـ `ai` 4 فلا يرسلها. والـ provider المخصص يستقبل هذا الإعداد في `GenerateOptions.promptCaching`.
+
+قياس عبر OpenRouter على `anthropic/claude-haiku-4.5`، مع prompt من 6,834 token (system prompt وtool واحدة):
+
+| الاستدعاء | tokens الـ input | القراءة من الـ cache | الكتابة في الـ cache | التكلفة |
+| --- | --- | --- | --- | --- |
+| `promptCaching: false` | 6,834 | - | - | $0.00686 |
+| `'auto'`، الاستدعاء الأول | 6,834 | - | 6,831 | $0.00857 |
+| `'auto'`، الاستدعاء الثاني | 6,834 | 6,831 | - | $0.00071 |
