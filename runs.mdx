@@ -29,7 +29,7 @@ the deprecated `onEvent` counterpart).
 
 ```ts
 import { createAgent, createMockProvider } from '@lousho/build-ai-agent';
-const agent = createAgent({ prompt: 'You are helpful.', provider: createMockProvider(), maxSteps: 3 });
+const agent = createAgent({ instructions: 'You are helpful.', provider: createMockProvider(), maxSteps: 3 });
 const result = await agent.send('Research this thoroughly');
 if (result.finishReason === 'max-steps') console.warn(`Gave up after ${result.steps} steps`);
 ```
@@ -42,7 +42,7 @@ Pass an `AbortSignal` to stop a run: `agent.send(input, { signal })`,
 
 ```ts
 import { createAgent, createMockProvider } from '@lousho/build-ai-agent';
-const agent = createAgent({ prompt: 'You are helpful.', provider: createMockProvider() });
+const agent = createAgent({ instructions: 'You are helpful.', provider: createMockProvider() });
 const controller = new AbortController();
 setTimeout(() => controller.abort(), 5_000); // e.g. from a Stop button
 const result = await agent.send('Write a long report', { signal: controller.signal });
@@ -53,7 +53,7 @@ For a time limit, use `AbortSignal.timeout(ms)`:
 
 ```ts
 import { createAgent, createMockProvider } from '@lousho/build-ai-agent';
-const agent = createAgent({ prompt: 'You are helpful.', provider: createMockProvider() });
+const agent = createAgent({ instructions: 'You are helpful.', provider: createMockProvider() });
 const result = await agent.send('Summarize this', { signal: AbortSignal.timeout(30_000) });
 ```
 
@@ -76,8 +76,11 @@ How it behaves:
 - The run does not wait for a provider that ignores the signal: the model
   call is abandoned at the abort (its late reply, and anything it streams
   afterwards, is dropped) and the run ends `'aborted'`. A tool that ignores
-  its `abortSignal` is waited for; the run then ends `'aborted'` without
-  another model call. `defineTool({ timeoutMs })` bounds a tool's call: one
+  its `abortSignal` is not waited for either: the run ends `'aborted'`
+  without another model call, the still-running call gets a 'cancelled'
+  result, and the tool keeps running in the background (a result already
+  landing as the signal fires is still kept). `defineTool({ timeoutMs })`
+  bounds a tool's call: one
   still running then fails with a tool error the model sees, and a run
   aborted while such a call runs stops waiting for it.
 - `result.abortReason` says why: the signal's reason as `{ name, message }`,
@@ -112,7 +115,7 @@ const getWeather = defineTool({
 });
 
 const agent = createAgent({
-  prompt: 'You are a travel assistant.',
+  instructions: 'You are a travel assistant.',
   provider: createMockProvider(),
   tools: [getWeather],
   toolConcurrency: 4, // at most 4 tool calls of a turn in flight

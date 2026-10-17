@@ -48,6 +48,7 @@
                   "quickstart",
                   "installation",
                   "troubleshooting",
+                  "comparison",
                   "coding-agents",
                   "build-a-coding-agent"
                 ]
@@ -197,6 +198,7 @@
                 "pages": [
                   "api-overview",
                   "executor-api",
+                  "migrating-from-ai-sdk",
                   "migrating-to-create-agent",
                   "configuration",
                   "errors",
@@ -228,6 +230,7 @@
                   "ar/quickstart",
                   "ar/installation",
                   "ar/troubleshooting",
+                  "ar/comparison",
                   "ar/coding-agents"
                 ]
               },
@@ -347,6 +350,7 @@
                 "pages": [
                   "ar/api-overview",
                   "ar/executor-api",
+                  "ar/migrating-from-ai-sdk",
                   "ar/migrating-to-create-agent",
                   "ar/configuration",
                   "ar/errors",

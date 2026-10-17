@@ -14,7 +14,28 @@ error tells you what to do:
 
 ```text
 ConfigurationError: createAgent: no model configured. Do one of the following: (1) pass a model: ...
-[LOUSHO_CONFIG_MISSING_PROVIDER] Pass a model string such as createAgent({ model: 'openai/gpt-4o-mini' }), a provider instance, or set LOUSHO_MODEL or a provider API key. (https://github.com/LinuxDevil/agent-sdk/blob/main/docs/errors.md#lousho_config_missing_provider)
+[LOUSHO_CONFIG_MISSING_PROVIDER] Pass a model string such as createAgent({ model: 'openai/gpt-4.1-mini' }), a provider instance, or set LOUSHO_MODEL or a provider API key. (https://github.com/LinuxDevil/agent-sdk/blob/main/docs/errors.md#lousho_config_missing_provider)
+```
+
+A run that rejects (`send()`, `stream()`'s `result`, a session turn,
+`AgentExecutor.execute()`) puts what it had spent on the error as
+`error.usage`, a `RunUsage` like `result.usage` (its sub-agents included), so
+a failed run's tokens and cost are not lost. It is set on any error the run
+rejects with - an `SDKError`, a `PropagatingToolError` or your own - unless the
+error has a `usage` property of its own, and it is not enumerable (logging or
+serialising the error is unchanged). It is absent when the run failed before
+it started.
+
+```ts
+import { createAgent, type RunUsage } from '@lousho/build-ai-agent';
+
+try {
+  await createAgent({ provider }).send('Go');
+} catch (error) {
+  const spent = (error as { usage?: RunUsage }).usage;
+  if (spent) console.error(`failed after ${spent.modelCalls} model calls, $${spent.costUsd ?? '?'}`);
+  throw error;
+}
 ```
 
 `error.detail` is the message without that line. Tool and provider errors
@@ -28,8 +49,8 @@ stop the run), `WorkspaceError` (a workspace operation refused or failed -
 the model sees it as a tool error), `McpToolError` (a loaded MCP tool whose
 server reports `isError`; also a tool error), `AuthError` (an
 `@lousho/build-ai-agent/auth` entry rejects the request with its 401 or 403),
-`CronExpressionError` (`parseCronExpression()`, which `CronTriggerAdapter`
-lets escape and `defineSchedule()` wraps as `LOUSHO_SCHEDULE_INVALID`) and
+`CronExpressionError` (`parseCronExpression()`, which
+`defineSchedule()` wraps as `LOUSHO_SCHEDULE_INVALID`) and
 `DecryptionError` (`EncryptionUtils`, `DTOEncryptionFilter`).
 
 `CassetteMismatchError` (`recordReplay` replay; see
@@ -66,8 +87,8 @@ Find a code by area:
 | [Configuration](#configuration) | [`LOUSHO_CONFIG_INVALID`](#lousho_config_invalid), [`LOUSHO_CONFIG_MISSING_PROVIDER`](#lousho_config_missing_provider), [`LOUSHO_CONFIG_MISSING_AGENT`](#lousho_config_missing_agent), [`LOUSHO_CONFIG_MISSING_INPUT`](#lousho_config_missing_input), [`LOUSHO_CONFIG_CONFLICTING_OPTIONS`](#lousho_config_conflicting_options), [`LOUSHO_CONFIG_MISSING_CHECKPOINT_STORE`](#lousho_config_missing_checkpoint_store), [`LOUSHO_CONFIG_RESOLVER_FAILED`](#lousho_config_resolver_failed) | A `createAgent()` or executor call that is missing or mixing options, or a config resolver that failed. |
 | [Providers and peers](#providers-and-peers) | [`LOUSHO_PROVIDER_SPEC_INVALID`](#lousho_provider_spec_invalid), [`LOUSHO_PROVIDER_UNKNOWN`](#lousho_provider_unknown), [`LOUSHO_PROVIDER_MISSING_API_KEY`](#lousho_provider_missing_api_key), [`LOUSHO_PROVIDER_REQUEST_FAILED`](#lousho_provider_request_failed), [`LOUSHO_PROVIDER_RATE_LIMITED`](#lousho_provider_rate_limited), [`LOUSHO_PEER_MISSING`](#lousho_peer_missing), [`LOUSHO_HOSTED_TOOL_UNSUPPORTED`](#lousho_hosted_tool_unsupported), [`LOUSHO_UNSUPPORTED_CONTENT`](#lousho_unsupported_content) | Resolving a model string, a missing API key or peer package, a failed or rate-limited model request, a hosted tool the provider cannot run, a file the provider cannot send. |
 | [Agent spec files](#agent-spec-files) | [`LOUSHO_SPEC_NOT_FOUND`](#lousho_spec_not_found), [`LOUSHO_SPEC_INVALID`](#lousho_spec_invalid), [`LOUSHO_SPEC_UNKNOWN_FIELD`](#lousho_spec_unknown_field), [`LOUSHO_SPEC_UNSUPPORTED_FORMAT`](#lousho_spec_unsupported_format) | Loading an `AgentSpec` file with `loadSpec()` or `specToAgent()`. |
-| [Tools](#tools) | [`LOUSHO_TOOL_NOT_FOUND`](#lousho_tool_not_found), [`LOUSHO_TOOL_NEEDS_CREDENTIALS`](#lousho_tool_needs_credentials), [`LOUSHO_TOOL_EXECUTION_FAILED`](#lousho_tool_execution_failed), [`LOUSHO_TOOL_ARGS_INVALID`](#lousho_tool_args_invalid), [`LOUSHO_MCP_START_FAILED`](#lousho_mcp_start_failed) | A tool the model called is unknown, needs credentials, threw, or got invalid arguments; a stdio MCP server did not start. |
-| [Approvals and sessions](#approvals-and-sessions) | [`LOUSHO_APPROVAL_STORE_MISSING`](#lousho_approval_store_missing), [`LOUSHO_APPROVAL_NOT_FOUND`](#lousho_approval_not_found), [`LOUSHO_APPROVAL_ORPHANED`](#lousho_approval_orphaned), [`LOUSHO_APPROVAL_CONFLICT`](#lousho_approval_conflict), [`LOUSHO_APPROVAL_FORBIDDEN`](#lousho_approval_forbidden), [`LOUSHO_SESSION_FORBIDDEN`](#lousho_session_forbidden), [`LOUSHO_SESSION_AWAITING_APPROVAL`](#lousho_session_awaiting_approval), [`LOUSHO_SESSION_ID_INVALID`](#lousho_session_id_invalid), [`LOUSHO_SESSION_FILE_CORRUPT`](#lousho_session_file_corrupt), [`LOUSHO_SESSION_BUSY`](#lousho_session_busy), [`LOUSHO_SESSION_TURN_PENDING`](#lousho_session_turn_pending), [`LOUSHO_SESSION_TURN_FAILED`](#lousho_session_turn_failed), [`LOUSHO_SESSION_STREAM_UNSUPPORTED`](#lousho_session_stream_unsupported), [`LOUSHO_SESSION_STEP_NOT_FOUND`](#lousho_session_step_not_found), [`LOUSHO_SESSION_EXISTS`](#lousho_session_exists), [`LOUSHO_SESSION_FORK_UNSUPPORTED`](#lousho_session_fork_unsupported), [`LOUSHO_REMOTE_UNAUTHORIZED`](#lousho_remote_unauthorized), [`LOUSHO_REMOTE_REQUEST_FAILED`](#lousho_remote_request_failed), [`LOUSHO_SUBAGENT_TASK_NOT_FOUND`](#lousho_subagent_task_not_found), [`LOUSHO_SUBAGENT_TASK_BUSY`](#lousho_subagent_task_busy), [`LOUSHO_CHECKPOINT_NOT_FOUND`](#lousho_checkpoint_not_found), [`LOUSHO_CHECKPOINT_CORRUPT`](#lousho_checkpoint_corrupt), [`LOUSHO_AGENT_DRIFT`](#lousho_agent_drift), [`LOUSHO_RESUME_TOOL_MISSING`](#lousho_resume_tool_missing), [`LOUSHO_RUN_ALREADY_ITERATED`](#lousho_run_already_iterated) | Approvals, sessions, checkpoints and resume, remote agents and sub-agent tasks. |
+| [Tools](#tools) | [`LOUSHO_TOOL_NOT_FOUND`](#lousho_tool_not_found), [`LOUSHO_TOOL_NEEDS_CREDENTIALS`](#lousho_tool_needs_credentials), [`LOUSHO_TOOL_EXECUTION_FAILED`](#lousho_tool_execution_failed), [`LOUSHO_TOOL_ARGS_INVALID`](#lousho_tool_args_invalid), [`LOUSHO_MCP_START_FAILED`](#lousho_mcp_start_failed), [`LOUSHO_MCP_CALL_FAILED`](#lousho_mcp_call_failed) | A tool the model called is unknown, needs credentials, threw, or got invalid arguments; a stdio MCP server did not start or a call to one failed. |
+| [Approvals and sessions](#approvals-and-sessions) | [`LOUSHO_APPROVAL_STORE_MISSING`](#lousho_approval_store_missing), [`LOUSHO_APPROVAL_NOT_FOUND`](#lousho_approval_not_found), [`LOUSHO_APPROVAL_ORPHANED`](#lousho_approval_orphaned), [`LOUSHO_APPROVAL_CONFLICT`](#lousho_approval_conflict), [`LOUSHO_APPROVAL_FORBIDDEN`](#lousho_approval_forbidden), [`LOUSHO_APPROVAL_DECISION_INVALID`](#lousho_approval_decision_invalid), [`LOUSHO_APPROVAL_KIND_MISMATCH`](#lousho_approval_kind_mismatch), [`LOUSHO_SESSION_FORBIDDEN`](#lousho_session_forbidden), [`LOUSHO_SESSION_AWAITING_APPROVAL`](#lousho_session_awaiting_approval), [`LOUSHO_SESSION_ID_INVALID`](#lousho_session_id_invalid), [`LOUSHO_SESSION_FILE_CORRUPT`](#lousho_session_file_corrupt), [`LOUSHO_SESSION_BUSY`](#lousho_session_busy), [`LOUSHO_SESSION_TURN_PENDING`](#lousho_session_turn_pending), [`LOUSHO_SESSION_TURN_FAILED`](#lousho_session_turn_failed), [`LOUSHO_SESSION_STREAM_UNSUPPORTED`](#lousho_session_stream_unsupported), [`LOUSHO_SESSION_STEP_NOT_FOUND`](#lousho_session_step_not_found), [`LOUSHO_SESSION_EXISTS`](#lousho_session_exists), [`LOUSHO_SESSION_FORK_UNSUPPORTED`](#lousho_session_fork_unsupported), [`LOUSHO_REMOTE_UNAUTHORIZED`](#lousho_remote_unauthorized), [`LOUSHO_REMOTE_REQUEST_FAILED`](#lousho_remote_request_failed), [`LOUSHO_SUBAGENT_TASK_NOT_FOUND`](#lousho_subagent_task_not_found), [`LOUSHO_SUBAGENT_TASK_BUSY`](#lousho_subagent_task_busy), [`LOUSHO_CHECKPOINT_NOT_FOUND`](#lousho_checkpoint_not_found), [`LOUSHO_CHECKPOINT_CORRUPT`](#lousho_checkpoint_corrupt), [`LOUSHO_AGENT_DRIFT`](#lousho_agent_drift), [`LOUSHO_RESUME_TOOL_MISSING`](#lousho_resume_tool_missing), [`LOUSHO_RUN_ALREADY_ITERATED`](#lousho_run_already_iterated) | Approvals, sessions, checkpoints and resume, remote agents and sub-agent tasks. |
 | [Schedules](#schedules) | [`LOUSHO_SCHEDULE_INVALID`](#lousho_schedule_invalid), [`LOUSHO_SCHEDULE_RUN_INCOMPLETE`](#lousho_schedule_run_incomplete) | Defining or loading a schedule, or a scheduled turn that did not finish. |
 | [Channels](#channels) | [`LOUSHO_CHANNEL_INVALID`](#lousho_channel_invalid), [`LOUSHO_MEMORY_INVALID`](#lousho_memory_invalid) | Defining a channel or a memory slot. |
 | [Registry](#registry) | [`LOUSHO_REGISTRY_UNREACHABLE`](#lousho_registry_unreachable), [`LOUSHO_REGISTRY_ITEM_NOT_FOUND`](#lousho_registry_item_not_found), [`LOUSHO_REGISTRY_INVALID`](#lousho_registry_invalid), [`LOUSHO_REGISTRY_UNSAFE_PATH`](#lousho_registry_unsafe_path), [`LOUSHO_REGISTRY_FILE_EXISTS`](#lousho_registry_file_exists), [`LOUSHO_REGISTRY_MANIFEST_MISMATCH`](#lousho_registry_manifest_mismatch) | `lousho add` fetching or copying from a registry. |
@@ -99,11 +120,11 @@ and `lousho studio` without Agent Forge's files are the same code.
 `provider` and found nothing in the environment, or `AgentExecutor.execute()` /
 `stream()` got no `provider`.
 
-**Fix:** pass `model: 'openai/gpt-4o-mini'` (any `<provider>/<model>`), pass a
+**Fix:** pass `model: 'openai/gpt-4.1-mini'` (any `<provider>/<model>`), pass a
 `provider` instance, or set `LOUSHO_MODEL` or a provider key such as
 `OPENAI_API_KEY`. The `vendor/` model prefix chooses the provider; with
 OpenRouter use `openrouter/<vendor>/<model>` (e.g.
-`openrouter/openai/gpt-4o-mini`). See [Providers](/providers).
+`openrouter/openai/gpt-4.1-mini`). See [Providers](/providers).
 
 **Example:** `createAgent({ instructions: 'x' })` with no provider env var set.
 
@@ -128,7 +149,7 @@ use `createAgent()`, which needs no separate agent object.
 
 **Means:** two options that mean the same thing were both given.
 
-**Fix:** keep one. For `createAgent()`, `prompt` is an alias of `instructions`:
+**Fix:** keep one. For `createAgent()`, `prompt` is a deprecated alias of `instructions`:
 keep `instructions`.
 
 **Example:** `createAgent({ provider, instructions: 'a', prompt: 'b' })`.
@@ -163,7 +184,7 @@ names the option and `error.cause` is what the function threw.
 
 **Means:** a model string is not `<provider>/<model>`.
 
-**Fix:** write both parts, e.g. `'openai/gpt-4o-mini'` or
+**Fix:** write both parts, e.g. `'openai/gpt-4.1-mini'` or
 `'anthropic/claude-sonnet-4-5'`.
 
 **Example:** `resolveProvider('gpt-4o')`.
@@ -173,8 +194,11 @@ names the option and `error.cause` is what the function threw.
 **Means:** the provider prefix of a model string is not one the SDK knows. The
 message lists the supported prefixes and suggests the closest one.
 
-**Fix:** use a supported prefix (`openai`, `anthropic`, `openrouter`, `ollama`),
-or pass your own `provider` instance.
+**Fix:** use a supported prefix (`openai`, `anthropic`, `google`, `openrouter`,
+`ollama`, `pi`, `mock`), or pass your own `provider` instance. For a vendor with no
+prefix, the message lists the other routes: `openrouter/<vendor>/<model>`,
+`pi/<vendor>/<model>` when pi serves the vendor, or the vendor's AI SDK package
+through `fromAiSdk()` (see [Providers](/providers#vendors-without-a-prefix)).
 
 **Example:** `createAgent({ model: 'opnai/gpt-4o' })` says "Did you mean 'openai/gpt-4o'?".
 
@@ -185,7 +209,7 @@ or pass your own `provider` instance.
 
 **Fix:** set it, or pass a configured provider instance.
 
-**Example:** `createAgent({ model: 'openai/gpt-4o-mini' })` without `OPENAI_API_KEY`.
+**Example:** `createAgent({ model: 'openai/gpt-4.1-mini' })` without `OPENAI_API_KEY`.
 
 ### LOUSHO_PROVIDER_REQUEST_FAILED
 
@@ -232,6 +256,11 @@ is `quota-exceeded`, so `LOUSHO_PROVIDER_REQUEST_FAILED`).
 **Means:** a feature needs an optional package that is not installed
 (`MissingPeerDependencyError`, or a provider's SDK such as `@ai-sdk/openai`).
 
+A model call whose provider package is missing fails with this code (a
+`CompactedLLMProviderError` whose `cause` is the `MissingPeerDependencyError`),
+not `LOUSHO_PROVIDER_REQUEST_FAILED`, and the server routes send its message
+(the install command) to the client instead of the generic one.
+
 **Fix:** run the `npm install` command in the message (also on
 `error.installCommand`). See [Installation](/installation).
 
@@ -261,8 +290,7 @@ that the provider cannot send: its media type is not one the provider sends on
 your `ai` major (see [Multimodal input](/providers#multimodal-input)). The
 call is rejected before anything is sent, so the model never answers without
 the file. Under `withFallback()` (or `fallbackModels`) the next provider gets
-the call. Inside an agent run the error reaches you as the `cause` of a
-`LOUSHO_PROVIDER_REQUEST_FAILED` error, with the same message.
+the call. `agent.send()` and `agent.stream()` reject with this code.
 
 **Fix:** send the file to a provider and `ai` major that takes its type (or
 list the type in `fromAiSdk(model, { fileMediaTypes })`), put the file's text
@@ -385,6 +413,26 @@ are no lines to show. See [MCP](/mcp-integration#use-mcp-servers-in-an-agent).
 **Example:** `npx -y some-mcp-server` for a package that does not exist exits
 with an `npm error 404` line on stderr.
 
+### LOUSHO_MCP_CALL_FAILED
+
+**Means:** a call to a loaded MCP tool failed at the protocol level: the
+server exited or closed the connection (`MCP error -32000: Connection
+closed`), the request timed out, or the server answered with a JSON-RPC
+error. The message names the tool as the model sees it (`<server>__<tool>`);
+`cause` is the MCP SDK's own error, whose numeric `code` is the JSON-RPC one.
+A tool that ran and reported `isError: true` is not this error (the model gets
+its text as an `McpToolError`), nor is a sign-in request
+([`LOUSHO_MCP_AUTH_REQUIRED`](#lousho_mcp_auth_required)) or an abort. During
+a run the result is a tool error and the run goes on; a flow step with
+`retry: { maxAttempts }` runs again, and a server connected with `lazy`
+(default) reconnects on the next call.
+
+**Fix:** check the server named in the message is running and answers; for a
+stdio server, run its command yourself and read its stderr. Raise the
+server's `timeoutMs` if the request timed out.
+
+**Example:** a stdio server crashes while handling `files__read`.
+
 ## Approvals and sessions
 
 ### LOUSHO_APPROVAL_STORE_MISSING
@@ -433,7 +481,8 @@ approving the refund that turn paused on.
 ### LOUSHO_APPROVAL_CONFLICT
 
 **Means:** a `409` from the approvals route: another request decided the same
-approval while this one was being checked, and won.
+approval first, and its continuation is still running (on this server
+process).
 
 **Fix:** do not decide again; read the session (`GET /chat/:sessionId`) to see
 how the turn went on.
@@ -450,6 +499,30 @@ decide it (see [Route auth](/auth#who-may-decide-an-approval)).
 `authorizeApproval`.
 
 **Example:** user `bob` posts a decision on an approval of `alice`'s run.
+
+### LOUSHO_APPROVAL_DECISION_INVALID
+
+**Means:** a `400` from the approvals route: the body has neither
+`approved` (a boolean) nor `answer` (a string).
+
+**Fix:** send `{ "approved": true }` (or `false`, with an optional `note`),
+or `{ "answer": "..." }` for an `ask_question` pause.
+
+**Example:** posting `{ "approve": "yes" }` to
+`/chat/alice-1/approvals/ap-1`.
+
+### LOUSHO_APPROVAL_KIND_MISMATCH
+
+**Means:** a `400` from the approvals route: `answer` was sent to a pause
+that is not a question. A question pause takes `answer` — or `approved` with
+the answer as `note` (and `approved: false` to decline); a tool-call pause
+takes `approved`; a sign-in pause completes itself once the user signs in.
+
+**Fix:** send the field for the pause's kind; `GET /chat/:sessionId` shows a
+pending pause's `approvalKind`.
+
+**Example:** posting `{ "approved": true }` to a pause that waits for the
+model's `ask_question` answer.
 
 ### LOUSHO_SESSION_FORBIDDEN
 
@@ -478,6 +551,18 @@ names on `lousho dev`).
 **Example:** a page on `https://evil.example` posts to `/api/agent/chat` with
 the user's session cookie.
 
+### LOUSHO_REQUEST_INVALID
+
+**Means:** a `400` from a session route: the body is not valid JSON, or it
+lacks a field the route needs (`POST /chat` without `sessionId` and `input`,
+an empty `input`, an `input` with no `user` message).
+
+**Fix:** send the fields the error message names, e.g.
+`{ "sessionId": "chat-1", "input": "Hello" }` (see
+[HTTP API](/deployment#http-api)).
+
+**Example:** `POST /chat` with `{ "sessionId": "chat-1", "input": [] }`.
+
 ### LOUSHO_UNSUPPORTED_MEDIA_TYPE
 
 **Means:** a `415` from a session route: a POST body was not sent as JSON.
@@ -499,6 +584,9 @@ paused on an approval (`error.approvalId`), so it cannot take new input yet.
 `resumeAfterApproval()` with the same `checkpointStore`), then send again. See
 [Durable execution](/durable-execution).
 
+Over HTTP, `POST /chat` to such a session is a `409` with this code and the
+approvals to decide (`approvalId`, `approvalIds`).
+
 **Example:** `session.send('next')` while the previous turn waits on an approval.
 
 ### LOUSHO_SESSION_ID_INVALID
@@ -509,7 +597,9 @@ paused on an approval (`error.approvalId`), so it cannot take new input yet.
 not 1-200 characters of letters, digits, `_`, `-` and `.` (not starting or
 ending with `.`), the same rule on every store; or it ends with `.turn-<n>` or
 `.paused`, which are a session's own checkpoint keys (a run under
-`'victim.turn-2'` would write into session `victim`'s turn).
+`'victim.turn-2'` would write into session `victim`'s turn), or `.fire` (a
+schedule's fire claim). The message says which of the two rules applies: an id
+with a `.` or over 128 characters is a valid run id but not a valid session id.
 
 **Fix:** use an id such as `'chat-9f2c4e7a1b'`, or omit it to get a generated one. On a
 route that serves several users, do not make ids guessable from a user's name or number
@@ -540,12 +630,16 @@ kept: the turn up to their results is added after the other writer's turn. Also 
 checkpointed run (or session turn) is running in another process, replica or store object right
 now, which holds its run lease (see
 [Durable execution](/durable-execution#run-leases)); nothing ran here, and a resolved
-approval stays pending.
+approval stays pending. Over HTTP, a `409` from `POST /chat`: a request with the same
+`Idempotency-Key` is still running its turn of that session on this server (see
+[Resending a turn](/deployment#resending-a-turn)).
 
 **Fix:** await the turn's `send()` (or abort it), then call again. After a `send()` that failed
 this way, send again: the session reads the current transcript at the start of every call. A
-lease left by a process that died is taken over once it expires (30 s), or at once by the
-file and SQLite stores when that process is gone from the same host.
+lease left by a process that died is taken over once it expires (30 s, plus up to 30 s of
+clock-skew grace on the file and SQLite stores), or at once when that process provably exited
+on the same host and PID namespace. A run that stalled past its lease fails with this code at
+its next checkpoint instead of overwriting the run that took over.
 
 ### LOUSHO_SESSION_TURN_PENDING
 

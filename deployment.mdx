@@ -44,10 +44,15 @@ directory's [schedules](/schedules) when it listens, mounts its
 routes keep the bearer token), and logs `schedules: ...; channels: ...`.
 The directory's code files are pre-bundled with the build's tsup step into
 `dist/agent/**.js` (one ESM build sharing one copy of the SDK, so a `from
-'@lousho/build-ai-agent'` import in a tool is the SDK the server runs), and the
-rest of the directory is copied; nothing needs a TypeScript loader at run time.
-`dist/` is then ESM (`dist/package.json` says so). The Docker image copies it as
-before. The optional `dockerode` sandbox is not bundled (it loads lazily), so a
+'@lousho/build-ai-agent'` import in a tool is the SDK the server runs), and
+only the files the server reads as data are copied: `instructions.md`,
+`instructions/`, `skills/`, a JSON/YAML config, and the same in each
+`subagents/<name>/`. Nothing else in the directory reaches `dist/`: not `.env`
+files, not the `.lousho/` session store or a config's `store.dir`, not notes or
+data files. `dist/` is emptied before each build, so sessions a previous build's
+server wrote under it do not carry over. Nothing needs a TypeScript loader at
+run time. `dist/` is then ESM (`dist/package.json` says so). The Docker image
+copies it as before. The optional `dockerode` sandbox is not bundled (it loads lazily), so a
 directory that uses `SubprocessSandbox` must install it where it runs.
 
 The Cloudflare Worker target builds a directory's config, `instructions.md`,
@@ -63,6 +68,28 @@ only a Worker-safe part of `@lousho/build-ai-agent`
 npx lousho build ./my-agent --target=cloudflare-worker
 ```
 
+## Agent modules
+
+The `node-server` and `docker` targets also build a `.ts`/`.js` module whose
+default (or `agent`) export is `createAgent()` options or a built agent: the
+same file `lousho dev src/agent.ts` serves, and what the minimal and tools
+scaffolds have (their `npm run build` runs this):
+
+```bash
+npx lousho build src/agent.ts --target=node-server
+node .lousho/build/node-server/dist/server.js
+```
+
+The generated `server.ts` imports the module, so tsup bundles it with its local
+imports and the SDK into an ESM `dist/server.js`. With an options export the
+server builds the agent with `LOUSHO_STORE` (unless the options name a
+`store`); an exported agent keeps its own. The build's `package.json` names
+the provider package when the module has a literal `model: '<provider>/...'` or
+names an SDK provider class (`new OpenRouterProvider(...)`); only the entry file
+is scanned, and the build warns when it finds no provider. Add any other
+optional peer it needs to `dependencies` yourself. The `cloudflare-worker` target
+does not build a module: use a spec or an agent directory.
+
 ## HTTP API
 
 Every target serves the same `/chat` protocol as `lousho dev`
@@ -75,21 +102,74 @@ a page or script written against the dev server works against the deployed one.
 | `GET /health` | `200 ok`. Never needs auth: point load balancers and container health checks here. |
 | `POST /chat` `{ "sessionId", "input" }` | Runs a turn of session `sessionId` (1-128 characters of `A-Za-z0-9_-`; a new id starts a conversation, a known one continues it) and streams it as SSE: one `data: <AgentEvent JSON>` per event ([Streaming](/streaming)), then `event: done`. `input` is a string or an array of content parts. |
 | `GET /chat/:sessionId` | The session's transcript: `{ sessionId, messages, pending }`. A turn's messages are saved when it finishes, so `messages` does not hold a turn that is paused on an approval; `pending` says it is. |
-| `POST /chat/:sessionId/approvals/:id` `{ "approved", "note"? }` or `{ "answer" }` | Decides a pending tool approval, or answers an `ask_question`, and streams the continued turn live as SSE, in the same framing and event types as `POST /chat` (the decided call's `tool.resume` / `tool.done` or `tool.error`, text deltas, `approval.requested` if it pauses again, `run.done`), from `agent.approvals.streamResolve()` / `streamAnswer()`. `404` when `id` is not pending. When the turn's step paused on several calls, each id is decided on its own; a decision that leaves others pending streams `run.done` with `finishReason: 'awaiting-approval'`, and the last one runs the step. |
+| `POST /chat/:sessionId/approvals/:id` `{ "approved", "note"? }` or `{ "answer" }` | Decides a pending tool approval, or answers an `ask_question`, and streams the continued turn live as SSE, in the same framing and event types as `POST /chat` (the decided call's `tool.resume` / `tool.done` or `tool.error`, text deltas, `approval.requested` if it pauses again, `run.done`), from `agent.approvals.streamResolve()` / `streamAnswer()`. `404` when `id` is not pending; `409` (`LOUSHO_APPROVAL_CONFLICT`) while another request's decision of it is still streaming; `400` (`LOUSHO_APPROVAL_DECISION_INVALID`) for a body with neither field. When the turn's step paused on several calls, each id is decided on its own; a decision that leaves others pending streams `run.done` with `finishReason: 'awaiting-approval'`, and the last one runs the step. |
 | `POST /chat` `{ "message" }` | Legacy, single turn without history or streaming: returns the agent's `ExecutionResult` as JSON, with a `Deprecation: true` header. |
 
 Bodies over 1MB get `413`, invalid JSON `400`. A POST must send
 `Content-Type: application/json` (anything else is `415`,
 `LOUSHO_UNSUPPORTED_MEDIA_TYPE`), and a browser POST from another origin is
 `403` (`LOUSHO_REQUEST_FORBIDDEN`): see
-[Cross-site requests](/auth#cross-site-requests). Once auth accepts a
-caller, a session belongs to the first principal that uses it
-([Who may use a session](/auth#who-may-use-a-session)).
+[Cross-site requests](/auth#cross-site-requests). An empty `input`, or a
+body without `sessionId` and `input`, is `400` (`LOUSHO_REQUEST_INVALID`; an
+invalid session id is `LOUSHO_SESSION_ID_INVALID`). Every error body is JSON
+`{ error, code }`. A turn sent to a session that is paused on an approval is
+`409` with `code: 'LOUSHO_SESSION_AWAITING_APPROVAL'`, `approvalId` and
+`approvalIds` (every approval still to decide): decide them through the
+approvals route, which streams the paused turn's continuation, then send the
+new turn. With an auth list, a session belongs to the first principal that sends
+it a turn, and a stored session whose owner the server no longer remembers
+(after a restart) is refused to everyone until `authorizeSession` says whose
+it is; with only `LOUSHO_API_TOKEN` there is one caller and no owner check
+([Who may use a session](/auth#who-may-use-a-session)). An approval is
+decided only by the caller its run acts for unless `authorizeApproval` says
+otherwise. In an agent directory, export `authorizeSession` and
+`authorizeApproval` from `auth.ts` to change either rule (for example, to let
+a manager decide other users' approvals): see
+[Who may decide an approval](/auth#who-may-decide-an-approval).
+
+While a turn streams, the server writes an SSE comment line (`: ping`) after
+every 15 seconds without an event, so a proxy (nginx closes an idle upstream
+after 60s) or a client (Node's `fetch` gives up after 300s without a byte)
+keeps the connection while a model or a tool is slow. SSE parsers ignore
+comment lines. `createRouteHandler(agent, { heartbeatMs })` changes the
+interval; `0` turns it off.
 
 ```bash
 curl -N http://127.0.0.1:3000/chat \
   -H 'Authorization: Bearer '"$LOUSHO_API_TOKEN" -H 'Content-Type: application/json' \
   -d '{ "sessionId": "alice", "input": "Hello" }'
+```
+
+### Resending a turn
+
+A `POST /chat` that the client sends again (a retry after a dropped
+connection or a timeout, a double click, a client that restarted) is, without
+more, a new turn: the user message is appended again and the model may call
+the same tools again. Send an `Idempotency-Key` header (1-255 visible ASCII
+characters, e.g. a UUID the client makes per message) and resend with the
+same key:
+
+| The turn of that key in that session | The resend gets |
+| ------------------------------------ | --------------- |
+| finished (it is in the transcript) | `200` SSE with one `run.done` carrying that turn's final reply (`text`, `finishReason`), and the header `Idempotent-Replayed: true`. Nothing runs. Read `GET /chat/:sessionId` for the whole turn. |
+| still running on this server process | `409` (`LOUSHO_SESSION_BUSY`). Retry later and get the replay. |
+| interrupted by a crash (a checkpointed turn left `in-progress`) | the turn resumed from its last checkpoint (`session.resume()`: finished steps and tool calls are not run again), streamed as SSE. |
+| none | a new turn, as without the header; its user message keeps the key (`metadata.idempotencyKey`). |
+
+A session paused on an approval answers `409`
+(`LOUSHO_SESSION_AWAITING_APPROVAL`) to a resend as to any turn. The key is
+stored with the turn in the session store (the transcript, or the turn's
+checkpoint until it finishes), so a replay works after a restart and on another
+replica that shares the store; `session.pending()` reports an interrupted
+turn's key as `idempotencyKey`. A key is looked up only in its own session,
+and only while its turn is in the transcript (a compaction that summarizes it
+away forgets it). The `409` for a running turn holds within one process; two
+replicas that receive the same key at the same instant can both run it.
+
+```bash
+curl -N http://127.0.0.1:3000/chat -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: 6f1c2b0e-7d4a-4c8e-9a51-2f0d3b6e8c11' \
+  -d '{ "sessionId": "alice", "input": "Refund order B-1" }'
 ```
 
 ### Auth
@@ -109,9 +189,15 @@ Programmatically, `adapter.scaffold(agentPath, outDir, { auth: { token } })`
 bakes a token into the built `node-server` or `docker` server for when the
 variable is not set. The variable wins, and a baked token is readable in
 `dist/server.js`, so prefer the variable. The Worker reads the token from its
-`LOUSHO_API_TOKEN` binding only; without one it refuses `GET /chat/:sessionId`
-unless the `LOUSHO_ALLOW_OPEN_TRANSCRIPTS` var is `"true"`
+`LOUSHO_API_TOKEN` binding only; without one it refuses every `/chat` route
+unless the `LOUSHO_ALLOW_OPEN_SESSIONS` var is `"true"`
 ([Cloudflare Workers](/cloudflare-workers)).
+
+Behind a proxy, or for a front end on another origin, the generated
+`node-server` and Worker read the routes' request checks from
+`LOUSHO_ALLOWED_ORIGINS` and `LOUSHO_ALLOWED_HOSTS` (comma-separated) and
+`LOUSHO_REQUIRE_JSON_BODY=false`: see
+[Cross-site requests](/auth#cross-site-requests).
 
 For JWT, OpenID Connect or Basic auth, and to know who is calling, the
 `node-server` and `docker` targets take an ordered auth list from an agent
@@ -154,9 +240,27 @@ before it exits:
 4. It closes the connections still open and calls `agent.close()`.
 
 Keep the platform's grace period (Docker's `--stop-timeout`, Kubernetes'
-`terminationGracePeriodSeconds`) longer than that wait. When you serve
-`createDeployedServer(agent, options)` yourself, it returns the same drain as
-`shutdown({ timeoutMs? })`. Call `agent.close()` after it.
+`terminationGracePeriodSeconds`) longer than that wait. The drain is part of
+the generated server; `createDeployedServer()` is an internal helper of that
+bundle and is not exported. When you serve the agent yourself (for example
+`createRouteHandler()` behind your own `node:http` server), do the same in your
+signal handler: stop accepting, let the requests in flight finish, then call
+`agent.close()`.
+
+```ts
+import { createServer } from 'node:http';
+import { createAgent, mountChannels } from '@lousho/build-ai-agent';
+
+const agent = createAgent({ model: 'openai/gpt-4o-mini' });
+const handler = mountChannels(agent, []);
+const server = createServer((req, res) => void handler(req, res).then((handled) => handled || res.writeHead(404).end()));
+server.listen(3000);
+
+process.once('SIGTERM', () => {
+  server.close(() => void agent.close()); // close() waits for open connections
+  setTimeout(() => server.closeAllConnections(), 10_000).unref(); // then cut the stragglers
+});
+```
 
 Provider credentials are read from the same
 environment variables as everywhere else (`OPENAI_API_KEY`, ...).
@@ -197,10 +301,10 @@ browser-platform ES module; the build fails if any `node:` import ends up in the
 `dist/server.js` bundles the SDK but leaves its optional peers (the `peerDependenciesMeta`
 entries of its package.json: provider packages, `dockerode`, the MCP SDK, `prompts`, ...) external, so a build
 never needs one you do not use. The generated `package.json` already lists the
-ones the agent needs where the server runs - `@lousho/build-ai-agent` (at
-`^` the version that built it, a caret range, not an exact pin), the provider package the spec names (at the
+ones the agent needs where the server runs - the provider package the spec names (at the
 range pairing with the build's `ai` major, e.g. `@ai-sdk/openai` for an OpenAI
-agent) and `@modelcontextprotocol/sdk` when the spec has `mcpServers` - so the
+agent) and `@modelcontextprotocol/sdk` when the spec has `mcpServers` - and
+nothing else: `@lousho/build-ai-agent`, `ai` and `zod` are inside the bundle, so the
 docker image's `npm install --omit=dev` or a `npm install` next to the
 node-server output installs them. Anything else (an agent directory's own
 imports, `dockerode` for sandboxed tools) you add yourself; a code path that

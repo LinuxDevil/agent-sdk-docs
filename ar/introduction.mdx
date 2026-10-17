@@ -20,22 +20,25 @@ flowchart LR
 ```ts
 import { createAgent } from '@lousho/build-ai-agent';
 
-const agent = createAgent({ model: 'openai/gpt-4o-mini', instructions: 'You are a helpful assistant.' });
+const agent = createAgent({ model: 'openai/gpt-4.1-mini', instructions: 'You are a helpful assistant.' });
 const { text } = await agent.send('Hello!');
 console.log(text);
 ```
 
 ## ما يميّزها
 
-<CardGroup cols={3}>
-  <Card title="Durable على أي host" icon="database" href="/ar/durable-execution">
-    الـ sessions والـ checkpoints وتوقفات الـ approval محفوظة في stores قابلة للتبديل: الذاكرة، ملفات، ملف SQLite واحد، أو Cloudflare KV. والـ run المتوقف مؤقتًا أو المنقطع يستأنف من طلب آخر أو عملية أخرى.
+<CardGroup cols={2}>
+  <Card title="تسجيل وإعادة تشغيل واكتشاف الانحراف" icon="flask-conical" href="/ar/evals">
+    `lousho eval --record` يحفظ run حقيقي لكل حالة مع الـ provider في cassette، و`--replay` يشغّلها في CI بدون شبكة ولا مفتاح، و`--drift` يعيد التسجيل ويوضّح كيف تغيّر مسار استدعاءات الـ tools. و`defineEval()` يتحقق من الـ tools التي استُدعيت، وبأي ترتيب، وبأي معاملات.
   </Card>
-  <Card title="تُختبر مثل الكود" icon="flask-conical" href="/ar/testing">
-    `mockModel` يسكربت ردود الـ model، و`recordReplay` يعيد تشغيل runs حقيقية من cassettes دون اتصال، و`defineEval()` يتحقق من الـ tools التي استُدعيت، وبأي ترتيب، وبأي معاملات.
+  <Card title="Approvals متينة على stores عندك" icon="database" href="/ar/durable-execution">
+    الـ sessions والـ checkpoints وتوقفات الـ approval محفوظة في الذاكرة، أو ملفات، أو ملف SQLite واحد، أو Cloudflare KV. والـ run المتوقف مؤقتًا أو المنقطع يستأنف من طلب آخر أو عملية أخرى، حتى على Worker.
   </Card>
-  <Card title="Node و Workers مع tracing" icon="activity" href="/ar/deployment">
-    `lousho build` ينشر spec واحد للـ agent على سيرفر Node أو Docker أو Worker. كل run يصدر spans وفق OpenTelemetry GenAI، وكل نتيجة تذكر استهلاك الـ tokens، والتكلفة بالدولار الأمريكي للـ models ذات السعر المعروف.
+  <Card title="agent واحد وواجهات كثيرة" icon="activity" href="/ar/deployment">
+    `lousho build` ينشر الـ agent على سيرفر Node أو Docker أو Worker؛ و`lousho acp` يقدّمه للمحررات، و`serveMcp` لعملاء MCP. وكل run يصدر spans وفق OpenTelemetry GenAI مع استهلاك الـ tokens والتكلفة بالدولار الأمريكي.
+  </Card>
+  <Card title="مستضاف عندك، مع كل إصدارات AI SDK" icon="box" href="/ar/installation">
+    حزمة واحدة، بدون حساب على منصة ولا control plane مستضاف. الـ peer `ai` يقبل v4 و v6 و v7، و`fromAiSdk()` / `fromAiSdkTools()` يعيدان استخدام الـ models والـ tools اللي عندك من AI SDK.
   </Card>
 </CardGroup>
 
@@ -53,7 +56,7 @@ console.log(text);
 | [Streaming](/ar/streaming) | `agent.stream()` | أحداث JSON typed وذات إصدارات، جاهزة لـ SSE |
 | [Sub-agents](/ar/sub-agents) | `subagents: { researcher, writer }` | أداة `task` واحدة للـ agent الرئيسي؛ والـ sub-agents تشتغل بالتوازي، محليًا أو عن بُعد |
 | [Skills](/ar/skills) | `loadSkills()` | تعليمات ما يحمّلها الـ agent إلا لما تحتاجها المهمة |
-| [Providers](/ar/providers) | سلسلة بصيغة `provider/model` | OpenAI أو Anthropic أو OpenRouter أو Ollama أو mock، مع retry و fallback |
+| [Providers](/ar/providers) | سلسلة بصيغة `provider/model` | OpenAI أو Anthropic أو Google أو OpenRouter أو Ollama أو mock، مع retry و fallback؛ وأي model من AI SDK عبر `fromAiSdk()` |
 
 ## أين يعيش الـ agent
 
@@ -76,24 +79,11 @@ console.log(text);
 
 ## مقارنة بمكتبات أخرى
 
-`@lousho/build-ai-agent` يقع في طبقة واحدة فوق استدعاء الـ model: مثل LangGraph أو Mastra أو OpenAI Agents SDK أو Claude Agent SDK، يشغّل agent loop كامل، كمكتبة لا تفرض منصة ولا web framework ولا hosted runtime. وهو مبني فوق Vercel AI SDK وليس بديلًا عنه: الـ providers المدمجة لـ OpenAI و Anthropic و OpenRouter تستخدم `ai` و`@ai-sdk/*`، و`fromAiSdk()` يغلّف أي model آخر من AI SDK. وما يضيفه فوقه هو طبقة الإنتاج: checkpoints، و approvals متينة، و sessions، و channels، وأهداف النشر.
+`@lousho/build-ai-agent` يقع في طبقة واحدة فوق استدعاء الـ model: مثل agents الخاصة بـ AI SDK 7، و eve، و Mastra، و LangGraph، و OpenAI Agents SDK، و Claude Agent SDK، يشغّل agent loop كامل. وهو مبني فوق Vercel AI SDK وليس بديلًا عنه: الـ providers المدمجة تستخدم `ai` و`@ai-sdk/*`، و`fromAiSdk()` يغلّف أي model آخر من AI SDK.
 
-الجدول ملخص كما في أواخر 2026. هذه المكتبات تتحرك بسرعة، فراجع توثيق كل مشروع قبل أن تعتمد على أي خلية. "جزئي" تعني أن القدرة موجودة لكنها أضيق، أو أنك تركّب جزءًا منها بنفسك.
+الـ approvals المتينة والـ evals والـ agent directories و harnesses الـ coding agents لم تعد ميزات حصرية: AI SDK 7 و eve و Mastra تقدّم نسخها الخاصة. ما يميّز Lousho حتى الآن هو التسجيل وإعادة التشغيل مع اكتشاف انحراف المسار، والـ approvals المتينة على Cloudflare Workers KV، وتقديم نفس الـ agent عبر ACP و MCP، والعمل كحزمة واحدة مستضافة عندك. وهو أضعف حيث ما زال صغيرًا: في مرحلة alpha، بدون store لـ Postgres، وبـ providers مدمجة أقل، وبدون لوحة تحكم مستضافة. وفي [المقارنة](/ar/comparison) جدول لكل مشروع، مؤرّخ، مع ما يتفوّق فيه كل منافس.
 
-| القدرة | `@lousho/build-ai-agent` | Vercel AI SDK (v6) | LangChain / LangGraph | Mastra | OpenAI Agents SDK | Claude Agent SDK |
-| ---------- | ---------------------- | ------------------ | --------------------- | ------ | ----------------- | ---------------- |
-| Agent loop | نعم — `createAgent()` | نعم — `ToolLoopAgent`، أو `generateText` / `streamText` مع tools | نعم — graphs، أو agents جاهزة | نعم — `Agent` | نعم — `Agent` و`run()` | نعم — `query()` يشغّل harness الخاص بـ Claude Code |
-| الـ providers | OpenAI و Anthropic و OpenRouter و Ollama و mock مدمجة؛ وأي model من AI SDK عبر `fromAiSdk()` | نعم — أوسع مجموعة providers | نعم — عبر تكاملات LangChain | نعم — عبر AI SDK | جزئي — OpenAI أولًا؛ والباقي عبر adapters | جزئي — models الخاصة بـ Claude فقط (Anthropic API و Bedrock و Vertex) |
-| Typed event stream | نعم — `agent.stream()` يصدر أحداث JSON ذات إصدارات وأرقام تسلسلية عن الـ runs والخطوات والـ tokens والـ tool calls، جاهزة لـ SSE | نعم — أجزاء stream من نوع typed و UI message streams | نعم — أحداث الـ node والـ graph عبر `streamEvents` | نعم — streams للـ agent وللـ workflows | نعم — أحداث run مبثوثة | نعم — رسائل typed من `query()` |
-| Durable execution, checkpoints | نعم — checkpoints في stores قابلة للتبديل (الذاكرة، الملفات، SQLite، Cloudflare KV)؛ والـ run المنقطع أو المتوقف مؤقتًا يستأنف في عملية أخرى. لا يوجد store لـ Postgres أو Redis بعد | جزئي — أنت تحفظ الرسائل؛ والـ workflows المتينة مشروع منفصل | نعم — الـ checkpointer يحفظ حالة الـ thread | نعم — snapshots لـ suspend/resume في الـ workflows | جزئي — `RunState` لـ run متوقف يُسلسَل ويُستأنف في عملية أخرى؛ وتخزينه عليك | جزئي — الـ sessions تُستأنف أو تتفرّع من ملفات transcript محلية |
-| Approvals (human-in-the-loop) | نعم — `needsApproval` يوقف الـ run؛ و`agent.approvals.resolve()` يكمله من أي عملية | نعم — `needsApproval` على الـ tool؛ وأنت تحتفظ بالحالة المعلّقة بين الطلبات | نعم — `interrupt()` و nodes بشرية | نعم — خطوات بشرية في الـ workflows | نعم — function tools تأخذ `needsApproval`؛ والـ run يرجّع interruptions توافق عليها أو ترفضها | نعم — callback اسمه `canUseTool` و permission modes، والقرار داخل العملية |
-| القنوات | نعم — `mountChannels()` يقدّم واجهات Slack و Discord و Teams و Telegram و GitHub و webhook و HTTP، ويرجّع الـ approvals إلى القناة | لا | لا — adapters مجتمعية فقط | جزئي — بعض تكاملات النشر والدردشة | لا | لا |
-| أهداف النشر | `lousho build` ينتج سيرفر Node أو صورة Docker أو Cloudflare Worker من spec واحد (الـ Worker يدعم جزءًا من الـ providers والـ tools) | BYO — يشتغل أينما يشتغل تطبيقك | BYO، أو LangGraph Platform (مستضافة) | `mastra build` يستهدف Node و Vercel و Netlify و Workers | BYO — الحلقة تشتغل داخل عمليتك | BYO — يشتغل حيث يشتغل Claude Code |
-| Sessions | نعم — `agent.session({ id })` فوق stores للذاكرة أو الملفات أو SQLite | لا — أنت تحتفظ بمصفوفة الرسائل | نعم — threads ومساعدات لسجل المحادثة | نعم — threads وذاكرة | نعم — كائنات session تحفظ سجل المحادثة | نعم — استئناف session بالـ id |
-| MCP | عميل (`mcpServers`) وسيرفر (`serveMcp`) | عميل (`createMCPClient`) | عميل عبر adapters | نعم — عميل MCP وسيرفر | نعم — سيرفرات MCP كمصادر للـ tools | عميل، مع سيرفرات SDK داخل العملية |
-| Guardrails | جزئي — guardrails على المدخلات والمخرجات والـ tools، مع فحوصات heuristic للبيانات الشخصية والأسرار و prompt injection (فلتر أول، وليست حدًّا أمنيًا) وفحص moderation يعتمد على model | جزئي — ركّبها عبر middleware | جزئي — guardrails مجتمعية وevaluators من LangSmith | نعم — processors للمدخلات والمخرجات | نعم — guardrails للمدخلات والمخرجات | جزئي — عبر hooks وقواعد الصلاحيات |
-
-متى يكون خيار آخر أنسب: إذا كان كل اللي تحتاجه هو بثّ نص الـ model في route من Next.js، فـ AI SDK وحده أخفّ وأقل سطحًا. وإذا تريد harness الخاص بـ Claude Code وأدواته كما هي، فـ Claude Agent SDK يعطيك ذلك بالضبط. وإذا فريقك يعمل بـ Python أو يشغّل LangGraph Platform أصلًا، فالبقاء في نفس المنظومة يوفّر عليك stack ثاني. أما `@lousho/build-ai-agent` فهو موجّه لفرق TypeScript التي تريد agent loop فيه durable execution و approvals، يشتغل داخل عمليتها هي، وعلى أكثر من provider، بدون تبنّي منصة. وهو في مرحلة alpha: الـ APIs ممكن تتغير.
+متى يكون خيار آخر أنسب: إذا كان كل اللي تحتاجه هو بثّ نص الـ model في route من Next.js، فـ AI SDK وحده أخفّ وأقل سطحًا. وإذا تنشر على Vercel وتريد الـ runtime الخاص بها، فـ eve يناسبها مباشرة. وإذا تريد harness الخاص بـ Claude Code كما هو، فـ Claude Agent SDK يعطيك ذلك بالضبط. وإذا فريقك يعمل بـ Python أو يشغّل LangGraph Platform أصلًا، فالبقاء هناك يوفّر عليك stack ثاني. قادم من AI SDK؟ اقرأ [الانتقال من AI SDK](/ar/migrating-from-ai-sdk).
 
 ## الخطوات التالية
 
@@ -102,4 +92,5 @@ console.log(text);
 - [Tools](/ar/tools): عرّف أول tool لك وانظر كيف يتم الـ validation للمعاملات.
 - [Approvals](/ar/approvals): أوقف run مؤقتًا بانتظار قرار إنسان ثم استأنفه.
 - [الاختبار](/ar/testing): اكتب اختبار deterministic للـ agent بدون مفتاح API.
+- [الانتقال من AI SDK](/ar/migrating-from-ai-sdk): انقل حلقة `ToolLoopAgent` أو `generateText`، مع الـ models والـ tools الخاصة بها.
 - [Lousho مع coding agents](/ar/coding-agents): وجّه Claude Code أو Cursor أو أي coding agent آخر إلى توثيق يستطيع قراءته.

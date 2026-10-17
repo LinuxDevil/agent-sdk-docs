@@ -33,7 +33,7 @@ console.log(session.id, session.messages.length);
 | `compact(options?)` | Compacts the transcript now - see [Compacting a session](/compaction#compacting-a-session). |
 | `clear()` | Empties the transcript and saves it empty (the store holds no messages for the id). Keeps the session id, store and options; deletes every turn's checkpoint and checkpoint history (`<id>.turn-<n>`, which hold copies of the transcript), so `agent.fork('<id>.turn-<n>')` cannot bring the conversation back; memory slots are cross-session and untouched. Emits `context.cleared` to `on()` listeners. Rejects with `LOUSHO_SESSION_BUSY` while a turn is running, and with `LOUSHO_SESSION_AWAITING_APPROVAL` while a durable turn waits on an approval. |
 | `on(listener)` | Listens for the session's events: every turn's events as they happen (`send()` and `stream()` turns, and a paused turn continued by `agent.approvals.resolve()`), plus `compact()` / `clear()` events (`compaction.start`, `compaction.done`, `context.cleared`); returns a function that removes the listener. A turn's events are the `AgentEvent`s its `stream()` yields. |
-| `pending()` | In a [durable session](#durable-sessions), the turn that has not finished (`{ status, approvalId?, approvalKind? }`; `approvalKind` is `'question'` when the turn waits on an `ask_question`), or `null`. |
+| `pending()` | In a [durable session](#durable-sessions), the turn that has not finished (`{ status, approvalId?, approvalKind?, idempotencyKey? }`; `approvalKind` is `'question'` when the turn waits on an `ask_question`; `idempotencyKey` is the turn's HTTP `Idempotency-Key`, see [Resending a turn](/deployment#resending-a-turn)), or `null`. |
 | `resume({ signal })` | In a durable session, finishes an interrupted turn and resolves with its result, or `null` when none is pending. |
 | `discardPending()` | In a durable session, drops an unfinished turn without running it, and withdraws the approvals it waited on (they are no longer listed, and resolving one fails with `LOUSHO_APPROVAL_NOT_FOUND`). Also drops a turn checkpoint that cannot be read (`LOUSHO_CHECKPOINT_CORRUPT`). |
 | `history()` | The steps of the transcript (one per model response, with its tool calls and results) - see [Forking a session](#forking-a-session). |
@@ -225,8 +225,13 @@ console.log(finished?.text, await agent.session({ id: 'user-42' }).pending()); /
   `agent.fork('<id>.turn-<n>', { fromStep })` can fork those; older turns'
   histories are deleted as new turns commit (each history entry holds a copy of
   the whole transcript, so keeping every turn's would grow the store with the
-  square of the conversation's length). `session.fork()` works from the
-  transcript and is not limited by it.
+  square of the conversation's length), also when every turn uses a new store
+  object or process. History outside the window that is already in the store -
+  kept by an earlier release, or under a larger `turnHistoryLimit` - is deleted
+  over the next commits too, up to 32 turns per commit, oldest first; a process
+  that commits only one turn gets through the oldest 32, and
+  `fileStore(dir).prune()` / `SqliteStore.prune()` delete the rest.
+  `session.fork()` works from the transcript and is not limited by it.
 - While a turn runs, it holds a run lease on its checkpoint (see
   [Durable execution](/durable-execution#run-leases)): a `send()` on the same
   session from another process, replica or store object fails with
@@ -247,14 +252,24 @@ console.log(finished?.text, await agent.session({ id: 'user-42' }).pending()); /
   `send()` / `stream()` does not replay the turn: it fails with
   `LOUSHO_SESSION_TURN_FAILED`. Call `discardPending()` to drop the turn, or
   `resume()` to retry it once the cause is fixed. Other failures (a crash, a
-  5xx, a network error) are still resumed by the next `send()`.
+  5xx, a network error) are still resumed by the next `send()`. This holds
+  for a turn whose very first model call fails too: the run has saved no
+  checkpoint yet, so the session keeps the turn's input as the pending turn
+  (`pending()` reports it `in-progress`) and runs it again from that input.
 - A turn that pauses on a `needsApproval` tool stays in its checkpoint, not in
   the transcript, until it finishes. While it waits, `resume()`, `send()` and
   `stream()` throw `SessionAwaitingApprovalError` (with its `approvalId`), and
   `agent.approvals.resolve({ id, approved })` continues the turn in this
-  session. After a restart, open the session and call `resume()` (or `send()`)
-  once before resolving, so the agent knows which session the approval belongs
-  to; give both agents the same durable `store` (or `approvalStore`).
+  session. After a restart, `agent.approvals.resolve()` or `streamResolve()`
+  from the new process continues it too: the agent finds the session from the
+  pause record (for session ids of letters, digits, `_` and `-`), so there is
+  no need to open the session or call `resume()` first. Give both agents the
+  same durable `store` (or `approvalStore`).
+- `resume()` returns the finished turn's result; it does not stream, and
+  `stream()` does not stream the pending turn it finishes first either. To
+  show a resumed turn's progress, register `session.on(listener)` before the
+  call (or pass `createAgent({ onEvent })`): it gets the turn's `AgentEvent`s
+  as they happen.
 - A paused turn locks the session id: the session records it under
   `<id>.paused` in the checkpoint store, so `agent.send(message, { sessionId: id })`,
   `agent.stream()` with that `sessionId`, and a session object over a different
@@ -378,6 +393,20 @@ a minute); a session commits its turns with a compare-and-swap under a lock file
 (`sessions/<id>.json.lock`), and a running checkpointed run holds its run lease
 in `leases/<id>.json` (see [Durable execution](/durable-execution#run-leases)).
 For many processes sharing a store, `SqliteStore` is the sturdier choice.
+
+`fileStore(dir).prune({ olderThanMs })` deletes what was last written more than
+`olderThanMs` ago, like `SqliteStore.prune()`: transcripts, checkpoints and
+checkpoint history files, plus expired pending OAuth sign-ins. A run paused on
+a pending approval is kept, however old (its checkpoint, its history and its
+session's transcript), and so are pending approvals and OAuth tokens. It
+resolves with the counts, `{ sessions, checkpoints, checkpointHistory, oauthPending }`:
+
+```ts
+import { fileStore } from '@lousho/build-ai-agent';
+
+const store = fileStore('./.lousho');
+await store.prune({ olderThanMs: 30 * 24 * 60 * 60 * 1000 }); // a month
+```
 
 Any object with the three methods of a part works there too: a Redis
 `SessionStore`, or a KV-backed `CheckpointStore` on Cloudflare Workers (the

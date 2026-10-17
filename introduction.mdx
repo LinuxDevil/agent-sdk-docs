@@ -20,22 +20,25 @@ flowchart LR
 ```ts
 import { createAgent } from '@lousho/build-ai-agent';
 
-const agent = createAgent({ model: 'openai/gpt-4o-mini', instructions: 'You are a helpful assistant.' });
+const agent = createAgent({ model: 'openai/gpt-4.1-mini', instructions: 'You are a helpful assistant.' });
 const { text } = await agent.send('Hello!');
 console.log(text);
 ```
 
 ## What sets it apart
 
-<CardGroup cols={3}>
-  <Card title="Durable on any host" icon="database" href="/durable-execution">
-    Sessions, checkpoints and approval pauses live in pluggable stores: memory, files, one SQLite file, or Cloudflare KV. A paused or interrupted run resumes from another request or another process.
+<CardGroup cols={2}>
+  <Card title="Record, replay and catch drift" icon="flask-conical" href="/evals">
+    `lousho eval --record` saves each case's real provider run as a cassette, `--replay` runs it in CI with no network or key, and `--drift` re-records and reports how the tool-call trajectory changed. `defineEval()` asserts on which tools were called, in what order, with which arguments.
   </Card>
-  <Card title="Tested like code" icon="flask-conical" href="/testing">
-    `mockModel` scripts the model, `recordReplay` cassettes replay real runs offline, and `defineEval()` asserts on which tools were called, in what order, with which arguments.
+  <Card title="Durable approvals on your own stores" icon="database" href="/durable-execution">
+    Sessions, checkpoints and approval pauses live in memory, files, one SQLite file or Cloudflare KV. A paused or interrupted run resumes from another request or another process, on a Worker too.
   </Card>
-  <Card title="Node and Workers, traced" icon="activity" href="/deployment">
-    `lousho build` ships one agent spec to a Node server, Docker or a Worker. Runs emit OpenTelemetry GenAI spans, and every result reports token usage, plus USD cost for models with a known price.
+  <Card title="One agent, many surfaces" icon="activity" href="/deployment">
+    `lousho build` ships the agent to a Node server, Docker or a Worker; `lousho acp` serves it to editors and `serveMcp` to MCP clients. Runs emit OpenTelemetry GenAI spans with token usage and USD cost.
+  </Card>
+  <Card title="Self-hosted, across AI SDK majors" icon="box" href="/installation">
+    One package, no platform account or hosted control plane. The `ai` peer accepts v4, v6 and v7, and `fromAiSdk()` / `fromAiSdkTools()` reuse your existing AI SDK models and tools.
   </Card>
 </CardGroup>
 
@@ -53,7 +56,7 @@ Each block is one function or one option on `createAgent()`. Use the ones you ne
 | [Streaming](/streaming) | `agent.stream()` | Typed, versioned JSON events, ready for SSE |
 | [Sub-agents](/sub-agents) | `subagents: { researcher, writer }` | One `task` tool for the lead; sub-agents run in parallel, locally or remotely |
 | [Skills](/skills) | `loadSkills()` | Instructions the agent loads only when a task needs them |
-| [Providers](/providers) | a `provider/model` string | OpenAI, Anthropic, OpenRouter, Ollama or a mock, with retry and fallback |
+| [Providers](/providers) | a `provider/model` string | OpenAI, Anthropic, Google, OpenRouter, Ollama or a mock, with retry and fallback; any AI SDK model via `fromAiSdk()` |
 
 ## Where an agent can live
 
@@ -76,24 +79,11 @@ The agent is the same object everywhere. What changes is the surface in front of
 
 ## Compared to other libraries
 
-`@lousho/build-ai-agent` sits one layer above a model call: like LangGraph, Mastra, the OpenAI Agents SDK or the Claude Agent SDK it runs a full agent loop, as a library with no required platform, web framework or hosted runtime. It builds on the Vercel AI SDK rather than replacing it: the built-in OpenAI, Anthropic and OpenRouter providers use `ai` and `@ai-sdk/*`, and `fromAiSdk()` wraps any other AI SDK model. What it adds on top is the production layer: checkpoints, durable approvals, sessions, channels and deploy targets.
+`@lousho/build-ai-agent` sits one layer above a model call: like the AI SDK 7 agents, eve, Mastra, LangGraph, the OpenAI Agents SDK or the Claude Agent SDK, it runs a full agent loop. It builds on the Vercel AI SDK rather than replacing it: the built-in providers use `ai` and `@ai-sdk/*`, and `fromAiSdk()` wraps any other AI SDK model.
 
-The table is a summary as of late 2026. These libraries move fast, so check each project's own documentation before you rely on a cell. "Partial" means the capability exists but is narrower, or you assemble part of it yourself.
+Durable approvals, evals, agent directories and coding-agent harnesses are no longer unique: AI SDK 7, eve and Mastra ship their own. What Lousho still does differently is record/replay with trajectory drift, durable approvals on Cloudflare Workers KV, serving the same agent over ACP and MCP, and running as one self-hosted package. It is weaker where it is young: it is in alpha, has no Postgres store, fewer native providers and no hosted dashboard. The [comparison](/comparison) has the per-project table, dated, with where each rival is ahead.
 
-| Capability | `@lousho/build-ai-agent` | Vercel AI SDK (v6) | LangChain / LangGraph | Mastra | OpenAI Agents SDK | Claude Agent SDK |
-| ---------- | ---------------------- | ------------------ | --------------------- | ------ | ----------------- | ---------------- |
-| Agent loop | Yes — `createAgent()` | Yes — `ToolLoopAgent`, or `generateText` / `streamText` with tools | Yes — graphs, or prebuilt agents | Yes — `Agent` | Yes — `Agent` and `run()` | Yes — `query()` runs the Claude Code harness |
-| Model providers | OpenAI, Anthropic, OpenRouter, Ollama and a mock built in; any AI SDK model via `fromAiSdk()` | Yes — the widest provider set | Yes — through LangChain integrations | Yes — through the AI SDK | Partial — OpenAI first; others through adapters | Partial — Claude models only (Anthropic API, Bedrock, Vertex) |
-| Typed event stream | Yes — `agent.stream()` emits versioned, sequenced JSON events for runs, steps, tokens and tool calls, SSE-ready | Yes — typed stream parts and UI message streams | Yes — node/graph events via `streamEvents` | Yes — agent and workflow streams | Yes — streamed run events | Yes — typed messages from `query()` |
-| Durable execution, checkpoints | Yes — checkpoints in pluggable stores (memory, files, SQLite, Cloudflare KV); a crashed or paused run resumes in another process. No Postgres or Redis store yet | Partial — you persist the messages; durable workflows are a separate project | Yes — checkpointers save thread state | Yes — workflow suspend/resume snapshots | Partial — an interrupted run's `RunState` serializes and resumes in another process; storing it is up to you | Partial — sessions resume or fork from local transcript files |
-| Approvals (human-in-the-loop) | Yes — `needsApproval` pauses the run; `agent.approvals.resolve()` continues it from any process | Yes — tool `needsApproval`; you keep the pending state between requests | Yes — `interrupt()` and human nodes | Yes — human steps in workflows | Yes — function tools take `needsApproval`; the run returns interruptions you approve or reject | Yes — `canUseTool` callback and permission modes, decided in-process |
-| Channels | Yes — `mountChannels()` serves Slack, Discord, Teams, Telegram, GitHub, webhook and HTTP surfaces, with approvals back to the channel | No | No — community adapters only | Partial — some deploy/chat integrations | No | No |
-| Deploy targets | `lousho build` emits a Node server, Docker image or Cloudflare Worker from one spec (a Worker supports a subset of providers and tools) | BYO — runs wherever your app runs | BYO, or LangGraph Platform (hosted) | `mastra build` targets Node, Vercel, Netlify, Workers | BYO — the loop runs in your process | BYO — runs where Claude Code can run |
-| Sessions | Yes — `agent.session({ id })` over memory, file or SQLite stores | No — you keep the message array | Yes — threads and chat-history helpers | Yes — threads and memory | Yes — session objects keep conversation history | Yes — resume a session by id |
-| MCP | Client (`mcpServers`) and server (`serveMcp`) | Client (`createMCPClient`) | Client via adapters | Yes — MCP client and server | Yes — MCP servers as tool sources | Client, plus in-process SDK servers |
-| Guardrails | Partial — input/output/tool guardrails, with heuristic PII, secret and prompt-injection checks (a first filter, not a security boundary) and a model-based moderation check | Partial — compose with middleware | Partial — community guardrails and LangSmith evaluators | Yes — input/output processors | Yes — input/output guardrails | Partial — through hooks and permission rules |
-
-When something else fits better: if you only need to stream model text in a Next.js route, the AI SDK alone is less surface; if you want Claude Code's own harness and tools, the Claude Agent SDK gives you exactly that; if your team is on Python or already runs LangGraph Platform, staying in that ecosystem avoids a second stack. `@lousho/build-ai-agent` is aimed at TypeScript teams that want a durable, approvable agent loop inside their own process, on more than one model provider, without adopting a platform. It is in alpha: APIs can still change.
+When something else fits better: if you only need to stream model text in a Next.js route, the AI SDK alone is less surface; if you deploy on Vercel and want its runtime, eve fits it natively; if you want Claude Code's own harness, the Claude Agent SDK gives you exactly that; if your team is on Python or already runs LangGraph Platform, staying there avoids a second stack. Coming from the AI SDK? See [Migrating from the AI SDK](/migrating-from-ai-sdk).
 
 ## Next steps
 
@@ -102,4 +92,5 @@ When something else fits better: if you only need to stream model text in a Next
 - [Tools](/tools): define your first tool and see how arguments are validated.
 - [Approvals](/approvals): pause a run for a human decision and resume it.
 - [Testing](/testing): write a deterministic test for an agent without an API key.
+- [Migrating from the AI SDK](/migrating-from-ai-sdk): move a `ToolLoopAgent` or `generateText` loop, its models and its tools.
 - [Lousho with coding agents](/coding-agents): point Claude Code, Cursor or another coding agent at docs it can read.

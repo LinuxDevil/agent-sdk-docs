@@ -193,7 +193,7 @@ a wrong audience all get the same `401`. Every auth response carries
 | --- | --- | --- |
 | `jwt()`, `oidc()`, `basic()`, `apiToken()`, `anonymous()`, `routeAuth()` | yes | yes: Web Crypto and `fetch` only, no `node:` import |
 | `createRouteHandler({ auth })` | yes | yes |
-| `createDeployedServer({ auth })`, the `node-server` and `docker` targets | yes | no (Node `http`) |
+| The `node-server` and `docker` targets | yes | no (Node `http`) |
 | An agent directory's `auth.ts` | yes (`node-server`, `docker`) | no |
 | The `cloudflare-worker` build target | | `LOUSHO_API_TOKEN` only; no auth list yet |
 
@@ -213,7 +213,7 @@ behind `auth`. The accepted principal reaches every route: `POST <basePath>`,
 
 ## The node server and `auth.ts`
 
-`createDeployedServer(agent, { auth })` takes the same list (or one entry).
+The generated server (it uses the bundle's internal `createDeployedServer()`) takes the same list (or one entry).
 When `LOUSHO_API_TOKEN` is set, `apiToken(LOUSHO_API_TOKEN)` is appended after
 your entries, so an operator's token keeps working. Channels under
 `/channels/<name>` are not behind the list: they verify their own requests.
@@ -238,6 +238,14 @@ server uses it (`resolveAgentDir()` returns it as `auth`; the manifest says
 still is. The `cloudflare-worker` target serves spec files only and keeps the
 `LOUSHO_API_TOKEN` token; see [Deployment](/deployment#auth).
 
+`auth.ts` may also export functions named `authorizeSession` and
+`authorizeApproval`, next to its default export. The built server uses them as
+the rules of [Who may use a session](#who-may-use-a-session) and
+[Who may decide an approval](#who-may-decide-an-approval), and
+`resolveAgentDir()` returns them under those names. Any other value under
+those names fails the load (`LOUSHO_AGENT_DIR_INVALID`). `lousho dev` has no
+route auth, so neither the list nor these rules apply there.
+
 ## Reading the principal in the run
 
 The principal is on the run context next to `sessionId` and `metadata`. The
@@ -256,7 +264,7 @@ const notes = defineMemory({
 });
 
 const agent = createAgent({
-  provider: mockModel(['Hi!']),
+  provider: mockModel(['Hi!', 'Hi again!']), // one scripted reply per turn below
   model: ({ principal }) => (principal?.claims?.plan === 'pro' ? 'openai/gpt-4o' : 'openai/gpt-4o-mini'),
   instructions: ({ principal }) => (principal?.type === 'service' ? 'Answer in JSON.' : 'Be friendly.'),
   memory: [notes],
@@ -278,13 +286,15 @@ permission rules and sub-agents see it too: see
 
 ## Security notes
 
-- **Sessions belong to their first caller by default.** Once route auth
-  accepted a caller, a session id is bound to the first principal that reads
-  or continues it, and any other principal gets `403`
-  (`LOUSHO_SESSION_FORBIDDEN`). That record lives in memory, per process (or
-  Worker isolate): a restart or a second replica forgets it, and the first
-  caller after that claims the session. With more than one instance, pass
-  `authorizeSession` that checks ownership against your own data. See
+- **Sessions belong to the caller that started them by default.** Once route
+  auth accepted a caller, a session id is bound to the first principal that
+  sends it a turn (reading an id claims nothing), and any other principal gets
+  `403` (`LOUSHO_SESSION_FORBIDDEN`). That record lives in memory, per agent,
+  for the 100,000 most recently used sessions. A stored session whose owner is
+  not on record (after a restart, on a second replica, past that cap) is
+  refused to every principal, its owner too. With more than one instance, or a
+  store that outlives the process, pass `authorizeSession` that checks
+  ownership against your own data. See
   [Who may use a session](#who-may-use-a-session).
 - **Cookies need CSRF protection, which the routes give by default.** A POST
   must be JSON (`415` otherwise) and must not come from another site's page
@@ -299,7 +309,9 @@ permission rules and sub-agents see it too: see
 - **Errors.** The session routes send an error's `name` and `code` with a
   generic message. The full error (a provider's response body, a chat template)
   goes to the server log (`console.error`) and to `onEvent`. Pass
-  `exposeErrors: true` to send the raw message, as `lousho dev` does.
+  `exposeErrors: true` to send the raw message, as `lousho dev` does. A
+  missing provider package (`LOUSHO_PEER_MISSING`) always sends its message:
+  the SDK's own `npm install` command.
 - `basic()` only over HTTPS; a bearer token is a password too, so terminate TLS
   in front of any server that is not on localhost.
 - Keep `issuer` and `audience` set for `jwt()`: a token minted for another of
@@ -415,20 +427,32 @@ belongs to that caller is used only for that caller's calls, whoever approves.
 ### Who may use a session
 
 By default, once route auth accepted a caller, a session belongs to the first
-principal that reads it or sends it a turn (principals are compared by `id`,
-`type`, `authenticator` and `issuer`). Another principal gets `403`
+principal that sends it a turn (principals are compared by `id`, `type`,
+`authenticator` and `issuer`). Another principal gets `403`
 (`LOUSHO_SESSION_FORBIDDEN`) on `GET /chat/:id`, `POST /chat`, `POST
 <basePath>` and the `useChat` endpoint; decisions on its approvals are left to
-`authorizeApproval` (below). A route without auth checks nothing. All callers
-of one `apiToken()` are one principal, so they share every session.
+`authorizeApproval` (below). Reading an id nobody has sent a turn to yet
+claims nothing, so a caller cannot lock a user out of a predictable id
+(`user-42`) by reading it first. A turn with an empty `input` is a `400` and
+claims nothing, and a turn that stores nothing (it failed before saving) drops
+its claim. A route without auth checks nothing. All callers of one
+`apiToken()` are one principal, so they share every session; a route guarded
+by one bearer token (`auth: '<token>'`, the node server or the Worker with
+only `LOUSHO_API_TOKEN`) checks no owner at all.
 
-The owner is remembered in memory, per agent: a restart, a second replica or
-a Worker isolate that is recycled forgets it, and the next caller claims the
-session. So for anything that runs on more than one instance, check ownership
-yourself.
+The owner is remembered in memory, per agent object, for the 100,000 most
+recently used sessions. A restart, a second replica, a session unused for
+longer, or a host that builds its agent per request forgets it. The default
+then fails closed: a session that is already stored (it has a transcript or an
+unfinished turn) but has no owner on record is refused to every principal,
+including the one that started it, so nobody can take over a session by
+getting its owner forgotten. Only a session that was never stored can be
+claimed again. So for anything that runs on more than one instance, or keeps
+sessions across restarts, check ownership yourself with `authorizeSession`.
 
-`createRouteHandler()` and `createDeployedServer()` take `authorizeSession`,
-which replaces that default. It is asked before a caller reads a session
+`createRouteHandler()` and the generated node server take `authorizeSession`,
+which replaces that default (in an agent directory, export it from `auth.ts`:
+see the example under [Who may decide an approval](#who-may-decide-an-approval)). It is asked before a caller reads a session
 (`action: 'read'`), sends it a turn (`'chat'`, also `POST <basePath>` and the
 `useChat` endpoint) or decides one of its approvals (`'approve'`). Return
 `false` for a `403` (`LOUSHO_SESSION_FORBIDDEN`). Deriving the id from the
@@ -439,11 +463,14 @@ import { createAgent, createRouteHandler, memoryStore } from '@lousho/build-ai-a
 import { jwt } from '@lousho/build-ai-agent/auth';
 
 const agent = createAgent({ model: 'openai/gpt-4o-mini', store: memoryStore() });
+// The user id a session id starts with: everything before its last `-`. A prefix match would let
+// `alice` reach `alice-x`'s sessions, so the suffix has no `-` (e.g. `crypto.randomUUID().replaceAll('-', '')`).
+const ownerOf = (sessionId: string) => sessionId.slice(0, Math.max(sessionId.lastIndexOf('-'), 0));
 
 export const { GET, POST } = createRouteHandler(agent, {
   auth: jwt({ secret: process.env.JWT_SECRET!, issuer: 'https://auth.example.com', audience: 'agent-api' }),
-  // Session ids are `<user id>-<anything>`: a user can only reach their own.
-  authorizeSession: ({ principal, sessionId }) => sessionId.startsWith(`${principal?.id}-`),
+  // Session ids are `<user id>-<suffix without '-'>`: a user can only reach their own.
+  authorizeSession: ({ principal, sessionId }) => principal !== undefined && ownerOf(sessionId) === principal.id,
 });
 ```
 
@@ -456,21 +483,37 @@ A browser sends cookies with requests that another site's page makes, so with
 cookie-based auth a page on `evil.example` could otherwise start a turn or
 approve a call as your user. The session routes refuse that by default:
 
-- a POST whose `Origin` is not the server's own (its `Host`, or the
-  `X-Forwarded-Host` a proxy in front sets) and not in `allowedOrigins`, or
-  that the browser marked `Sec-Fetch-Site: cross-site`, is `403`
-  (`LOUSHO_REQUEST_FORBIDDEN`). Requests without an `Origin` (curl, a server,
-  another agent) are not affected;
+- a POST whose `Origin` is not the server's own (its `Host`, or the host a
+  proxy in front reports in `X-Forwarded-Host` or `Forwarded: host=`) and not
+  in `allowedOrigins`, or that the browser marked `Sec-Fetch-Site:
+  cross-site`, is `403` (`LOUSHO_REQUEST_FORBIDDEN`). Requests without an
+  `Origin` (curl, a server, another agent) are not affected;
 - a POST body must be `Content-Type: application/json` (`415`,
   `LOUSHO_UNSUPPORTED_MEDIA_TYPE` otherwise): forms and `text/plain` are what
   another site can send without a CORS preflight.
 
 A front end on another origin is listed in `allowedOrigins` (it also needs
 CORS headers, which your host adds); `allowedOrigins: ['*']` turns the origin
-check off and `requireJsonBody: false` the content-type one. `allowedHosts`
-(off by default) refuses any request whose `Host` is not listed, against DNS
-rebinding of a server on a private address. All three work on
-`createRouteHandler()` and `createDeployedServer()`.
+check off and `requireJsonBody: false` the content-type one. Entries are
+compared as origins: case, a trailing slash and a default port
+(`https://app.example:443`) do not matter. `allowedHosts` (off by default)
+refuses any request whose `Host` is not listed, against DNS rebinding of a
+server on a private address. All three work on `createRouteHandler()` and
+the generated node server; that server and the Cloudflare Worker read
+them from `LOUSHO_ALLOWED_ORIGINS` and `LOUSHO_ALLOWED_HOSTS` (comma-separated)
+and `LOUSHO_REQUIRE_JSON_BODY=false`.
+
+Behind a reverse proxy:
+
+- The proxy must tell the server the public host, or a browser's same-site
+  POST is `403`: keep the original `Host` (nginx `proxy_set_header Host
+  $host;`), or set `X-Forwarded-Host` (`proxy_set_header X-Forwarded-Host
+  $host;`) or `Forwarded: host=...`. A default port in it
+  (`agent.example:443`) matches an `https://agent.example` page. Otherwise
+  list the public origin in `allowedOrigins`.
+- `allowedHosts` checks only the `Host` header the server receives, never the
+  forwarded ones (a page that rebinds DNS can set those). Behind a proxy that
+  rewrites `Host`, list the upstream name the proxy sends, not the public one.
 
 ```ts
 import { createAgent, createRouteHandler } from '@lousho/build-ai-agent';
@@ -499,8 +542,8 @@ their own call, and cannot decide another user's. A run without a principal,
 or a route without auth, accepts any caller.
 
 When `needsApproval` means that someone else must approve, say who. Here a
-customer can no longer approve their own refund, and a supervisor can decide in
-any session:
+customer can no longer approve their own refund, and a supervisor can read any
+session (to see what they are approving) and decide in it:
 
 ```ts
 import { createAgent, createRouteHandler, memoryStore } from '@lousho/build-ai-agent';
@@ -508,18 +551,59 @@ import { jwt } from '@lousho/build-ai-agent/auth';
 
 const agent = createAgent({ model: 'openai/gpt-4o-mini', store: memoryStore() });
 const isSupervisor = (principal?: { claims?: Readonly<Record<string, unknown>> }) => principal?.claims?.role === 'supervisor';
+// Session ids are `<user id>-<suffix without '-'>`; the owner is everything before the last `-`.
+const ownerOf = (sessionId: string) => sessionId.slice(0, Math.max(sessionId.lastIndexOf('-'), 0));
 
 export const { GET, POST } = createRouteHandler(agent, {
   auth: jwt({ secret: process.env.JWT_SECRET!, issuer: 'https://auth.example.com', audience: 'agent-api' }),
-  // Customers use their own sessions (ids that start with their id); supervisors may decide in any session.
+  // Customers use their own sessions; supervisors may read and decide in any session.
   authorizeSession: ({ principal, sessionId, action }) =>
-    sessionId.startsWith(`${principal?.id}-`) || (action === 'approve' && isSupervisor(principal)),
+    (principal !== undefined && ownerOf(sessionId) === principal.id) || (action !== 'chat' && isSupervisor(principal)),
   authorizeApproval: ({ principal }) => isSupervisor(principal),
 });
 ```
 
-Two requests that decide the same approval at once get one continuation: the
-other request is a `409` (`LOUSHO_APPROVAL_CONFLICT`), and a later one a `404`.
+In an agent directory built with `lousho build --target=node-server` (or
+`docker`), export the same rules from `auth.ts`. Here users file expense
+claims, a manager decides them, and nobody approves their own:
+
+```ts
+// my-agent/auth.ts
+import { apiToken } from '@lousho/build-ai-agent/auth';
+import type { ApprovalAccessRequest, SessionAccessRequest } from '@lousho/build-ai-agent';
+
+export default [
+  apiToken(process.env.ALICE_TOKEN!, { id: 'alice' }),
+  apiToken(process.env.BOB_TOKEN!, { id: 'bob' }),
+  apiToken(process.env.MANAGER_TOKEN!, { id: 'manager' }),
+];
+
+// Session ids are `<user id>-<suffix without '-'>`.
+const ownerOf = (sessionId: string) => sessionId.slice(0, Math.max(sessionId.lastIndexOf('-'), 0));
+
+// Users use their own sessions; the manager may open any session to review a claim.
+export function authorizeSession({ principal, sessionId }: SessionAccessRequest): boolean {
+  return principal?.id === 'manager' || (principal !== undefined && ownerOf(sessionId) === principal.id);
+}
+
+// Only the manager decides, and never on a claim of their own.
+export function authorizeApproval({ principal, approval }: ApprovalAccessRequest): boolean {
+  return principal?.id === 'manager' && approval.principal?.id !== 'manager';
+}
+```
+
+Alice's paused claim in session `alice-1` is then decided by
+`POST /chat/alice-1/approvals/:id` with the manager's token (`200`); with
+alice's own token it is a `403` (`LOUSHO_APPROVAL_FORBIDDEN`). Without these
+exports the built server keeps the defaults, so only alice could decide it.
+
+Two requests that decide the same approval get one continuation: while the
+winning decision's continuation is still running (on the same server process),
+any other decision of that approval is a `409` (`LOUSHO_APPROVAL_CONFLICT`),
+whether it arrived at the same moment or while the decided tool was running;
+once that continuation has ended, a decision is a `404`
+(`LOUSHO_APPROVAL_NOT_FOUND`). A decision handled by another replica is a
+`404` there.
 
 ### Pauses, crashes and forks
 
