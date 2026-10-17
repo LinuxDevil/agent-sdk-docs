@@ -1,8 +1,99 @@
 ---
-title: "Claude Code projects"
+title: "مشاريع Claude Code"
+---
+{/* Generated from docs/claude-projects.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
+
+المستودع الذي يحمل أصلًا ملفات Claude Code المعتادة —
+`CLAUDE.md` و`.claude/skills/` و`.claude/agents/` و`.claude/rules/`
+و`.claude/scratchpad/` — يحمّلها بـ `claudeProject()`: النتيجة تُفرد
+داخل `createAgent()`، فنفس المجلد يشغّل البيئتين. لا شيء يُنسخ ولا يُعاد
+تسميته؛ Lousho تقرأ الملفات من مكانها.
+
+```ts
+import { createAgent, claudeProject } from '@lousho/build-ai-agent';
+import { mockModel } from '@lousho/build-ai-agent/testing';
+
+const provider = mockModel([{ text: 'ok' }]);
+
+const project = await claudeProject('./my-repo', { provider });
+const agent = createAgent({ provider, ...project });
+```
+
+ما يتحوّل إلى ماذا:
+
+| اصطلاح Claude | يصبح |
+| ----------------- | ------- |
+| `CLAUDE.md` (و`AGENTS.md`) | `instructions` (يُدمجان معًا إذا وُجدا) |
+| `.claude/rules/*.md` | أقسام تُلحق بالتعليمات، بعنوان `## <file>`، مرتّبة حسب الاسم |
+| `.claude/skills/<name>/SKILL.md` | `skills` — نفس البنية التي تقرأها [`loadSkills()`](/ar/skills) أصلًا |
+| `.claude/agents/*.md` | `subagents`: من الـ frontmatter `name`/`description`/`model`، والمتن = التعليمات |
+| `.claude/scratchpad/` | أداة `scratchpad` — `write`/`append`/`read`/`list` لملاحظات مسمّاة في ذلك المجلد |
+| `.claude/commands/` و`settings*.json` و`mcp.json` | لا تُحمَّل — تظهر في `manifest.ignored` |
+
+## الوكلاء الفرعيون
+
+`.claude/agents/reviewer.md`:
+
+```markdown
+---
+name: reviewer
+description: Reviews diffs for correctness
+model: openrouter/openai/gpt-4o-mini
 ---
 
-{/* pending-translation */}
-<Note>
-هذه الصفحة لم تُترجَم إلى العربية بعد. اقرأ [النسخة الإنجليزية](/claude-projects).
-</Note>
+You review code ruthlessly. Report findings, never rewrite.
+```
+
+الحقلان `name` و`description` في الـ frontmatter إلزاميان (وهذا عقد Claude Code
+نفسه)؛ والمتن يصبح `instructions` الوكيل الفرعي. `model` يحدد نموذج الوكيل
+الفرعي؛ وبدونه يشتغل الوكيل الفرعي على الـ `provider` / `model` الممرَّرين
+إلى `claudeProject()` — والملف الذي يخلو من الاثنين خطأ يذكر اسمه. قائمة
+`tools` في الـ frontmatter تُسجَّل في الـ manifest لكنها لا تُطبَّق:
+الوكلاء الفرعيون في Lousho يتشاركون سجل الأدوات مع الوكيل الرئيسي (ضيّقها
+بـ [قواعد الصلاحيات](/ar/approvals#سياسات-الصلاحيات) بدلًا من ذلك).
+
+بخلاف [مجلدات الوكيل](/ar/agent-directories)، `claudeProject()` *تقرأ
+الـ markdown كبيانات ولا تشغّل شيئًا*: لا يُستورد ولا يُنفَّذ أي ملف في `.claude/`.
+لذلك تحميل مشروع لا تثق فيه آمن — الأدوات المتاحة تبقى ما تمرّره أنت
+إلى `createAgent()`.
+
+## Scratchpad
+
+`.claude/scratchpad/` يعطيك أداة `scratchpad`: الوكيل يكتب ويُلحق
+ويقرأ ويسرد ملاحظات `*.md` في ذلك المجلد (الأسماء من `a-z0-9-_`، فلا تقدر
+المسارات أن تخرج منه). هذه هي مساحة "ملاحظات العمل" الدائمة — للأسرار
+أو الحقائق المنظَّمة فضّل [خانات الذاكرة](/ar/memory)؛ وللملاحظات المرتبطة
+بمهمة، تقدر الخطّافات أن توقف عند كتابات `scratchpad` مثل أي أداة.
+
+## الخيارات
+
+```ts
+import { claudeProject } from '@lousho/build-ai-agent';
+import { mockModel } from '@lousho/build-ai-agent/testing';
+
+const provider = mockModel([{ text: 'ok' }]);
+
+await claudeProject('./repo', {
+  provider,            // sub-agents without a frontmatter model run on this
+  model: 'openai/gpt-4o', // ...or on this model id (frontmatter model wins)
+  scratchpad: true,    // return the tool even if .claude/scratchpad is absent (created on first write)
+  rules: false,        // skip .claude/rules
+  agents: false,       // skip .claude/agents
+});
+```
+
+`manifest` يبيّن ما وُجد: `instructionFiles` و`rules` و`skills`
+و`subagents` و`scratchpad` و`ignored`.
+
+## ما لا يُحمَّل عن قصد
+
+ملفات `.claude/commands/*.md` هي موجّهات slash commands لبيئة تفاعلية —
+والشكل الذي تعتمده Lousho لـ "مسارات العمل المسمّاة القابلة للتكرار" هو [مسارات العمل](/ar/flows).
+و`.claude/settings*.json` إعدادات بيئة Claude Code (لا تصف
+وكيلًا)، و`.claude/mcp.json` يعرّف خوادم MCP — مرّرها أنت إلى
+`createAgent({ mcpServers })` ([MCP](/ar/mcp-integration))؛ تحليل صيغة إعدادات
+تخص طرفًا ثالثًا خارج النطاق عن قصد.
+
+وللاتجاه المعاكس — `projectInstructions: true` على `createAgent()` —
+يبحث عن أقرب `AGENTS.md`/`CLAUDE.md` صعودًا في الشجرة ويُلحقه، بدون
+أن يلمس `.claude/`. راجع الخيار في [الإعدادات](/ar/configuration).
