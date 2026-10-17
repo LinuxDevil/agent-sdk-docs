@@ -2,11 +2,6 @@
 title: "Cloudflare Workers"
 ---
 
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/cloudflare-workers).
-</Warning>
-
 {/* Generated from docs/cloudflare-workers.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 الأمر `npx lousho build --target=cloudflare-worker --agent=agent.yaml` يولّد module Worker باسم `worker.ts`، و`wrangler.toml`، وbundle هو `dist/worker.js` يفحصه الـ build بحثًا عن استيرادات `node:`. يحتاج `tsup` و`wrangler` مثبتين، ويأخذ [ملف agent spec](/ar/configuration) أو [agent directory](/ar/agent-directories) (`npx lousho build ./my-agent --target=cloudflare-worker`). الـ Worker يقدّم نفس [HTTP API](/ar/deployment#http-api) التي تقدّمها الأهداف الثانية. هذا الهدف هو الأضيق حدودًا بين الثلاثة، فنبدأ بحدوده.
@@ -80,7 +75,12 @@ title: "Cloudflare Workers"
 يعلن المصدر cron triggers) ويجمّعه كـ ES module
 لمنصة المتصفح؛ ويفشل الـ build إذا انتهى أي استيراد `node:` داخل
 `dist/worker.js`. حقل `main` في `wrangler.toml` يشير إلى `dist/worker.js`
-مع `no_bundle = true`، فيُرفع بالضبط الـ bundle الذي تم التحقق منه. يُبنى ويشتغل
+مع `no_bundle = true`، فيُرفع بالضبط الـ bundle الذي تم التحقق منه. وقيمة
+`compatibility_date` فيه افتراضيًا تاريخ مثبّت لكل إصدار من الـ SDK (`2026-09-01`).
+أول build يكتب الملف كاملًا؛ والـ builds التالية تحدّث فقط المفاتيح التي يملكها
+الـ build (`name` و`main` و`no_bundle` و`[triggers] crons`) وتُبقي كل ما
+غيّرته أو أضفته: `compatibility_date` تبعك، و`[vars]`، وكتلة `[[kv_namespaces]]`
+المملوءة، والـ routes، والتعليقات. يُبنى ويشتغل
 مع `ai` v4 (التثبيت الافتراضي) أو `ai` v7 (مع
 `@ai-sdk/openai`/`@ai-sdk/anthropic` v4) مثبتة، بلا أي
 compatibility flag (يعني بلا `nodejs_compat`):
@@ -122,8 +122,12 @@ cd .lousho/build/cloudflare-worker && npx wrangler deploy
   عن المشكلة.
 - مجلدات `subagents/<name>/` تُضمَّن بشكل recursive، وبنفس قواعد التخطيط المتبعة في
   مجلد الأب. كل واحد يحتاج `description` في إعداداته (يقرأها model الأب ليقرر
-  متى يفوّض)؛ وtools الأب تكسب tool باسم `delegate_to_<name>` تشغّل turn الـ
-  sub-agent. والـ sub-agent يرث model الأب ما لم تضبط إعداداته model خاصًا به.
+  متى يفوّض). وكل واحد sub-agent أصلي (native) للأب، كما مع `loadAgentDir()`: الأب
+  يفوّض عبر الـ tool `task` أو الاسم البديل `delegate_to_<name>`، والـ sub-agent
+  يشتغل داخل run الأب، فتسري فيه قواعد `permissions` الخاصة بالأب، والـ approvals
+  تبعه توقف الأب (و`approve` المضمّن الخاص به يبتّ فيها أولًا)، واستهلاكه يُضاف إلى
+  استهلاك الأب (راجع [Sub-agents](/ar/agent-directories#sub-agents)). والـ sub-agent يرث
+  model الأب ما لم تضبط إعداداته model خاصًا به.
 - ملفات `schedules/` تصير [cron triggers](#scheduled-runs): الـ build يقيّم
   كل ملف ليكتب تعبير cron الخاص به في `[triggers] crons` ضمن `wrangler.toml`
   (نفس قواعد triggers الـ spec: UTC وخمسة حقول وأسماء الأيام)،
@@ -135,7 +139,7 @@ cd .lousho/build/cloudflare-worker && npx wrangler deploy
   (`verify`)، فـ `LOUSHO_API_TOKEN` لا يغطيها. والـ turn الذي يعيش أطول من
   الـ webhook الذي أُقرّ به يكمل العمل تحت `ctx.waitUntil`.
 - خانات `memory/` تحتاج provider يشتغل بلا file system. `kvMemory()` يحفظ عناصر
-  الخانة تحت مفاتيح `memory/<scope>` في KV namespace المسمى
+  الخانة تحت مفاتيح `memory/<slot>#<scope>` في KV namespace المسمى
   `AGENT_CHECKPOINTS` (أو في الـ binding الذي يسمّيه خيار `binding`)؛ وبدون ذلك
   الـ binding تعيش العناصر في ذاكرة isolate واحد. `inMemoryMemory()` يعمل بنفس
   الطريقة؛ أما `fileMemory()` فلا يمكن تشغيله هنا.
@@ -174,7 +178,9 @@ directory تضيف مساراتها تحت `/channels` (انظر أعلاه). ا
 
 | الـ binding | النوع | وظيفته |
 | ------- | ---- | ------------ |
-| `LOUSHO_API_TOKEN` | secret (`npx wrangler secret put LOUSHO_API_TOKEN`) | يجعل كل route عدا `/health` يشترط `Authorization: Bearer <token>` (مقارنة constant-time، وإلا يرجع `401` بـ JSON). بدونه يكون الـ Worker مفتوحًا لأي شخص يعرف رابطه، لذلك **اضبطه قبل النشر**. |
+| `LOUSHO_API_TOKEN` | secret (`npx wrangler secret put LOUSHO_API_TOKEN`) | يجعل كل route عدا `/health` يشترط `Authorization: Bearer <token>` (مقارنة constant-time، وإلا يرجع `401` بـ JSON). **اضبطه قبل النشر** (`lousho build` يذكّرك بذلك): بدونه يرد كل route من `/chat` (turn، أو transcript، أو قرار approval) بـ `403` (`LOUSHO_REQUEST_FORBIDDEN`)، لأن أي شخص يعرف الرابط كان سيقدر بغير ذلك أن يحادث الـ agent على مفتاح الـ provider تبعك، وأن يقرأ أي session أو يكملها أو يوافق عليها بمعرّفها. أما `/health` والـ OAuth callback و`channels/` (التي تتحقق من طلباتها بنفسها) فتبقى مفتوحة. |
+| `LOUSHO_ALLOW_OPEN_SESSIONS` | variable (`[vars]` في `wrangler.toml`، أو `.dev.vars` مع `wrangler dev`) | القيمة `"true"` تقدّم routes الـ `/chat` على Worker بلا `LOUSHO_API_TOKEN`، لأي شخص. اتركه غير مضبوط خارج demo للتجربة والرمي. اسمه السابق، `LOUSHO_ALLOW_OPEN_TRANSCRIPTS`، ما زال يعمل. |
+| `LOUSHO_ALLOWED_ORIGINS` و`LOUSHO_ALLOWED_HOSTS` و`LOUSHO_REQUIRE_JSON_BODY` | variables | قيم `allowedOrigins` و`allowedHosts` للـ routes (مفصولة بفواصل)، و`requireJsonBody: false` عند القيمة `"false"`: لواجهة أمامية على origin آخر، أو proxy أمام الـ Worker. راجع [الطلبات عبر المواقع](/ar/auth#الطلبات-بين-المواقع). |
 | `AGENT_CHECKPOINTS` | KV namespace | يحفظ الـ sessions والـ checkpoints والـ approvals الموقوفة وعناصر `kvMemory()` في namespace واحد، كـ `KVStore` (أدناه). بدونه تعيش في ذاكرة isolate واحد تعيد Cloudflare تدويره متى شاءت: مناسب لتجربة deploy، لا للإنتاج. |
 | `LOUSHO_HTTP_ALLOW` | variable (`[vars]` في `wrangler.toml`) | أسماء الـ hosts التي يجوز للـ tool `http` الوصول إليها، مفصولة بفواصل: `api.github.com`، أو `*.example.com` للـ subdomains فقط. إذا كان غير مضبوط أو فارغًا يُرفض كل طلب `http`. راجع [Providers and tools](#providers-and-tools). |
 
@@ -234,10 +240,12 @@ export default {
 | المفتاح | القيمة |
 | --- | ----- |
 | `sessions/<id>` | الـ transcript كـ JSON (بايتات الصور والملفات كـ `{ "$bytes": "<base64>" }`، مثل `FileSessionStore`). |
-| `checkpoints/<id>` | الـ `Checkpoint` الخاص بـ durable run أو turn لـ session (`KVCheckpointStore`، وسجلّه تحت `checkpoints/<id>#history`). |
-| `approvals/<id>` | approval موقوف والـ snapshot الذي يستأنفه (يُحذف عند البتّ فيه). |
+| `checkpoints/<id>` | الـ `Checkpoint` الخاص بـ durable run أو turn لـ session (`KVCheckpointStore`، وسجلّه تحت `checkpoints/<id>#history`؛ والبايتات مرمّزة بنفس الطريقة). |
+| `approvals/<id>` | approval موقوف والـ snapshot الذي يستأنفه (يُحذف عند البتّ فيه؛ والبايتات مرمّزة بنفس الطريقة). |
+| `approvals/<id>#claim` | حجز (claim) الطلب الذي يبتّ في ذلك الـ approval (token عشوائي، ينتهي بعد 60 ثانية؛ انظر أدناه). |
+| `checkpoints/<id>#lease` | الـ run lease الخاص بـ durable run أو turn لـ session أثناء تنفيذه (معرّف مالك ووقت انتهاء؛ راجع [Run leases](/ar/durable-execution#run-leases)). |
 | `oauth/tokens/<key>` و`oauth/pending/<state>` | OAuth tokens وعمليات تسجيل دخول معلّقة، مشفّرة بـ `tokenKey` (الـ secret `LOUSHO_TOKEN_KEY` في الـ Worker المولَّد)؛ راجع [OAuth](/ar/oauth#تخزين-tokens). |
-| `memory/<scopeKey>` | عناصر خانة ذاكرة `kvMemory()` (`global` أو `session:<id>` أو مفتاح scope مخصص) — يكتبها الـ provider نفسه، لا `KVStore`. |
+| `memory/<slot>#<scope>` | عناصر خانة ذاكرة `kvMemory()` (`notes#global` أو `prefs#session:<id>` أو مفتاح scope مخصص) — يكتبها الـ provider نفسه، لا `KVStore`. |
 
 `ttl: { sessions?, checkpoints?, approvals? }` (بالثواني، وKV يقبل 60 فأكثر)
 يجعل كل نوع سجل ينتهي بعد هذه المدة من آخر كتابة؛ وافتراضيًا
@@ -249,6 +257,51 @@ export default {
 `tool.resume` و`tool.done` للاستدعاء الذي بُتّ فيه (`tool.error` عند الرفض)،
 ثم أحداث الـ turn، وتنتهي بـ `run.done` يحمل النص النهائي.
 
+### البتّ في approval واحد مرتين
+
+KV لا يملك compare-and-swap، لذلك لا يقدر `KVStore` أن يحجز approval بشكل atomic
+كما يفعل `fileStore` و`SqliteStore`. للبتّ في approval، يكتب الطلب
+token عشوائيًا تحت `approvals/<id>#claim` (ما لم يكن هناك حجز سابق)،
+وينتظر 50 ms، ثم يقرؤه من جديد، والطلب الذي ما زال الـ token تبعه موجودًا
+(وما زال يجد الـ approval) هو وحده الذي يحذف الـ approval ويشغّل الاستدعاء. وفي
+موقع واحد، حيث يكتب الطلب المتزامن الـ token الخاص به داخل تلك النافذة، فإن
+النقرة المزدوجة أو الـ webhook المُعاد أو مراجعَين يبتّان في الوقت نفسه يشغّلون
+الـ tool الموافق عليها مرة واحدة بالضبط. والـ run leases (`checkpoints/<id>#lease`) تُؤخذ
+بنفس الطريقة.
+
+هذا لا يغلق السباق بين المواقع: طلبان يخدمهما موقعا edge مختلفان
+داخل مهلة الانتشار في KV (حتى نحو 60 ثانية) قد يقرأ كل منهما الـ token
+الخاص به ويشغّل كلاهما الاستدعاء. لـ tool لها أثر جانبي يجب أن يحدث
+مرة واحدة (دفعة، أو بريد إلكتروني)، مرّر `ctx.approval.id` كـ
+idempotency key. هو نفسه في كل محاولة لتشغيل استدعاء واحد بُتّ فيه. لكنه
+لا يعرّف الحدث التجاري: بعد crash قد يعيد الـ model المحاولة باستدعاء
+جديد يأخذ معرّف approval جديدًا، لذلك الـ tool التي يجب أن تعمل مرة واحدة لكل
+فاتورة تحتاج أيضًا مفتاحًا من وسائطها هي (رقم الفاتورة هنا):
+
+```ts
+import { defineTool } from '@lousho/build-ai-agent';
+import { z } from 'zod';
+
+// `payments` stands in for your payment client.
+declare const payments: {
+  create(payment: { invoice: string; cents: number }, options: { idempotencyKey: string }): Promise<unknown>;
+};
+
+const payout = defineTool({
+  name: 'payout',
+  description: 'Pay a vendor invoice',
+  input: z.object({ invoice: z.string(), cents: z.number() }),
+  needsApproval: true,
+  execute: async ({ invoice, cents }, ctx) =>
+    payments.create({ invoice, cents }, { idempotencyKey: `payout:${invoice}` }),
+});
+```
+
+وحين يجب أن يكون الأمر دقيقًا، احفظ الـ approvals في store فيه حجز atomic:
+Durable Object، أو D1 عبر `ApprovalStore` من كتابتك تحذف `resolve()` فيه
+السجل وترجعه في statement واحد. الـ Worker المولَّد لا يربط
+أي Durable Object، لذلك يستخدم `KVStore`.
+
 الـ `POST /chat { "message", "sessionId"? }` المُهمَل يحتفظ بسلوكه القديم
 على Workers: مع `sessionId` يُحفَظ الـ run كـ checkpoint في
 `checkpoints/<sessionId>` بعد كل نتيجة tool، وطلب لاحق
@@ -259,7 +312,7 @@ export default {
 الـ cron triggers في الـ spec (`triggers: [{ type: 'cron', cron: '0 9 * * MON', input: '...' }]`)
 تصير `[triggers] crons = [...]` في `wrangler.toml`، والـ Worker المولَّد
 يصدّر handler باسم `scheduled()` يشغّلها كـ turns للـ agent (الـ session
-`schedule-<name>`، راجع [Schedules](/ar/schedules#على-cloudflare-workers)). وملفات `schedules/` في agent
+`schedule-<name>-<fire time>`، راجع [Schedules](/ar/schedules#على-cloudflare-workers)). وملفات `schedules/` في agent
 directory تعمل بنفس الطريقة: الـ build يقيّمها لاستخراج التعابير ويولّد تصدير
 `scheduled()`. Cloudflare تقيّم
 التعابير بتوقيت **UTC** وبدقة دقيقة واحدة؛ والـ build يرفض
@@ -273,7 +326,7 @@ directory تعمل بنفس الطريقة: الـ build يقيّمها لاست
 محدِّد virtual لا يحلّه إلا الـ bundler تبع `lousho build`؛ لا تستورده بنفسك). تشغّل الـ schedules التي
 يساوي `cron` فيها `controller.cron` داخل `ctx.waitUntil()` ولا ترمي أي شيء؛
 وعليك أنت إدراج التعابير نفسها تحت `[triggers] crons`. أعطِ الـ agent store —
-فبدونها تعيش session `schedule-<name>` الخاصة بالـ run المجدول في ذاكرة isolate واحد
+فبدونها تعيش session الـ run المجدول في ذاكرة isolate واحد
 وتختفي عند إعادة تدويره:
 
 ```ts

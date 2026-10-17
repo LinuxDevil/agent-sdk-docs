@@ -1,12 +1,6 @@
 ---
 title: "Channels"
 ---
-
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/channels).
-</Warning>
-
 {/* Generated from docs/channels.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 الـ **channel** يوصّل الـ agent بطرف واحد: JSON API، أو webhook، أو تطبيق
@@ -19,8 +13,8 @@ title: "Channels"
 POST <basePath>/<name>  ->  verify  ->  parse  ->  session turn  ->  reply (or onApproval)
 ```
 
-الـ channels تحل محل [trigger adapters](/ar/triggers) اللي صارت deprecated
-(`WebhookTriggerAdapter` يستخدم `webhookChannel()` للمصادقة والـ parsing).
+الـ channels حلّت محل الـ trigger adapters المدمجة (راجع
+[الانتقال من الـ triggers](/ar/upgrading#deprecated-لكنها-ما-زالت-تشتغل-في-1-x)).
 وتضيف الشي اللي ينقص الـ triggers: كل محادثة على الطرف هي
 [session](/ar/sessions) (جلسة)، والـ approvals والأسئلة ترجع للطرف.
 
@@ -29,6 +23,21 @@ POST <basePath>/<name>  ->  verify  ->  parse  ->  session turn  ->  reply (or o
 host يخلّي الـ turn يعيش بعد ما الـ webhook انرد عليه). و
 `lousho build --target=cloudflare-worker` يركّب مجلد `channels/` تبع
 agent directory تحت `/channels` بها.
+
+الـ channel اللي يقرّ بالطلب بدري (Slack، Discord، Telegram، GitHub، Teams)
+يرجع رده فورًا بس لما الـ turn يقدر يكمل يشتغل بعد الرد: عبر `ctx.waitUntil`
+تبع الـ handler، أو خيار `waitUntil` لـ host ما يمرّر `ctx`. وبدون أي واحد
+منهم، الرد ينتظر الـ turn كله (وينكتب تحذير مرة وحدة)، وهذا يفوّت مهلة الـ 3
+ثواني تبع Slack وDiscord لو الـ turn بطيء.
+
+```ts
+// Next.js on Vercel (needs @vercel/functions; `agent` and `slack` come from your app)
+import { waitUntil } from '@vercel/functions';
+const channels = mountFetchChannels(agent, [slack], { waitUntil });
+
+// Bun.serve, Deno.serve or a Node fetch server: the process outlives the response
+const channels = mountFetchChannels(agent, [slack], { waitUntil: (turn) => void turn });
+```
 
 ## البداية السريعة
 
@@ -51,7 +60,7 @@ server.listen(3000);
 ```
 
 ```bash
-curl -s localhost:3000/channels/http -d '{"sessionKey":"user-42","input":"Hi, I am Ali"}'
+curl -s localhost:3000/channels/http -H 'Content-Type: application/json' -d '{"sessionKey":"user-42","input":"Hi, I am Ali"}'
 # {"sessionId":"http_user-42-...","text":"...","finishReason":"stop"}
 ```
 
@@ -65,10 +74,10 @@ curl -s localhost:3000/channels/http -d '{"sessionKey":"user-42","input":"Hi, I 
 | الحقل | الوصف |
 | ----- | ----------- |
 | `name` | جزء المسار: `POST <basePath>/<name>`. حروف وأرقام و`_` و`-`. |
-| `verify(req)` | اختياري. يتحقق من الطلب (توقيع، token). رجّع `true`/`false` أو `{ ok, reason? }`؛ و`false` ترجع `401 {"error":"Unauthorized"}` قبل ما ينعمل parsing أو تشغيل لأي شيء. |
+| `verify(req)` | اختياري. يتحقق من الطلب (توقيع، token). رجّع `true`/`false` أو `{ ok, reason? }`؛ و`false` ترجع `401 {"error":"Unauthorized"}` قبل ما ينعمل parsing أو تشغيل لأي شيء. وبدونه، طلب متصفح من موقع ثاني (`Origin` مش هو host الطلب، أو `Sec-Fetch-Site: cross-site`) ينرفض بـ `403` (`LOUSHO_REQUEST_FORBIDDEN`؛ وعشان تقبل صفحة على موقع ثاني، أضف `verify` يصادق طلباتها)، و`lousho dev` يفحص الـ `Host` تبعه زي مساراته هو (ضد DNS rebinding)؛ ومرسل الـ webhook أو السيرفر ما يرسل `Origin` فما يتأثر. |
 | `parse(req, respond, ctx)` | الرسالة: `{ sessionKey, input, metadata?, principal?, replyTo, event? }`؛ أو `{ decision: { id, approved?, note?, answer? } }` لحسم توقف وقف عليه turn هذي القناة (كليك زر)؛ أو `null` للإقرار بالطلب بدون turn (رسالة من البوت نفسه، retry). استدعِ `respond(status, body)` عشان ترد قبل ما يشتغل الـ turn (طرف مهلته قصيرة، handshake). |
 | `reply(ctx)` | يوصّل الرد: `ctx.text`، زائد `inbound` و`sessionId` و`result` و`events` و`approval`، و`respond(status, body)` ما دام الطلب مفتوح. |
-| `onApproval(ctx)` | اختياري. يعرض التوقف (أزرار، فورم). الافتراضي: `reply` مع prompt نصي في `ctx.text` والطلب في `ctx.approval`. |
+| `onApproval(ctx)` | اختياري. يعرض التوقف (أزرار، فورم). الافتراضي: `reply` مع prompt نصي في `ctx.text` والطلب في `ctx.approval` (و`ctx.approvals`: كل الاستدعاءات المعلّقة، لما الـ step يتوقف على أكثر من واحد). |
 | `onError(error, { channel, stage, sessionId? })` | اختياري. يستلم الأعطال اللي تصير بعد ما الطلب انقرّ (رد ما انوصّل، turn فاشل، أو متابعة approval فاشلة). الافتراضي: `mountChannels({ onError })`، وإلا `console.error` مع القناة والمرحلة ومعرّف الـ session ورمز خطأ SDK (ولا token أبدًا). والـ turn الفاشل يقول للمستخدم "Sorry, that request failed." في المحادثة (best effort). |
 | `stream` | اختياري. `true` ينادي `reply` مع `partial: true` والنص اللي انكتب لحد الآن أثناء ما الـ model يكتب، وبعدين مرة أخيرة بالنص النهائي. |
 | `sessionId(inbound)` | اختياري. الـ session تبع الرسالة. الافتراضي: `` `${name}:${sessionKey}` ``. |
@@ -97,8 +106,10 @@ transcript). استدعِ `pendingQuestion` بس لرسالة ترجعها كإ�
 
 الرد اللي ما يستدعي `respond` يتبعه `200 {"ok":true}`. والطرف اللي يوصّل
 الردود خارج الطلب (ينشر على chat API مثلاً) يكفيه يقرّ بالطلب. وخطأ يرميه
-`parse` يُرد عليه بـ 400 لو `SyntaxError` (JSON غلط) وبـ 500 غير كذا؛ وجسم
-فوق 1MB ياخذ 413.
+`verify` أو `parse` يُرد عليه بـ 400 لو `SyntaxError` (JSON غلط) وبـ 500 غير
+كذا؛ وجسم فوق 1MB ياخذ 413. وجسم الـ 500 هو بس `{ "error": "The request failed. The server log has the
+details.", "code"? }`، زي مسارات الـ session: الخطأ نفسه يروح لـ
+`onError` (المرحلة `'parse'`)، وأبدًا ما يوصل للمتصل.
 
 ```ts
 import { createAgent, defineChannel, mountChannels } from '@lousho/build-ai-agent';
@@ -139,7 +150,11 @@ const handler = mountChannels(agent, [sms], { basePath: '/hooks' }); // POST /ho
 الـ transcripts تنحفظ في `mountChannels(agent, channels, { store })`:
 `SessionStore` أو `{ sessions, checkpoints }` مثل `SqliteStore` (مرّر نفس
 الـ store اللي عطيته لـ `createAgent({ store })`). وبدون `store`، الـ
-handler يحتفظ بيها في الذاكرة.
+handler يستخدم `createAgent({ store })` تبع الـ agent لو يحفظ sessions، فـ
+turns القنوات ومتابعات الـ approvals و`agent.session({ id })`
+و`agent.resume(id)` كلها تشوف transcript واحد (وهذا يشمل كمان
+`createDeployedServer` و`LOUSHO_STORE`)؛ والـ agent اللي ما عنده session
+store يحتفظ بيها في الذاكرة.
 
 ## approvals والأسئلة
 
@@ -151,10 +166,33 @@ handler يحتفظ بيها في الذاكرة.
 
 - `handler.resolveApproval({ id, approved, note? })` أو
   `handler.resolveApproval({ id, answer })` من الكود تبعك، مثلاً من callback
-  زر في الطرف.
+  زر في الطرف. وهي تحسم بس التوقفات اللي سوّتها هذي العملية: بعد إعادة
+  تشغيل (أو على replica ثانية) ترمي `LOUSHO_APPROVAL_NOT_FOUND`، لأنها ما
+  تعرف أي محادثة تكمل. استخدم المسار اللي تحت مع `sessionKey` بدالها.
 - `POST <basePath>/<name>/approvals/<id>` مع `{ approved, note? }` أو
   `{ answer }`. `verify` تبع القناة يشتغل أول؛ ومعرّف القناة ما توقفت عليه
-  ياخذ 404.
+  ياخذ 404. أضف `sessionKey` (مفتاح المحادثة، زي ما هو في رسائلها) عشان
+  تحسم توقف نسيته هذي العملية: مع sessions وcheckpoints وapprovals في
+  durable stores، القرار ينقبل لما turn تلك المحادثة ينتظر هذا الـ approval
+  بالضبط (وإلا 404)، والمتابعة تنضم للـ transcript تبعها. وداخل نفس
+  العملية، `sessionKey` يسمّي محادثة غير اللي توقفت ياخذ 404.
+
+لما step واحد من الـ model يتوقف على أكثر من استدعاء (راجع
+[عدة استدعاءات في step واحد](/ar/approvals#عدة-calls-في-خطوة-واحدة))،
+`onApproval` ينادى مرة لكل استدعاء، بترتيب الاستدعاءات: كل واحد ياخذ
+`approval` تبعه، والكل ياخذون الاستدعاءات المعلّقة تبع الـ step في
+`approvals`، وبس الأول ياخذ `respond` (وقناة http ترد بـ `approval`
+و`approvals`). كل استدعاء ينحسم لحاله، بأي طريقة من اللي فوق، مع `sessionKey`
+تبع المحادثة بعد إعادة التشغيل. والقرار اللي يخلّي استدعاءات ثانية من نفس
+الـ step بدون حسم ما يشغّل شيء، وينرد عليه عبر `reply` بـ
+`Decision recorded. Still waiting on: ...`؛ والقرار على آخر واحد يشغّل الـ
+step ويوصّل المتابعة.
+
+القرار ينحجز قبل ما يشتغل `onDecision`، فقراران على نفس الـ approval بنفس
+الوقت (دبل كليك) يحسمونه مرة وحدة: الثاني ياخذ
+`409 { code: 'LOUSHO_APPROVAL_CONFLICT' }` ما دام طلبه مفتوح، وينرمى بصمت
+لو الطرف انقرّ خلاص. و`resolveApproval()` ترمي `LOUSHO_APPROVAL_CONFLICT`
+لـ approval طلب ثاني قاعد يحسمه.
 
 ```ts
 import { createAgent, defineChannel, mountChannels } from '@lousho/build-ai-agent';
@@ -184,8 +222,8 @@ await channels.resolveApproval({ id: 'the-approval-id', approved: true });
 
 | القناة | الطلب | الرد |
 | ------- | ------- | -------- |
-| `httpChannel({ name?, verify? })` | JSON `{ sessionKey, input }` (`input` نص أو content parts)؛ أي شيء ثاني 400 | `200 { sessionId, text, finishReason }`؛ ولما يتوقف، `approval` كمان و`text` هو الـ prompt |
-| `webhookChannel({ secret?, auth?, name?, principal? })` | نص `input` في جسم JSON، أو الجسم كله؛ session لمرة وحدة إلا لو الجسم فيه `sessionKey` | `200` مع `ExecutionResult` تبع الـ turn، نفس رد `WebhookTriggerAdapter` |
+| `httpChannel({ name?, verify? })` | JSON `{ sessionKey, input }` (`input` نص أو content parts)؛ أي شيء ثاني 400. وبدون `verify`، جسم ينرسل بدون `Content-Type: application/json` ياخذ `415` (`LOUSHO_UNSUPPORTED_MEDIA_TYPE`)، فصفحة ويب ما تقدر ترسل له فورم | `200 { sessionId, text, finishReason }`؛ ولما يتوقف، `approval` كمان و`text` هو الـ prompt |
+| `webhookChannel({ secret?, auth?, name?, principal? })` | نص `input` في جسم JSON، أو الجسم كله؛ session لمرة وحدة إلا لو الجسم فيه `sessionKey` | `200` مع `ExecutionResult` تبع الـ turn |
 | `slackChannel({ signingSecret, botToken, name?, fetch?, approvers?, onError? })` | طلبات Slack Events API والتفاعلات (راجع [Slack](#slack)) | `200` فورًا؛ الردود تُنشر في الـ thread على Slack |
 | `discordChannel({ publicKey, applicationId, botToken?, name?, fetch?, approvers?, onError? })` | تفاعلات slash command والأزرار في Discord (راجع [Discord](#discord)) | ack مؤجّل فورًا؛ الرد يعدّل الرد الأصلي |
 | `telegramChannel({ botToken, secretToken, botUsername?, name?, fetch?, approvers?, onError? })` | تحديثات webhook البوت في Telegram: رسائل ونقرات على inline keyboard (راجع [Telegram](#telegram)) | `200` فورًا؛ الردود تُرسل بـ `sendMessage` كنص عادي |
@@ -195,8 +233,8 @@ await channels.resolveApproval({ id: 'the-approval-id', approved: true });
 `webhookChannel({ secret })` تفحص توقيع HMAC-SHA256 للجسم الخام في
 `x-signature-256: sha256=<hex>`؛ و`auth` ياخذ أي
 [مصادقة webhook](/ar/triggers#مصادقة-webhook) (خيارات HMAC مع حماية من
-replay، bearer token، أو مخصص). الفحوصات والـ 401 العام هي نفسها اللي
-يستخدمها `WebhookTriggerAdapter`. و`principal` هي
+replay، bearer token، أو مخصص). الفحوصات والـ 401 العام هي نفسها لكل
+webhook. و`principal` هي
 `(body, req) => Principal | undefined` تسمّي متصل الـ turn من الطلب اللي
 تحقق (نظام التنبيهات اللي أرسل الـ hook، مستخدم تكامل)؛ و`body` هو جسم JSON
 بعد الـ parsing، أو `undefined` لو مش JSON.
@@ -265,9 +303,11 @@ thread (أو يكملها)، ومفتاحها الـ workspace والقناة و
   دقائق)؛ والفشل يرد بـ 401.
 - الطلب يُرد عليه فورًا (`200`، أو تحدي `url_verification`) والـ turn
   يشتغل بعد الرد، ضمن حد Slack اللي هو 3 ثواني.
-- الـ retries (`X-Slack-Retry-Num`) ورسائل البوتات (بما فيها رسائل البوت
-  نفسه) ونسخة `message` تبع المنشن: كلها تُقَر وتتجاوز، فما في turn يشتغل
-  مرتين.
+- الحدث المعاد تسليمه (نفس `event_id`، مثلاً retry مع `X-Slack-Retry-Num`)
+  ورسائل البوتات (بما فيها رسائل البوت نفسه) ونسخة `message` تبع المنشن:
+  كلها تُقَر وتتجاوز، فما في turn يشتغل مرتين. أما retry لحدث هذي العملية
+  ما استلمته أبدًا (تسليمه الأول ضاع) فيشتغل. ومعرّفات التسليم تنحفظ في
+  الذاكرة لمدة ساعة.
 - approval الـ tool يُنشر في الـ thread مع زرّي **Approve** و**Deny**؛
   والنقرة تستأنف الـ session والمتابعة تُنشر في الـ thread. الرسالة
   المنقورة تُستبدل بالنتيجة ("Approved by @user") فتختفي أزرارها. والنقرة
@@ -308,7 +348,7 @@ http.createServer((req, res) => {
 }).listen(3000);
 ```
 
-الـ threads النشطة مصدرها الـ `store` اللي تمرّره لـ `mountChannels()`.
+الـ threads النشطة مصدرها session store تبع القنوات (الـ `store` اللي تمرّره لـ `mountChannels()`، وإلا store الـ agent).
 والـ approvals المعلّقة تنحسم من النقرة نفسها. و`ask_question` معلّق ينجو
 من إعادة تشغيل لما تكون الـ session والـ checkpoints والـ approvals في
 durable stores (مثلاً `mountChannels(agent, channels, { store: sqlite })`
@@ -330,7 +370,8 @@ session، ونقرة مُعادة (replay) ما تشغّل الـ tool مرتي�
 نصي) هو الرسالة.
 
 - في كل طلب ينتحقق `X-Signature-Ed25519` / `X-Signature-Timestamp` على
-  `timestamp + body`؛ وتوقيع ناقص أو غلط يرد بـ 401، زي ما يشترط Discord.
+  `timestamp + body`؛ وتوقيع ناقص أو غلط، أو timestamp أقدم من خمس دقائق أو
+  أبعد من دقيقة قدّام الوقت المحلي (طلب مُعاد)، يرد بـ 401، زي ما يشترط Discord.
   و`PING` يُرد عليه بـ `PONG`.
 - الأمر يُقَر فورًا برد مؤجّل (ضمن حد Discord اللي هو 3 ثواني)؛ وبعدين
   الرد يعدّل الرد الأصلي
@@ -387,9 +428,9 @@ turn المكمل ينضم لـ transcript الـ session. ونقرة زر بع�
 للـ transcript، ونقرة قديمة أو منسوخة ما تحسم شيء.
 
 ملفات `channels/*.ts` في [agent directory](/ar/agent-directories) تنحمل
-كقنوات كمان، وسيرفر node يركّبها. و`SlackTriggerAdapter` (راجع
-[Triggers](/ar/triggers))، اللي يرد عبر webhook وارد، deprecated: استخدم
-`slackChannel()`. أما `verifySlackSignature()` فمش deprecated.
+كقنوات كمان، وسيرفر node يركّبها. ولو عندك handler خاص لـ Slack،
+`verifySlackSignature()` (راجع [Triggers](/ar/triggers#مصادقة-webhook))
+يفحص توقيع الطلب.
 
 ## Telegram
 
@@ -401,7 +442,8 @@ Telegram؛ Web Crypto و`fetch` بس، فتشتغل حتى على Workers).
   `secretToken` في زمن ثابت؛ وقيمة ناقصة أو غلط ترد بـ 401. القناة ما لها
   وضع بدون مصادقة، فمرّر `secret_token` دائمًا لـ `setWebhook`.
 - التحديث يُقَر بـ `200` فورًا والـ turn يشتغل بعده، فـ Telegram ما يعيد
-  إرسال الـ webhook.
+  إرسال الـ webhook. والتحديث اللي يعيد تسليمه رغم كذا (نفس `update_id`)
+  يُقَر وما يشتغل مرة ثانية؛ والمعرّفات تنحفظ في الذاكرة لمدة ساعة.
 - في المحادثة الخاصة، كل رسالة نصية (أو caption صورة أو مستند) هي رسالة
   للـ agent. وفي مجموعة أو supergroup بس أمر `/ask` (أو
   `/ask@<botUsername>`)، أو رسالة فيها `@<botUsername>`، أو رد على رسالة من
@@ -474,7 +516,7 @@ http.createServer((req, res) => {
 
 ## GitHub
 
-`githubChannel({ webhookSecret, botName, token?, app?, name?, apiUrl?, fetch?, triggers?, approvers?, onError? })`
+`githubChannel({ webhookSecret, botName, token?, app?, name?, apiUrl?, fetch?, triggers?, approvers?, pullRequestOpened?, onError? })`
 تخلّي الناس ينادون agent بـ `@<botName>` في تعليق على issue أو pull request
 أو review في GitHub؛ والـ agent يجاوب بتعليق في نفس الـ thread. يقرا webhooks
 تطبيق GitHub (أو مستودع واحد) وينشر عبر REST API بـ `fetch` وWeb Crypto بس
@@ -485,7 +527,19 @@ http.createServer((req, res) => {
   parse؛ وتوقيع ناقص أو غلط يرد بـ 401. القناة ما لها وضع بدون مصادقة.
 - الـ webhook يُقَر بـ `200` فورًا والـ turn يشتغل بعده: GitHub ينتظر 10
   ثواني وما يعيد المحاولة، والرد البطيء يُنشر كتعليق جديد. و`ping` يُقَر
-  بدون turn.
+  بدون turn. وإعادة التسليم (نفس `X-GitHub-Delivery`، مثلاً "Redeliver" في
+  إعدادات التطبيق) تُقَر وما تشتغل مرة ثانية؛ والمعرّفات تنحفظ في الذاكرة
+  لمدة ساعة، وهذا ما تشوفه إعادة تشغيل أو replica ثانية. مرّر `deliveries`
+  (`DeliveryStore`، اللي `seen(id)` فيه يسجّل المعرّف ويرجع هل كان موجود
+  قبل) عشان تحفظها في مكان مشترك ودائم، مثلاً Redis `SET NX EX`:
+
+  ```ts
+  import { githubChannel, type DeliveryStore } from '@lousho/build-ai-agent';
+
+  const seenIds = new Set<string>(); // stands in for Redis or a database table
+  const deliveries: DeliveryStore = { seen: (id) => seenIds.has(id) || (seenIds.add(id), false) };
+  const github = githubChannel({ webhookSecret: process.env.GITHUB_WEBHOOK_SECRET ?? '', botName: 'my-agent', token: process.env.GITHUB_TOKEN, deliveries });
+  ```
 - تعليق على issue، أو على pull request (تبويب المحادثة)، أو review comment
   (على سطر من الـ diff) فيه `@<botName>` ككلمة كاملة (بدون حساسية لحالة
   الحروف) يبدأ turn، والمنشن ينحذف من النص. وأول ما يصير للـ thread session،
@@ -493,7 +547,12 @@ http.createServer((req, res) => {
   والمحذوفة، وتعليقات البوتات (`user.type` هو `Bot`)، وتعليقات
   `<botName>[bot]`، وتعليقات `botLogin`، وأي تعليق نشرته القناة نفسها — فالـ
   agent ما يجاوب نفسه أبدًا. والأحداث الثانية (فتح issues، pushes،
-  reactions، check runs) تتجاهل.
+  reactions، check runs) تتجاهل — ما عدا `pull_request`: مع
+  `pullRequestOpened: true`، إجراء `opened` من إنسان تسمح له `triggers` يبدأ
+  turn على session الـ PR نفسه (`<owner>/<repo>#<number>`، نفس الـ session
+  اللي تتشاركها تعليقاته)، فبوت المراجعة يقدر يقرا الـ PR أول ما ينفتح.
+  و`synchronize` و`closed` و`reopened` والـ PRs اللي فتحها بوت أو اللي ما
+  تسمح لها `triggers` تتجاهل.
 - session وحدة لكل issue أو pull request (`<owner>/<repo>#<number>`)،
   ووحدة لكل review thread (review comment والردود تحته).
 - الرد تعليق جديد: تعليق في timeline الـ issue أو الـ pull request، أو رد في

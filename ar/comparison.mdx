@@ -1,8 +1,67 @@
 ---
-title: "Comparison with other agent frameworks"
+title: "مقارنة مع أُطر الـ agents الأخرى"
+sidebarTitle: "المقارنة"
 ---
+{/* Generated from docs/comparison.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-{/* pending-translation */}
-<Note>
-هذه الصفحة لم تُترجَم إلى العربية بعد. اقرأ [النسخة الإنجليزية](/comparison).
-</Note>
+**حتى أكتوبر 2026.** هذه الصفحة توجيه سريع، لا benchmark.
+مجال الـ agents في TypeScript يتحرك بسرعة: أغلب المشاريع أدناه صارت تقدّم
+approvals متينة و evals و harnesses خاصة بها لـ coding agents، فراجع
+توثيقها قبل أن تقرر. الصفوف الخاصة بـ lousho تصف هذا المستودع، وكل ادعاء
+فيها مربوط بالصفحة التي توثّقه.
+
+## كل مشروع في صف واحد
+
+| المشروع | ما هو | الـ approvals / إشراك الإنسان | الـ evals | الـ coding agents | أين يتفوّق على lousho |
+| ------- | ---------- | ----------------------------- | ----- | ------------- | --------------------------- |
+| lousho (`@lousho/build-ai-agent`) | SDK للـ agents بلغة TypeScript، مستضاف عندك، حزمة npm واحدة، إصدار alpha | `needsApproval` مع `resumeAfterApproval()` على stores في الذاكرة أو ملفات أو SQLite أو Cloudflare KV ([Approvals](/ar/approvals)) | `lousho eval`: تحققات على مسار التنفيذ، و cassettes للتسجيل وإعادة التشغيل، وتقارير الانحراف ([Evals](/ar/evals)) | tools لمساحة العمل، وقواعد صلاحيات، و`piAgent()`، و kits من الـ registry، وسيرفر ACP للمحررات ([بناء coding agent](/ar/build-a-coding-agent)) | - |
+| [Vercel AI SDK 7](https://ai-sdk.dev) | مجموعة أدوات للـ models والـ agents والواجهات في TypeScript | الـ tools في `WorkflowAgent` تقبل `needsApproval`؛ والـ runs متينة عبر Workflow DevKit مفتوح المصدر | غير مدمجة | `HarnessAgent` (تجريبي) يغلّف runtimes موجودة مثل Claude Code خلف API واحد | أكبر عدد من الـ providers وتكاملات الواجهات بفارق كبير؛ و lousho يستخدمه تحت الغطاء للـ providers القياسية |
+| [Mastra](https://mastra.ai) | framework متكامل بلغة TypeScript: agents و workflows وذاكرة و RAG وواجهة تطوير | `suspend()` / `resume()` في الـ workflow مع snapshots محفوظة | scorers و datasets و experiments، مع حفظ النتائج | تبنيه من agents و tools و workflows | Postgres ومحوّلات تخزين كثيرة أخرى، وplayground محلي للتطوير، ومجتمع أكبر |
+| [LangGraph.js](https://langchain-ai.github.io/langgraphjs/) | workflows على شكل graph ولها حالة، مع checkpointing | `interrupt()` مع `Command({ resume })` على أي checkpointer | عبر LangSmith (مستضاف) | تبنيه على شكل graph | checkpointer لـ Postgres، وتحكّم صريح في التدفق، وتتبّع و evals عبر LangSmith |
+| [OpenAI Agents SDK (JS)](https://openai.github.io/openai-agents-js/) | agents مبنية حول APIs من OpenAI: handoffs و guardrails وتتبّع | approvals للـ tools مع استئناف من حالة الـ run | عبر منصة OpenAI | sandbox agents (تجريبي) تقرأ الملفات وتنفّذ أوامر وتطبّق patches | tools و sandboxes مستضافة من OpenAI كمواطن أول، ولوحة تتبّع OpenAI |
+| [Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/overview) | حلقة الـ agent في Claude Code على شكل مكتبة | callback باسم `canUseTool`، و hooks، وأوضاع وقواعد للصلاحيات | غير مدمجة | هو نفسه coding agent: tools للملفات والـ shell والتعديل، و sessions، و subagents | harness جاهز للإنتاج للبرمجة من أول يوم؛ و models من Claude |
+| [eve](https://github.com/vercel/eve) | framework من Vercel للـ agents يعتمد على نظام الملفات أولًا (Apache-2.0، تجريبي) | مطالبات لإشراك الإنسان على runs متينة | `eve eval` مع `defineEval`، يتحقق من استدعاءات الـ tools | sandboxes، و channels (Slack و Discord و HTTP)، و schedules | النشر والتشغيل على Vercel، و models عبر AI Gateway، و channels. وتنظيم مجلد `agent/` فيه (`instructions.md` و`tools/` و`skills/`) يطابق [مجلدات الوكيل](/ar/agent-directories) في lousho |
+| [VoltAgent](https://voltagent.dev) | framework بلغة TypeScript: agents وذاكرة و workflows | suspend/resume في الـ workflow | evals مدمجة | تبنيه من agents و tools | منصة المراقبة VoltOps ولوحاتها |
+| [open-harness](https://github.com/MaxGfeller/open-harness) | SDK بلغة TypeScript برخصة MIT مبني على AI SDK، على نمط Claude Code و Codex | صلاحيات الـ tools | غير مدمجة | tools لنظام الملفات و bash، و subagents، و skills، و MCP، و compaction | نواة harness صغيرة وقابلة للتركيب، مركّزة على الـ coding agents |
+
+## ما يفعله lousho بشكل مختلف حتى الآن
+
+كل بند يمكن التحقق منه في هذا المستودع.
+
+- **cassettes للتسجيل وإعادة التشغيل وانحراف مسار التنفيذ في CLI واحد.** `lousho eval --record`
+  يشغّل كل حالة مرة واحدة على الـ provider الحقيقي ويكتب cassette،
+  و`--replay` يشغّلها في CI بدون شبكة ولا مفتاح API، و`--drift`
+  يعيد التسجيل في مجلد مؤقت ويوضّح كيف تغيّر مسار استدعاءات الـ tools
+  في كل حالة ([Evals](/ar/evals#record-replay-and-drift)،
+  [Testing](/ar/testing#record-و-replay)).
+- **approvals متينة على Cloudflare Workers KV** إلى جانب الذاكرة والملفات و
+  SQLite، بنفس كود `needsApproval` / `resumeAfterApproval()` على كل منها
+  ([التنفيذ المتين](/ar/durable-execution)، [Cloudflare Workers](/ar/cloudflare-workers)).
+- **واجهات المحررات و MCP من نفس الـ agent.** `lousho acp` يقدّم أي agent
+  لـ Zed وغيره من محررات Agent Client Protocol ([ACP](/ar/acp))؛ و`serveMcp`
+  يعرضه كسيرفر MCP لـ Claude Code و Cursor وعملاء آخرين ([MCP](/ar/mcp-integration)).
+- **مستضاف عندك، حزمة واحدة، بدون حساب على منصة.** يشتغل داخل عملية Node عندك
+  أو في Worker؛ لا شيء يتصل بالخارج، ولا توجد control plane مستضافة تحتاج التسجيل فيها.
+- **يدعم عدة إصدارات رئيسية من AI SDK.** الـ peer dependency `ai` تقبل `^4.3.19` و`^6` و
+  `^7`، فيقدر تطبيق موجود يتبنّى lousho بدون أن يرقّي AI SDK أولًا
+  ([Installation](/ar/installation)).
+
+## أين lousho أضعف
+
+- **إصدار alpha ومطوّر واحد.** خط 1.0 ما زال `1.0.0-alpha.*`. توقّع تغيّرات في الـ API، ومجتمعًا صغيرًا، وتكاملات قليلة من أطراف ثالثة.
+- **لا يوجد store لـ Postgres.** stores الـ checkpoints والـ approvals متوفرة للذاكرة والملفات و SQLite و Cloudflare KV. أما Mastra و LangGraph فيوفران Postgres؛ وهنا تطبّق بنفسك الواجهتين الصغيرتين `CheckpointStore` / `ApprovalStore`.
+- **providers أصلية أقل.** OpenAI و Anthropic و OpenRouter و Ollama وكتالوج Pi مدمجة؛ وأي شيء آخر يمر عبر `fromAiSdk()` ([Providers](/ar/providers)).
+- **لا توجد لوحة مستضافة.** الـ traces عبارة عن spans وفق OpenTelemetry ترسلها إلى backend خاص بك ([Observability](/ar/observability))؛ ولا يوجد مقابل لـ LangSmith أو VoltOps أو playground الخاص بـ Mastra.
+- **نقطة الدخول الجذرية ليست آمنة للـ edge.** Cloudflare Workers تستخدم build المخصص `worker` والمسارات الفرعية ([Cloudflare Workers](/ar/cloudflare-workers)).
+- **الـ runs الحية يدوية.** الـ CI يشغّل اختبارات offline وإعادة تشغيل الـ cassettes؛ أما فحوص الـ providers الحية فتُشغَّل يدويًا.
+
+## كيف تختار
+
+إذا كنت تحتاج فقط استدعاءات model مع واجهة streaming، فـ Vercel AI SDK وحده هو
+الخيار الأبسط. وإذا كنت تريد coding agent جاهزًا، فابدأ من Claude
+Agent SDK أو من harness مبني على AI SDK. وإذا كنت تريد framework متكاملًا مع واجهة
+تطوير و Postgres، فانظر إلى Mastra؛ وإذا كان التحكم في التدفق عندك graph، فـ LangGraph.js؛
+وإذا كنت تنشر على Vercel، فـ eve. اختر lousho عندما تريد evals تعمل offline
+بالتسجيل وإعادة التشغيل، و approvals تصمد بعد إعادة التشغيل على stores خاصة بك
+(بما فيها Workers KV)، وحزمة واحدة مستضافة عندك تقدر أيضًا تقدّمها عبر ACP
+و MCP.

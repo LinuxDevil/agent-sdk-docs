@@ -1,12 +1,6 @@
 ---
 title: "Durable execution"
 ---
-
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/durable-execution).
-</Warning>
-
 {/* Generated from docs/durable-execution.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 مرّر `store` لـ`createAgent()` ومرّر `sessionId` لـ`send()`، والـ run يكمل رغم crash، أو restart، أو abort، أو approval (موافقة) من إنسان ياخد أيام. ولا شيء هنا يعتمد على host معيّن: أي `CheckpointStore` — `memoryStore()`، أو `SqliteStore`، أو store الـ Cloudflare KV اللي يوصّله build `cloudflare-worker`، أو تنفيذك الخاص بثلاث دوال — وأي `ApprovalStore` يشتغلون بنفس الطريقة.
@@ -27,7 +21,7 @@ await agent.send('Make it 3 people', { sessionId: 'chat-42' });
 const finished = await agent.resume('chat-42');
 ```
 
-خيار `store` هو اللي يسوي التوصيل كله: `store.checkpoints` يحمل checkpoints الـ run، و`store.approvals` يحمل توقفات الـ approval، و`agent.approvals.resolve()` تكمل تكتب checkpoints للـ run تحت `sessionId` حقه. `stream()` تاخذ `sessionId` أيضًا. والـ sessions (الجلسات) لها checkpoints هي كذلك: `agent.session({ id })` تحفظ checkpoint لكل turn، و`agent.resume(id)` (أو `session.resume()`) تنهي session انقطعت — شوف [durable sessions](/ar/sessions#durable-sessions).
+خيار `store` هو اللي يسوي التوصيل كله: `store.checkpoints` يحمل checkpoints الـ run، و`store.approvals` يحمل توقفات الـ approval، و`agent.approvals.resolve()` تكمل تكتب checkpoints للـ run تحت `sessionId` حقه. `stream()` تاخذ `sessionId` أيضًا. والـ sessions (الجلسات) لها checkpoints هي كذلك: `agent.session({ id })` تحفظ checkpoint لكل turn، و`agent.resume(id)` (أو `session.resume()`) تنهي session انقطعت — شوف [durable sessions](/ar/sessions#stores).
 
 تحت الغطاء، `createAgent()` تشغّل `AgentExecutor.execute()` مع `sessionId` و`checkpointStore`. السلوك الموصوف تحت هو سلوك الـ executor، و[القسم المتقدم](#متقدم-executor-api) يورّيك استدعاءاته.
 
@@ -43,7 +37,9 @@ const finished = await agent.resume('chat-42');
 | لما يوقف الـ run على approval (لـ tool call خاصة فيه، أو خاصة بـ[sub-agent](/ar/sub-agents)، وأيضًا لما sub-agent مستأنف يوقف مرة ثانية) | `'awaiting-approval'` (مع `approvalId`) |
 | لما يخلص الـ run (الـ model وقف ينادي tools، أو خلص `maxSteps`) | `'finished'` |
 
-الـ run اللي يفشل (خطأ من الـ provider، أو hook يرمي خطأ، أو `PropagatingToolError`، أو crash في الـ process) يحتفظ بآخر checkpoint بـ`'in-progress'`.
+الـ run اللي يفشل (خطأ من الـ provider، أو hook يرمي خطأ، أو `PropagatingToolError`، أو crash في الـ process) يحتفظ بآخر checkpoint بـ`'in-progress'`. ولما يفشل برفض (وليس بـ crash)، الـ checkpoint ياخذ كمان الخطأ في `lastError` وعدد المحاولات الفاشلة في `attempts`، حتى تقدر [`agent.pending()`](#الاستعادة-بعد-crash) تميّز run يفشل مرة بعد مرة عن run قطعه crash. وأول checkpoint يحفظه الـ run بعدها (يعني تقدّم) يشيل الاثنين.
+
+خلال ما يشتغل [sub-agent](/ar/sub-agents)، اللي صرفه إلى الآن ينحفظ على checkpoint الـ lead بعد كل نداء للـ model وكل نتيجة tool عنده (`delegatedInFlight`). الـ sub-agent نفسه ما ينحفظ له checkpoint: لو الـ lead صار له crash في منتصف sub-agent وبعدين استؤنف، نداء `task` يشتغل من جديد والـ sub-agent يبدأ من الصفر، لكن نداءات الـ model في المحاولة المنقطعة تبقى محسوبة في `usage` حق الـ run المستأنف (كـ run مفوَّض إضافي).
 
 ## ماذا يصير لو ترسل مرة ثانية بنفس `sessionId`
 
@@ -73,9 +69,9 @@ try {
 
 ## approval في منتصف batch من tool calls
 
-لما turn واحدة للـ model تطلب عدة tools ووحدة منها تحتاج approval، الـ calls اللي قبلها تشتغل وتتسجل، والـ run يوقف عندها. الـ approval snapshot يسجل الـ calls اللي بعدها (`remainingToolCalls`). بعدها `agent.approvals.resolve()` — وتحتها الدالة المصدّرة `resumeAfterApproval()` — تسوي:
+لما turn واحدة للـ model تطلب عدة tools وبعضها يحتاج approval، الـ calls اللي ما تحتاج approval تشتغل وتتسجل، والـ run يوقف مرة وحدة على كل call تحتاج approval (`approvalIds`، وسجل approval واحد لكل وحدة؛ شوف [عدة calls في خطوة واحدة](/ar/approvals#عدة-calls-في-خطوة-واحدة)). الـ calls اللي منعها steer من إنها تبدأ، وcalls الـ handoff في الـ turn، تتسجل في الـ approval snapshot (`remainingToolCalls`). أول ما تنحسم آخر call موقوفة، `agent.approvals.resolve()` — وتحتها الدالة المصدّرة `resumeAfterApproval()` — تسوي:
 
-1. تسجل نتيجة الـ call الموقوفة: نتيجة الـ tool لو انوافق عليها، أو نتيجة رفض منظمة `{ error, note }` لو انرفضت؛
+1. تسجل نتيجة كل call موقوفة، بترتيب الاستدعاء: نتيجة الـ tool لو انوافق عليها، أو نتيجة رفض منظمة `{ error, note }` لو انرفضت؛
 2. تشغّل الـ calls الباقية بنفس منطق الـ batch: يمكن تشتغل، أو تفشل في الـ validation، أو توقف الـ run مرة ثانية على approval ثاني (`approvalId` جديد؛ احسمه بنفس الطريقة، وكرر قد ما لزم)؛
 3. تنادي الـ model أول ما يصير لكل call في الـ turn نتيجة واحدة بالضبط.
 
@@ -95,16 +91,156 @@ if (paused.finishReason === 'awaiting-approval') {
 
 الـ run المستأنف يستخدم نفس `approvalStore` لأي approval لاحق، إلا لو مررت واحد ثاني في الخيارات.
 
+## الاستعادة بعد crash
+
+الـ run اللي انقطع (الـ process صار لها crash أو انقتلت في منتصف turn)، أو الموقوف على approval، يبقى في `store.checkpoints` لين أحد يكمّله. `agent.pending()` تعرض هذه الـ runs عبر كل session وكل id من `send(msg, { sessionId })`، فالـ process اللي أعيد تشغيلها تقدر تلقاها:
+
+```ts
+import { createAgent, fileStore } from '@lousho/build-ai-agent';
+
+const agent = createAgent({ provider, store: fileStore('./.lousho') });
+
+// At startup, before taking traffic:
+for (const run of await agent.pending()) {
+  if (run.status === 'in-progress') {
+    // Finishes the turn without re-running recorded steps (tools that were mid-call run again: make them idempotent).
+    await agent.resume(run.sessionId);
+  } else {
+    // 'awaiting-approval': hand run.approvalId to a human, or decide it here.
+    console.log(`session ${run.sessionId} waits on approval ${run.approvalId}`);
+  }
+}
+```
+
+`agent.resume()` ترجع الـ `ExecutionResult` المكتمل (أو `null` لو ما في شيء معلّق)؛ وما ترجع stream. لو تبغى تتابع أحداث run مستأنف، سوّ له stream بدلها: `agent.stream([], { sessionId })` تستأنف checkpoint غير مكتمل من نوع `kind: 'run'` بدون input جديد (شوف [فوق](#ماذا-يصير-لو-ترسل-مرة-ثانية-بنفس-sessionid)) وترجع الـ `AgentRun` المعتاد. والـ run الموقوف يتبث بـ`agent.approvals.streamResolve()`.
+
+`pending()` تقرأ من الـ checkpoint store المشترك، فتعرض كمان runs شغّالة الحين في process ثانية أو replica ثانية (كـ`'in-progress'`، بدون `lastError`)، وليس بس اللي صار لها crash. شوف تحت ليش استئناف وحدة منها آمن.
+
+كل مدخل شكله `{ sessionId, kind, checkpointId, status, approvalId?,
+approvalKind?, step, lastError?, attempts? }`:
+
+- `sessionId` هو اللي تاخذه `agent.resume()`: id الـ `agent.session()` لـ turn في session (`kind: 'session'`، وcheckpoint حقها `<id>.turn-<n>`)، أو id الـ `send(msg, { sessionId })` (`kind: 'run'`، ويشمل الـ forks).
+- `status` تكون `'in-progress'` (انقطع) أو `'awaiting-approval'` (احسم `approvalId` بـ`agent.approvals.resolve()`؛ و`agent.approvals.list()` تعرض الـ call).
+- `lastError` يتعين لما آخر محاولة لـ turn في session، أو لـ run من `send(msg, { sessionId })` (`kind: 'run'`)، فشلت؛ و`attempts` يعد المحاولات اللي فشلت ورا بعض. مع `retryable: false` (مثلًا 400 من الـ provider) بيفشل مرة ثانية: صلّح السبب قبل `agent.resume()`، أو تخلّص منه بـ`agent.session({ id }).discardPending()` (للـ run: `store.checkpoints.delete(id)`). ومدخل `'in-progress'` بدون `lastError` يعني إنه انقطع (crash)، أو إنه لسا شغّال.
+
+والـ run اللي لسا شغّال في أي process ينعرض هو كمان كـ`'in-progress'`. واستئنافه آمن: الـ run ماسك lease (شوف [Run leases](#run-leases))، فـ`agent.resume()` تفشل بـ`LOUSHO_SESSION_BUSY` قبل ما يشتغل أي شيء، بدل ما تشغّل الـ tool calls حقه مرة ثانية.
+
+الـ checkpoint اللي ما ينقرأ (كتابة انقطعت بسبب انقطاع كهرباء على store ما عنده كتابات durable) ينعرض كـ`'in-progress'` مع `lastError.code` بقيمة `LOUSHO_CHECKPOINT_CORRUPT` (`retryable: false`)، وهو نفس الخطأ اللي تفشل به `send()` و`resume()`؛ تخلّص منه بـ`discardPending()` (أو `clear()`)، أو بـ`store.checkpoints.delete(id)` لو كان run.
+
+### الاستعادة التلقائية
+
+`agent.recover()` تطبّق هذه الوصفة عنك، في الخلفية: كل `intervalMs` (الافتراضي 30 ثانية) تجيب قائمة `agent.pending()` وتنادي `agent.resume()` على كل run بـ`'in-progress'`. شغّلها مرة وحدة لكل process، جنب الكود اللي يخدم الـ traffic:
+
+```ts
+import { createAgent, defineTool, memoryStore, PropagatingToolError } from '@lousho/build-ai-agent';
+import { mockModel } from '@lousho/build-ai-agent/testing';
+import { z } from 'zod';
+
+let charges = 0;
+let attempts = 0;
+const tools = [
+  defineTool({ name: 'charge', description: 'Charge the card', input: z.object({}), execute: async () => `charged ${++charges}` }),
+  // Stands in for the process dying mid-step: it fails the first time only.
+  defineTool({
+    name: 'ship',
+    description: 'Ship the order',
+    input: z.object({}),
+    execute: async () => {
+      if (++attempts === 1) throw new PropagatingToolError('process died');
+      return 'shipped';
+    },
+  }),
+];
+const agent = createAgent({
+  provider: mockModel([{ toolCalls: [{ name: 'charge' }] }, { toolCalls: [{ name: 'ship' }] }, 'Order charged and shipped.']),
+  tools,
+  store: memoryStore(),
+});
+await agent.send('Charge and ship order 7', { sessionId: 'order-7' }).catch(() => undefined); // interrupted after the charge
+
+const recovery = agent.recover({
+  intervalMs: 1_000,
+  onRecovered: (run, result) => {
+    console.log(`${run.sessionId}: ${result.text}`); // order-7: Order charged and shipped.
+    void recovery.stop(); // a server keeps it running and stops it on shutdown (or passes `signal`)
+  },
+  onError: (error, run) => console.error('recovery failed', run?.sessionId, error),
+});
+await recovery.done; // resolves once the loop stopped
+console.log(charges); // 1: the completed charge step did not run again
+```
+
+ماذا يسوي كل sweep مع كل run معلّق:
+
+- `'in-progress'`: يستأنف من آخر checkpoint حقه، فالخطوات المكتملة ما تتعاد أبدًا (الـ tool اللي كانت في منتصف call تشتغل من جديد: خلّها idempotent).
+- `'awaiting-approval'` (approval لـ tool أو `ask_question`): يتركه؛ الإنسان يحسمه بـ`agent.approvals.resolve()`.
+- run الـ `lastError` حقه فيه `retryable: false`: يتركه، لأنه بيفشل بنفس الطريقة؛ و`agent.pending()` تظل تعرضه.
+- run لسا شغّال في process ثانية، أو run الـ [run lease](#run-leases) حق الـ process اللي صار لها crash ما انتهت صلاحيته إلى الآن: استئنافه يُرفض بـ`LOUSHO_SESSION_BUSY` قبل ما يشتغل أي شيء، بصمت، وsweep لاحق يحاول مرة ثانية أول ما يتحرر الـ lease. فالـ run اللي صار له crash يكتمل خلال انتهاء lease واحد زائد `intervalMs` واحد بعد الـ crash بالأكثر، وكل replica تقدر تشغّل `recover()`: الـ leases تضمن إن وحدة بس منها تستأنف الـ run. والحلقة كمان ما تبدأ أبدًا استئناف ثاني لـ run هي أصلًا تستأنفه.
+
+`onError(error, run?)` يتبلّغ عن sweep ما قدر يقرأ قائمة الـ store (`run` بقيمة undefined) وعن استئناف فشل (`run` متعيّن)؛ والحلقة تكمل في الحالتين. و`onRecovered(run, result)` ياخذ كل run كمّلته. إلغاء `signal` (أو `stop()`) يوقف الـ polling ويسوي abort للاستئنافات الجارية (الـ checkpoints حقها تبقى للتشغيل الجاي)؛ و`done` تكتمل أول ما يستقر كل شيء. الحلقة تبقي الـ process حيّة لين توقفها. ومثل `pending()`، `recover()` ترمي `LOUSHO_CONFIG_MISSING_CHECKPOINT_STORE` لو ما في checkpoint store. ومع store مخصص ما عنده leases (`acquireLease`)، ما في شيء يمنعها من استئناف run لسا شغّال في process ثانية: شغّلها في process وحدة بس.
+
+## Run leases
+
+خلال ما يشتغل run عنده checkpoints (turn في session، أو run من `send(msg, { sessionId })`، أو استئناف بعد approval)، يمسك lease على id الـ checkpoint حقه في الـ checkpoint store: owner id وانتهاء صلاحية بعد 30 ثانية، يتجدد كل 10 ثواني. أي process ثانية أو replica ثانية أو store object ثاني يحاول يشغّل أو يستأنف نفس الـ id خلال هالوقت — `send()` كانت بتستأنف الـ turn المعلّقة أول، أو `agent.resume()`، أو `agent.approvals.resolve()` — يفشل بـ`LOUSHO_SESSION_BUSY` قبل ما تشتغل أي tool أو ينادى أي model (والـ approval المحسومة تبقى معلّقة). فـ replicaين ورا load balancer ما يشغّلون أبدًا tool calls نفس الـ turn مرتين.
+
+الـ lease اللي ماسكه مات ينأخذ أول ما تنتهي صلاحيته. انتهاء الصلاحية ينحكم عليه بساعة الـ process اللي تبغى الـ lease مقابل وقت الانتهاء اللي كتبه الماسك بساعته هو، فالـ file store وSQLite store ينتظرون فترة lease إضافية (30 ثانية) بعده: الـ run اللي تركته process صار لها crash على جهاز ثاني ينأخذ بعد 30 إلى 60 ثانية من آخر heartbeat له، والـ replicas اللي ساعاتها تختلف بأقل من 50 ثانية تقريبًا ما تاخذ أبدًا الـ runs الحية حق بعضها. خلّ ساعات الـ replicas متزامنة (NTP)؛ فرق أكبر ممكن يخلي replicaين يشغّلون نفس الـ turn.
+
+الـ file store وSQLite store ياخذون الـ lease فورًا، بدون انتظار، بس لما يكون ثابت إن ماسكه راح:
+
+- run من نفس الـ process (نفس الـ thread ونفس نسخة الـ SDK) ما عاد شغّال، فمسار «أعد التشغيل واستأنف» المعتاد ما ينتظر؛
+- على Linux، process خرجت، على نفس الـ host ونفس الـ boot ونفس الـ PID namespace (الـ lease يسجل الـ boot id والـ PID namespace ووقت بداية الـ process، فـ process id اتعاد استخدامه ما ينحسب حي أو ميت بالغلط)؛
+- على macOS وWindows، process id على نفس الـ host ما عاد موجود.
+
+run من worker thread ثاني في نفس الـ process، أو من container ثاني بنفس الـ hostname على volume مشترك (أو process أعيد تشغيلها في container جديد)، ما ينأخذ مبكرًا أبدًا: ينتظر انتهاء الصلاحية.
+
+owner id حق الـ lease للـ run هو fencing token. الـ heartbeat يجدد الـ lease بس طول ما الـ run ماسكه (وما يسترجع أبدًا lease أخذته process ثانية، ولا lease انحرر بعد ما process ثانية كمّلت الـ run)، وكل checkpoint يحفظه الـ run ينكتب بس لو الـ run لسا ماسك الـ lease، بشكل atomic مع هالفحص في الـ file store وSQLite store والـ in-memory store. فلو run علّق مدة أطول من الـ lease حقه (الـ process توقفت مؤقتًا، أو الـ event loop انحجز) وprocess ثانية أخذته، الـ run المعلّق يوقف بـ`LOUSHO_SESSION_BUSY` عند الـ checkpoint التالي بدل ما يكتب فوق تقدم الماسك الجديد، والنتيجة المتأخرة لـ turn في session ما تنضاف للـ transcript. أما tool call كان الـ run المعلّق يسويها لما خسر الـ lease فما تنلغى: خلّ الـ tools idempotent في أي مكان ممكن يصير فيه تعليق.
+
+الـ file store وSQLite store والـ in-memory store ياخذون الـ leases بشكل atomic. KV ما عنده compare-and-swap: `KVStore` يكتب الـ lease، ينتظر 50 ms ويقرأه من جديد، وهذا يرتّب الطلبات في موقع واحد لكن مو عبر edge locations ضمن تأخير الانتشار حق KV؛ والـ saves المحمية (fenced) عنده قراءة ثم كتابة. الـ `CheckpointStore` المخصص يشارك لو نفّذ `acquireLease(id, owner, ttlMs)` (عملية atomic: «خذ أو جدّد إلا لو owner ثاني ماسك lease ما انتهت صلاحيته»، ترجع `true` لما ينأخذ) و`releaseLease(id, owner)`؛ وبدونها الـ runs تشتغل بدون leases. ويقدر يضيف `renewLease(id, owner, ttlMs)` (يجدد بس الـ lease حق الـ owner نفسه) و`saveIfLeased(id, checkpoint, owner)` (يحفظ بس طول ما الـ owner ماسك الـ lease، بشكل atomic)؛ وبدونها الـ run يجدد الـ lease حقه بـ`acquireLease` قبل كل save مباشرة، وهذا يترك نافذة قصيرة.
+
+خلال rolling upgrade من إصدار ما فيه run leases، الـ replicas القديمة لا تاخذ leases ولا تحترمها، فالـ turn ممكن تظل تشتغل على replica قديمة وجديدة بنفس الوقت لين كل الـ replicas تشغّل الإصدار الجديد. وملف SQLite database ينفتح بهذا الإصدار يتعمل له migration (جدول `leases`) وبعدها الإصدارات الأقدم ترفضه؛ للرجوع، استرجع نسخة من الملف.
+
+الـ schedules تستخدم نفس الآلية: `fireSchedule()` (وبالتالي `startSchedules()`) تحجز وقت الإطلاق لكل schedule في الـ checkpoint store حق الـ agent أول، فالـ replicas اللي تطلق نفس الـ tick تشغّله مرة وحدة.
+
+`agent.pending()` تحتاج checkpoint store فيه `list()`: الـ file store وSQLite store والـ in-memory store وKV store كلهم فيهم وحدة (`KVStore` يعرض القائمة بس لو الـ namespace binding حقه فيه `list`، مثل الحقيقي). على `CheckpointStore` مخصص، `list({ status? })` ترجع `{ sessionId, status, checkpoint }` لأحدث checkpoint لكل id؛ و`listCheckpoints(entries, options)` تسوي الفلترة والترتيب عنك. وبدونها `agent.pending()` ترمي `LOUSHO_CONFIG_INVALID`؛ وبدون checkpoint store أصلًا، ترمي `LOUSHO_CONFIG_MISSING_CHECKPOINT_STORE`.
+
 ## الضمانات
 
 - **كل tool call تاخذ نتيجة واحدة بالضبط، بترتيب الاستدعاء**، مهما تتابعت الـ crashes والـ aborts والتوقفات والاستئنافات. (الـ call اللي انقطعت بـ abort تاخذ نتيجة "cancelled"؛ والـ call المرفوضة تاخذ نتيجة رفض.)
-- **ما في call بنتيجة مسجلة يتعاد تنفيذه أبدًا.** النتائج تنحفظ في الـ checkpoints كلما طالت سلسلة الـ calls المخلّصة بالترتيب؛ والـ run المستأنف يشغّل بس الـ calls اللي ما عندها نتيجة مسجلة.
+- **ما في call بنتيجة مسجلة يتعاد تنفيذه أبدًا.** كل نتيجة تنحفظ في الـ checkpoint بالـ `toolCallId` حقها أول ما تخلص الـ call — حتى لو خلصت ورا call أبطأ قبلها في نفس الـ turn — فالـ run المستأنف يشغّل بس الـ calls اللي ما عندها نتيجة مسجلة.
 - **turn الـ model المحفوظ في checkpoint ما يتولّد من جديد أبدًا.** لو الـ process ماتت بعد ما الـ model رد، الـ run المستأنف ينفذ الـ tool calls اللي في الرد بدل ما يسأل الـ model مرة ثانية (ولا تكلفة زيادة ولا خطة مختلفة).
 - **الـ provider يستقبل دائمًا transcript صالح**: نتائج الـ tools تجي مباشرة ورا turn الـ tool calls حقها، ورسائل الـ user الجديدة تجي بعدها.
+- **الـ call الموافق عليها تشتغل مرة وحدة بالأكثر.** حسم الـ approval يحتفظ بـ checkpoint الـ run الموقوف: ينحفظ من جديد كـ`'in-progress'` والـ call الموافق عليها معلَّمة إنها بدأت (`startedToolCallIds`) قبل ما تشتغل، وينحفظ مرة ثانية مع نتيجتها قبل ما يكمل الـ run. لو الـ process ماتت والـ call الموافق عليها شغّالة، الـ turn ما تضيع: `pending()` تعرضها، واستئنافها ما يشغّل الـ call مرة ثانية. الـ call تاخذ نتيجة خطأ (`kind: 'interrupted'`) تقول للـ model إنها ممكن صار لها أثر وممكن لا، فيقدر الـ model يتحقق أو يسأل بدل ما يكررها بصمت — الإنسان وافق عليها مرة، مو مرتين.
+- **الـ approval القديمة ما ترجع أبدًا.** الـ approval تكمّل الـ run حقها بس طول ما checkpoint هذا الـ run لسا ينتظرها. لو الـ checkpoint انحذف (`checkpoints.delete(id)`، أو `discardPending()`، أو prune) أو انستبدل بـ run أحدث تحت نفس الـ id، حسمها يفشل بـ`LOUSHO_APPROVAL_ORPHANED` ويسحبها، بدون ما يشغّل الـ tool أو يلمس الـ run الأحدث. و`discardPending()` تسحب approvals الـ turn اللي تخلّصت منها فورًا.
+
+## تشغيل job مرة وحدة (إعادة تسليم الـ webhook)
+
+الـ webhook أو الـ queue يسلّم مرة وحدة على الأقل، فنفس الـ payload ممكن يوصل مرتين. وإرساله مرة ثانية بنفس `sessionId` **مو** no-op: أول ما يصير الـ run الأول `'finished'`، الـ `send()` الثانية تصير turn جديدة في المحادثة وتنادي الـ model من جديد (في اختبار عند مستهلك، أعادت تشغيل سبع نداءات للـ model). لو تبغى تشغّل الـ job مرة وحدة، اشتق الـ `sessionId` من id التسليم وشوف الـ checkpoint قبل ما ترسل:
+
+```ts
+import { createAgent, memoryStore } from '@lousho/build-ai-agent';
+
+const store = memoryStore();
+const agent = createAgent({ provider, store });
+
+export async function handleDelivery(deliveryId: string, payload: string) {
+  const sessionId = `job-${deliveryId}`;
+  const checkpoint = await store.checkpoints?.load(sessionId);
+
+  if (checkpoint?.status === 'finished') return; // already done: acknowledge the redelivery
+  if (checkpoint?.status === 'awaiting-approval') return; // paused: resolve it with agent.approvals.resolve()
+  if (checkpoint) {
+    await agent.resume(sessionId); // 'in-progress': a crash left it half done; finish it
+    return;
+  }
+  await agent.send(payload, { sessionId });
+}
+```
+
+الفحص ثم الإرسال مو atomic: تسليمين متزامنين ممكن الاثنين ما يلقون checkpoint. رتّب التسليمات لكل id ورا بعض (queue مفتاحها `deliveryId`، أو unique-insert في الـ database حقك) وخلّ الـ run lease شغّال (شوف [Run leases](#run-leases)) حتى تفشل الـ process الثانية بـ`LOUSHO_SESSION_BUSY` بدل ما تشغّل الـ job مرتين. والـ tools اللي تشتغل من جديد عند الاستئناف لازم تظل idempotent، فمرّر كمان `toolCallId` حق الـ call كـ idempotency key لكل side effect (شوف القسم التالي).
 
 ## At-least-once tools: خلّي الـ side effects idempotent
 
-الـ tool اللي كانت **شغّالة** لما ماتت الـ process ما عندها نتيجة مسجلة، فتشتغل من جديد عند الاستئناف. يعني تنفيذ الـ tools هو at-least-once، وليس exactly-once. الـ tools اللي لها side effects (سحب مبلغ من بطاقة، إرسال إيميل): إما تحطها ورا `needsApproval` وإما تخليها idempotent. `toolCallId` حق كل call — وهو id الـ model للـ call، وما يتغير لما يعاد تنفيذه في الاستئناف — ينمرّر لـ`execute`، فيشتغل كـ idempotency key:
+الـ tool اللي كانت **شغّالة** لما ماتت الـ process ما عندها نتيجة مسجلة، فتشتغل من جديد عند الاستئناف. يعني تنفيذ الـ tools هو at-least-once، وليس exactly-once. الـ tools اللي لها side effects (سحب مبلغ من بطاقة، إرسال إيميل): إما تحطها ورا `needsApproval` وإما تخليها idempotent. `toolCallId` حق كل call — وهو id الـ model للـ call، وما يتغير لما تنعاد نفس الـ call في الاستئناف — ينمرّر لـ`execute`، فيشتغل كـ idempotency key ضد إعادة تشغيل call وحدة:
 
 ```ts
 import { defineTool } from '@lousho/build-ai-agent';
@@ -122,6 +258,25 @@ const chargeCard = defineTool({
 ```
 
 (`toolCallId` يتعين في كل run لـ tool، بما فيها الـ tools اللي تمر عبر `sandboxExecute`.)
+
+الـ file tools المدمجة آمنة لإعادة التشغيل. `write_file` تكتب نفس المحتوى مرة ثانية؛ و`edit_file` اللي تعديلها موجود أصلًا في الملف (`old_string` اختفى، و`new_string` غير فاضي موجود) تنجح وتقول إن التعديل مطبّق أصلًا، بدل ما تقول للـ model إن تعديل مطبّق فشل. ومع `WorkspaceCheckpoints`، الـ backup حق كل تغيير ينحفظ قبل ما ينكتب الملف، وإعادة التشغيل تحتفظ بأول backup، فـ`rewind()` يرجّع المحتوى الأصلي حتى بعد crash (شوف [Workspace tools](/ar/workspace-tools#الأدوات)). أما tool الـ `shell` فمو آمنة: الأمر اللي كان شغّال لما ماتت الـ process يشتغل من جديد.
+
+`toolCallId` (و`ctx.approval.id` للـ call الموافق عليها) يحدد call وحدة سواها الـ model، ويحمي بس من إن هالـ call تشتغل مرتين. لو الـ process ماتت قبل ما تتسجل الـ call، الـ model ممكن يسوي نفس الـ call من جديد كـ call **جديدة** بـ id جديد وapproval جديدة، والـ id ما عاد يطابق. والـ side effect اللي لازم يصير مرة وحدة لكل حدث business (claim واحد، فاتورة وحدة) يحتاج idempotency key من بياناتك أنت، مثل id الـ claim في الـ arguments، تفحصه أو تمرره للنظام اللي تكتب فيه:
+
+```ts
+import { defineTool } from '@lousho/build-ai-agent';
+import { z } from 'zod';
+
+declare const claims: { file(claim: { claimId: string }, opts: { idempotencyKey: string }): Promise<{ id: string }> };
+
+const fileClaim = defineTool({
+  name: 'file_claim',
+  description: 'File an insurance claim',
+  input: z.object({ claimId: z.string() }),
+  needsApproval: true,
+  execute: async ({ claimId }) => claims.file({ claimId }, { idempotencyKey: `claim:${claimId}` }), // a new call for the same claim cannot file twice
+});
+```
 
 ## Checkpoint history
 
@@ -322,6 +477,8 @@ if (original && replayed) {
 
 ## القيود
 
-- `sessionId` يعرّف محادثة منطقية واحدة؛ تشغيل نداءين `send()` (أو نداءين `execute()`) على نفس الـ id بنفس الوقت غير مدعوم.
+- `sessionId` يعرّف محادثة منطقية واحدة. نداءات `agent.send()` / `agent.stream()` المتزامنة بنفس `sessionId` على store واحد للـ agent تشتغل ورا بعض، بترتيب الاستدعاء، في هذه الـ process. أما processين (أو store objectين على نفس البيانات) على نفس الـ id بنفس الوقت فالـ run lease يرفضها بـ`LOUSHO_SESSION_BUSY` (best effort على KV، شوف [Run leases](#run-leases))؛ ومع store مخصص ما عنده leases، آخر save هي اللي تفوز.
+- id الـ run (`sessionId` حق `send()` / `stream()`) يكون من 1 إلى 200 حرف من الحروف والأرقام و`_` و`-` و`.`، وما يبدأ ولا ينتهي بـ`.`، على كل store، وما يجوز ينتهي بـ`.turn-<n>` أو `.paused` (مفاتيح الـ checkpoint الخاصة بالـ session) أو `.fire` (حجز الإطلاق حق schedule). وأي شيء ثاني يفشل بـ`LOUSHO_SESSION_ID_INVALID`. أما id الـ session (`agent.session({ id })`، و`sessionId` في الـ routes) فقاعدته أشد: من 1 إلى 128 حرف من `A-Za-z0-9_-`، بدون `.`.
 - لو ناديت `resumeAfterApproval()` (الدالة اللي ورا `agent.approvals.resolve()`) بدون `checkpointStore`، الـ session تحتفظ بعلامة `'awaiting-approval'` ونداءات `send()` (أو `execute()`) اللاحقة تظل ترمي `SessionAwaitingApprovalError`؛ مرّر الـ store (أو احذف الـ checkpoint). `agent.approvals.resolve()` تمرره عنك.
 - Workers KV عنده eventual consistency عبر المواقع — شوف [النشر](/ar/deployment) لتفاصيل هذا التحفّظ.
+- صرف الـ sub-agent اللي كان لسا شغّال لما صار crash للـ lead ينحفظ للـ sub-agents اللي داخل الـ process بس، حسب آخر نداء model أو نتيجة tool عنده: الـ [remote sub-agent](/ar/sub-agents#remote-sub-agents) يبلّغ عن الـ usage حقه لما يخلص، فنداءات الواحد المنقطع ما تنحسب، والـ sub-agent اللي يشتغل في الخلفية ولسا شغّال بعد ما الـ lead وقف أو خلص ما يكتب في checkpoint الـ lead. وحدودهم تنفحص مقابل usage الـ sub-agent بس لما يرجع.

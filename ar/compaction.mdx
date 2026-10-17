@@ -1,12 +1,6 @@
 ---
 title: "Context compaction"
 ---
-
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/compaction).
-</Warning>
-
 {/* Generated from docs/compaction.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 run طويل لـagent يملأ الـcontext window غالبًا بنتائج الـtools: محتويات ملفات، نتائج بحث، ردود API قرأها الـmodel مرة وما عاد يحتاجها كاملة. الـcompaction (ضغط سياق المحادثة) يبقي run كهذا تحت حد الـmodel على مرحلتين: أولاً يبدل نتائج الـtools القديمة بعلامة قصيرة، وإذا هذا ما كفى يبدل أقدم الدورات بملخص يكتبه model (أرخص).
@@ -34,7 +28,7 @@ for await (const event of agent.stream('Audit the repository.')) {
 }
 ```
 
-الـobject يقبل `strategy` و`thresholdPercent` و`contextWindow` و`protectedTokens` (مثل الجدول تحت) و`summarizer`. الجمع بين `summarizer` و`strategy` خطأ في الإعداد — مرّر `twoPhaseStrategy({ model })` كقيمة لـ`strategy` بدلها. `createAgent({ hooks })` يقبل أي `AgentHook` ثانية، وهي تشتغل قبل hook الـcompaction، فالـcompaction يشوف اللي أضافته. الـhooks والـcompaction ينطبقان على `send()` و`stream()` والـsessions.
+الـobject يقبل `strategy` و`thresholdPercent` و`contextWindow` و`protectedTokens` و`reserveOutputTokens` و`onCompaction` (مثل الجدول تحت) و`summarizer`. الجمع بين `summarizer` و`strategy` خطأ في الإعداد — مرّر `twoPhaseStrategy({ model })` كقيمة لـ`strategy` بدلها. `createAgent({ hooks })` يقبل أي `AgentHook` ثانية، وهي تشتغل قبل hook الـcompaction، فالـcompaction يشوف اللي أضافته. الـhooks والـcompaction ينطبقان على `send()` و`stream()` والـsessions.
 
 ### أحداث الـstream
 
@@ -43,9 +37,9 @@ for await (const event of agent.stream('Audit the repository.')) {
 | `type` | الحقول |
 | --- | --- |
 | `compaction.start` | `strategy`, `tokensBefore`, `contextWindow`, `thresholdTokens`, `trigger?: 'manual'` |
-| `compaction.done` | `strategy`, `tokensBefore`, `tokensAfter`, `prunedToolCallIds`, `summary?: boolean`, `error?: { message }`, `trigger?: 'manual'` |
+| `compaction.done` | `strategy`, `appliedStrategy?`, `tokensBefore`, `tokensAfter`, `prunedToolCallIds`, `summary?: boolean`, `error?: { message }`, `unchanged?: true`, `trigger?: 'manual'` |
 
-كل `compaction.start` يتبعه `compaction.done` واحد بالضبط. إذا الاستراتيجية ما قدرت تصغّر شيء، `tokensAfter` يساوي `tokensBefore`. وإذا فشلت (أو فشل الـsummarizer فرجع الـhook للتقليم)، `error` ينضبط والـrun يكمل. الملخص اللي ما ينزّل المحادثة تحت العتبة — أو اللي يكبّرها — مرفوض بنفس الطريقة: `error` ينضبط، الـrun يحتفظ بالنتيجة المقلّمة بدل الملخص، والـhook يكتفي بتقليم الـtranscript هذا لباقي الـrun. فالـhook ما يرجع يستدعي summarizer ما يقدر يساعد، خطوة ورا خطوة. `summary` تكون `true` لما الدورات القديمة تبدلت بملخص (النص نفسه لا يُرسَل؛ استخدم `onCompaction` له). `send()` بدون listener ما يطلق أحداث. الـhooks تضيف أحداثها بـ `ctx.emit?.(...)` على سياق `preGenerate`، وهو موجود لما يكون للـrun listeners (`createAgent({ onEvent })` أو `onAgentEvent`) أو لما يكون ماشي بـstream.
+كل `compaction.start` يتبعه `compaction.done` واحد بالضبط. إذا الاستراتيجية ما قدرت تصغّر شيء، `tokensAfter` يساوي `tokensBefore` و`unchanged` تكون `true`. بعدها الـhook يكمل الـcompaction على هذا الـtranscript بهدوء: الخطوات اللاحقة اللي ما زالت ما تغيّر شيء ما تطلق أحداث، وأول محاولة تغيّر شيء فعلاً تطلق زوج `compaction.start` / `compaction.done` الخاص بها كالعادة، فالـrun العالق فوق العتبة ما يبلّغ عن زوج أحداث في كل خطوة. وإذا فشلت (أو فشل الـsummarizer فرجع الـhook للتقليم)، `error` ينضبط والـrun يكمل. الملخص اللي ما ينزّل المحادثة تحت العتبة — أو اللي يكبّرها — مرفوض بنفس الطريقة: `error` ينضبط، الـrun يحتفظ بالنتيجة المقلّمة بدل الملخص، و`appliedStrategy` تكون `'prune-tool-results'`. بعدها الـhook يكتفي بتقليم هذا الـtranscript لين يصير عدد رسائله ضعف ما كان وقت الرفض، وبعدين يخلّي الـsummarizer يحاول من جديد. فالـsummarizer اللي ما يقدر يساعد يكلّف كم استدعاء في الـrun كله، مش استدعاء في كل خطوة، والـsummarizer اللي انرفض لأن ما كان عنده شيء كافي يلخّصه ياخذ فرصة ثانية. `strategy` هي الاستراتيجية اللي اشتغلت، ونفسها على `compaction.start` و`compaction.done` (`'prune-tool-results'` طول ما الملخصات متوقفة مؤقتًا). `summary` تكون `true` لما الدورات القديمة تبدلت بملخص (النص نفسه لا يُرسَل؛ استخدم `onCompaction`، واللي يقبله الـobject كمان). `send()` بدون listener ما يطلق أحداث. الـhooks تضيف أحداثها بـ `ctx.emit?.(...)` على سياق `preGenerate`، وهو موجود لما يكون للـrun listeners (`createAgent({ onEvent })` أو `onAgentEvent`) أو لما يكون ماشي بـstream.
 
 ## الـcompaction على run
 
@@ -71,19 +65,43 @@ const agent = createAgent({
 });
 ```
 
-قبل كل استدعاء للـmodel، الـhook يقدّر حجم الطلب بـ `estimateTokens` (شوف [Models, tokens and cost](/ar/models-and-cost#الـ-models-وجدول-الأسعار)). إذا الحجم فوق `thresholdPercent` من الـcontext window، الـhook يشغّل استراتيجيته (وينتظرها إذا كانت async) ويستدعي `onCompaction` مع أعداد الـtokens، والـ`toolCallId`s اللي اتقلّمت، والملخص إن وجد، واسم الاستراتيجية.
+قبل كل استدعاء للـmodel، الـhook يقدّر حجم الطلب بـ `estimateTokens` (شوف [Models, tokens and cost](/ar/models-and-cost#الـ-models-وجدول-الأسعار)): الرسائل (ومنها الـsystem prompt)، وتعريفات الـtools، و schema المخرجات. وبعد أي استدعاء أبلغ فيه الـprovider عن عدد tokens الـprompt، الـhook يضيف الفرق اللي تجاوز به هذا الرقم التقدير إلى التقدير التالي في نفس الـrun، فحتى الـframing المخفي اللي يضيفه الـprovider ينحسب. تعريفات الـtools ما تنضغط، فلازم المحادثة تسع في اللي تتركه هذه التعريفات من العتبة. أعداد الـtokens في `compaction.start` / `compaction.done` هي أحجام الطلب هذه. إذا الحجم فوق `thresholdPercent` من الـcontext window، الـhook يشغّل استراتيجيته (وينتظرها إذا كانت async) ويستدعي `onCompaction` مع أعداد الـtokens، والـ`toolCallId`s اللي اتقلّمت، والملخص إن وجد، واسم الاستراتيجية.
 
 | الخيار | الافتراضي | المعنى |
 | --- | --- | --- |
 | `thresholdPercent` | `0.9` | نفّذ الـcompaction لما الطلب المقدَّر يتجاوز هذه النسبة من الـcontext window. لازم تكون القيمة في (0, 1]. |
-| `contextWindow` | من الـregistry، وإلا `128_000` | الـcontext window بالـtokens. افتراضيًا تُجلب لـ `request.model` بـ `getModelInfo()`؛ سجّل الـmodels الخاصة بك بـ `registerModel()`. |
-| `protectedTokens` | `40_000` | أحدث الرسائل اللي تسعها هذه الكمية من الـtokens ما تتغير أبدًا. |
+| `contextWindow` | من الـregistry، وإلا `128_000` | الـcontext window بالـtokens. افتراضيًا تُجلب لـ `request.model` بـ `getModelInfo()`؛ سجّل الـmodels الخاصة بك بـ `registerModel()`. القيمة الاحتياطية `128_000` تطبع `console.warn` مرة واحدة (شوف [Local and unknown models](#الـmodels-المحلية-وغير-المعروفة)). |
+| `reserveOutputTokens` | لا شيء | tokens تبقى فاضية للرد: العتبة تصير على الأكثر `contextWindow - reserveOutputTokens`. وما ترفع أبدًا العتبة اللي يحددها `thresholdPercent`. |
+| `protectedTokens` | `40_000`، وعلى الأكثر نصف العتبة | أحدث الرسائل اللي تسعها هذه الكمية من الـtokens ما تتغير أبدًا. القيمة الافتراضية محدودة بنصف العتبة (حوالي 3,700 token على window حجمه 8K)، فحتى الـwindow الصغير يصير فيه compaction. والقيمة اللي تضبطها أنت عند العتبة أو فوقها كانت بتحمي كل شيء؛ فتنحد بنفس الطريقة، مع `console.warn` مرة واحدة. |
 | `strategy` | `pruneToolResultsStrategy()` | طريقة الـcompaction (شوف تحت). `twoPhaseStrategy()` هي الموصى بها؛ لكنها تحتاج model تلخيص، فهي ليست الافتراضية. |
-| `onCompaction` | لا شيء | تُستدعى بعد كل compaction غيّر المحادثة أو أبلغ عن `error`. |
+| `onCompaction` | لا شيء | تُستدعى بعد كل compaction غيّر المحادثة أو أبلغ عن `error`، مع أعداد الـtokens، والـ`toolCallId`s المقلّمة، و`strategy`، و`appliedStrategy`، ونص الملخص، والـ`error`. |
 
 الـcompaction ما يفشل الـrun أبدًا. إذا الاستراتيجية رمت استثناء، أو فشل استدعاء الـsummarizer، الـrun يكمل (بالمحادثة المقلّمة، أو بدون تغيير) و`onCompaction` تستلم الـ`error`.
 
+داخل الـrun، استدعاء الـmodel الخاص بالـsummarizer جزء من الـrun: الـtokens حقته موجودة في `result.usage` (تحت model الـsummarizer في `byModel`، وفي `modelCalls`)، وياخذ span من نوع `chat` مع `lousho.call.purpose: 'compaction'` تحت الـspan الخاص بالـrun، وينحسب ضمن ميزانيات `limits` للـrun. (`session.compact()` و`compactMessages()` يشتغلون خارج أي run، فاستدعاءات التلخيص فيهم ما تنحسب في أي مكان.)
+
 الـhook يعيد كتابة transcript الـrun نفسه، مش نسخة منه: مصفوفة `messages` في الطلب هي قائمة رسائل الـrun، والـhook يغيّرها في مكانها. فالنتيجة المقلّمة أو الملخص تبقى في الخطوات اللاحقة، وفي الـcheckpoints (الـsession المستأنفة ما ترجع السجل الكامل) وفي `result.messages`، وما تنضغط مرة ثانية في الخطوة التالية. الـcompaction يضيّع معلومات: إذا الـmodel احتاج نتيجة مقلّمة مرة ثانية، لازم يستدعي الـtool من جديد.
+
+### الـmodels المحلية وغير المعروفة
+
+العتبة نسبة من الـcontext window الخاص بالـmodel، فالـcompaction يحتاج الـwindow الحقيقي. لأي model ما يعرفه [سجل الـmodels](/ar/models-and-cost#الـ-models-وجدول-الأسعار) (أغلب الـmodels المحلية)، الـhook يفترض `128_000` token ويطبع `console.warn` مرة واحدة فيه اسم الـmodel. السيرفر المحلي عادة يشتغل بـwindow أصغر بكثير، ووقتها الـcompaction ما يشتغل أبدًا قبل ما السيرفر يرفض الطلب. اضبط الـwindow اللي حمّلت فيه الـmodel: في LM Studio هو طول السياق المحمّل للـmodel (`loaded_context_length` من `GET /api/v0/models/<id>`)، وفي Ollama هو خيار `num_ctx` (`ollama show <model>` يطبع القيمة الافتراضية للـmodel).
+
+```ts
+import { createAgent, registerModel } from '@lousho/build-ai-agent';
+
+// Either on the agent...
+const agent = createAgent({
+  model: 'ollama/qwen3:8b',
+  compaction: { contextWindow: 8_192, reserveOutputTokens: 1_024 },
+});
+
+// ...or once for every feature that reads the window (compaction, tool search).
+registerModel({ id: 'qwen3:8b', provider: 'ollama', contextWindow: 8_192 });
+```
+
+على window صغير، القيمة الافتراضية لـ `protectedTokens` (40,000) تنحد بنصف العتبة، فأحدث ~3,700 token من window حجمه 8K تبقى سليمة، ونتائج الـtools الأقدم تقدر تتقلّم. اضبط `protectedTokens` بنفسك لو تبي تحمي أكثر أو أقل؛ وخلّها تحت العتبة.
+
+[Tool search](/ar/tool-search) يقرأ الـwindow بنفس الطريقة ويحذّر بنفس الطريقة؛ والإعداد الخاص به هو `toolSearch.contextWindow`.
 
 #### متقدم: executor API
 
@@ -115,7 +133,7 @@ const result = await AgentExecutor.execute({ agent, input, provider, toolRegistr
 
 ### تقليم نتائج الـtools
 
-`pruneToolResultsStrategy()` تبدل `content` كل نتيجة tool أقدم من الذيل المحمي بعلامة مثل `[pruned: search result, 18234 chars]`. وما تغيّر أبدًا:
+`pruneToolResultsStrategy()` تبدل `content` كل نتيجة tool أقدم من الذيل المحمي بعلامة قصيرة تسمّي الاستدعاء، مثل `[pruned: search({"query":"deploy"}) result, 18234 chars; already read]` (المعاملات اللي أطول من 120 حرف تنقص)، فالـmodel يعرف إيش جاب قبل، وما يستدعي نفس الـtool مرة ثانية بس عشان يشوف النتيجة. والعلامات بالصيغة القديمة `[pruned: search result, 18234 chars]` تنعرف وتنترك كما هي. وما تغيّر أبدًا:
 
 - رسائل system، ولا رسائل user (ومنها الأولى)، ولا دورات assistant — فكل tool call يحتفظ برسالة نتيجته، والـtranscript يبقى صالح لكل provider؛
 - نتائج آخر دورة assistant، اللي الـmodel ما قرأها بعد، حتى لو كانت أكبر من `protectedTokens`؛
@@ -189,7 +207,7 @@ console.log(summarized.summary ?? summarized.error?.message);
 
 ## الـcompaction على session
 
-`session.compact(options?)` تعمل compaction لسجل [session](/ar/sessions) فورًا، مهما كان حجمه، وتحفظه في الـstore الخاص بالـsession (الذاكرة أو ملف أو SQLite أو KV) وترجع `{ messagesBefore, messagesAfter, tokensBefore, tokensAfter, strategy, error? }`. تشغّل `options.strategy` إن وُجدت، وإلا استراتيجية `agent.session({ compaction })` — وهي نفس القيمة اللي ياخذها `createAgent({ compaction })`، و`compaction` الخاص بالـagent إذا الـsession ما ضبطت واحدة — وإلا تقلّم نتائج الـtools القديمة. الرسائل المثبتة تبقى. والـsession اللي ما فيها رسائل تنتهي بدون ما تعمل شيء. الاستدعاء يرفض بـ `LOUSHO_SESSION_BUSY` إذا في turn شغالة، وبـ `LOUSHO_SESSION_TURN_PENDING` / `LOUSHO_SESSION_AWAITING_APPROVAL` إذا في durable turn ما خلصت. الـlisteners اللي اتضافت بـ `session.on()` تستلم `compaction.start` و`compaction.done` مع `trigger: 'manual'`. أما `session.clear()` فتفرّغ الـtranscript وتطلق `context.cleared`.
+`session.compact(options?)` تعمل compaction لسجل [session](/ar/sessions) فورًا، مهما كان حجمه، وتحفظه في الـstore الخاص بالـsession (الذاكرة أو ملف أو SQLite أو KV) وترجع `{ messagesBefore, messagesAfter, tokensBefore, tokensAfter, strategy, error? }`. تشغّل `options.strategy` إن وُجدت، وإلا استراتيجية `agent.session({ compaction })` — وهي نفس القيمة اللي ياخذها `createAgent({ compaction })`، و`compaction` الخاص بالـagent إذا الـsession ما ضبطت واحدة — وإلا تقلّم نتائج الـtools القديمة. الرسائل المثبتة تبقى. والـsession اللي ما فيها رسائل تنتهي بدون ما تعمل شيء. الاستدعاء يرفض بـ `LOUSHO_SESSION_BUSY` إذا في turn شغالة، وبـ `LOUSHO_SESSION_TURN_PENDING` / `LOUSHO_SESSION_AWAITING_APPROVAL` إذا في durable turn ما خلصت. الـlisteners اللي اتضافت بـ `session.on()` تستلم `compaction.start` و`compaction.done` مع `trigger: 'manual'`. أما `session.clear()` فتفرّغ الـtranscript، وتحذف الـcheckpoint الخاص بكل turn وسجل الـcheckpoints، وتطلق `context.cleared`.
 
 ```ts
 import { createAgent, twoPhaseStrategy } from '@lousho/build-ai-agent';
