@@ -1,12 +1,6 @@
 ---
 title: "Guardrails و sandboxing"
 ---
-
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/guardrails).
-</Warning>
-
 {/* Generated from docs/guardrails.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 أدوات تشغّل الـ agents بأمان: **input و output guardrails** تفحص اللي يدخل أي run واللي يطلع منه (ومعاملات الـ tool calls)، و**patch checks** فحوص fail-closed على تغيير مقترح قبل ما تتصرّف عليه، و**sandboxed tools** تشتغل داخل container معزولة بدل عملية الـ host. للقرارات البشرية على كل call شوف [Approvals](/ar/approvals)؛ وللـ hooks اللي تفحص أو ترفض كل tool call شوف [Hooks](/ar/hooks).
@@ -162,7 +156,7 @@ await AgentExecutor.execute({ agent, input, provider, toolRegistry, sandbox: new
 ```
 
 - `NoopSandbox` (الافتراضي) يشتغل على الـ host. مجرد بديل شكلي، ما فيه عزل.
-- `SubprocessSandbox` ينفّذ كل أمر في Docker container جديدة، معزولة عن الشبكة وتنحذف تلقائي، وما يوصل فيها أي مجلد من الـ host إلا `cwd` اللي تمرّره. يحتاج Docker daemon شغّال والـ peer dependency الاختيارية `dockerode` (`npm install dockerode@^5.0.1`؛ تتحمّل أول استخدام). ولو الـ run انلغى (`run.abort()` أو `signal`) أو الأمر خلصت مهلته، الـ container تُقتل وتنحذف.
+- `SubprocessSandbox` ينفّذ كل أمر في Docker container جديدة، معزولة عن الشبكة وتنحذف تلقائي، وما يوصل فيها أي مجلد من الـ host إلا `cwd` اللي تمرّره. يحتاج Docker daemon شغّال والـ peer dependency الاختيارية `dockerode` (`npm install dockerode@^5.0.1`؛ تتحمّل أول استخدام). ولو الـ run انلغى (الـ `signal` حقّه انلغى) أو الأمر خلصت مهلته، الـ container تُقتل وتنحذف. كل container تشتغل بمستخدم غير root (`user`، الافتراضي `'1000:1000'`؛ وعلى host لينكس لازم يقدر يكتب في الـ `cwd` الموصول)، مع إسقاط كل Linux capabilities، و`no-new-privileges`، و`limits` افتراضيًا 512 MiB ذاكرة و256 عملية و1 CPU. `writeFile(path)` يكتب على الـ host بس تحت `root` (الافتراضي: مجلد العمل الحالي)؛ وأي مسار برّاه، حتى لو عن طريق symlink، يُرفض بـ `LOUSHO_SANDBOX_PATH_DENIED`.
 - نفّذ `SandboxAdapter` (`name`، `run(cmd, args, opts)`، `writeFile(path, content)`) لـ backend ثاني.
 
 لو بتبني coding agent، `SandboxShell` يحط أداة الـ shell حق الـ workspace ورا نفس الـ adapter؛ شوف [أدوات مساحة العمل](/ar/workspace-tools#sandboxed-shell-sandboxshell).

@@ -1,8 +1,143 @@
 ---
-title: "Prompting and context techniques"
+title: "تقنيات الـ prompting وإدارة السياق"
+description: "جودة الـ agent تأتي من ثلاث طبقات، ومن المفيد أن تعرف في أي طبقة تقع كل تقنية، لأن إصلاح agent يتصرف بشكل خاطئ يختلف من طبقة لأخرى:"
 ---
+{/* Generated from docs/prompting-techniques.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-{/* pending-translation */}
-<Note>
-هذه الصفحة لم تُترجَم إلى العربية بعد. اقرأ [النسخة الإنجليزية](/prompting-techniques).
-</Note>
+1. **تقنيات على مستوى الـ prompt**: ما يُطلب من استدعاء model واحد، وكيف
+   يُصاغ هذا الطلب.
+2. **هندسة السياق (context engineering)**: ما يملأ نافذة السياق: ما يُكتب،
+   وما يُختار، وما يُضغط، وما يُعزل.
+3. **أنماط سير العمل الوكيلية (agentic workflow patterns)**: كم استدعاء، وبأي
+   شكل، وبأي بوابات: سلاسل، وتوجيه، و workers متوازية، و evaluators، وموجات، ومراحل.
+
+Lousho يعطيك الطبقتين الثانية والثالثة كآليات حقيقية (tools، وصلاحيات،
+وذاكرة، و sub-agents، و flows، و evaluators)، فتبقى تقنيات مستوى الـ prompt
+طبقة رفيعة من التعليمات فوقها.
+
+## تقنيات على مستوى الـ prompt
+
+كلها ترجع في النهاية إلى التعليمات وشكل الرسائل: `instructions` في
+`createAgent`، ودورات session مُعدّة مسبقًا، و schemas الـ `output`.
+
+| التقنية | ما هي | كيف تستخدمها في Lousho |
+| --------- | ---------- | ----------------------- |
+| Zero-shot | المهمة والقيود فقط، بدون أمثلة | الوضع الافتراضي: `instructions` |
+| Few-shot (التعلّم داخل السياق) | تعرض أزواج مدخلات/مخرجات فينسخ الـ model شكلها | ضع أزواج الأمثلة في `instructions`، أو جهّز دورات مسبقة عبر `agent.session().send()`: تبادل "user/assistant" مكتوب مسبقًا تكمله الدورة الحقيقية |
+| Chain-of-thought | "فكّر خطوة بخطوة" قبل الإجابة | تعليمات. والأفضل استخدام جهد `reasoning` حيث يدعمه الـ provider: tokens الاستدلال أنظف من مونولوج مطلوب في الـ prompt |
+| Self-consistency | تأخذ N إجابة وتختار رأي الأغلبية | N run مع خطوة تصويت (توزيع `parallel`/`llmCall` في flow، أو sub-agent لكل عيّنة) |
+| Tree/graph-of-thoughts | تستكشف بحثًا متفرعًا في مسارات الاستدلال | sub-agent لكل فرع، و aggregator يقارن بينها: نفس شكل التوزيع في [deep-research](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/deep-research) |
+| ReAct | تبادل بين الاستدلال والتنفيذ | حلقة الـ agent نفسها: كل حلقة tools في Lousho هي ReAct |
+| Reflexion | تنتقد المحاولة السابقة، ثم تعيد المحاولة مع هذا النقد | [evaluator-loop](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/evaluator-loop): ملاحظات `llmCritique` تُنقل إلى المسودة التالية |
+| Least-to-most | تحل المسألة الفرعية الأسهل أولًا، ثم تتدرج إلى الأصعب | تعليمات تقسّم المهمة إلى خطوات مرتبة، أو تسلسل `flows` |
+| Plan-and-solve / plan-and-execute | تكتب خطة، ثم تنفذها | `permissionMode: 'plan'`: الـ agent لازم يقدّم خطة قبل تشغيل أي tool كتابة؛ راجع [plan-mode](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/plan-mode) |
+| Skeleton-of-thought | مخطط أولًا، ثم توسيع كل نقطة (بالتوازي) | توزيع `task` على نقاط المخطط: شكل deep-research |
+| Self-ask | الـ model يسأل أسئلته اللاحقة ويجيب عنها بنفسه | تعليمات، أو flow صريح بـ `oneOf` يكرر sub-agent للتوضيح |
+| Generated knowledge | تطلب من الـ model ذكر الحقائق المتعلقة، ثم يجيب | `llmCall` أول يكتب في متغير، والـ prompt الثاني يُبنى من قالب يستخدمه |
+| Meta-prompting | model يكتب الـ prompt الذي يستخدمه استدعاء آخر | `llmCall` واحد يُخرج نص الـ prompt للخطوة التالية في متغير |
+| Persona / role | صياغة "أنت …" | `instructions`: اقصرها على النطاق والنبرة؛ الشخصيات لا تضيف معرفة |
+| Negative / constrained prompting | "لا تفعل X أبدًا"، وقيود على المخرجات | تعليمات للأسلوب؛ أما الفرض فمكانه [guardrails](/ar/guardrails) وقواعد الصلاحيات، لا الـ prompt |
+| Delimiters & instruction hierarchy | تمييز البيانات غير الموثوقة عن التعليمات | ضع نتائج الـ tools والبيانات بين علامات اقتباس في التعليمات؛ لكن حدّ الثقة الحقيقي هو قواعد الصلاحيات و `principal`: نتيجة tool عدائية لا تستطيع تجاوز قاعدة `deny` |
+| Scratchpad | تعطي الـ model مكانًا يكتب فيه ملاحظات العمل | خانة ذاكرة (tools `remember_*`/`recall_*`)، أو ملف في مجلد tools مساحة العمل، أو `.claude/scratchpad/` عبر `claudeProject()` |
+| Structured / constrained output | الإجابة لازم تطابق schema | `createAgent({ output: schema })`: مع validation، و typed، وإعادة محاولة عند فشل التحليل. راجع [المخرجات المنظمة](/ar/structured-output) |
+
+قاعدتان عمليتان:
+
+- التعليمات توجّه، والآليات تفرض. أي شيء لازم *ألا* يحدث أبدًا
+  (لا حذف، لا كتابة على الإنتاج) مكانه `permissions` و guardrails و tools،
+  لا الـ prompt.
+- التقنيات التي تستهلك tokens أكثر (self-consistency، والأشجار، والنقد) تستحق
+  تكلفتها حيث تكون الإجابة الخاطئة مكلفة؛ راقب `result.usage` / `limits`
+  وضع لها ميزانية مثل أي إنفاق آخر.
+
+## هندسة السياق
+
+العمليات الأربع، وأين تقع كل واحدة منها في الـ SDK:
+
+| العملية | ماذا تعني | الواجهة في Lousho |
+| --------- | ------------- | -------------- |
+| **الكتابة (Write)** | حفظ المعلومات خارج النص المتراكم للمحادثة حتى تعيد تحميلها دورة أو run لاحق | خانات الذاكرة (`defineMemory` ← tools `remember_*`/`recall_*`، بنطاق لكل مستخدم/مُرسل/run)، و stores الـ checkpoints والـ sessions، و `store: { dir }` في مجلدات الـ agents |
+| **الاختيار (Select)** | تحميل ما يهم الآن فقط | الـ skills (الكشف التدريجي عبر `load_skill`)، و `toolSearch`/`deferLoading` (tools يُعثر عليها عند الحاجة)، ونطاقات الذاكرة |
+| **الضغط (Compress)** | تصغير ما هو موجود أصلًا | `compaction` (تلخيص الدورات القديمة)، واقتطاع نتائج الـ tools، و `inputFilter` في الـ handoffs |
+| **العزل (Isolate)** | تشغيل العمل في سياق نظيف حتى لا تُغرق التفاصيل الـ agent الرئيسي | الـ sub-agents (استدعاءات `task` لا ترى إلا الـ prompt الخاص بها)، و code mode (`run_code` يرجع قيمة واحدة)، وحد `inputFilter` |
+
+```ts
+import { createAgent, loadSkills } from '@lousho/build-ai-agent';
+import { mockModel } from '@lousho/build-ai-agent/testing';
+
+const provider = mockModel([{ text: 'done' }]);
+const researchAgent = createAgent({ provider, instructions: 'You research one slice.' });
+
+const agent = createAgent({
+  provider,
+  instructions: 'You triage inbound email.',
+  skills: await loadSkills('./skills'),             // select: bodies load on demand
+  toolSearch: { thresholdPercent: 0.1 },            // select: big tool surface stays deferred
+  compaction: { summarizer: 'openai/gpt-4o-mini' }, // compress: old turns fold into a summary
+  subagents: { researcher: researchAgent },         // isolate: task runs in a clean context
+});
+```
+
+الترتيب العملي: اكتب الحقائق الدائمة في الذاكرة، واختر الـ skills والـ tools
+عند الحاجة، واضغط النص المتراكم للمحادثة لما يكبر، واعزل كل شيء يستهلك
+tokens كثيرة (نتائج البحث الكاملة، وقراءة الملفات، ومخرجات العمليات الفرعية)
+خلف sub-agent أو tool يرجع خلاصة.
+
+## أنماط سير العمل الوكيلية
+
+الأشكال المعتمدة (تصنيف Anthropic في "building effective agents") والمصطلحات
+التي سمّى بها المجتمع اثنين منها، وكلها قابلة للتشغيل في المستودع:
+
+| النمط | الشكل | المثال في Lousho |
+| ------- | ----- | -------------- |
+| Prompt chaining | خطوة ← خطوة ← خطوة، كل واحدة استدعاء | تسلسلات `flows` (`llmCall` ← `llmCall`) |
+| Routing | صنّف، ثم وزّع على متخصص | [workflow-router](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/workflow-router)؛ والنسخة المتينة: handoffs في [support-desk](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/support-desk) |
+| Parallelization | N استدعاء في نفس الوقت، ثم دمج النتائج | استدعاءات `task` متوازية (`toolConcurrency` غير محدود افتراضيًا) |
+| Orchestrator-workers | agent رئيسي يقسّم العمل، و workers ينفذونه | [deep-research](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/deep-research) |
+| Evaluator-optimizer | حلقة مسودة ← تقييم ← مراجعة | [evaluator-loop](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/evaluator-loop) (`llmCritique`) |
+| **Wave engineering** | موجات محدودة من workers متوازية مع بوابة تحقق وتوسيع محدود النطاق (WAVES: Workers · Aggregate · Verify · Extend) | [waves](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/waves) |
+| **Phase engineering** | خطوط مراحل حتمية (spec ← plan ← implement ← verify) لا يستطيع الـ model تخطيها، مع بوابات أوامر إثبات | [phase-pipeline](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/phase-pipeline) (flows مع خطوات إثبات حقيقية) |
+| Autonomous loop | حلقة tools مفتوحة حتى الانتهاء | حلقة الـ agent الافتراضية، محدودة بـ `maxSteps` و `limits` والصلاحيات |
+| Handoffs | التحكم ينتقل بالكامل إلى متخصص | [support-desk](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/support-desk)، و [handoffs](/ar/handoffs) |
+
+### قرارات typed (بأسلوب "System One")
+
+بعض الخطوات لا يفترض أن تولّد نصًا أصلًا، بل أن *تقرّر*: تصنّف، توجّه، تقيّم،
+تتحقق. النمط هنا قرار احتمالي typed: حالة غير منظمة تدخل، و `{ action,
+confidence }` يخرج، وسير العمل يتفرع بناءً عليه. في Lousho هذا agent مع
+schema لـ `output` يغذي `oneOf` في flow، مع حد أدنى للثقة يوجّه الاستدعاءات
+منخفضة الثقة إلى إنسان بدل التصرف بناءً على تخمين:
+
+```ts
+const triage = createAgent({
+  provider,
+  output: z.object({
+    action: z.enum(['patch', 'ask-human', 'wontfix']),
+    confidence: z.number(),
+    reason: z.string(),
+  }),
+});
+// in the flow: oneOf on result.object.action,
+// and confidence < 0.7 routes to a human queue rather than acting.
+```
+
+[coding-agent-workflows](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/coding-agent-workflows)
+هو المثال الكامل: coding agent يقوده سير عمل حتمي نقاط تفرّعه قرارات typed،
+وحين تكون الثقة تحت الحد الأدنى يخرج بـ `needs-human` بدل تطبيق patch.
+
+وعلى OpenAI يوجد أيضًا مسار سريع مخصص: [`decide()`](/ar/decisions)
+يستدعي Decisions API، الذي يرجع نفس الأشكال الثلاثة (احتمال predicate،
+واختيار مع توزيع احتمالات، ودرجة rubric) في استدعاء واحد، أسرع بحوالي
+10 مرات من دورة agent وبدون أي نص مولَّد.
+
+## إلى أين بعد ذلك
+
+- [المخرجات المنظمة](/ar/structured-output)، و [evals](/ar/evals)
+  (`llmJudge`، `llmCritique`) لأدوات القرار والتقييم الأساسية
+- [Flows](/ar/flows) لخطوط العمل الحتمية وبوابات المراحل
+- [Sub-agents](/ar/sub-agents) و [handoffs](/ar/handoffs) لأنماط التوازي
+  ونقل التحكم
+- [الذاكرة](/ar/memory)، و [ضغط السياق](/ar/compaction)، و [skills](/ar/skills)،
+  و [tool search](/ar/tool-search) لطبقة السياق
+- [Approvals](/ar/approvals) و [guardrails](/ar/guardrails) للبوابات
+  التي تُبقي الاستقلالية المحدودة آمنة

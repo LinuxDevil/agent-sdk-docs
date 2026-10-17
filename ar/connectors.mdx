@@ -1,8 +1,85 @@
 ---
-title: "Connectors"
+title: "الموصِّلات (Connectors)"
 ---
+{/* Generated from docs/connectors.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-{/* pending-translation */}
-<Note>
-هذه الصفحة لم تُترجَم إلى العربية بعد. اقرأ [النسخة الإنجليزية](/connectors).
-</Note>
+الـ connectors (الموصِّلات) هي طريقة الـ agent للوصول إلى خدمات خارجية، مثل Google Docs و Slack
+و GitHub و Notion أو قاعدة بيانات، بنفس طريقة connectors في Claude. في Lousho الـ
+connector هو **MCP server**: أضِفه إلى `mcpServers` فتنضم tools الخاصة به إلى
+registry الـ agent بأسماء ضمن namespace على شكل `<server>__<tool>`.
+
+```ts
+import { createAgent } from '@lousho/build-ai-agent';
+
+const agent = createAgent({
+  model: 'openrouter/openai/gpt-4o-mini',
+  mcpServers: {
+    slack: { url: 'https://mcp.slack.com/mcp', oauth: { redirectUri: 'https://app.example.com/oauth/callback' } },
+    github: { url: 'https://api.githubcopilot.com/mcp/', headers: { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` } },
+  },
+});
+```
+
+## شكلان
+
+- **بعيد (HTTP)**: `{ url, headers?, oauth? }`. هذا هو حال Google Docs
+  و Slack و Notion ومعظم الـ connectors على طريقة Claude: نقطة MCP مستضافة.
+- **محلي (stdio)**: `{ command, args?, env? }`. connectors من المجتمع أو مبنية داخليًا
+  وتُوزَّع كحزم npm: `{ command: 'npx', args: ['-y', 'their-mcp-server'] }`.
+
+المرجع الكامل للخيارات في [MCP](/ar/mcp-integration)؛ ومسار تسجيل الدخول بـ OAuth في
+[OAuth](/ar/oauth#خوادم-mcp-مع-oauth).
+
+## المصادقة
+
+- **connectors بـ OAuth** (Slack و Google Docs و Notion): اضبط `oauth` في مدخل
+  الـ server. *مشغِّل* واحد يسجّل دخول الـ agent مرة واحدة عبر
+  `agent.oauth.mcpSignInUrl('slack')`؛ والتفويض ملك للتطبيق وكل
+  run يعيد استخدامه. و`store` للـ tokens على `createAgent` يحفظ التفويضات بشكل دائم.
+- **connectors بـ token** (GitHub PAT، والـ APIs الداخلية): مرّر header ثابتًا
+  `Authorization`؛ واحتفظ بالـ token في متغيرات البيئة، لا في الكود المصدري أبدًا.
+- **connectors بـ stdio**: الأسرار توضع في `env`، مثلًا
+  `{ command: 'npx', args: [...], env: { GITHUB_TOKEN: process.env.GITHUB_TOKEN! } }`.
+
+## الموافقة على عمليات الكتابة عبر الـ connectors
+
+القراءة يجب أن تمرّ بحرية؛ والكتابة يجب أن تطلب الإذن. افتراضيًا كل MCP tool تطلب approval
+(`approval: 'always'`). الـ MCP tools تحمل annotations مثل `readOnlyHint`/`destructiveHint`،
+و`approval: 'annotations'` على server تثق به يحوّلها إلى بوابة الـ approval
+في الـ SDK: استدعاء `slack.post_message` يوقف الـ run مؤقتًا حتى تتم
+الموافقة، أما `docs.get_document` فلا. اضبطها لكل server:
+
+```ts
+import { createAgent } from '@lousho/build-ai-agent';
+import { mockModel } from '@lousho/build-ai-agent/testing';
+
+const provider = mockModel([{ text: 'ok' }]);
+
+const agent = createAgent({
+  provider,
+  mcpServers: {
+    slack: {
+      url: 'https://mcp.slack.com/mcp',
+      // Ask before any write, never before reads whose server marked them read-only.
+      approval: 'annotations', // trust the server's hints (default 'always'); or ({ name }) => !name.startsWith('search')
+    },
+    scratch: { command: 'node', args: ['./local.js'], approval: 'never' },
+  },
+});
+```
+
+[قواعد الصلاحيات](/ar/approvals#سياسات-الصلاحيات) تقدر تضبط tools الـ connectors
+أيضًا: مطابِقات `mcp.slack.*` تنطبق على أسماء الـ tools ضمن الـ namespace.
+
+## جرّبه بدون اتصال
+
+[examples/connectors](/ar/examples/connectors) يشغّل النمط كاملًا على
+MCP server وهمي عبر stdio (مكتوب بـ `serveMcp`): tools مزيّفة `docs_*`/`slack_*`،
+بدون بيانات اعتماد، وبتبادل MCP حقيقي. استبدل مدخل `mcpServers` بنقطة
+حقيقية ولن يتغيّر شيء آخر.
+
+## تقديم connector خاص بك
+
+`serveMcp()` (راجع [MCP](/ar/mcp-integration#تشغيل-agent-كسيرفر-mcp)) يعرض agent
+أو مجموعة tools معرّفة بـ `defineTool()` كـ MCP server عبر stdio/HTTP، وبهذه الطريقة
+*يصبح* agent من Lousho connector لـ Claude Code أو لأي harness آخر.
