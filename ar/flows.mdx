@@ -1,18 +1,18 @@
 ---
 title: "Flows"
 ---
-
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/flows).
-</Warning>
-
 {/* Generated from docs/flows.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 الـflow هو سير عمل ثابت من عدة خطوات، يشغّله agent واحد. تكتب الخطوات وترتيبها مسبقاً، بدل ما تترك القرار للـmodel. صف الـgraph بـ`FlowBuilder`، وشغّله بالدالة static `FlowExecutor.execute(flow, context, onEvent?)`.
 
 ```ts
 import { FlowBuilder, FlowExecutor, type EditorStep } from '@lousho/build-ai-agent/flows';
+import { resolveProvider, type AgentConfig } from '@lousho/build-ai-agent';
+
+// A flow calls an LLMProvider directly (reads OPENAI_API_KEY).
+const provider = resolveProvider('openai/gpt-4o-mini');
+// A plain agent config: `prompt` is every llmCall's system message.
+const agent: AgentConfig = { name: 'triage', prompt: 'You are a support triager.' };
 
 // FlowBuilder is a metadata builder: setCode/setName/setInputs/setFlow(...).build().
 // EditorStep covers every node type FlowExecutor runs ('sequence', 'llmCall',
@@ -33,8 +33,21 @@ const flow = new FlowBuilder()
   .build();
 
 // FlowExecutor is a static API too: execute(flow, context, onEvent?)
-const result = await FlowExecutor.execute(flow, { agent, provider, variables: { message: input } });
+const result = await FlowExecutor.execute(flow, { agent, provider, variables: { message: 'My invoice is wrong' } });
 ```
+
+الـmodel الذي تستخدمه خطوة `llmCall` هو الـ`model` الخاص بها، وإلا فـ`settings.model` الخاص بالـagent، وإلا فالـmodel الافتراضي للـprovider (`gpt-4o-mini` في المثال أعلاه). كلا الإعدادين هو معرّف الـmodel المجرّد لدى الـprovider، مثل `'gpt-4o'`، ويُمرَّر إلى `provider.generate()` كما هو: ليس spec بصيغة `'openai/gpt-4o'`، فهذه الصيغة يقرؤها فقط `resolveProvider()` و`createAgent({ model })`. خطوة `llmCall` ترجّع نص الرد، وليس لها خيار structured output (schema). إذا أردت نتيجة typed، حلّل النص في خطوة لاحقة، أو استدعِ كـtool agentاً له structured output (راجع [تشغيل agent داخل flow](#تشغيل-agent-داخل-flow)).
+
+### قيم القوالب
+
+الـplaceholder بصيغة `{{name}}` داخل prompt، أو رسالة `throw`، أو argument لـtool، يُستبدل بنص المتغير:
+
+- الـstring يُستخدم كما هو؛ والرقم أو الـboolean يصبح نصه (`0` يصبح `'0'`)؛ والمتغير غير المضبوط، أو الذي قيمته `null`، يصبح `''`.
+- الكائن الذي حقله الوحيد `text` (نتيجة [MCP tool](/ar/mcp-integration)، أي `{ text }`) يصبح ذلك النص، وكذلك نتيجة MCP الخام (`{ content: [{ type: 'text', text }] }`، وتُجمع أجزاؤها النصية مفصولة بأسطر جديدة).
+- أي كائن أو مصفوفة أخرى تصبح JSON الخاص بها، فنتيجة `toolCall` المخزّنة في `outputVariable` تظهر في الـprompt التالي كـ`{"city":"Oslo","temp":4}`، لا كـ`[object Object]`.
+- المسار المنقّط يقرأ داخل كائن أو مصفوفة: `{{weather.city}}`، `{{results.0.title}}`. تُقرأ الخصائص الخاصة بالكائن نفسه فقط (`{{res.constructor}}` تعطي `''`)، وأي جزء مفقود في المسار يعطي `''`.
+
+خطوة `evaluator` تخزّن نتيجتها في `outputVariable` أيضاً، مثل `llmCall` و`toolCall`.
 
 ## أنواع العُقد
 
@@ -43,17 +56,214 @@ const result = await FlowExecutor.execute(flow, { agent, provider, variables: { 
 | `type` | ما يفعله |
 | ------ | ------------ |
 | `sequence` | يشغّل خطوات `steps` واحدة تلو الأخرى. |
-| `parallel` | يشغّل خطواته في نفس الوقت. |
-| `llmCall` | يستدعي الـmodel بـ`prompt` فيه placeholders بصيغة `{{variable}}`، و`outputVariable` يخزّن الرد. |
-| `toolCall` | يستدعي tool بالـ`arguments` (تتعوّض الـplaceholders فيها). |
+| `parallel` | يشغّل خطواته في نفس الوقت. إذا فشلت واحدة، تُلغى البقية (راجع [إلغاء الـflow](#إلغاء-الـflow)). |
+| `llmCall` | يستدعي الـmodel بـ`prompt` فيه placeholders بصيغة `{{variable}}` (راجع [قيم القوالب](#قيم-القوالب))، و`outputVariable` يخزّن نص الرد. |
+| `toolCall` | يستدعي tool بالـ`arguments` (تتعوّض الـplaceholders فيها؛ راجع [قيم الـarguments](#قيم-الـarguments)). |
 | `setVariable` | يضبط `variable` على `value`. |
 | `oneOf` | يأخذ أول فرع يتحقق شرطه. |
-| `forEach` | يشغّل خطوة لكل عنصر في `items`، بالتتابع. |
-| `evaluator` | يقيّم تعبيراً على متغيرات الـflow. |
+| `forEach` | يشغّل خطوة لكل عنصر في `items`، بالتتابع. العنصر والفهرس (`itemVariable`، والافتراضي `item`؛ و`indexVariable`، والافتراضي `index`) يخصّان تلك الدورة من الحلقة فقط، فالحلقات في فروع `parallel` لا ترى عناصر بعضها أبداً؛ أما المتغيرات الأخرى التي تضبطها الخطوة فتُكتب في متغيرات الـflow. |
+| `evaluator` | يقيّم تعبيراً على متغيرات الـflow؛ و`outputVariable` يخزّن النتيجة. |
 | `return`، `end` | يرجّعان `value` الخاصة بالعقدة كنتيجة. |
 | `throw` | يفشّل الـflow بالـ`message` الخاصة بالعقدة (تتعوّض فيها الـ`{{variable}}` placeholders؛ والافتراضي `'Flow error'`). |
 
 شروط `oneOf` وتعبيرات `evaluator` تمر على لغة تعبيرات صغيرة وآمنة: لا `eval` ولا كود host. اللغة تربط الـ`{{name}}` placeholders كقيم، ولا تلصقها في نص التعبير. قواعدها النحوية وقواعد فشلها في [تعبيرات الـflow](#تعبيرات-الـflow).
+
+## استدعاءات الـtool
+
+خطوة `toolCall` تمر بنفس الفحوصات التي يمر بها استدعاء tool في run للـagent قبل أن تعمل الـtool:
+
+- الـarguments، بعد تعويض الـ`{{variable}}`، تُتحقَّق مقابل الـinput schema الخاص بالـtool. الـarguments التي لا تطابق تفشّل الخطوة بـ`LOUSHO_TOOL_ARGS_INVALID`، مع قائمة بكل مشكلة، ولا تُستدعى الـtool.
+- الـ`permissions` و`permissionMode` و`onPermissionDecision` في context الـflow تنطبق كما تنطبق في `createAgent()` (راجع [سياسات الصلاحيات](/ar/approvals#سياسات-الصلاحيات) و[أوضاع الصلاحيات](/ar/permission-modes)).
+- الاستدعاء الذي يحتاج approval (عبر `needsApproval` الخاص بالـtool، أو قاعدة `ask`) يحسمه الـcallback `approve` في الـcontext، وله نفس شكل `createAgent({ approve })`. القيمة `true` (أو ملاحظة) تشغّل الـtool. و`false` ترفضها بـ`LOUSHO_FLOW_TOOL_DENIED`. لما يرجّع `approve` القيمة `'defer'`، أو لا يوجد callback `approve` أصلاً، يتوقف [الـrun المتين](#الـruns-المتينة) حتى يقرر شخص ما (راجع [الإيقاف بانتظار الموافقة](#الإيقاف-بانتظار-الموافقة)). أما الـrun غير المتين فيرفض الاستدعاء بـ`LOUSHO_FLOW_TOOL_DENIED`. الـtool لا تعمل أبداً دون approval.
+
+```ts
+import { FlowExecutor, type AgentFlow } from '@lousho/build-ai-agent/flows';
+
+declare const flow: AgentFlow;
+
+const result = await FlowExecutor.execute(flow, {
+  agent,
+  provider,
+  toolRegistry,
+  variables: { invoiceId: 'inv-1' },
+  approve: ({ toolName, args }) => toolName !== 'pay_vendor' || Number(args.amount) < 1000,
+});
+```
+
+### قيم الـarguments
+
+الـargument الذي يكون string عبارة عن placeholder واحد بالضبط، `'{{name}}'` أو `'$name'`، يمرّر قيمة المتغير كما هي: الرقم يبقى رقماً، والكائن يبقى كائناً؛ و`'{{res.count}}'` يمرّر قيمة ذلك الحقل. فـ`arguments: { n: '{{n}}' }` مع `n = 5` يمرّر `5` إلى tool الـschema الخاص بها `z.number()`. وهذا ينطبق أيضاً داخل المصفوفات والكائنات المتداخلة. أي string آخر يُعوَّض كنص: `'n is {{n}}'` يصبح `'n is 5'`. والـplaceholder لمتغير غير مضبوط يبقى كما كان سابقاً: `'{{missing}}'` يصبح `''`، و`'$USD'` (لا يوجد متغير اسمه `USD`) يبقى الـstring الحرفي `'$USD'`.
+
+```ts
+import type { EditorStep } from '@lousho/build-ai-agent/flows';
+
+// With variables { count: 5, tags: ['a', 'b'] }, the tool gets { count: 5, tags: ['a', 'b'], note: 'count: 5' }.
+const step: EditorStep = {
+  type: 'toolCall',
+  tool: 'create_batch',
+  arguments: { count: '{{count}}', tags: '$tags', note: 'count: {{count}}' },
+};
+```
+
+الـinputs المعلنة للـflow تُفحص قبل أن تعمل الخطوة الأولى. الـinput المطلوب (`required`) المفقود، أو القيمة ذات النوع الخاطئ، يفشّل الـflow بـ`LOUSHO_VALIDATION_FAILED`.
+
+## إلغاء الـflow
+
+مرّر `signal` في الـcontext لتلغي الـrun. يُفحص قبل كل خطوة: بمجرد أن يُلغى (aborted)، لا تبدأ أي خطوة أخرى ويفشل الـflow بالـ`reason` الخاص بالـsignal. والخطوة الجارية تستلم الـsignal أيضاً: `llmCall` يمرّره إلى طلب الـmodel، و`toolCall` يسلّمه للـtool كـ`ctx.abortSignal`.
+
+```ts
+import { FlowExecutor, type AgentFlow } from '@lousho/build-ai-agent/flows';
+
+declare const flow: AgentFlow;
+
+const result = await FlowExecutor.execute(flow, {
+  agent,
+  provider,
+  variables: {},
+  signal: AbortSignal.timeout(30_000),
+});
+```
+
+لما يفشل فرع في خطوة `parallel`، تُلغى الفروع الشقيقة بنفس الطريقة: لا تبدأ أي خطوة أخرى، و`llmCall` أو `toolCall` الجاري فيها يستلم signal ملغى. الـflow يرجّع خطأ الفرع الأول فقط بعد أن تستقر كل الفروع، فلا تعمل أي tool ولا يُضاف أي event إلى `result.events` بعد إرجاع النتيجة. الـtool التي تتجاهل `ctx.abortSignal` تكمل حتى النهاية، والـflow ينتظرها.
+
+`result.usage` يجمع استهلاك الـmodel (`promptTokens`، `completionTokens`، `totalTokens`، و`cachedInputTokens`، `reasoningTokens`، `costUsd` لما تُبلَّغ) لكل `llmCall` في الـrun، بما فيها الفاشلة.
+
+الخطوة التي ليس لها `id` تأخذ واحداً فريداً داخل الـrun (`step-1`، `step-2`، ... بترتيب بدء الخطوات)، لتتمكن من مطابقة events الـ`step-start` والـ`step-complete` عبر `stepId`.
+
+## إعادة المحاولة وحدود الوقت
+
+أي عقدة يمكن أن يكون لها `retry` و`timeoutMs`. هذا يشمل `llmCall` و`toolCall` و`sequence` و`parallel` و`forEach`.
+
+- `retry: { maxAttempts, backoffMs? }` يعيد تشغيل العقدة الفاشلة، حتى `maxAttempts` محاولة إجمالاً. ينتظر `backoffMs * 2^(attempt - 1)` ms قبل كل إعادة (الافتراضي `0`). كل محاولة فاشلة تُعاد تُطلق event `step-retry` فيه `{ attempt, maxAttempts, delayMs }` والـ`error` الخاص بالمحاولة. فقط الفشل الأخير يُطلق `step-error`. الـrun الملغى (`signal`) لا يُعاد، ولا يُعاد فشل الـmodel الذي لا تصلحه إعادة المحاولة (راجع أدناه).
+- `timeoutMs` يفشّل المحاولة التي تتجاوز المدة بـ`LOUSHO_OPERATION_TIMEOUT` (وهو `TimeoutError`). طلب الـmodel أو استدعاء الـtool في تلك المحاولة يستلم signal ملغى. والمحاولة التي انتهت مهلتها تُعاد مثل أي فشل آخر. الـtool التي تتجاهل `ctx.abortSignal` تستمر في العمل في الخلفية.
+
+خطوة `llmCall` التي يفشل طلب الـmodel فيها تفشل بنفس `CompactedLLMProviderError` الذي يُرفض به run الـagent، لا بالخطأ الخام من الـSDK الخاص بالـprovider: الـ`code` هو `LOUSHO_PROVIDER_RATE_LIMITED` عند 429 و`LOUSHO_PROVIDER_REQUEST_FAILED` في غير ذلك، و`compacted` يحمل `{ error, category, retryable, statusCode?, providerName? }`. الفشل الذي فيه `retryable: false` (مثل `'auth-failure'` كـ401 أو API key غير صالح، أو `'quota-exceeded'`، أو `'context-length-exceeded'`) يفشّل الخطوة فوراً، دون استهلاك محاولات `retry` المتبقية؛ أما الـrate limit أو الـtimeout أو أخطاء 5xx فتُعاد.
+
+القيم غير الصالحة (`maxAttempts` أقل من 1 أو ليس عدداً صحيحاً، أو `backoffMs` سالب، أو `timeoutMs` &lt;= 0) تفشّل الخطوة بـ`LOUSHO_FLOW_INVALID`.
+
+```ts
+import type { EditorStep } from '@lousho/build-ai-agent/flows';
+
+const fetchInvoice: EditorStep = {
+  type: 'toolCall',
+  tool: 'fetch_invoice',
+  arguments: { id: '{{invoiceId}}' },
+  outputVariable: 'invoice',
+  retry: { maxAttempts: 3, backoffMs: 500 },
+  timeoutMs: 10_000,
+};
+```
+
+الـcontainer الذي يُعاد يشغّل أبناءه من جديد. الاستثناء هو الـrun المتين (أدناه): فيه تُتخطّى الأبناء التي اكتملت في محاولة سابقة.
+
+## الـruns المتينة
+
+مرّر `checkpointStore` و`runId` لتجعل الـrun متيناً (durable). متغيرات الـrun، والعُقد التي اكتملت (مع نتائجها)، والفرع الذي أخذه كل `oneOf`، والاستهلاك حتى الآن، تُحفظ تحت `runId` بعد كل عقدة تكتمل، ومرة أخرى لما ينتهي الـflow. والـrun الجديد يُحفظ أيضاً مرة واحدة قبل خطوته الأولى (بعد فحص الـinputs)، فحتى الـrun الذي تفشل خطوته الأولى يمكن استئنافه. أي `CheckpointStore` يعمل، مثل `memoryStore().checkpoints` أو store مبني على SQLite (راجع [التنفيذ المتين](/ar/durable-execution)).
+
+بعد crash، أو لما تفشل خطوة، أكمل الـrun بـ`FlowExecutor.resume(flow, context)`. مرّر نفس `checkpointStore` و`runId`. العُقد المكتملة لا تُشغَّل مرة أخرى: كل واحدة ترجّع نتيجتها المحفوظة، و`oneOf` يأخذ الفرع الذي أخذه سابقاً. كل ما عدا ذلك يعمل كالمعتاد، انطلاقاً من المتغيرات المحفوظة. `result.usage` و`result.steps` يشملان المحاولات السابقة.
+
+```ts
+import { FlowExecutor, type AgentFlow } from '@lousho/build-ai-agent/flows';
+import { memoryStore } from '@lousho/build-ai-agent';
+
+declare const flow: AgentFlow;
+const checkpointStore = memoryStore().checkpoints;
+
+const first = await FlowExecutor.execute(flow, { agent, provider, toolRegistry, variables: { orderId: 'o-42' }, checkpointStore, runId: 'order-o-42' });
+if (!first.success) {
+  // Fix the cause, then continue where it stopped.
+  const result = await FlowExecutor.resume(flow, { agent, provider, toolRegistry, checkpointStore, runId: 'order-o-42' });
+}
+```
+
+- العقدة تُعرَّف بموقعها في الـflow، لا بالـ`id` الخاص بها. استأنف الـrun بنفس الـflow الذي بدأه. الاستئناف بـflow له `code` مختلف يُرفض بـ`LOUSHO_CONFIG_INVALID`. الـrun يحفظ أيضاً بنية الـflow (نوع كل عقدة، و`id`، والـtool أو الـagent، وترتيبها)؛ والاستئناف بنفس الـ`code` لكن مع خطوات أُضيفت أو حُذفت أو نُقلت يُرفض بـ`LOUSHO_FLOW_CHANGED`، لأن النتائج المحفوظة ستقع على الخطوات الخطأ. تعديل prompt أو شرط أو أي إعداد آخر يبقي البنية كما هي. الـruns المحفوظة قبل هذا الفحص تُستأنف بدونه.
+- استئناف run منتهٍ يرجّع نتيجته المحفوظة بلا events، ولا يشغّل شيئاً. `execute()` مع `runId` لـrun منتهٍ يبدأ run جديداً. و`execute()` مع `runId` لـrun لم ينتهِ يُرفض بـ`LOUSHO_CONFIG_INVALID`؛ استأنفه بدلاً من ذلك، أو استخدم `runId` جديداً.
+- الـrun الذي ليس له checkpoint يُرفض بـ`LOUSHO_CHECKPOINT_NOT_FOUND`. والـrun الذي كانت inputs المعلنة فيه غير صالحة لم يحفظ أي checkpoint: استدعِ `execute()` مرة أخرى بـinputs صالحة.
+- استدعاء واحد فقط يشغّل `runId` معيّناً في كل مرة. طوال عمل `execute()` أو `resume()`، يمسك run lease على الـ`runId` في الـstore، وهو نفس الـlease الذي يأخذه run الـagent (راجع [التنفيذ المتين](/ar/durable-execution)). أي `execute()` أو `resume()` آخر لنفس الـ`runId` يُرفض بـ`LOUSHO_SESSION_BUSY`، ولا يشغّل شيئاً. هذا ينطبق في نفس الـprocess، وفي process أو replica أخرى على نفس الـstore، وعبر كائن store آخر فوق نفس البيانات. الـlease يتجدد أثناء عمل خطوة طويلة، ويُحرَّر لما يرجع الاستدعاء. إذا مات الـprocess الذي يمسكه، ينتهي الـlease (خلال 60 ثانية على الأكثر)، وعندها يمكن استئناف الـrun. الـ`CheckpointStore` المخصص الذي ليس فيه `acquireLease` يعمل بدون leases.
+- العقدة المكتملة لا تُتخطّى إلا بعد حفظ الـcheckpoint الخاص بها، والـevent `step-complete` الخاص بها يُطلق بعد ذلك الحفظ، فالخطوة التي أُبلغ عن اكتمالها لا تُشغَّل مرة أخرى أبداً عند الاستئناف. أما العقدة التي انقطعت أثناء عملها (`llmCall` أو `toolCall`) فتعمل من جديد، لذلك اجعل الـtools ذات الآثار الجانبية idempotent.
+- المتغيرات ونتائج العُقد يجب أن تنجو من `structuredClone`، فلا دوال ولا instances لـclasses.
+- عنصر وفهرس دورة `forEach` لا يُحفظان. الدورة المنقطعة تعمل من جديد بعنصرها. والدورات المكتملة تُتخطّى.
+
+`result.status` قيمته `'completed'` أو `'failed'` أو `'awaiting-approval'` (راجع أدناه).
+
+### الإيقاف بانتظار الموافقة
+
+في الـrun المتين، خطوة `toolCall` التي تحتاج approval توقف الـflow لما يرجّع `approve` القيمة `'defer'` أو لا يوجد callback `approve`. الـtool لا تعمل. يُحفظ الـrun بالحالة `'awaiting-approval'`، ويرجّع `execute()` (أو `resume()`):
+
+- `status: 'awaiting-approval'` و`success: false`، بدون `error`
+- `approvalId`: المعرّف الذي يجب اتخاذ القرار بشأنه
+- `pendingApproval`: `{ approvalId, nodeId, toolName, args }`، وهو الاستدعاء المنتظر للقرار
+
+الإيقاف ليس فشلاً، فلا يُطلق `step-error` ولا `flow-error` ولا يُعاد. إذا كانت الخطوة المتوقفة داخل عقدة `parallel`، تُلغى الفروع الشقيقة. الخطوات التي أكملتها تُحفظ، والباقي يعمل من جديد عند الاستئناف.
+
+للمتابعة، مرّر القرار إلى `resume()`:
+
+```ts
+import { FlowExecutor, type AgentFlow } from '@lousho/build-ai-agent/flows';
+import { memoryStore } from '@lousho/build-ai-agent';
+
+declare const flow: AgentFlow;
+const checkpointStore = memoryStore().checkpoints;
+
+const paused = await FlowExecutor.execute(flow, {
+  agent, provider, toolRegistry, variables: { amount: '900.00' }, checkpointStore, runId: 'payout-7',
+  approve: ({ args }) => (Number(args.amount) < 100 ? true : 'defer'),
+});
+if (paused.status === 'awaiting-approval') {
+  // later, once a person decided (in another process too):
+  const result = await FlowExecutor.resume(flow, {
+    agent, provider, toolRegistry, checkpointStore, runId: 'payout-7',
+    approval: { approvalId: paused.approvalId!, approved: true },
+  });
+}
+```
+
+ما يفعله كل قرار:
+
+- **الموافقة:** الخطوة المتوقفة تشغّل الـtool بالـarguments المحفوظة، ولا يُسأل `approve` مرة أخرى.
+- **الرفض:** الخطوة تفشل بـ`LOUSHO_FLOW_TOOL_DENIED`، تماماً كما لو رجّع `approve` القيمة `false`.
+- **يُستخدم مرة واحدة:** بعد استئناف واحد، لا ينتظر الـrun تلك الموافقة بعد الآن. أي استئناف لاحق يشغّل الخطوة من جديد، فيحتاج قراراً جديداً.
+
+استدعاءات الاستئناف هذه تُرفض:
+
+- استئناف run متوقف بدون `approval`: `LOUSHO_SESSION_AWAITING_APPROVAL`.
+- استئناف بـ`approvalId` مختلف، أو بموافقة لـrun غير متوقف: `LOUSHO_APPROVAL_NOT_FOUND`.
+
+موافقات الـflow لا تظهر في الـapproval store الخاص بالـagent. احتفظ بالـ`approvalId` (أو اقرأ `checkpoint.flow.pendingApproval` من الـstore) لتتخذ القرار لاحقاً.
+
+## تشغيل agent داخل flow
+
+خطوات الـflow تعمل تحت config الـ`agent` البسيط في الـcontext (`{ name, prompt?, settings }`). تمرير agent مبني بـ`createAgent()` كـ`context.agent` يُرفض بـ`LOUSHO_CONFIG_INVALID`. لتشغيل agent من `createAgent()` كخطوة واحدة، سجّل tool تستدعي `agent.send()`، واستدعِ تلك الـtool في خطوة `toolCall`:
+
+```ts
+import { z } from 'zod';
+import { createAgent } from '@lousho/build-ai-agent';
+import { FlowExecutor, type AgentFlow } from '@lousho/build-ai-agent/flows';
+import { ToolRegistry } from '@lousho/build-ai-agent/tools';
+
+const researcher = createAgent({ name: 'researcher', model: 'openai/gpt-4o-mini', instructions: 'Answer with three facts.' });
+
+const toolRegistry = new ToolRegistry();
+toolRegistry.register('research', {
+  displayName: 'Research',
+  tool: {
+    description: 'Asks the researcher agent a question',
+    parameters: z.object({ question: z.string() }),
+    execute: async ({ question }: { question: string }) => (await researcher.send(question)).text,
+  },
+});
+
+const flow: AgentFlow = {
+  code: 'report',
+  name: 'Report',
+  flow: { type: 'toolCall', tool: 'research', arguments: { question: 'What is {{topic}}?' }, outputVariable: 'facts' },
+};
+const result = await FlowExecutor.execute(flow, { agent: { name: 'report' }, provider, toolRegistry, variables: { topic: 'WebAssembly' } });
+```
+
+الـagent يعمل بالـmodel والـtools والـapprovals الخاصة به. استهلاكه موجود في نتيجة `send()`، لا في `result.usage` الخاص بالـflow. لاستدعاء model واحد بلا tools، خطوة `llmCall` أبسط.
+
+نوع العقدة `step` (`StepNode`، أي `{ type: 'step', agent, input }`) هو شكل تنتجه المحررات المرئية. `FlowExecutor` لا يشغّله: الـflow الذي يصل إلى عقدة منه يفشل بـ`LOUSHO_FLOW_INVALID`.
 
 ## flow أم sub-agent أم skill؟
 

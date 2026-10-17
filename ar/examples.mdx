@@ -3,11 +3,6 @@ title: "أمثلة"
 description: "أمثلة جاهزة للتشغيل من مستودع الـ SDK. معظمها يشتغل على mock provider مدمج، فلا تحتاج مفتاح API."
 ---
 
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/examples).
-</Warning>
-
 الأمثلة موجودة في مجلد [`examples/`](https://github.com/LinuxDevil/agent-sdk/tree/main/examples) داخل مستودع الـ SDK. اعمل clone للمستودع، ثبّت الاعتماديات، وشغّل أي مثال بالأمر المكتوب بجانبه:
 
 ```bash
@@ -32,6 +27,11 @@ npm install
 | [evaluator-loop](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/evaluator-loop) | نمط الكاتب/الناقد: `llmCritique()` يقيّم المسودة، والكاتب يراجعها حسب ملاحظاته حتى تنجح | `npm run example:evaluator-loop` |
 | [data-analyst](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/data-analyst) | تحويل نص إلى SQL فوق `node:sqlite` مع فرض قراءة-فقط على أكثر من طبقة — `DELETE`/`DROP` مستحيل تشتغل | `npm run example:data-analyst` |
 | [plan-mode](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/plan-mode) | coding agent يقرأ ويقترح في وضع `plan`، ثم يطبّق التعديلات بعد `session.setPermissionMode('acceptEdits')` | `npm run example:plan-mode` |
+| [waves](/ar/examples/waves) | الموجات (waves): عمّال متوازيون بعدد محدود، وتجميع حتمي، وبوابة تحقّق مُنمَّطة، وموجات توسعة تنطلق من الثغرات التي تسمّيها تلك البوابة | `npm run example:waves` |
+| [phase-pipeline](/ar/examples/phase-pipeline) | هندسة المراحل فوق الـ flows: نقاش → spec → خطة → تنفيذ → بوابة إثبات، مع سُلّم إعادة المحاولة على شكل سلسلة `oneOf` | `npm run example:phase-pipeline` |
+| [coding-agent-workflows](/ar/examples/coding-agent-workflows) | coding agent يُوجَّه بقرار مُنمَّط (`{ route, confidence }` عبر `output`)، مع حدّ أدنى للثقة يصعّد الطلب إلى المسار الحذر | `npm run example:coding-agent-workflows` |
+| [connectors](/ar/examples/connectors) | MCP connectors (بنفس شكل Claude connectors) تشتغل بالكامل دون اتصال على خادم stdio وهمي مبني بـ `serveMcp` | `npm run example:connectors` |
+| [hostinger-deploy](/ar/examples/hostinger-deploy) | نشر agent على Hostinger VPS حقيقي: تحقّق عبر الـ API، و`docker save` عبر SSH، واختبارات smoke للـ health والـ approval | `node examples/hostinger-deploy/deploy.mjs --vm <id>` |
 | [agent-dir](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/agent-dir) | agent معرّف كمجلد (`instructions.md` و`tools/` و`skills/` و`agent.json`) ويُحمَّل بـ `loadAgentDir()` | `npm run example:agent-dir` |
 | [support-bot](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/support-bot) | أبسط agent لدعم العملاء | `npm run example:support-bot` |
 | [research-assistant](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/research-assistant) | agent للبحث يستخدم أداة `http` المدمجة | `npm run example:research-assistant` |
@@ -43,6 +43,9 @@ npm install
 
 ## أدلة ذات صلة
 
-- [Agent directories](/ar/agent-directories) يشرح البنية التي يستخدمها مثال `agent-dir`.
+- [Agent directories](/ar/agent-directories) يشرح البنية التي يستخدمها مثال `agent-dir`، و[Claude Code projects](/ar/claude-projects) يغطّي اصطلاح مجلد `.claude/`.
 - [Approvals](/ar/approvals) و[Guardrails](/ar/guardrails) يغطّيان البوابتين في `ops-pipeline`.
+- [تقنيات الموجّه والسياق](/ar/prompting-techniques) يربط الموجات والمراحل والقرارات المُنمَّطة بالأنماط التي تطبّقها أمثلة `waves` و`phase-pipeline` و`coding-agent-workflows`.
+- [Connectors](/ar/connectors) و[MCP](/ar/mcp-integration) يغطّيان الواجهة التي يختبرها مثال `connectors`.
+- [Hostinger VPS](/ar/hostinger-vps) يشرح خطوة بخطوة النشر الذي يؤتمته مثال `hostinger-deploy`.
 - [Tracing](/ar/observability) يسرد الـ spans والـ attributes التي يطبعها مثال `tracing`.

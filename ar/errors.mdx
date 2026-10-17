@@ -3,11 +3,6 @@ title: "الأخطاء"
 description: "تقريبًا كل خطأ يرميه الـ SDK عن قصد هو SDKError (أو subclass منه مثل ConfigurationError أو ValidationError أو MissingPeerDependencyError) وفيه:"
 ---
 
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/errors).
-</Warning>
-
 {/* Generated from docs/errors.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 - `code`: نص ثابت بصيغة `LOUSHO_<AREA>_<NAME>`. فرّع عليه، لا على نص الرسالة — الرسالة ممكن تصير أوضح مع الوقت.
@@ -18,12 +13,26 @@ description: "تقريبًا كل خطأ يرميه الـ SDK عن قصد هو 
 
 ```text
 ConfigurationError: createAgent: no model configured. Do one of the following: (1) pass a model: ...
-[LOUSHO_CONFIG_MISSING_PROVIDER] Pass a model string such as createAgent({ model: 'openai/gpt-4o-mini' }), a provider instance, or set LOUSHO_MODEL or a provider API key. (https://github.com/LinuxDevil/agent-sdk/blob/main/docs/errors.md#lousho_config_missing_provider)
+[LOUSHO_CONFIG_MISSING_PROVIDER] Pass a model string such as createAgent({ model: 'openai/gpt-4.1-mini' }), a provider instance, or set LOUSHO_MODEL or a provider API key. (https://github.com/LinuxDevil/agent-sdk/blob/main/docs/errors.md#lousho_config_missing_provider)
+```
+
+الـ run اللي ينرفض (`send()`، أو `result` تبع `stream()`، أو دورة session، أو `AgentExecutor.execute()`) يحط اللي صرفه على الخطأ في `error.usage`، وهو `RunUsage` مثل `result.usage` (ومعه الـ sub-agents تبعه)، فما تضيع tokens وتكلفة الـ run اللي فشل. ينضبط على أي خطأ ينرفض فيه الـ run — `SDKError` أو `PropagatingToolError` أو خطأ من عندك — إلا إذا كان للخطأ خاصية `usage` خاصة فيه، وهو غير enumerable (تسجيل الخطأ أو تحويله لـ JSON ما يتغيّر). وما يكون موجود إذا الـ run فشل قبل ما يبدأ.
+
+```ts
+import { createAgent, type RunUsage } from '@lousho/build-ai-agent';
+
+try {
+  await createAgent({ provider }).send('Go');
+} catch (error) {
+  const spent = (error as { usage?: RunUsage }).usage;
+  if (spent) console.error(`failed after ${spent.modelCalls} model calls, $${spent.costUsd ?? '?'}`);
+  throw error;
+}
 ```
 
 `error.detail` هو الرسالة بدون هالسطر. أخطاء الـ tools والـ providers (`ToolExecutionError` و`LLMProviderError` و`TimeoutError` و`RateLimitError`) تخلي رسالتها مثل ما هي، لأن الـ model يشوفها كنتيجة tool أو خطأ provider مضغوط؛ بس `toString()` لسّا تضيف السطر.
 
-الاستثناءات شوية subclasses مسماة من `Error` بدون `code`، مبقاة عادية عن قصد: `PropagatingToolError` والـ subclasses تبعتها (الـ tool يرميها عشان يوقف الـ run)، و`WorkspaceError` (عملية على الـ workspace رُفضت أو فشلت — الـ model يشوفها كخطأ tool)، و`McpToolError` (أداة MCP محمّلة والسيرفر تبعها رجّع `isError`؛ برضه خطأ tool)، و`AuthError` (مدخل من `@lousho/build-ai-agent/auth` يرفض الطلب بـ 401 أو 403 تبعه)، و`CronExpressionError` (`parseCronExpression()` اللي `CronTriggerAdapter` يخليها تطلع و`defineSchedule()` تغلّفها كـ `LOUSHO_SCHEDULE_INVALID`)، و`DecryptionError` (`EncryptionUtils` و`DTOEncryptionFilter`).
+الاستثناءات شوية subclasses مسماة من `Error` بدون `code`، مبقاة عادية عن قصد: `PropagatingToolError` والـ subclasses تبعتها (الـ tool يرميها عشان يوقف الـ run)، و`WorkspaceError` (عملية على الـ workspace رُفضت أو فشلت — الـ model يشوفها كخطأ tool)، و`McpToolError` (أداة MCP محمّلة والسيرفر تبعها رجّع `isError`؛ برضه خطأ tool)، و`AuthError` (مدخل من `@lousho/build-ai-agent/auth` يرفض الطلب بـ 401 أو 403 تبعه)، و`CronExpressionError` (`parseCronExpression()` اللي `defineSchedule()` تغلّفها كـ `LOUSHO_SCHEDULE_INVALID`)، و`DecryptionError` (`EncryptionUtils` و`DTOEncryptionFilter`).
 
 أما `CassetteMismatchError` (replay في `recordReplay`؛ راجع [الاختبار](/ar/testing#ماذا-يفحص-الـ-replay)) فليست منها: هي `SDKError` بكود [`LOUSHO_CASSETTE_INVALID`](#lousho_cassette_invalid) وحقلين `.cassette` / `.callNumber`.
 
@@ -50,16 +59,16 @@ try {
 | المجال | الأكواد | متى تصادفها |
 | ---- | ----- | ------------------ |
 | [الإعدادات](#الإعدادات) | [`LOUSHO_CONFIG_INVALID`](#lousho_config_invalid)، [`LOUSHO_CONFIG_MISSING_PROVIDER`](#lousho_config_missing_provider)، [`LOUSHO_CONFIG_MISSING_AGENT`](#lousho_config_missing_agent)، [`LOUSHO_CONFIG_MISSING_INPUT`](#lousho_config_missing_input)، [`LOUSHO_CONFIG_CONFLICTING_OPTIONS`](#lousho_config_conflicting_options)، [`LOUSHO_CONFIG_MISSING_CHECKPOINT_STORE`](#lousho_config_missing_checkpoint_store)، [`LOUSHO_CONFIG_RESOLVER_FAILED`](#lousho_config_resolver_failed) | استدعاء `createAgent()` أو executor ناقصه خيارات أو يخلطها، أو config resolver فشل. |
-| [الـ providers والـ peer dependencies](#الـ-providers-والـ-peer-dependencies) | [`LOUSHO_PROVIDER_SPEC_INVALID`](#lousho_provider_spec_invalid)، [`LOUSHO_PROVIDER_UNKNOWN`](#lousho_provider_unknown)، [`LOUSHO_PROVIDER_MISSING_API_KEY`](#lousho_provider_missing_api_key)، [`LOUSHO_PROVIDER_REQUEST_FAILED`](#lousho_provider_request_failed)، [`LOUSHO_PROVIDER_RATE_LIMITED`](#lousho_provider_rate_limited)، [`LOUSHO_PEER_MISSING`](#lousho_peer_missing)، [`LOUSHO_HOSTED_TOOL_UNSUPPORTED`](#lousho_hosted_tool_unsupported) | حل نص model، أو API key أو حزمة peer ناقصة، أو طلب model فشل أو رجّع rate limit، أو hosted tool الـ provider ما يقدر يشغّلها. |
+| [الـ providers والـ peer dependencies](#الـ-providers-والـ-peer-dependencies) | [`LOUSHO_PROVIDER_SPEC_INVALID`](#lousho_provider_spec_invalid)، [`LOUSHO_PROVIDER_UNKNOWN`](#lousho_provider_unknown)، [`LOUSHO_PROVIDER_MISSING_API_KEY`](#lousho_provider_missing_api_key)، [`LOUSHO_PROVIDER_REQUEST_FAILED`](#lousho_provider_request_failed)، [`LOUSHO_PROVIDER_RATE_LIMITED`](#lousho_provider_rate_limited)، [`LOUSHO_PEER_MISSING`](#lousho_peer_missing)، [`LOUSHO_HOSTED_TOOL_UNSUPPORTED`](#lousho_hosted_tool_unsupported)، [`LOUSHO_UNSUPPORTED_CONTENT`](#lousho_unsupported_content) | حل نص model، أو API key أو حزمة peer ناقصة، أو طلب model فشل أو رجّع rate limit، أو hosted tool الـ provider ما يقدر يشغّلها، أو ملف الـ provider ما يقدر يرسله. |
 | [ملفات الـ AgentSpec](#ملفات-الـ-agentspec) | [`LOUSHO_SPEC_NOT_FOUND`](#lousho_spec_not_found)، [`LOUSHO_SPEC_INVALID`](#lousho_spec_invalid)، [`LOUSHO_SPEC_UNKNOWN_FIELD`](#lousho_spec_unknown_field)، [`LOUSHO_SPEC_UNSUPPORTED_FORMAT`](#lousho_spec_unsupported_format) | تحميل ملف `AgentSpec` بـ `loadSpec()` أو `specToAgent()`. |
-| [الأدوات](#الأدوات) | [`LOUSHO_TOOL_NOT_FOUND`](#lousho_tool_not_found)، [`LOUSHO_TOOL_NEEDS_CREDENTIALS`](#lousho_tool_needs_credentials)، [`LOUSHO_TOOL_EXECUTION_FAILED`](#lousho_tool_execution_failed)، [`LOUSHO_TOOL_ARGS_INVALID`](#lousho_tool_args_invalid) | tool ناداها الـ model ليست معروفة، أو محتاجة credentials، أو رمت، أو وصلتها arguments غير صالحة. |
-| [الـ approvals والـ sessions](#الـ-approvals-والـ-sessions) | [`LOUSHO_APPROVAL_STORE_MISSING`](#lousho_approval_store_missing)، [`LOUSHO_APPROVAL_NOT_FOUND`](#lousho_approval_not_found)، [`LOUSHO_SESSION_AWAITING_APPROVAL`](#lousho_session_awaiting_approval)، [`LOUSHO_SESSION_ID_INVALID`](#lousho_session_id_invalid)، [`LOUSHO_SESSION_FILE_CORRUPT`](#lousho_session_file_corrupt)، [`LOUSHO_SESSION_BUSY`](#lousho_session_busy)، [`LOUSHO_SESSION_TURN_PENDING`](#lousho_session_turn_pending)، [`LOUSHO_SESSION_STREAM_UNSUPPORTED`](#lousho_session_stream_unsupported)، [`LOUSHO_SESSION_STEP_NOT_FOUND`](#lousho_session_step_not_found)، [`LOUSHO_SESSION_EXISTS`](#lousho_session_exists)، [`LOUSHO_SESSION_FORK_UNSUPPORTED`](#lousho_session_fork_unsupported)، [`LOUSHO_REMOTE_UNAUTHORIZED`](#lousho_remote_unauthorized)، [`LOUSHO_REMOTE_REQUEST_FAILED`](#lousho_remote_request_failed)، [`LOUSHO_SUBAGENT_TASK_NOT_FOUND`](#lousho_subagent_task_not_found)، [`LOUSHO_SUBAGENT_TASK_BUSY`](#lousho_subagent_task_busy)، [`LOUSHO_CHECKPOINT_NOT_FOUND`](#lousho_checkpoint_not_found)، [`LOUSHO_AGENT_DRIFT`](#lousho_agent_drift)، [`LOUSHO_RESUME_TOOL_MISSING`](#lousho_resume_tool_missing)، [`LOUSHO_RUN_ALREADY_ITERATED`](#lousho_run_already_iterated) | approvals (موافقات) وsessions (جلسات) وcheckpoints (نقاط حفظ) والـ resume، والـ remote agents ومهام الـ sub-agents. |
-| [الجداول الزمنية](#الجداول-الزمنية) | [`LOUSHO_SCHEDULE_INVALID`](#lousho_schedule_invalid) | تعريف schedule أو تحميله. |
+| [الأدوات](#الأدوات) | [`LOUSHO_TOOL_NOT_FOUND`](#lousho_tool_not_found)، [`LOUSHO_TOOL_NEEDS_CREDENTIALS`](#lousho_tool_needs_credentials)، [`LOUSHO_TOOL_EXECUTION_FAILED`](#lousho_tool_execution_failed)، [`LOUSHO_TOOL_ARGS_INVALID`](#lousho_tool_args_invalid)، [`LOUSHO_MCP_START_FAILED`](#lousho_mcp_start_failed)، [`LOUSHO_MCP_CALL_FAILED`](#lousho_mcp_call_failed) | tool ناداها الـ model ليست معروفة، أو محتاجة credentials، أو رمت، أو وصلتها arguments غير صالحة؛ أو سيرفر MCP من نوع stdio ما اشتغل أو استدعاء له فشل. |
+| [الـ approvals والـ sessions](#الـ-approvals-والـ-sessions) | [`LOUSHO_APPROVAL_STORE_MISSING`](#lousho_approval_store_missing)، [`LOUSHO_APPROVAL_NOT_FOUND`](#lousho_approval_not_found)، [`LOUSHO_APPROVAL_ORPHANED`](#lousho_approval_orphaned)، [`LOUSHO_APPROVAL_CONFLICT`](#lousho_approval_conflict)، [`LOUSHO_APPROVAL_FORBIDDEN`](#lousho_approval_forbidden)، [`LOUSHO_APPROVAL_DECISION_INVALID`](#lousho_approval_decision_invalid)، [`LOUSHO_APPROVAL_KIND_MISMATCH`](#lousho_approval_kind_mismatch)، [`LOUSHO_SESSION_FORBIDDEN`](#lousho_session_forbidden)، [`LOUSHO_SESSION_AWAITING_APPROVAL`](#lousho_session_awaiting_approval)، [`LOUSHO_SESSION_ID_INVALID`](#lousho_session_id_invalid)، [`LOUSHO_SESSION_FILE_CORRUPT`](#lousho_session_file_corrupt)، [`LOUSHO_SESSION_BUSY`](#lousho_session_busy)، [`LOUSHO_SESSION_TURN_PENDING`](#lousho_session_turn_pending)، [`LOUSHO_SESSION_TURN_FAILED`](#lousho_session_turn_failed)، [`LOUSHO_SESSION_STREAM_UNSUPPORTED`](#lousho_session_stream_unsupported)، [`LOUSHO_SESSION_STEP_NOT_FOUND`](#lousho_session_step_not_found)، [`LOUSHO_SESSION_EXISTS`](#lousho_session_exists)، [`LOUSHO_SESSION_FORK_UNSUPPORTED`](#lousho_session_fork_unsupported)، [`LOUSHO_REMOTE_UNAUTHORIZED`](#lousho_remote_unauthorized)، [`LOUSHO_REMOTE_REQUEST_FAILED`](#lousho_remote_request_failed)، [`LOUSHO_SUBAGENT_TASK_NOT_FOUND`](#lousho_subagent_task_not_found)، [`LOUSHO_SUBAGENT_TASK_BUSY`](#lousho_subagent_task_busy)، [`LOUSHO_CHECKPOINT_NOT_FOUND`](#lousho_checkpoint_not_found)، [`LOUSHO_CHECKPOINT_CORRUPT`](#lousho_checkpoint_corrupt)، [`LOUSHO_AGENT_DRIFT`](#lousho_agent_drift)، [`LOUSHO_RESUME_TOOL_MISSING`](#lousho_resume_tool_missing)، [`LOUSHO_RUN_ALREADY_ITERATED`](#lousho_run_already_iterated) | approvals (موافقات) وsessions (جلسات) وcheckpoints (نقاط حفظ) والـ resume، والـ remote agents ومهام الـ sub-agents. |
+| [الجداول الزمنية](#الجداول-الزمنية) | [`LOUSHO_SCHEDULE_INVALID`](#lousho_schedule_invalid)، [`LOUSHO_SCHEDULE_RUN_INCOMPLETE`](#lousho_schedule_run_incomplete) | تعريف schedule أو تحميله، أو دورة مجدولة ما خلصت. |
 | [القنوات](#القنوات) | [`LOUSHO_CHANNEL_INVALID`](#lousho_channel_invalid)، [`LOUSHO_MEMORY_INVALID`](#lousho_memory_invalid) | تعريف channel أو خانة memory. |
 | [السجل](#السجل) | [`LOUSHO_REGISTRY_UNREACHABLE`](#lousho_registry_unreachable)، [`LOUSHO_REGISTRY_ITEM_NOT_FOUND`](#lousho_registry_item_not_found)، [`LOUSHO_REGISTRY_INVALID`](#lousho_registry_invalid)، [`LOUSHO_REGISTRY_UNSAFE_PATH`](#lousho_registry_unsafe_path)، [`LOUSHO_REGISTRY_FILE_EXISTS`](#lousho_registry_file_exists)، [`LOUSHO_REGISTRY_MANIFEST_MISMATCH`](#lousho_registry_manifest_mismatch) | `lousho add` وهو يجلب أو ينسخ من registry. |
-| [الـ sandbox](#الـ-sandbox) | [`LOUSHO_SANDBOX_EGRESS_UNSUPPORTED`](#lousho_sandbox_egress_unsupported) | لما تطلب من الـ sandbox شيء يعجز عنه على المنصة الحالية. |
-| [مجلدات الـ agents والـ skills والـ flows](#مجلدات-الـ-agents-والـ-skills-والـ-flows) | [`LOUSHO_AGENT_DIR_INVALID`](#lousho_agent_dir_invalid)، [`LOUSHO_SKILL_INVALID`](#lousho_skill_invalid)، [`LOUSHO_FLOW_INVALID`](#lousho_flow_invalid) | تحميل مجلد agent، أو skill، أو تعريف flow. |
-| [الـ storage والنشر والتكاملات](#الـ-storage-والنشر-والتكاملات) | [`LOUSHO_STORAGE_FAILED`](#lousho_storage_failed)، [`LOUSHO_TRIGGER_INVALID`](#lousho_trigger_invalid)، [`LOUSHO_CHANNEL_REQUEST_FAILED`](#lousho_channel_request_failed)، [`LOUSHO_DEPLOY_FAILED`](#lousho_deploy_failed) | واجهة storage، أو trigger، أو طلب channel، أو `lousho build`. |
+| [الـ sandbox](#الـ-sandbox) | [`LOUSHO_SANDBOX_EGRESS_UNSUPPORTED`](#lousho_sandbox_egress_unsupported)، [`LOUSHO_SANDBOX_PATH_DENIED`](#lousho_sandbox_path_denied) | لما تطلب من الـ sandbox شيء يعجز عنه على المنصة الحالية، أو تطلب منه يكتب برّا الـ root تبعه. |
+| [مجلدات الـ agents والـ skills والـ flows](#مجلدات-الـ-agents-والـ-skills-والـ-flows) | [`LOUSHO_AGENT_DIR_INVALID`](#lousho_agent_dir_invalid)، [`LOUSHO_SKILL_INVALID`](#lousho_skill_invalid)، [`LOUSHO_FLOW_INVALID`](#lousho_flow_invalid)، [`LOUSHO_FLOW_TOOL_DENIED`](#lousho_flow_tool_denied)، [`LOUSHO_FLOW_CHANGED`](#lousho_flow_changed) | تحميل مجلد agent، أو skill، أو تعريف flow، والتحكّم باستدعاءات الـ tools في الـ flow. |
+| [الـ storage والنشر والتكاملات](#الـ-storage-والنشر-والتكاملات) | [`LOUSHO_STORAGE_FAILED`](#lousho_storage_failed)، [`LOUSHO_STORAGE_BUSY`](#lousho_storage_busy)، [`LOUSHO_TRIGGER_INVALID`](#lousho_trigger_invalid)، [`LOUSHO_CHANNEL_REQUEST_FAILED`](#lousho_channel_request_failed)، [`LOUSHO_DEPLOY_FAILED`](#lousho_deploy_failed) | واجهة storage، أو trigger، أو طلب channel، أو `lousho build`. |
 | [الاختبارات والـ evals](#الاختبارات-والـ-evals) | [`LOUSHO_EVALS_INVALID`](#lousho_evals_invalid)، [`LOUSHO_TEST_FAILED`](#lousho_test_failed)، [`LOUSHO_CASSETTE_INVALID`](#lousho_cassette_invalid) | `defineEval()` و`mockModel` والـ cassettes. |
 | [عام](#عام) | [`LOUSHO_GENERIC_ERROR`](#lousho_generic_error)، [`LOUSHO_AGENT_EXECUTION_FAILED`](#lousho_agent_execution_failed)، [`LOUSHO_FLOW_EXECUTION_FAILED`](#lousho_flow_execution_failed)، [`LOUSHO_VALIDATION_FAILED`](#lousho_validation_failed)، [`LOUSHO_OPERATION_TIMEOUT`](#lousho_operation_timeout)، [`LOUSHO_OUTPUT_INVALID`](#lousho_output_invalid)، [`LOUSHO_BUDGET_EXCEEDED`](#lousho_budget_exceeded)، [`LOUSHO_GUARDRAIL_TRIPPED`](#lousho_guardrail_tripped) | فشل على مستوى الـ run: timeout، أو وقف بسبب budget أو guardrail، أو output غير صالح، والأكواد العامة. |
 | [المصادقة](#المصادقة) | [`LOUSHO_AUTH_CONFIG_INVALID`](#lousho_auth_config_invalid) | مساعد route auth (`jwt()` أو `oidc()` أو `basic()` أو `apiToken()`) أخذ خيارات ما يقدر يتحقق فيها. |
@@ -79,7 +88,7 @@ try {
 
 **المعنى:** ما في model يشتغل: `createAgent()` وصل بدون `model` ولا `provider` وما لقى شيء في البيئة، أو `AgentExecutor.execute()` / `stream()` انستدعوا بدون `provider`.
 
-**الحل:** مرّر `model: 'openai/gpt-4o-mini'` (أي `<provider>/<model>`)، أو مرّر `provider` instance، أو اضبط `LOUSHO_MODEL` أو مفتاح provider مثل `OPENAI_API_KEY`. البادئة `vendor/` في اسم الـ model هي اللي تختار الـ provider؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثلاً `openrouter/openai/gpt-4o-mini`). راجع [المزوّدون](/ar/providers).
+**الحل:** مرّر `model: 'openai/gpt-4.1-mini'` (أي `<provider>/<model>`)، أو مرّر `provider` instance، أو اضبط `LOUSHO_MODEL` أو مفتاح provider مثل `OPENAI_API_KEY`. البادئة `vendor/` في اسم الـ model هي اللي تختار الـ provider؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثلاً `openrouter/openai/gpt-4.1-mini`). راجع [المزوّدون](/ar/providers).
 
 **مثال:** `createAgent({ instructions: 'x' })` بدون أي env var للـ provider.
 
@@ -103,7 +112,7 @@ try {
 
 **المعنى:** مرّرت خيارين بنفس المعنى مع بعض.
 
-**الحل:** أبقِ واحد منهم. في `createAgent()` الخيار `prompt` هو alias لـ `instructions`: أبقِ `instructions`.
+**الحل:** أبقِ واحد منهم. في `createAgent()` الخيار `prompt` هو alias مُهمَل (deprecated) لـ `instructions`: أبقِ `instructions`.
 
 **مثال:** `createAgent({ provider, instructions: 'a', prompt: 'b' })`.
 
@@ -129,7 +138,7 @@ try {
 
 **المعنى:** نص الـ model ليس بصيغة `<provider>/<model>`.
 
-**الحل:** اكتب الجزأين، مثلاً `'openai/gpt-4o-mini'` أو `'anthropic/claude-sonnet-4-5'`.
+**الحل:** اكتب الجزأين، مثلاً `'openai/gpt-4.1-mini'` أو `'anthropic/claude-sonnet-4-5'`.
 
 **مثال:** `resolveProvider('gpt-4o')`.
 
@@ -137,7 +146,7 @@ try {
 
 **المعنى:** بادئة الـ provider في نص الـ model ليست من اللي يعرفها الـ SDK. الرسالة تسرد البادئات المدعومة وتقترح أقربها.
 
-**الحل:** استخدم بادئة مدعومة (`openai` أو `anthropic` أو `openrouter` أو `ollama`)، أو مرّر `provider` instance من عندك.
+**الحل:** استخدم بادئة مدعومة (`openai` أو `anthropic` أو `google` أو `openrouter` أو `ollama` أو `pi` أو `mock`)، أو مرّر `provider` instance من عندك. ولـ vendor ما له بادئة، الرسالة تسرد الطرق الثانية: `openrouter/<vendor>/<model>`، أو `pi/<vendor>/<model>` إذا pi يخدم هذا الـ vendor، أو حزمة AI SDK تبع الـ vendor عن طريق `fromAiSdk()` (راجع [المزوّدون](/ar/providers#vendors-بدون-بادئة)).
 
 **مثال:** `createAgent({ model: 'opnai/gpt-4o' })` يقول "Did you mean 'openai/gpt-4o'?".
 
@@ -147,27 +156,31 @@ try {
 
 **الحل:** اضبطه، أو مرّر provider instance مهيّأ.
 
-**مثال:** `createAgent({ model: 'openai/gpt-4o-mini' })` بدون `OPENAI_API_KEY`.
+**مثال:** `createAgent({ model: 'openai/gpt-4.1-mini' })` بدون `OPENAI_API_KEY`.
 
 ### LOUSHO_PROVIDER_REQUEST_FAILED
 
-**المعنى:** استدعاء model فشل (`LLMProviderError`، وكذلك `CompactedLLMProviderError` اللي `compacted.category` تبعه تشرح السبب: `rate-limit` أو `timeout` أو `context-length-exceeded` أو `auth-failure` أو `unknown`).
+**المعنى:** استدعاء model فشل (`LLMProviderError`، وكذلك `CompactedLLMProviderError` اللي `compacted.category` تبعه تشرح السبب: `timeout` أو `context-length-exceeded` أو `quota-exceeded` أو `auth-failure` أو `unknown`؛ أما فشل `rate-limit` فله كود خاص فيه، [`LOUSHO_PROVIDER_RATE_LIMITED`](#lousho_provider_rate_limited)).
+الرد المتوافق مع OpenAI اللي يبلّغ عن فشل داخل 200 (`finish_reason: "error"` من OpenRouter، أو chunk فيه `error` في نص الـ stream) يفشل كـ 502 قابل لإعادة المحاولة بدل ما يرجّع النص المقطوع.
+تجاوز السياق يكون `context-length-exceeded` (غير قابل لإعادة المحاولة) مهما كانت الـ status، ومنه "exceeds the available context size" و"Context size has been exceeded" من llama.cpp / LM Studio، وسواء وصل من الطلب أو كخطأ في الـ stream. فشل الاتصال يكون `timeout` ويسمّي السبب، مثلاً `connection refused (ECONNREFUSED) at http://localhost:1234/v1/responses - is the server running?`. وإذا ما انقرى body الخطأ من الـ provider (والرسالة بس `Bad Request`)، ينضاف مقطع قصير من الـ body.
 
-**الحل:** مع `auth-failure` صلّح الـ API key؛ ومع `context-length-exceeded` قصّر المحادثة (راجع [Context compaction](/ar/compaction))؛ ومع الفشل العابر استخدم `withRetry()` / `fallbackModels` (راجع [المزوّدون](/ar/providers)).
+**الحل:** مع `quota-exceeded` (الـ 429 `insufficient_quota` من OpenAI، أو 402 مثل "Insufficient credits" من OpenRouter؛ غير قابل لإعادة المحاولة، لأن إعادة المحاولة ما تضيف رصيد) اشحن الحساب أو حوّل لـ provider ثاني؛ ومع `auth-failure` صلّح الـ API key؛ ومع `context-length-exceeded` قصّر المحادثة (راجع [Context compaction](/ar/compaction))؛ ومع الفشل العابر استخدم `withRetry()` / `fallbackModels` (راجع [المزوّدون](/ar/providers)).
 
 **مثال:** رد 401 من الـ provider بمفتاح ملغي.
 
 ### LOUSHO_PROVIDER_RATE_LIMITED
 
-**المعنى:** `RateLimitError`: الـ provider قيّد معدل طلبات المستدعي.
+**المعنى:** الـ provider قيّد معدل طلبات المستدعي: استدعاء model فشل بـ `compacted.category: 'rate-limit'` (`CompactedLLMProviderError`، وهو برضه `LLMProviderError`)، أو `RateLimitError`.
 
-**الحل:** أعد المحاولة بعد `error.retryAfter` ثانية (`withRetry()` يسوي هذا)، أو أرسل طلبات أقل.
+**الحل:** أعد المحاولة بعد `compacted.retryAfterMs` (`withRetry()` يسوي هذا، لحد `backoff.maxMs`؛ و`Retry-After` أطول من كذا يفشل فورًا مع ضبط `compacted.retryAfterMs`)، أو أرسل طلبات أقل.
 
-**مثال:** رد 429.
+**مثال:** رد 429 (الـ 429 `insufficient_quota` من OpenAI لما يخلص الرصيد هو `quota-exceeded`، يعني `LOUSHO_PROVIDER_REQUEST_FAILED`).
 
 ### LOUSHO_PEER_MISSING
 
 **المعنى:** ميزة تحتاج حزمة اختيارية غير مثبتة (`MissingPeerDependencyError`، أو SDK خاص بـ provider مثل `@ai-sdk/openai`).
+
+استدعاء model حزمة الـ provider تبعه ناقصة يفشل بهذا الكود (`CompactedLLMProviderError` الـ `cause` تبعه هو `MissingPeerDependencyError`)، مو بـ `LOUSHO_PROVIDER_REQUEST_FAILED`، والـ server routes ترسل رسالته (أمر التثبيت) للعميل بدل الرسالة العامة.
 
 **الحل:** نفّذ أمر `npm install` اللي في الرسالة (موجود كمان في `error.installCommand`). راجع [التثبيت](/ar/installation).
 
@@ -180,6 +193,14 @@ try {
 **الحل:** شغّل الأداة على provider وحزمة يدعمونها (راجع [Hosted tools عند الـ provider](/ar/hosted-tools))، أو احذفها من `tools` لهذا الـ provider.
 
 **مثال:** `createAgent({ model: 'ollama/llama3.2', tools: [webSearch()] })` يرفض أول `send()` له.
+
+### LOUSHO_UNSUPPORTED_CONTENT
+
+**المعنى:** رسالة مستخدم فيها جزء ملف (`{ type: 'file', data, mimeType }`) الـ provider ما يقدر يرسله: نوع الوسائط تبعه مو من الأنواع اللي يرسلها الـ provider على إصدار `ai` الرئيسي عندك (راجع [المدخلات متعددة الوسائط](/ar/providers#إدخال-multimodal)). الاستدعاء ينرفض قبل ما ينرسل أي شيء، فالـ model ما يجاوب أبدًا بدون الملف. ومع `withFallback()` (أو `fallbackModels`) الـ provider اللي بعده ياخذ الاستدعاء. `agent.send()` و`agent.stream()` ينرفضوا بهذا الكود.
+
+**الحل:** أرسل الملف لـ provider وإصدار `ai` رئيسي يقبلون نوعه (أو اذكر النوع في `fromAiSdk(model, { fileMediaTypes })`)، أو حط نص الملف في الرسالة، أو اضبط `unsupportedFiles: 'text-note'` على الـ provider عشان يرسل `[file <name> (<type>) not sent]` مكانه، مثل قبل.
+
+**مثال:** ملف PDF منرسل لـ `new OllamaProvider({ name: 'ollama' })`.
 
 ## ملفات الـ AgentSpec
 
@@ -200,7 +221,7 @@ try {
 **مثال:**
 
 ```text
-loadSpec: 'agent.yaml' failed validation - 'prompt': AgentSpec validation failed: missing required field 'prompt'; unknown field 'promt' (did you mean 'prompt'?)
+loadSpec: 'agent.yaml' failed validation - 'prompt': missing required field 'prompt'; unknown field 'promt' (did you mean 'prompt'?)
 ```
 
 ### LOUSHO_SPEC_UNKNOWN_FIELD
@@ -249,9 +270,29 @@ loadSpec: 'agent.yaml' failed validation - 'prompt': AgentSpec validation failed
 
 **المعنى:** الـ model نادى tool بـ arguments ما تطابق الـ input schema تبعها (`ToolArgumentsValidationError`). داخل الـ run الـ model توصله المشاكل كنتيجة tool ويقدر يعيد المحاولة، فنادرًا ما ينتهي run عليها.
 
+الـ arguments اللي مو JSON صالح (مقطوعة مثلاً) ياخذون نفس الخطأ، مع مشكلة وحدة على `(root)`: `arguments are not valid JSON: <parse error>; received: <the
+text, truncated>`. الأداة ما تشتغل. قبلها تنجرّب تصليحة صغيرة: code fence من markdown حوالين النص، والفواصل الزائدة في الآخر، والـ JSON المشفّر مرتين، كلها تتصلّح إذا كانت النتيجة object JSON. والـ arguments الفاضية (`""`) تعني `{}`. وحدث `tool.start` تبع الاستدعاء يحمل `rawArgs`، النص اللي أرسله الـ model، كل ما انصلّح أو فشل الـ parse.
+
 **الحل:** لو إنت اللي ناديت الأداة، صلّح الـ arguments اللي تسمّيها الرسالة؛ ولو الـ model ظل يغلط فيها، خلّي نص `.describe()` للحقل أوضح. `error.issues` يسرد كل مسار ومشكلته. راجع [الأدوات](/ar/tools).
 
 **مثال:** الـ model يرسل `{ to: 42 }` لأداة حقلها `to` نص.
+
+### LOUSHO_MCP_START_FAILED
+
+**المعنى:** سيرفر MCP من نوع stdio (عنصر في `mcpServers` فيه `command`) ما اشتغل: الأمر ما انلقى، أو العملية طلعت أثناء مصافحة `initialize`، أو ما ردّت خلال `connectTimeoutMs` (الافتراضي 60 ثانية). الخطأ (`McpStartError`) يحمل `exitCode` (أو `signal`) و`stderr`، آخر 20 سطر كتبتها العملية هناك، والرسالة تعرض الاثنين. `connectMcp()` و`agent.ready()` (أو أول `send()`) يفشلون فيه.
+
+**الحل:** اقرأ أسطر الـ stderr اللي في الرسالة، أو شغّل الـ `command` مع `args` تبعه بنفسك. تأكد من اسم الحزمة وإصدارها لسيرفر `npx`، ومن الـ `env` اللي يحتاجه، ومن `cwd`. ومع `stderr: 'inherit'` أو `'ignore'` ما في أسطر تنعرض. راجع [MCP](/ar/mcp-integration#استخدام-سيرفرات-mcp-داخل-agent).
+
+**مثال:** `npx -y some-mcp-server` لحزمة مو موجودة يطلع وعلى الـ stderr سطر `npm error 404`.
+
+### LOUSHO_MCP_CALL_FAILED
+
+**المعنى:** استدعاء أداة MCP محمّلة فشل على مستوى البروتوكول: السيرفر طلع أو سكّر الاتصال (`MCP error -32000: Connection
+closed`)، أو الطلب خلص وقته، أو السيرفر ردّ بخطأ JSON-RPC. الرسالة تسمّي الأداة مثل ما يشوفها الـ model (`<server>__<tool>`)؛ و`cause` هو خطأ MCP SDK نفسه، والـ `code` الرقمي تبعه هو كود JSON-RPC. الأداة اللي اشتغلت وبلّغت `isError: true` مو هذا الخطأ (الـ model يوصله نصها كـ `McpToolError`)، ولا طلب تسجيل دخول ([`LOUSHO_MCP_AUTH_REQUIRED`](#lousho_mcp_auth_required)) ولا الإلغاء. أثناء الـ run النتيجة خطأ tool والـ run يكمل؛ وخطوة flow فيها `retry: { maxAttempts }` تشتغل مرة ثانية، والسيرفر المتصل بـ `lazy` (الافتراضي) يعيد الاتصال في الاستدعاء اللي بعده.
+
+**الحل:** تأكد إن السيرفر اللي تسمّيه الرسالة شغّال ويرد؛ ولسيرفر stdio، شغّل أمره بنفسك واقرأ الـ stderr تبعه. ارفع `timeoutMs` تبع السيرفر إذا الطلب خلص وقته.
+
+**مثال:** سيرفر stdio يطيح وهو يعالج `files__read`.
 
 ## الـ approvals والـ sessions
 
@@ -271,41 +312,124 @@ loadSpec: 'agent.yaml' failed validation - 'prompt': AgentSpec validation failed
 
 **مثال:** نداء `agent.approvals.resolve({ id, approved: true })` مرتين.
 
+route الـ approvals (`POST /chat/:sessionId/approvals/:id`) يرد بهذا الكود مع `404` كمان لما الـ approval تخص session غير اللي في الـ URL.
+
+### LOUSHO_APPROVAL_ORPHANED
+
+**المعنى:** `agent.approvals.resolve()` (أو `streamResolve()`، أو `resumeAfterApproval()`) أخذ approval الـ run المتوقف تبعها ما عاد ينتظرها: الـ checkpoint تبع الـ run (`<id>.turn-<n>` لـ turn في session، أو checkpoint run من `send(msg, { sessionId })`) انحذف (بـ `checkpoints.delete(id)`، أو `discardPending()`، أو TTL، أو باليد) أو استبدله run أحدث تحت نفس الـ id. الأداة ما اشتغلت، والـ approval تنسحب: ما عادت تنسرد، وحسمها مرة ثانية يفشل بـ `LOUSHO_APPROVAL_NOT_FOUND`.
+
+**الحل:** ابدأ turn جديدة في الـ session (أو run جديد) بدالها؛ ما في شيء باقي تكمّله. `SqliteStore.prune()` يحتفظ بالـ turns المتوقفة، فهذا يحتاج إن الـ checkpoint ينشال بطريقة ثانية.
+
+**مثال:** تحذف `cust-7.turn-2` من الـ checkpoint store، وبعدين توافق على الاسترداد اللي وقفت عليه هذي الـ turn.
+
+### LOUSHO_APPROVAL_CONFLICT
+
+**المعنى:** `409` من route الـ approvals: طلب ثاني حسم نفس الـ approval قبلك، والتكملة تبعه لسّا شغّالة (على عملية السيرفر هذي).
+
+**الحل:** لا تحسم مرة ثانية؛ اقرأ الـ session (`GET /chat/:sessionId`) وشوف كيف كمّلت الـ turn.
+
+**مثال:** مشرفين يضغطون "Approve" على نفس الاسترداد بنفس اللحظة.
+
+### LOUSHO_APPROVAL_FORBIDDEN
+
+**المعنى:** `403` من route الـ approvals: `authorizeApproval` تبع الـ route رفض هذا المستدعي. افتراضيًا ما يقدر يحسمها إلا المستدعي اللي الـ run المتوقف يشتغل لحسابه (راجع [مصادقة الـ routes](/ar/auth#من-يقدر-يحسم-الـ-approval)).
+
+**الحل:** احسمها كمستدعي يقبله `authorizeApproval`، أو غيّر `authorizeApproval`.
+
+**مثال:** المستخدم `bob` يرسل قرار على approval تخص run تبع `alice`.
+
+### LOUSHO_APPROVAL_DECISION_INVALID
+
+**المعنى:** `400` من route الـ approvals: الـ body ما فيه لا `approved` (boolean) ولا `answer` (نص).
+
+**الحل:** أرسل `{ "approved": true }` (أو `false`، مع `note` اختياري)، أو `{ "answer": "..." }` لتوقف `ask_question`.
+
+**مثال:** إرسال `{ "approve": "yes" }` لـ `/chat/alice-1/approvals/ap-1`.
+
+### LOUSHO_APPROVAL_KIND_MISMATCH
+
+**المعنى:** `400` من route الـ approvals: انرسل `answer` لتوقف مو سؤال. توقف السؤال ياخذ `answer` — أو `approved` والجواب في `note` (و`approved: false` للرفض)؛ وتوقف الـ tool call ياخذ `approved`؛ وتوقف تسجيل الدخول يكمل لحاله أول ما المستخدم يسجّل دخوله.
+
+**الحل:** أرسل الحقل اللي يناسب نوع التوقف؛ `GET /chat/:sessionId` يعرض `approvalKind` للتوقف المعلّق.
+
+**مثال:** إرسال `{ "approved": true }` لتوقف ينتظر جواب الـ model على `ask_question`.
+
+### LOUSHO_SESSION_FORBIDDEN
+
+**المعنى:** `403` من route session: `authorizeSession` تبع الـ route رفض على هذا المستدعي الإجراء (`read` أو `chat` أو `approve`) على هذي الـ session.
+
+**الحل:** استخدم session يملكها هذا المستدعي، أو غيّر `authorizeSession`.
+
+**مثال:** المستخدم `bob` يقرأ `GET /chat/alice-1` اللي استخدمته `alice` أول (هذا الافتراضي لما ما يكون في `authorizeSession`)، أو `authorizeSession` ما يسمح إلا بالـ ids اللي تبدأ بـ id المستدعي.
+
+### LOUSHO_REQUEST_FORBIDDEN
+
+**المعنى:** `403` من route session قبل ما يشتغل: طلب POST جاي من صفحة على origin ثاني (الـ `Origin` تبعه مو origin السيرفر نفسه وما هو في `allowedOrigins`، أو المتصفح علّمه `Sec-Fetch-Site: cross-site`)، أو الـ header `Host` مو من اللي يسمح فيها السيرفر (`allowedHosts`، أو أسماء الـ loopback على `lousho dev`).
+
+**الحل:** نادِ من origin السيرفر نفسه، أو ضيف origin الصفحة لـ `allowedOrigins` (راجع [مصادقة الـ routes](/ar/auth#الطلبات-بين-المواقع))؛ ولرفض `Host`، ضيف الاسم لـ `allowedHosts` (`--allowed-hosts` على `lousho dev`).
+
+**مثال:** صفحة على `https://evil.example` ترسل POST لـ `/api/agent/chat` مع cookie الـ session تبع المستخدم.
+
+### LOUSHO_REQUEST_INVALID
+
+**المعنى:** `400` من route session: الـ body مو JSON صالح، أو ناقصه حقل يحتاجه الـ route (`POST /chat` بدون `sessionId` و`input`، أو `input` فاضي، أو `input` ما فيه رسالة `user`).
+
+**الحل:** أرسل الحقول اللي تسمّيها رسالة الخطأ، مثلاً `{ "sessionId": "chat-1", "input": "Hello" }` (راجع [HTTP API](/ar/deployment#http-api)).
+
+**مثال:** `POST /chat` مع `{ "sessionId": "chat-1", "input": [] }`.
+
+### LOUSHO_UNSUPPORTED_MEDIA_TYPE
+
+**المعنى:** `415` من route session: body الـ POST ما انرسل كـ JSON. الـ bodies من نوع form و`text/plain` مرفوضة لأن أي موقع ثاني يقدر يرسلها بدون CORS preflight.
+
+**الحل:** أرسل `Content-Type: application/json` (`curl -H 'Content-Type:
+application/json'`)، أو مرّر `requireJsonBody: false`.
+
+**مثال:** `curl -d '{"sessionId":"a","input":"hi"}' /chat` بدون `-H` يرسل `application/x-www-form-urlencoded`.
+
 ### LOUSHO_SESSION_AWAITING_APPROVAL
 
 **المعنى:** `SessionAwaitingApprovalError`: الـ session أو الـ run تبع `sessionId` واقف على approval (`error.approvalId`)، فما يقدر ياخذ input جديد الحين.
 
 **الحل:** احسم الـ approval بـ `agent.approvals.resolve()` (أو `resumeAfterApproval()` مع نفس `checkpointStore`)، وبعدين ابعث مرة ثانية. راجع [Durable execution](/ar/durable-execution).
 
+وعبر HTTP، `POST /chat` لـ session بهذي الحالة يرجّع `409` بهذا الكود مع الـ approvals اللي لازم تنحسم (`approvalId` و`approvalIds`).
+
 **مثال:** `session.send('next')` والـ turn السابق لسّا منتظر approval.
 
 ### LOUSHO_SESSION_ID_INVALID
 
-**المعنى:** معرّف الـ session ليس من 1 إلى 128 حرف من الحروف والأرقام و`_` و`-` (المعرّفات تصير أسماء ملفات، فـ `../` و`/` مرفوضة).
+**المعنى:** معرّف الـ session ليس من 1 إلى 128 حرف من الحروف والأرقام و`_` و`-` (المعرّفات تصير أسماء ملفات، فـ `../` و`/` مرفوضة). أو معرّف run (`sessionId` تبع `agent.send()` / `agent.stream()`، أو id في checkpoint store) ليس من 1 إلى 200 حرف من الحروف والأرقام و`_` و`-` و`.` (وما يبدأ ولا ينتهي بـ `.`)، وهي نفس القاعدة على كل store؛ أو ينتهي بـ `.turn-<n>` أو `.paused`، وهذي مفاتيح checkpoints خاصة بالـ session (run تحت `'victim.turn-2'` كان رح يكتب في turn الـ session `victim`)، أو بـ `.fire` (claim إطلاق تبع schedule). الرسالة تقول أي القاعدتين تنطبق: id فيه `.` أو أطول من 128 حرف هو معرّف run صالح بس مو معرّف session صالح.
 
-**الحل:** استخدم معرّف مثل `'user-42'`، أو اتركه ويتولّد واحد تلقائيًا.
+**الحل:** استخدم معرّف مثل `'chat-9f2c4e7a1b'`، أو اتركه ويتولّد واحد تلقائيًا. وعلى route يخدم أكثر من مستخدم، لا تخلّي الـ ids سهلة التخمين من اسم المستخدم أو رقمه (راجع [مين يقدر يستخدم session](/ar/auth#من-يقدر-يستخدم-الـ-session)).
 
-**مثال:** `agent.session({ id: '../etc' })`.
+**مثال:** `agent.session({ id: '../etc' })`، أو `agent.send(msg, { sessionId: 'chat.turn-2' })`.
 
 ### LOUSHO_SESSION_FILE_CORRUPT
 
-**المعنى:** ملف تابع لـ `FileSessionStore` ليس مصفوفة JSON من الرسائل.
+**المعنى:** سجل محادثة مخزّن (ملف `FileSessionStore`، أو صف في `SqliteStore`) ليس JSON صالح أو ليس مصفوفة JSON من الرسائل، مثلاً كتابة انقطعت بالنص.
 
-**الحل:** استعد الملف من نسخة احتياطية، أو احذفه وتبدأ الـ session من جديد.
+**الحل:** استعد الملف من نسخة احتياطية، أو احذفه وتبدأ الـ session من جديد: `session.clear()` يشيله.
 
 **مثال:** `sessions/user-42.json` ومحتواه `{}`.
 
 ### LOUSHO_SESSION_BUSY
 
-**المعنى:** ناديت `session.compact()` أو `session.clear()` أو `session.fork()` وفي turn من هالـ session شغّال أو بالطابور.
+**المعنى:** ناديت `session.compact()` أو `session.clear()` أو `session.fork()` وفي turn من هالـ session شغّال أو بالطابور. ومن `send()` / `stream()`: كاتب ثاني ما يشوفه الطابور داخل العملية (عملية ثانية، أو كائن store ثاني فوق نفس البيانات) ثبّت turn وهذي الـ turn شغّالة، فهذي الـ turn ما انثبّتت (بشكل ذرّي مع store فيه `saveIf`: الذاكرة والملفات وSQLite؛ وبأفضل جهد مع KV). استدعاءات الـ tools في الـ turn اللي اشتغلت تنحفظ: الـ turn لحد نتائجها تنضاف بعد turn الكاتب الثاني. وكمان من `send()` و`resume()` و`agent.send(msg, { sessionId })` و`agent.resume()` و`approvals.resolve()`: الـ run اللي عليه checkpoint (أو turn الـ session) شغّال الحين في عملية أو replica أو كائن store ثاني، وهو ماسك الـ run lease تبعه (راجع [Durable execution](/ar/durable-execution#run-leases))؛ ما اشتغل شيء هنا، والـ approval المحسومة تبقى معلّقة. وعبر HTTP، `409` من `POST /chat`: طلب بنفس `Idempotency-Key` لسّا يشغّل الـ turn تبعه من هذي الـ session على هذا السيرفر (راجع [إعادة إرسال turn](/ar/deployment#إعادة-إرسال-turn)).
 
-**الحل:** انتظر `send()` تبع الـ turn (أو ألغِه)، وبعدين نادِ مرة ثانية.
+**الحل:** انتظر `send()` تبع الـ turn (أو ألغِه)، وبعدين نادِ مرة ثانية. وبعد `send()` فشل بهالشكل، أرسل مرة ثانية: الـ session تقرأ سجل المحادثة الحالي في بداية كل نداء. الـ lease اللي تركته عملية ماتت ينسحب أول ما تخلص مدته (30 ثانية، زائد لحد 30 ثانية سماح لفرق الساعات على stores الملفات وSQLite)، أو فورًا لما يكون أكيد إن العملية طلعت على نفس الـ host ونفس PID namespace. والـ run اللي علّق لحد ما فاتت مدة الـ lease تبعه يفشل بهذا الكود عند الـ checkpoint اللي بعده بدل ما يكتب فوق الـ run اللي استلم مكانه.
 
 ### LOUSHO_SESSION_TURN_PENDING
 
 **المعنى:** ناديت `session.compact()` وفي session durable فيها turn منقطعة، والـ checkpoint تبعها مربوط بطول سجل المحادثة.
 
 **الحل:** أكملها بـ `session.resume()` أو تخلّص منها بـ `session.discardPending()`، وبعدين نادِ مرة ثانية.
+
+### LOUSHO_SESSION_TURN_FAILED
+
+**المعنى:** `send()` / `stream()` في session durable لقى turn الـ session اللي ما خلصت، وآخر محاولة لها فشلت بخطأ provider ما تصلّحه إعادة المحاولة (فشل في طول السياق أو المصادقة، أو 4xx ثاني). الـ checkpoint تبع الـ turn يسجّله كـ `lastError` و`attempts`؛ والـ turn ما تنعاد.
+
+**الحل:** تخلّص من الـ turn بـ `session.discardPending()` وأرسل مرة ثانية، أو صلّح السبب وأعد محاولتها بـ `session.resume()`.
 
 ### LOUSHO_SESSION_STREAM_UNSUPPORTED
 
@@ -379,6 +503,14 @@ loadSpec: 'agent.yaml' failed validation - 'prompt': AgentSpec validation failed
 
 **مثال:** `agent.fork('job-1', { fromStep: 9 })` بعد run من 3 خطوات.
 
+### LOUSHO_CHECKPOINT_CORRUPT
+
+**المعنى:** checkpoint مخزّن ما ينقرأ: مو JSON صالح أو مو checkpoint، وعادةً كتابة انقطعت بسبب crash أو انقطاع كهرباء على store ما عنده كتابة durable. `send()` و`resume()` و`agent.resume()` يفشلون عليه، و`agent.pending()` يسرد الـ run كـ `'in-progress'` وهذا الكود في `lastError` تبعه (`retryable: false`).
+
+**الحل:** تخلّص منه: `session.discardPending()` (أو `session.clear()`) لـ turn session، و`checkpointStore.delete(id)` لـ run. الـ run المنقطع ما يقدر يُستأنف.
+
+**مثال:** ملف `checkpoints/chat.turn-2.json` حجمه 0 بايت بقى بعد انقطاع الكهرباء.
+
 ### LOUSHO_AGENT_DRIFT
 
 **المعنى:** run متوقف مؤقتًا أو منقطع استأنفه agent مختلف عن اللي حفظه، و`onAgentDrift` قيمتها `'error'`. الرسالة تسمّي اللي تغيّر: الـ model، أو tools انضافت أو انحذفت أو تغيّر الـ input schema تبعها، أو الـ instructions. الخطأ يترمى قبل أي نداء model أو تشغيل tool؛ والـ checkpoint (ومع الـ approval، السجل المعلّق) تبقى مثل ما هي.
@@ -412,6 +544,14 @@ loadSpec: 'agent.yaml' failed validation - 'prompt': AgentSpec validation failed
 **الحل:** صحّح التعبير أو أعطِ الـ schedule واحد من `prompt` / `run`. راجع [الجداول الزمنية](/ar/schedules).
 
 **مثال:** `defineSchedule({ cron: '61 * * * *', prompt: 'hi' })`.
+
+### LOUSHO_SCHEDULE_RUN_INCOMPLETE
+
+**المعنى:** turn schedule من نوع prompt انتهت بـ `finishReason` غير `'stop'`؛ والرسالة تسمّيه. `startSchedules()` يمرّره لـ `onError`، و`fireSchedule()` ينرفض فيه، و`scheduled()` في الـ Worker يسجّله. ومع `'awaiting-approval'` الرسالة تسمّي الـ approval، وهي تبقى معلّقة.
+
+**الحل:** احسم الـ approval المعلّقة بـ `agent.approvals.resolve()`، أو غيّر الـ prompt أو الـ tools أو مخطط `output` أو الحدود عشان turn بدون إشراف تقدر تخلص. راجع [الجداول الزمنية](/ar/schedules).
+
+**مثال:** schedule الـ prompt تبعه يخلي الـ agent ينادي tool عليها `needsApproval`.
 
 ## القنوات
 
@@ -491,6 +631,14 @@ loadSpec: 'agent.yaml' failed validation - 'prompt': AgentSpec validation failed
 
 **مثال:** `new SubprocessSandbox({ network: { allow: ['api.github.com'] }, broker })` مع Docker Desktop.
 
+### LOUSHO_SANDBOX_PATH_DENIED
+
+**المعنى:** `SubprocessSandbox.writeFile()` أخذ مسار برّا `root` تبع الـ sandbox (عن طريق `..`، أو مسار مطلق في مكان ثاني، أو symlink يطلّع برّا)، أو الـ root نفسه. ما انكتب شيء.
+
+**الحل:** اكتب تحت الـ root، أو ابنِ الـ sandbox بالـ `root` اللي لازم يحتوي الملف (`new SubprocessSandbox({ root })`؛ والافتراضي هو مجلد العمل وقت الإنشاء). راجع [حواجز الحماية](/ar/guardrails#sandboxed-tools).
+
+**مثال:** `sandbox.writeFile('/etc/profile.d/x.sh', ...)` مع الـ root الافتراضي.
+
 ## مجلدات الـ agents والـ skills والـ flows
 
 ### LOUSHO_AGENT_DIR_INVALID
@@ -503,7 +651,7 @@ loadSpec: 'agent.yaml' failed validation - 'prompt': AgentSpec validation failed
 
 ### LOUSHO_SKILL_INVALID
 
-**المعنى:** skill بنيته غلط (`defineSkill()` أو مجلد `skills/`)، أو `withSkills()` أخذ أسماء مكررة، أو اسم skill يتصادم مع الأداة `load_skill`.
+**المعنى:** skill بنيته غلط (`defineSkill()` أو مجلد `skills/`، ومنه `loadSkills()` على ملف الـ frontmatter تبعه غلط)، أو `withSkills()` أخذ أسماء مكررة، أو اسم skill يتصادم مع الأداة `load_skill` أو `read_skill_file`.
 
 **الحل:** أعطِ كل skill اسم فريد ووصف ومحتوى؛ وغيّر اسم أي أداة اسمها `load_skill`. راجع [Skills](/ar/skills).
 
@@ -517,15 +665,39 @@ loadSpec: 'agent.yaml' failed validation - 'prompt': AgentSpec validation failed
 
 **مثال:** نداءين `.input('city')` على `FlowBuilder` واحد.
 
+### LOUSHO_FLOW_TOOL_DENIED
+
+**المعنى:** خطوة `toolCall` في flow ما اشتغلت. قاعدة صلاحيات أو سياسة `needsApproval` تبع الأداة رفضتها، أو الاستدعاء يحتاج approval والـ callback `approve` في سياق الـ flow رفضه، أو رجّع `'defer'` (الـ flow ما يقدر يتوقف مؤقتًا)، أو ما انمرّر أصلاً.
+
+**الحل:** مرّر `approve` في سياق الـ flow عشان يحسم الاستدعاءات اللي تحتاج approval، أو غيّر القاعدة اللي رفضت الاستدعاء. راجع [Flows](/ar/flows#استدعاءات-الـtool).
+
+**مثال:** خطوة flow تنادي أداة دفع عليها `needsApproval: true`، تشتغل بدون callback `approve`.
+
+### LOUSHO_FLOW_CHANGED
+
+**المعنى:** `FlowExecutor.resume()` انستدعى مع flow تغيّرت خطواته (انضافت، أو انحذفت، أو تحرّكت، أو تغيّر نوع خطوة أو id أو الأداة أو الـ agent تبعها) من وقت ما انحفظ الـ run. الخطوات المكتملة تنحفظ حسب مكانها في الـ flow، فالنتائج المحفوظة كانت رح تنزل على خطوات غلط. الـ prompts وباقي الإعدادات تقدر تتغيّر براحتها.
+
+**الحل:** استأنف بإصدار الـ flow اللي بدأ الـ run، أو ابدأ run جديد تحت `runId` ثاني. راجع [Flows](/ar/flows).
+
+**مثال:** run انحفظ بعد `charge` في `[charge, notify]`، واستُؤنف مع `[audit, charge, notify]`.
+
 ## الـ storage والنشر والتكاملات
 
 ### LOUSHO_STORAGE_FAILED
 
-**المعنى:** التخزين فشل: قاعدة SQLite ما انفتحت (الـ `cause` فيه خطأ الـ driver)، أو انستخدمت بعد `close()`، أو الـ schema تبعها أحدث مما يعرف هالـ SDK، أو `node:sqlite` مفقود؛ أو ملف تجاوز حد حجم التخزين.
+**المعنى:** التخزين فشل: قاعدة SQLite ما انفتحت (الـ `cause` فيه خطأ الـ driver)، أو انستخدمت بعد `close()`، أو الـ schema تبعها أحدث مما يعرف هالـ SDK، أو `node:sqlite` مفقود؛ أو ملف تجاوز حد حجم التخزين؛ أو ملف `fileStore()` / `FileSessionStore` ما انقرأ أو ما انستبدل لأن handle ثاني ماسكه مفتوح (`EPERM` / `EACCES` / `EBUSY` على Windows لمدة أطول من ~1.3 ثانية اللي يعيد فيها الـ store المحاولة؛ والـ `cause` هو آخر خطأ)؛ أو تغيير في `fileMemory` انتظر أكثر من 10 ثواني ملف القفل `<key file>.lock` تبع كاتب ثاني.
 
 **الحل:** تأكد من المسار والصلاحيات، واستخدم Node >= 22.13 مع `SqliteStore` (أو store مبني على ملفات)، واعمل store جديد بعد ما تقفل واحد.
 
 **مثال:** `new SqliteStore('/read-only/agent.db')`.
+
+### LOUSHO_STORAGE_BUSY
+
+**المعنى:** كتابة في `SqliteStore` ما قدرت تاخذ قفل الكتابة على قاعدة البيانات لأن اتصال أو عملية ثانية (replica ثانية، أو نسخة احتياطية، أو transaction طويلة) ماسكته. الـ driver ينتظر شوي بس (50 ms) عشان ما يتجمّد الـ event loop؛ وبعدها الكتابات الـ transactional في الـ stores (حفظ الـ checkpoints والـ approvals، و`resolve()`، و`saveIf()`، وclaims تسجيل الدخول بـ OAuth، وتحديثات الـ memory في SQLite) تعيد المحاولة مع backoff لحوالي 5 ثواني قبل ما تستسلم بهذا الخطأ. `prune()` ما يعيد المحاولة. وخطأ الـ driver الأصلي هو الـ `cause`.
+
+**الحل:** أعد النداء. وإذا ظل يصير، دوّر على اللي ماسك القفل وقت طويل.
+
+**مثال:** عمليتين يحفظون في نفس `agent.db` ووحدة منهم تشغّل transaction تاخذ كم ثانية.
 
 ### LOUSHO_TRIGGER_INVALID
 
@@ -545,7 +717,7 @@ loadSpec: 'agent.yaml' failed validation - 'prompt': AgentSpec validation failed
 
 ### LOUSHO_DEPLOY_FAILED
 
-**المعنى:** `lousho build` / `lousho dev` / الـ node-server runtime ما قدروا يحزّموا أو يشغّلوا الـ agent: `--agent` ناقص، أو مسار الـ agent ما موجود أو ليس مجلد agent، أو قيمة `LOUSHO_STORE` غلط، أو مصادر الـ runtime ناقصة، أو tool هدف Cloudflare Worker ما عنده.
+**المعنى:** `lousho build` / `lousho dev` / الـ node-server runtime ما قدروا يحزّموا أو يشغّلوا الـ agent: `--agent` ناقص، أو مسار الـ agent ما موجود أو ليس مجلد agent، أو فشل في التحزيم (import ما ينحل؛ ثبّته، أو اضبط `LOUSHO_BUILD_VERBOSE=1` عشان السجل الكامل)، أو قيمة `LOUSHO_STORE` غلط، أو مصادر الـ runtime ناقصة، أو tool هدف Cloudflare Worker ما عنده.
 
 **الحل:** اتبع الرسالة. راجع [النشر](/ar/deployment).
 
@@ -617,7 +789,7 @@ loadSpec: 'agent.yaml' failed validation - 'prompt': AgentSpec validation failed
 
 **الحل:** ارفع المهلة، أو خلّي العملية أسرع.
 
-**مثال:** `retryWithTimeout()` عمليته تاخذ أطول من مهلته.
+**مثال:** خطوة flow فيها `timeoutMs` ومحاولتها تاخذ أطول من كذا (`error.operation` قيمته `flow.node <type>`).
 
 ### LOUSHO_OUTPUT_INVALID
 
@@ -647,7 +819,7 @@ loadSpec: 'agent.yaml' failed validation - 'prompt': AgentSpec validation failed
 
 ### LOUSHO_AUTH_CONFIG_INVALID
 
-**المعنى:** مساعد route auth من `@lousho/build-ai-agent/auth` (`jwt()` أو `oidc()` أو `basic()` أو `apiToken()`) أخذ خيارات ما يقدر يتحقق فيها، ورفضها وقت إنشائه، مو عند أول طلب. الرسالة تسمّي الخيار: لا مصدر مفاتيح أو مصدرين، أو `secret` HMAC أقصر من 32 بايت، أو خوارزمية ما تناسب المفتاح (`secret` مع `RS256`، أو مفتاح عام مع `HS256`)، أو لا `audience` (ولا `allowAnyAudience: true`)، أو `clockToleranceSec` فوق 300، أو URL مجموعة مفاتيح أو issuer ليس https، أو قائمة مستخدمين أو token فاضي.
+**المعنى:** مساعد route auth من `@lousho/build-ai-agent/auth` (`jwt()` أو `oidc()` أو `basic()` أو `apiToken()`) أخذ خيارات ما يقدر يتحقق فيها، ورفضها وقت إنشائه، مو عند أول طلب. الرسالة تسمّي الخيار: لا مصدر مفاتيح أو مصدرين، أو `secret` HMAC أقصر من 32 بايت، أو خوارزمية ما تناسب المفتاح (`secret` مع `RS256`، أو مفتاح عام مع `HS256`)، أو لا `audience` (ولا `allowAnyAudience: true`)، أو `clockToleranceSec` فوق 300، أو URL مجموعة مفاتيح أو issuer ليس https، أو قائمة مستخدمين أو token فاضي (ومنه `createRouteHandler({ auth: '' })` و`serveFetch(request, ctx, '')`).
 
 **الحل:** غيّر الخيار اللي تسمّيه الرسالة. راجع [Route auth والـ principals](/ar/auth).
 

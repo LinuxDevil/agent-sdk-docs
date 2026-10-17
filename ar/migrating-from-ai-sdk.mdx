@@ -1,8 +1,152 @@
 ---
-title: "Migrating from the Vercel AI SDK"
+title: "الانتقال من Vercel AI SDK"
+sidebarTitle: "الانتقال من الـ AI SDK"
 ---
+{/* Generated from docs/migrating-from-ai-sdk.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-{/* pending-translation */}
-<Note>
-هذه الصفحة لم تُترجَم إلى العربية بعد. اقرأ [النسخة الإنجليزية](/migrating-from-ai-sdk).
-</Note>
+هذه الصفحة للكود المبني على حلقة الـ agent في Vercel AI SDK: `generateText({ tools })`
+أو `streamText({ tools })` مع حد للخطوات، أو `new ToolLoopAgent({ ... })`. تقدر تحتفظ
+بالـ models والـ tools وواجهة `useChat` الأمامية كما هي. ثلاثة adapters تنقلها
+بدون إعادة كتابة:
+
+| ما عندك | استخدم | التفاصيل في |
+| --- | --- | --- |
+| model من الـ AI SDK (`openai('gpt-4o')`، `google(...)`، `bedrock(...)`، الـ Gateway) | `fromAiSdk(model)` | [الـ Models](#الـ-models-fromaisdk) |
+| tools من الـ AI SDK (`tool({ ... })` أو objects عادية `{ description, inputSchema, execute }`) | `fromAiSdkTools(tools)` | [الـ Tools](#الـ-tools-fromaisdktools) |
+| واجهة أمامية بـ `useChat` | `toUIMessageStreamResponse()` و`fromUIMessages()` | [useChat](#usechat) |
+
+وما تحصل عليه بالمقابل هو ما يضيفه `createAgent()` فوق حلقة الـ model: approvals متينة
+تصمد بعد إعادة التشغيل، و sessions في الذاكرة أو ملفات أو SQLite، واستئناف بعد الانهيار،
+وميزانيات، وقواعد صلاحيات، و sub-agents و handoffs، وخوادم MCP، والتتبّع، والتقييمات (evals).
+
+## المقابلات
+
+| AI SDK | Lousho |
+| --- | --- |
+| `new ToolLoopAgent({ model, instructions, tools })` | `createAgent({ provider: fromAiSdk(model), instructions, tools: fromAiSdkTools(tools) })` |
+| `generateText({ model, system, prompt, tools, stopWhen })` | `await agent.send(prompt)`؛ و`system` يقابله `instructions` |
+| `streamText({ ... })` / `agent.stream()` | `agent.stream(prompt)`: `for await` على events من نوع typed، أو `await run.result` |
+| `result.text` | `result.text` |
+| `result.steps`، `onStepFinish` | events `step.start` / `step.done` / `tool.done` (عبر `onEvent`، أو بالمرور على `agent.stream()`) ([أحداث البث](/ar/stream-events)) |
+| `result.usage` / `totalUsage` | `result.usage` (tokens كل استدعاء، ومعها `costUsd` للـ models التي لها تسعير) ([الـ Models والتكلفة](/ar/models-and-cost)) |
+| `stopWhen: stepCountIs(n)` / في v4 `maxSteps: n` | `maxSteps: n`؛ وميزانيات الـ tokens والتكلفة والوقت عبر `limits` ([الإعدادات](/ar/configuration#الميزانيات)) |
+| `temperature`، `maxOutputTokens`، `toolChoice`، ... | `modelSettings: { temperature, maxTokens, toolChoice, ... }` |
+| `output: Output.object({ schema })` / `experimental_output` | `output: schema`، وتقرأها من `result.object` ([المخرجات المنظَّمة](/ar/structured-output)) |
+| `messages: [...]` (أنت تحتفظ بالسجل) | `agent.session({ id })` يحتفظ به عنك، أو مرّر الرسائل إلى `send()` ([الـ Sessions](/ar/sessions)) |
+| `abortSignal` | `send(input, { signal })` |
+| `tool({ needsApproval })` و`addToolApprovalResponse` | `needsApproval` (يحافظ عليه `fromAiSdkTools()`)؛ الـ run يتوقف مع `finishReason: 'awaiting-approval'` ويكمل عبر `agent.approvals.resolve()`، حتى بعد إعادة التشغيل ([الـ Approvals](/ar/approvals)) |
+| tools المزوّد (`openai.tools.webSearch()`) | `webSearch()`، `codeInterpreter()`، `fileSearch()`، `hostedTool()` ([الـ Hosted tools](/ar/hosted-tools)) |
+| `experimental_createMCPClient()` | `createAgent({ mcpServers })` ([MCP](/ar/mcp-integration)) |
+
+## الـ Models: fromAiSdk()
+
+`fromAiSdk(model)` يغلّف أي `LanguageModel` من الـ AI SDK ليصبح الـ provider الخاص بالـ agent، فالـ model
+الذي ضبطته مسبقًا (المفاتيح، الـ base URL، خيارات الـ provider) يشتغل كما هو:
+
+```ts
+import { createOpenAI } from '@ai-sdk/openai';
+import { createAgent, fromAiSdk } from '@lousho/build-ai-agent';
+
+const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const agent = createAgent({ provider: fromAiSdk(openai.chat('gpt-4o-mini')), instructions: 'You are helpful.' });
+```
+
+مع المزوّدين المدمجين، سلسلة الـ model أقصر: `createAgent({ model: 'openai/gpt-4o-mini' })`.
+راجع [الـ Providers](/ar/providers#أي-model-من-ai-sdk-fromaisdk) للخيارات ولإصدارات `ai`
+الرئيسية المدعومة.
+
+## الـ Tools: fromAiSdkTools()
+
+`fromAiSdkTools()` يأخذ نفس الـ record الذي تمرّره إلى `generateText({ tools })` أو
+`ToolLoopAgent`، ويرجع tools خاصة بـ Lousho؛ وكل مفتاح يصير اسم الـ tool:
+
+```ts
+import { tool } from 'ai';
+import { z } from 'zod';
+import { createAgent, fromAiSdk, fromAiSdkTools } from '@lousho/build-ai-agent';
+
+const weather = tool({
+  description: 'Get the weather in a city',
+  inputSchema: z.object({ city: z.string() }),
+  execute: async ({ city }, { abortSignal }) => fetchWeather(city, abortSignal),
+});
+const sendEmail = tool({
+  description: 'Send an email',
+  inputSchema: z.object({ to: z.string(), body: z.string() }),
+  needsApproval: async ({ to }) => !to.endsWith('@example.com'),
+  execute: async ({ to, body }) => mailer.send(to, body),
+});
+
+const agent = createAgent({
+  provider: fromAiSdk(model),
+  instructions: 'You are a helpful assistant.',
+  tools: fromAiSdkTools({ weather, sendEmail }),
+});
+```
+
+التحويل لا يستورد `ai`، فالـ tool يشتغل أيًّا كان إصدار `ai` الذي بناه،
+والـ object العادي يشتغل كذلك. هذا المثال يعمل بدون شبكة:
+
+```ts
+import { z } from 'zod';
+import { createAgent, fromAiSdkTools } from '@lousho/build-ai-agent';
+import { mockModel } from '@lousho/build-ai-agent/testing';
+
+const tools = fromAiSdkTools({
+  weather: {
+    description: 'Get the weather in a city',
+    inputSchema: z.object({ city: z.string() }),
+    execute: async ({ city }: { city: string }) => `Sunny in ${city}`,
+  },
+});
+const agent = createAgent({
+  provider: mockModel([{ toolCalls: [{ name: 'weather', args: { city: 'Paris' } }] }, 'It is sunny in Paris.']),
+  tools,
+});
+const result = await agent.send('Weather in Paris?');
+console.log(result.text); // It is sunny in Paris.
+```
+
+كيف يُنقل كل جزء من tool الـ AI SDK:
+
+| tool في الـ AI SDK | tool في Lousho |
+| --- | --- |
+| `inputSchema` (`ai` 5+) أو `parameters` (`ai` 4)، مخطط zod 3 / zod 4 أو Standard Schema | يُستخدم كما هو |
+| `inputSchema: jsonSchema({...})`، أو JSON Schema عادي | يُحوَّل إلى zod (نفس المحوّل الذي تستخدمه tools الـ MCP)؛ ودالة `validate` الخاصة بالغلاف تبقى تعمل قبل `execute` |
+| `execute(input, { toolCallId, messages, abortSignal })` | يُستدعى بمعرّف الاستدعاء من Lousho، وإشارة الإلغاء الخاصة بالـ run، والمحادثة كـ `Message`s من Lousho (لا `ModelMessage`s من الـ AI SDK) |
+| `execute` يرمي خطأ | خطأ tool يراه الـ model؛ والـ run يكمل |
+| `execute` يرجع async iterable (نتائج أولية) | كل قيمة تصير event من نوع `tool.partial`؛ والقيمة الأخيرة هي النتيجة |
+| `needsApproval: true` أو دالة في المدخلات | `needsApproval`: الـ run يتوقف بشكل متين حتى `agent.approvals.resolve()` |
+| `description` على شكل دالة (`ai` 7) | يُستدعى مرة واحدة بسياق فارغ |
+| بدون `execute` (tool من جهة العميل) | يُرفض مع `LOUSHO_CONFIG_INVALID`: أعطه `execute`، أو استخدم `needsApproval` / [الـ tool `ask_question`](/ar/approvals#سؤال-المستخدم) |
+| tool معرَّف من المزوّد | يُرفض: استخدم [الـ hosted tools](/ar/hosted-tools) |
+
+لا يُنقل `experimental_context`، ولا `onInputStart` / `onInputDelta` / `onInputAvailable`، ولا
+`toModelOutput`. وللـ tool الجديد، الأفضل `defineTool()`
+([الـ Tools](/ar/tools)): فهو يقبل أيضًا `timeoutMs` و`annotations` و`editsFiles` و
+`deferLoading`.
+
+## useChat
+
+الواجهة الأمامية المبنية بـ `useChat` تبقى تعمل: الـ route يرجع الـ run الخاص بالـ agent كـ UI message
+stream.
+
+```ts
+import { createAgent, fromUIMessages, memoryStore, toUIMessageStreamResponse, type UIMessageLike } from '@lousho/build-ai-agent';
+
+const agent = createAgent({ model: 'openai/gpt-4o-mini', instructions: 'You are helpful.', store: memoryStore() });
+
+// app/api/chat/route.ts
+export async function POST(request: Request): Promise<Response> {
+  const { id, messages } = (await request.json()) as { id: string; messages: UIMessageLike[] };
+  return toUIMessageStreamResponse(agent.session({ id }).stream(fromUIMessages(messages, { lastUserOnly: true })));
+}
+```
+
+الـ approvals وأجزاء الـ tools وجهة العميل موجودة في [AI SDK UI](/ar/ai-sdk-ui)؛ وroute جاهز
+للـ App Router هو `createRouteHandler(agent)` ([Next.js](/ar/nextjs)).
+
+## انظر أيضًا
+
+- [المقارنة](/ar/comparison): أين تختلف Lousho عن الـ AI SDK، بما في ذلك المواضع التي تكون فيها Lousho أضعف.
+- [الانتقال إلى createAgent()](/ar/migrating-to-create-agent) يخص الـ API الأقدم في Lousho نفسها، `AgentBuilder` / `AgentExecutor`، وليس الـ AI SDK.

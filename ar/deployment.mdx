@@ -1,12 +1,6 @@
 ---
 title: "النشر"
 ---
-
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/deployment).
-</Warning>
-
 {/* Generated from docs/deployment.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 `lousho build` يأخذ ملف spec للـagent (راجع [الإعداد](/ar/configuration)) ويطلع منه artifact جاهز للنشر على منصة واحدة:
@@ -25,6 +19,8 @@ npx lousho build --target=<target> --agent=agent.yaml [--out=<dir>]
 
 كل target يرد على `GET /health` (`200 ok`) ويقدّم [HTTP API](#http-api) الكامل تحت: sessions، وSSE streaming، وapprovals، وbearer auth.
 
+لشرح عملي على VPS حقيقي — فحص الخادم، البناء، النقل، التشغيل، التحقق — راجع [النشر على Hostinger VPS](/ar/hostinger-vps).
+
 ## مجلدات الـagent
 
 الأهداف الثلاثة تقبل كمان [مجلد agent](/ar/agent-directories) بدل ملف spec (المسار يجي positional أو عبر `--agent`):
@@ -36,13 +32,24 @@ node .lousho/build/node-server/dist/server.js
 
 الـ`server.ts` المولّد ينادي `resolveAgentDir()` على `dist/agent` وبعدين `createDeployedServer(agent, { schedules, channels })`. يعني العملية تشغّل [schedules](/ar/schedules) تبع المجلد لما تبلش تسمع، وتركّب [channels](/ar/channels) تحت `/channels` — الـchannels تتحقق من طلباتها بنفسها، ومسارات الشات تظل محمية بالـbearer token — وتطبع في اللوج `schedules: ...; channels: ...`.
 
-ملفات الكود في المجلد تتحزم مسبقًا في خطوة tsup وتطلع في `dist/agent/**.js`. البناء ESM واحد يشارك نسخة وحدة من الـSDK، فلو tool فيها `from '@lousho/build-ai-agent'` فهو نفس الـSDK اللي الخادم شغال عليه. باقي المجلد ينتسخ كما هو، وما في شي محتاج TypeScript loader وقت التشغيل. `dist/` يصير ESM (`dist/package.json` يصرّح بهذا). صورة Docker تنسخه زي قبل. الـsandbox الاختياري `dockerode` ما بينحزم (بينحمل lazily)، فالمجلد اللي يستخدم `SubprocessSandbox` لازم يثبّته وين ما يشتغل.
+ملفات الكود في المجلد تتحزم مسبقًا في خطوة tsup وتطلع في `dist/agent/**.js`. البناء ESM واحد يشارك نسخة وحدة من الـSDK، فلو tool فيها `from '@lousho/build-ai-agent'` فهو نفس الـSDK اللي الخادم شغال عليه. وما ينتسخ من المجلد إلا الملفات اللي الخادم يقراها كبيانات: `instructions.md` و`instructions/` و`skills/` وconfig بصيغة JSON/YAML، ونفسها في كل `subagents/<name>/`. ولا شي ثاني من المجلد يوصل لـ`dist/`: لا ملفات `.env`، ولا الـsession store في `.lousho/` أو `store.dir` تبع الـconfig، ولا ملاحظات أو ملفات بيانات. و`dist/` يتفرّغ قبل كل build، فالـsessions اللي كتبها خادم build سابق تحته ما بتنتقل للجديد. ما في شي محتاج TypeScript loader وقت التشغيل. `dist/` يصير ESM (`dist/package.json` يصرّح بهذا). صورة Docker تنسخه زي قبل. الـsandbox الاختياري `dockerode` ما بينحزم (بينحمل lazily)، فالمجلد اللي يستخدم `SubprocessSandbox` لازم يثبّته وين ما يشتغل.
 
-هدف `cloudflare-worker` يبني config المجلد و`instructions.md` و`tools/` و`skills/`، ويرفض `subagents/` و`schedules/` و`channels/` و`memory/` و`projectInstructions` وأي `model` الـprovider تبعه مش موجود في الـWorker — ويذكر لك بالاسم اللي لازم تشيله. الـtools تشتغل جوّا الـWorker بصلاحياته، ومسموح لها تستورد بس الجزء الآمن للـWorker من `@lousho/build-ai-agent` (التفاصيل في [Cloudflare Workers](/ar/cloudflare-workers#build-and-deploy)):
+هدف Cloudflare Worker يبني config المجلد و`instructions.md` و`tools/` و`skills/` و`subagents/` و`schedules/` (كـcron triggers تبع الـWorker) و`channels/` و`memory/` و`projectInstructions`؛ ويرفض أي `model` الـprovider تبعه مش موجود في الـWorker، وباقي الميزات اللي عمود الـWorker في [ما يعمل وما لا يعمل](/ar/cloudflare-workers#ما-يعمل-وما-لا-يعمل) ما يشملها — ويذكر لك بالاسم اللي لازم تشيله. الـtools تشتغل جوّا الـWorker بصلاحياته، ومسموح لها تستورد بس الجزء الآمن للـWorker من `@lousho/build-ai-agent` (التفاصيل في [Cloudflare Workers](/ar/cloudflare-workers#build-and-deploy)):
 
 ```bash
 npx lousho build ./my-agent --target=cloudflare-worker
 ```
+
+## وحدات الـagent
+
+هدفا `node-server` و`docker` يبنون كمان module بصيغة `.ts`/`.js` الـexport الافتراضي تبعه (أو الـexport المسمّى `agent`) هو options لـ`createAgent()` أو agent مبني: نفس الملف اللي يقدّمه `lousho dev src/agent.ts`، وهو اللي موجود في scaffolds الـminimal والـtools (والـ`npm run build` تبعهم يشغّل هذا):
+
+```bash
+npx lousho build src/agent.ts --target=node-server
+node .lousho/build/node-server/dist/server.js
+```
+
+الـ`server.ts` المولّد يستورد الـmodule، فـtsup يحزمه مع استيراداته المحلية والـSDK في `dist/server.js` بصيغة ESM. لو الـexport options، الخادم يبني الـagent بـ`LOUSHO_STORE` (إلا لو الـoptions حددت `store`)؛ أما الـagent المُصدَّر فيحتفظ بالـstore تبعه. الـ`package.json` تبع الـbuild يذكر حزمة الـprovider لو الـmodule فيه `model: '<provider>/...'` حرفي أو يسمّي class provider من الـSDK (`new OpenRouterProvider(...)`)؛ ملف الدخول بس هو اللي ينفحص، والـbuild يطبع warning لو ما لقى provider. أي peer اختياري ثاني يحتاجه ضيفه إنت لـ`dependencies`. هدف `cloudflare-worker` ما يبني module: استخدم spec أو مجلد agent.
 
 ## HTTP API
 
@@ -52,11 +59,13 @@ npx lousho build ./my-agent --target=cloudflare-worker
 | -------- | ------------ |
 | `GET /health` | `200 ok`. ما يحتاج auth أبدًا: وجّه عليه الـload balancers وفحوص صحة الحاويات. |
 | `POST /chat` `{ "sessionId", "input" }` | يشغّل turn للـsession `sessionId` (من 1 لـ128 حرف من `A-Za-z0-9_-`؛ id جديد يفتح محادثة، وid معروف يكملها) ويبثها SSE: سطر `data: <AgentEvent JSON>` لكل event ([Streaming](/ar/streaming))، وبعدين `event: done`. `input` نص أو array من content parts. |
-| `GET /chat/:sessionId` | transcript الـsession: `{ sessionId, messages, pending }`. |
-| `POST /chat/:sessionId/approvals/:id` `{ "approved", "note"? }` أو `{ "answer" }` | يحسم tool approval معلّق، أو يجاوب على `ask_question`، ويبث الـturn المكمّل live كـSSE بنفس الـframing وأنواع الأحداث تبع `POST /chat` (`tool.resume` / `tool.done` أو `tool.error` للـcall المحسوم، text deltas، `approval.requested` لو وقّف مرة ثانية، `run.done`)، من `agent.approvals.streamResolve()` / `streamAnswer()`. يرجع `404` لو `id` مش pending. |
+| `GET /chat/:sessionId` | transcript الـsession: `{ sessionId, messages, pending }`. رسائل الـturn تنحفظ لما يخلص، فـ`messages` ما فيها turn واقف على approval؛ و`pending` هي اللي تقول إنه واقف. |
+| `POST /chat/:sessionId/approvals/:id` `{ "approved", "note"? }` أو `{ "answer" }` | يحسم tool approval معلّق، أو يجاوب على `ask_question`، ويبث الـturn المكمّل live كـSSE بنفس الـframing وأنواع الأحداث تبع `POST /chat` (`tool.resume` / `tool.done` أو `tool.error` للـcall المحسوم، text deltas، `approval.requested` لو وقّف مرة ثانية، `run.done`)، من `agent.approvals.streamResolve()` / `streamAnswer()`. يرجع `404` لو `id` مش pending؛ و`409` (`LOUSHO_APPROVAL_CONFLICT`) لو في طلب ثاني لسا يبث حسمه لنفس الـapproval؛ و`400` (`LOUSHO_APPROVAL_DECISION_INVALID`) لبودي ما فيه ولا حقل من الاثنين. لو خطوة الـturn وقفت على أكثر من call، كل id ينحسم لحاله؛ الحسم اللي يخلّي غيره pending يبث `run.done` مع `finishReason: 'awaiting-approval'`، وآخر واحد هو اللي يشغّل الخطوة. |
 | `POST /chat` `{ "message" }` | صيغة legacy: turn واحد بلا history وبلا streaming؛ يرجع `ExecutionResult` للـagent كـJSON مع header `Deprecation: true`. |
 
-البودي اللي أكبر من 1MB ياخذ `413`، والـJSON غير الصالح ياخذ `400`.
+البودي اللي أكبر من 1MB ياخذ `413`، والـJSON غير الصالح ياخذ `400`. أي POST لازم يبعت `Content-Type: application/json` (أي شي ثاني ياخذ `415`، `LOUSHO_UNSUPPORTED_MEDIA_TYPE`)، وPOST من متصفح على origin ثاني ياخذ `403` (`LOUSHO_REQUEST_FORBIDDEN`): راجع [الطلبات بين المواقع](/ar/auth#الطلبات-بين-المواقع). `input` فاضي، أو بودي بدون `sessionId` و`input`، ياخذ `400` (`LOUSHO_REQUEST_INVALID`؛ وsession id غير صالح ياخذ `LOUSHO_SESSION_ID_INVALID`). كل بودي خطأ هو JSON بالشكل `{ error, code }`. turn ينبعت لـsession واقفة على approval ياخذ `409` مع `code: 'LOUSHO_SESSION_AWAITING_APPROVAL'` و`approvalId` و`approvalIds` (كل الـapprovals اللي لسا لازم تنحسم): احسمها عبر route الـapprovals، اللي يبث تكملة الـturn الواقف، وبعدين ابعت الـturn الجديد. مع قائمة auth، الـsession تصير ملك أول principal يبعت لها turn، والـsession المخزنة اللي الخادم ما عاد يتذكر صاحبها (بعد restart) تنرفض للكل لحد ما `authorizeSession` يقول لمين هي؛ ومع `LOUSHO_API_TOKEN` لحاله في caller واحد وما في فحص ملكية ([من يقدر يستخدم الـsession](/ar/auth#من-يقدر-يستخدم-الـ-session)). الـapproval ما يحسمه إلا الـcaller اللي الـrun تبعه شغال باسمه، إلا لو `authorizeApproval` قال غير هيك. في مجلد agent، صدّر `authorizeSession` و`authorizeApproval` من `auth.ts` عشان تغيّر أي قاعدة من الاثنتين (مثلًا عشان تخلي مدير يحسم approvals مستخدمين ثانيين): راجع [من يقدر يحسم الـapproval](/ar/auth#من-يقدر-يحسم-الـ-approval).
+
+وقت ما الـturn يبث، الخادم يكتب سطر تعليق SSE (`: ping`) بعد كل 15 ثانية بدون event، عشان الـproxy (nginx يسكّر الـupstream الخامل بعد 60 ثانية) أو الـclient (الـ`fetch` تبع Node يستسلم بعد 300 ثانية بدون ولا byte) يحافظ على الاتصال لما الـmodel أو الـtool يكون بطيء. الـSSE parsers تتجاهل سطور التعليق. `createRouteHandler(agent, { heartbeatMs })` يغيّر الفترة، و`0` يوقفها.
 
 ```bash
 curl -N http://127.0.0.1:3000/chat \
@@ -64,11 +73,32 @@ curl -N http://127.0.0.1:3000/chat \
   -d '{ "sessionId": "alice", "input": "Hello" }'
 ```
 
+### إعادة إرسال turn
+
+`POST /chat` يبعته الـclient مرة ثانية (إعادة محاولة بعد اتصال انقطع أو timeout، أو double click، أو client عمل restart) هو، بدون شي إضافي، turn جديد: رسالة المستخدم تنضاف مرة ثانية والـmodel ممكن ينادي نفس الـtools مرة ثانية. ابعت header `Idempotency-Key` (من 1 لـ255 حرف ASCII مرئي، مثلًا UUID يولّده الـclient لكل رسالة) وأعد الإرسال بنفس المفتاح:
+
+| الـturn تبع هذا المفتاح في هذه الـsession | إعادة الإرسال تاخذ |
+| ------------------------------------ | --------------- |
+| خلص (موجود في الـtranscript) | `200` SSE فيه `run.done` واحد يحمل الرد النهائي تبع هذاك الـturn (`text`، `finishReason`)، مع header `Idempotent-Replayed: true`. ما في شي يشتغل. اقرا `GET /chat/:sessionId` للـturn كامل. |
+| لسا شغال على عملية الخادم هذه | `409` (`LOUSHO_SESSION_BUSY`). أعد المحاولة بعدين وبتاخذ الـreplay. |
+| انقطع بسبب crash (turn عليه checkpoint وظل `in-progress`) | الـturn يُستأنف من آخر checkpoint (`session.resume()`: الخطوات والـtool calls اللي خلصت ما تنعاد)، ويتبث كـSSE. |
+| ما في | turn جديد، زي بدون الـheader؛ ورسالة المستخدم تبعه تحتفظ بالمفتاح (`metadata.idempotencyKey`). |
+
+الـsession الواقفة على approval ترد بـ`409` (`LOUSHO_SESSION_AWAITING_APPROVAL`) على إعادة الإرسال زي أي turn. المفتاح يتخزن مع الـturn في الـsession store (في الـtranscript، أو في checkpoint الـturn لحد ما يخلص)، فالـreplay يشتغل بعد restart وعلى replica ثانية تشارك نفس الـstore؛ و`session.pending()` يرجّع مفتاح الـturn المنقطع كـ`idempotencyKey`. المفتاح ينبحث عنه بس في الـsession تبعته، وبس طول ما الـturn تبعه موجود في الـtranscript (compaction تلخّصه تنساه). الـ`409` للـturn الشغال مضمون داخل عملية وحدة بس؛ replicaين يستلمون نفس المفتاح بنفس اللحظة ممكن الاثنين يشغلوه.
+
+```bash
+curl -N http://127.0.0.1:3000/chat -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: 6f1c2b0e-7d4a-4c8e-9a51-2f0d3b6e8c11' \
+  -d '{ "sessionId": "alice", "input": "Refund order B-1" }'
+```
+
 ### المصادقة
 
 عيّن `LOUSHO_API_TOKEN` (في الـWorker كـsecret: `npx wrangler secret put LOUSHO_API_TOKEN`) وكل route غير `/health` بيطلب `Authorization: Bearer <token>`. أي شي ثاني ياخذ `401` مع خطأ JSON (التوكن يتقارن constant time). بدونه الخادم مفتوح: عادي على `127.0.0.1`، بس **اعتبر التوكن إلزامي لأي شي مش على localhost** (الخادم يطبع warning لو سمع على interface ثاني بدون توكن، وصورة `docker` تسمع على كل الـinterfaces). اعمل terminate للـTLS قدام الخادم، لأن bearer token يمشي نص صريح فوق HTTP عادي. مرّر التوكن وقت التشغيل (`docker run -e LOUSHO_API_TOKEN=...`).
 
-برمجيًا: `adapter.scaffold(agentPath, outDir, { auth: { token } })` يخبز توكن جوّا خادم `node-server` أو `docker` المبني، لوقت ما يكون المتغير مش معيّن. المتغير يكسب، والتوكن المخبوز مقروء في `dist/server.js`، فخليك على المتغير. الـWorker يقرا التوكن من الـbinding `LOUSHO_API_TOKEN` تبعه بس.
+برمجيًا: `adapter.scaffold(agentPath, outDir, { auth: { token } })` يخبز توكن جوّا خادم `node-server` أو `docker` المبني، لوقت ما يكون المتغير مش معيّن. المتغير يكسب، والتوكن المخبوز مقروء في `dist/server.js`، فخليك على المتغير. الـWorker يقرا التوكن من الـbinding `LOUSHO_API_TOKEN` تبعه بس؛ وبدونه يرفض كل routes `/chat` إلا لو الـvar `LOUSHO_ALLOW_OPEN_SESSIONS` قيمته `"true"` ([Cloudflare Workers](/ar/cloudflare-workers)).
+
+ورا proxy، أو لواجهة أمامية على origin ثاني، الـ`node-server` والـWorker المولّدين يقرون فحوص الطلبات تبع الـroutes من `LOUSHO_ALLOWED_ORIGINS` و`LOUSHO_ALLOWED_HOSTS` (مفصولة بفواصل) و`LOUSHO_REQUIRE_JSON_BODY=false`: راجع [الطلبات بين المواقع](/ar/auth#الطلبات-بين-المواقع).
 
 لـJWT أو OpenID Connect أو Basic auth، ولتعرف مين بيكلّم الخادم، هدفا `node-server` و`docker` ياخذون قائمة auth مرتبة من `auth.ts` في مجلد الـagent، و`LOUSHO_API_TOKEN` يلحق فيها. راجع [مصادقة الـroutes والهويات](/ar/auth).
 
@@ -93,11 +123,36 @@ node dist/server.js                   # http://127.0.0.1:3000
 node dist/server.js --port=8080 --host=0.0.0.0
 ```
 
-زي `lousho dev`، بيرتبط بـ`127.0.0.1` إلا لو اخترت interface ثاني بـ`--host=<h>` (أو `HOST=<h>`). الـport يجي من `--port` أو `PORT`، وإلا الافتراضي `3000`. SIGINT/SIGTERM يسكّرون الـagent قبل الخروج. بيانات اعتماد الـprovider تنقرا من نفس متغيرات البيئة المعتادة (`OPENAI_API_KEY`، ...).
+زي `lousho dev`، بيرتبط بـ`127.0.0.1` إلا لو اخترت interface ثاني بـ`--host=<h>` (أو `HOST=<h>`). الـport يجي من `--port` أو `PORT`، وإلا الافتراضي `3000`.
+
+مع SIGINT أو SIGTERM (`docker stop`، أو rolling deploy) الخادم يعمل drain قبل ما يطلع:
+1. يوقف استقبال الاتصالات.
+2. يوقف الـschedules، فما في شي ينطلق مرة ثانية.
+3. يستنى الطلبات والـturns اللي شغالة أصلًا، ومنها انطلاقات الـschedules والـturns اللي الـclient تبعها قطع الاتصال. الانتظار حدّه الأقصى 10 ثواني، أو `LOUSHO_SHUTDOWN_TIMEOUT_MS`.
+4. يسكّر الاتصالات اللي لسا مفتوحة وينادي `agent.close()`.
+
+خلّي فترة السماح تبع المنصة (`--stop-timeout` في Docker، `terminationGracePeriodSeconds` في Kubernetes) أطول من هذا الانتظار. الـdrain جزء من الخادم المولّد؛ `createDeployedServer()` helper داخلي في هذاك الـbundle ومش مُصدَّر. لما تقدّم الـagent بنفسك (مثلًا `createRouteHandler()` ورا خادم `node:http` تبعك)، اعمل نفس الشي في الـsignal handler تبعك: وقّف الاستقبال، خلّي الطلبات الجارية تخلص، وبعدين نادِ `agent.close()`.
+
+```ts
+import { createServer } from 'node:http';
+import { createAgent, mountChannels } from '@lousho/build-ai-agent';
+
+const agent = createAgent({ model: 'openai/gpt-4o-mini' });
+const handler = mountChannels(agent, []);
+const server = createServer((req, res) => void handler(req, res).then((handled) => handled || res.writeHead(404).end()));
+server.listen(3000);
+
+process.once('SIGTERM', () => {
+  server.close(() => void agent.close()); // close() waits for open connections
+  setTimeout(() => server.closeAllConnections(), 10_000).unref(); // then cut the stragglers
+});
+```
+
+بيانات اعتماد الـprovider تنقرا من نفس متغيرات البيئة المعتادة (`OPENAI_API_KEY`، ...).
 
 ## `docker`
 
-يعيد استخدام scaffold وbundle تبع `node-server` ويضيف `Dockerfile` مبني على `node:22-slim` ينسخ `dist/` ويشغّل `node dist/server.js` على port 3000. الصورة تعيّن `HOST=0.0.0.0` — جوّا container لازم الخادم يسمع على كل الـinterfaces عشان `docker run -p` يوصل له. مرّر بيانات اعتماد الـprovider وقت التشغيل:
+يعيد استخدام scaffold وbundle تبع `node-server` ويضيف `Dockerfile` مبني على `node:22-slim` ينسخ `dist/` ويشغّل `node dist/server.js` على port 3000 بالمستخدم `node` غير المميّز تبع الصورة. الصورة تعيّن `HOST=0.0.0.0` — جوّا container لازم الخادم يسمع على كل الـinterfaces عشان `docker run -p` يوصل له. لصورة قابلة لإعادة الإنتاج، شغّل `npm install --package-lock-only` في مجلد الناتج مرة وحدة واحتفظ بـ`package-lock.json`: الـDockerfile وقتها يثبّت بـ`npm ci`. مرّر بيانات اعتماد الـprovider وقت التشغيل:
 
 ```bash
 cd .lousho/build/docker
@@ -117,7 +172,7 @@ docker run -p 3000:3000 -e OPENAI_API_KEY=... lousho-agent
 
 ### الـpeer dependencies الاختيارية في builds تبع node وdocker
 
-`dist/server.js` يحزم الـSDK بس يخلّي الـpeer dependencies الاختيارية برّا (مدخلات `peerDependenciesMeta` في الـpackage.json تبعها: حزم الـproviders، و`dockerode`، وMCP SDK، و`prompts`، ...)، فما في build يحتاج اعتمادية ما بتستخدمها. `package.json` المولّد أصلاً مدرج فيه اللي الـagent يحتاجه وين ما الخادم يشتغل: `@lousho/build-ai-agent` (مثبت على الإصدار اللي بناه)، وحزمة الـprovider اللي الـspec يسميها (بنطاق يوافق الـmajor تبع `ai` اللي انبنى عليه، مثل `@ai-sdk/openai` لـagent تبع OpenAI)، و`@modelcontextprotocol/sdk` لو الـspec فيه `mcpServers`. يعني `npm install --omit=dev` في صورة docker، أو `npm install` جنب ناتج node-server، بتثبتهم. أي شي ثاني — استيرادات مجلد الـagent نفسه، أو `dockerode` للأدوات الـsandboxed — تضيفه إنت بنفسك. مسار كود يحتاج اعتمادية ناقصة يرمي خطأ الـSDK المرمّز تبع الـpeer المفقود. وcron triggers تبع الـspec تشتغل على node-server وdocker كمان، مش بس على Workers (راجع [Schedules](/ar/schedules#على-سيرفر-node)).
+`dist/server.js` يحزم الـSDK بس يخلّي الـpeer dependencies الاختيارية برّا (مدخلات `peerDependenciesMeta` في الـpackage.json تبعها: حزم الـproviders، و`dockerode`، وMCP SDK، و`prompts`، ...)، فما في build يحتاج اعتمادية ما بتستخدمها. `package.json` المولّد أصلاً مدرج فيه اللي الـagent يحتاجه وين ما الخادم يشتغل: حزمة الـprovider اللي الـspec يسميها (بنطاق يوافق الـmajor تبع `ai` اللي انبنى عليه، مثل `@ai-sdk/openai` لـagent تبع OpenAI)، و`@modelcontextprotocol/sdk` لو الـspec فيه `mcpServers` — وبس: `@lousho/build-ai-agent` و`ai` و`zod` داخل الـbundle. يعني `npm install --omit=dev` في صورة docker، أو `npm install` جنب ناتج node-server، بتثبتهم. أي شي ثاني — استيرادات مجلد الـagent نفسه، أو `dockerode` للأدوات الـsandboxed — تضيفه إنت بنفسك. مسار كود يحتاج اعتمادية ناقصة يرمي خطأ الـSDK المرمّز تبع الـpeer المفقود. وcron triggers تبع الـspec تشتغل على node-server وdocker كمان، مش بس على Workers (راجع [Schedules](/ar/schedules#على-سيرفر-node)).
 
 ## الـtargets المخصصة
 
