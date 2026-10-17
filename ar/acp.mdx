@@ -2,12 +2,6 @@
 title: "Agent Client Protocol (ACP)"
 sidebarTitle: "المحررات (ACP)"
 ---
-
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/acp).
-</Warning>
-
 {/* Generated from docs/acp.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 [Agent Client Protocol](https://agentclientprotocol.com) بروتوكول يخلّي المحرر
@@ -101,10 +95,12 @@ lousho acp <spec.yaml|spec.json|agent-dir|agent.ts> [--model provider/model]
 `session/cancel`.
 
 **الأخطاء.** الـ method غير المعروفة يُرَدّ عليها بخطأ JSON-RPC رقم `-32601`، وسطر
-ليس JSON بـ `-32700`، و`sessionId` غير معروف أو prompt فارغ بـ `-32602`، وprompt
+ليس JSON بـ `-32700`، وسطر هو JSON لكنه ليس كائن طلب (`null`، أو مصفوفة، أو نص،
+أو رقم، أو `method` ليست نصًا) بـ `-32600`، و`sessionId` غير معروف أو prompt فارغ بـ `-32602`، وprompt
 ثاني بينما واحد يشتغل في نفس الـ session بـ `-32600`. والـ run الذي يفشل
 يُرَدّ عليه بـ `-32603` مع رسالة الخطأ، ورمز خطأ الـ SDK الخاص به (مثلاً
-`LOUSHO_PROVIDER_RATE_LIMITED`) في `error.data.code`.
+`LOUSHO_PROVIDER_RATE_LIMITED`) في `error.data.code`. والـ `params` التي قيمتها `null`
+أو ليست object تُقرأ كـ `{}`. والسطر المشوّه لا يوقف السيرفر أبدًا.
 
 ## غير المدعوم
 
