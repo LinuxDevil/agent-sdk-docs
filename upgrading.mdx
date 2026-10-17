@@ -8,8 +8,8 @@ sidebarTitle: "Upgrading to 1.0"
 
 Anyone with code written against `1.0.0-alpha.8` or an earlier `1.0.0-alpha.*`
 release. Between those alphas and the 1.0 line (the changes listed under
-`1.0.0-rc.0` in the changelog, published in the later `1.0.0-alpha.*` releases) the package's public surface
-was reorganized: imports moved to subpaths, dead or superseded APIs were
+`1.0.0-alpha.19` in the changelog, first published in `1.0.0-alpha.15`) the
+package's public surface was reorganized: imports moved to subpaths, dead or superseded APIs were
 removed, and the patch guardrails were renamed patch checks. `createAgent()`
 and its options did not change - an agent that only does
 `createAgent({ model, instructions, tools })` and `agent.send()` upgrades by
@@ -116,6 +116,16 @@ results and behavior are unchanged; `SECRET_PATTERNS` keeps its name. See
 | `createTestRunGuardrail` | `createTestRunCheck` |
 | `createLintGuardrail` | `createLintCheck` |
 
+## Migrating from triggers
+
+`WebhookTriggerAdapter`, `SlackTriggerAdapter`, `CronTriggerAdapter` and their option/handle types were removed from `@lousho/build-ai-agent/triggers`. `TriggerAdapter`, `TriggerRegistry`, the `WebhookAuth` helpers, `verifySlackSignature()` and `parseCronExpression()` stay. See [Triggers](/triggers).
+
+| Removed | Replacement |
+| ------- | ----------- |
+| `WebhookTriggerAdapter`, `WebhookTriggerAdapterOptions`, `WebhookTriggerHandle` | `webhookChannel()`, mounted with `mountChannels()`; it takes the same `auth` option. See [Channels](/channels) |
+| `SlackTriggerAdapter`, `SlackTriggerAdapterOptions` | `slackChannel()`, mounted with `mountChannels()` - sessions per thread, approval buttons. See [Channels](/channels#slack) |
+| `CronTriggerAdapter`, `CronTriggerAdapterOptions`, `CronIntervalOptions`, `CronExpressionOptions` | `defineSchedule()` with `startSchedules()`, `schedules/` in an agent directory, or cron triggers in a spec file. There is no `intervalMs`: write the cron expression (`*/5 * * * *`). See [Schedules](/schedules) |
+
 ## Deprecated, still working in 1.x
 
 These names still work in 1.x and are removed in 2.0. Move off them when you
@@ -123,10 +133,6 @@ touch the code; nothing breaks if you do not.
 
 | Deprecated | Replacement |
 | ---------- | ----------- |
-| `SlackTriggerAdapter` (`@lousho/build-ai-agent/triggers`) | `slackChannel()`, mounted with `mountChannels()` - sessions per thread, approval buttons. See [Channels](/channels) |
-| `CronTriggerAdapter` | `defineSchedule()` with `startSchedules()`, `schedules/` in an agent directory, or cron triggers in a spec file. See [Schedules](/schedules) |
-| `WebhookTriggerAdapter` | `webhookChannel()`, mounted with `mountChannels()`. See [Channels](/channels) |
-| The adapters' options types (`SlackTriggerAdapterOptions`, `CronTriggerAdapterOptions`, `WebhookTriggerAdapterOptions`) and `WebhookTriggerHandle` | The corresponding channel/schedule option types. `verifySlackSignature()`, the `WebhookAuth` helpers, `parseCronExpression()`, `TriggerAdapter` and `TriggerRegistry` are **not** deprecated |
 | `ToolRunContext` | `ToolExecutionContext`, the one public execute-context type |
 | `RunUsage.promptTokens` | `RunUsage.inputTokens` |
 | `RunUsage.completionTokens` | `RunUsage.outputTokens` |
@@ -203,15 +209,16 @@ there is one. A change marked "no opt-out" closed a security or data-loss bug.
 
 | Change | Opt-out |
 | ------ | ------- |
-| With route auth and no `authorizeSession`, a session belongs to the first principal that reads or continues it; another principal gets `403 LOUSHO_SESSION_FORBIDDEN`. The owner is kept in memory per agent, so pass `authorizeSession` on more than one instance. See [Who may use a session](/auth#who-may-use-a-session). | `authorizeSession: () => true` |
+| With route auth and no `authorizeSession`, a session belongs to the first principal that sends it a turn (a read claims nothing); another principal gets `403 LOUSHO_SESSION_FORBIDDEN`. The owner is kept in memory per agent (the 100,000 most recently used sessions); a stored session whose owner is not on record (after a restart, past that cap) is refused to everyone, so pass `authorizeSession` on more than one instance or with a store that outlives the process. One bearer token is one caller and checks no owner. See [Who may use a session](/auth#who-may-use-a-session). | `authorizeSession: () => true` |
 | The session routes (`createRouteHandler()`, `createDeployedServer()`, the Worker, `lousho dev`) refuse a cross-site POST (`403 LOUSHO_REQUEST_FORBIDDEN`) and a POST body that is not `Content-Type: application/json` (`415 LOUSHO_UNSUPPORTED_MEDIA_TYPE`). The new `allowedHosts` (off by default) refuses unlisted `Host` headers. See [Cross-site requests](/auth#cross-site-requests). | `allowedOrigins: ['*']`, `requireJsonBody: false` (or list the front end's origin in `allowedOrigins`) |
 | `POST /chat/:sessionId/approvals/:id` answers `404` unless the approval belongs to that session, and only the caller the paused run acts for may decide it. | `authorizeApproval` to let others (a supervisor) decide |
+| `POST /chat` to a session paused on an approval answers `409` JSON (`LOUSHO_SESSION_AWAITING_APPROVAL`, with `approvalId` and `approvalIds`) instead of a `200` stream that ends in an `error` event. | no opt-out (decide the approval first) |
 | The routes send an error's `name` and `code` with a generic message instead of its raw text (in `error` events, `500` bodies and `provider.retry` / `provider.fallback` events); the full error goes to `console.error`. | `exposeErrors: true` (`lousho dev` sets it) |
 | A client that disconnects mid-turn no longer aborts the turn: it runs to its end and is saved. See [Next.js routes](/nextjs#routes). | `onDisconnect: 'abort'` |
-| `lousho dev` answers `403` to a request whose `Host` is not a loopback name (or, off loopback, an IP address or the `--host` name), against DNS rebinding. | `--allowed-hosts a,b` |
-| `WebhookTriggerAdapter` binds `127.0.0.1` (was `0.0.0.0`), throws `LOUSHO_TRIGGER_INVALID` for a non-loopback `host` without `auth`, and without `auth` refuses a foreign `Host` or a request with an `Origin`. See [Webhook authentication](/triggers#webhook-authentication). | `host: '0.0.0.0'` with `auth`, or `allowUnauthenticated: true` |
-| The Cloudflare Worker refuses `GET /chat/:sessionId` (`403`) when no `LOUSHO_API_TOKEN` secret is set. See [Cloudflare Workers](/cloudflare-workers). | the `LOUSHO_ALLOW_OPEN_TRANSCRIPTS` var set to `"true"` |
-| `serveMcp()` over HTTP checks `Host` and `Origin` against DNS rebinding; loopback is exactly `localhost`, a `127.x.x.x` address or `::1` (also for `WebhookTriggerAdapter`). | `allowedHosts` / `allowedOrigins` on `serveMcp()`'s HTTP transport (`['*']` turns a check off) |
+| `lousho dev` answers `403` to a request whose `Host` is not a loopback name (or, off loopback, an IP address or the `--host` name), against DNS rebinding; this covers `/channels/<name>` for a channel without `verify`. | `--allowed-hosts a,b` (adds to the defaults) |
+| A channel without `verify` refuses a browser request from another site (`403 LOUSHO_REQUEST_FORBIDDEN`), and `httpChannel()` without `verify` refuses a body that is not `Content-Type: application/json` (`415 LOUSHO_UNSUPPORTED_MEDIA_TYPE`). See [Channels](/channels). | give the channel a `verify` (send the JSON content type from scripts: `curl -H 'Content-Type: application/json'`) |
+| The Cloudflare Worker refuses every `/chat` route (a turn, a transcript, an approval decision; `403`) when no `LOUSHO_API_TOKEN` secret is set. `/health`, the OAuth callback and channels stay open. See [Cloudflare Workers](/cloudflare-workers). | the `LOUSHO_ALLOW_OPEN_SESSIONS` var (or the earlier `LOUSHO_ALLOW_OPEN_TRANSCRIPTS`) set to `"true"` |
+| `serveMcp()` over HTTP checks `Host` and `Origin` against DNS rebinding; loopback is exactly `localhost`, a `127.x.x.x` address or `::1` (also for `webhookChannel()`). | `allowedHosts` / `allowedOrigins` on `serveMcp()`'s HTTP transport (`['*']` turns a check off) |
 | Agent Forge (`lousho studio`) sends no CORS headers, refuses a foreign `Origin` or non-loopback `Host`, and needs the per-launch token it prints. See [Access token](/agent-forge#access-token). | no opt-out |
 | `fromUIMessages()` (and so `POST <base>/ui`) drops client-sent `system` messages and any role other than `user` / `assistant`. | no opt-out |
 | Slack and Discord signature checks accept a timestamp at most a minute ahead (was five minutes either way), read in seconds. | no opt-out |
@@ -227,7 +234,10 @@ there is one. A change marked "no opt-out" closed a security or data-loss bug.
 | Resolving an approval whose run was deleted or replaced fails with `LOUSHO_APPROVAL_ORPHANED` and withdraws it (it used to overwrite the newer conversation). | no opt-out |
 | A session turn paused for approval locks the session id: a new turn on it throws `SessionAwaitingApprovalError` (`LOUSHO_SESSION_AWAITING_APPROVAL`). | decide the approval, or `session.discardPending()` |
 | Session turns keep the checkpoint history of the latest 10 committed turns. See [Durable sessions](/sessions#durable-sessions). | `agent.session({ id, turnHistoryLimit })` with a larger whole number |
-| `sessionId` must be 1-200 characters of `A-Za-z0-9_.-` on every store, and may not end in `.turn-<n>` or `.paused`; `''` is refused. | no opt-out |
+| A run id (`agent.send()` / `agent.stream()`'s `sessionId`, a fork's `newSessionId`) must be 1-200 characters of `A-Za-z0-9_.-`, not starting or ending with `.`, on every store, and may not end in `.turn-<n>`, `.paused` or `.fire` (a schedule's fire claim); `''` is refused. This is not the session id rule: a session id (`agent.session({ id })`, the routes' and `lousho dev`'s `sessionId`, `lousho chat --session`) is still 1-128 characters of `A-Za-z0-9_-`, with no `.`. Both fail with `LOUSHO_SESSION_ID_INVALID`. | no opt-out |
+| A lease left by a process that died on another machine (or in another container with the same hostname) is taken over 30 to 60 seconds after its last heartbeat (a grace for clock skew), not at 30 seconds. See [Run leases](/durable-execution#run-leases). | no opt-out |
+| During a rolling upgrade, replicas still on an earlier release neither take nor respect run leases, so a turn can run twice until every replica is upgraded. A SQLite database opened by this release is migrated and then refused by older releases. | upgrade all replicas together; keep a copy of the database to roll back |
+| `approvalTtlMs` (and an `ask` rule's `ttlMs`) above 100 years throws `LOUSHO_CONFIG_INVALID` instead of meaning "never expires". | leave it out for pauses that never expire |
 | A deterministic provider error records `lastError` on the turn's checkpoint, and later calls on that session fail fast with `LOUSHO_SESSION_TURN_FAILED`. | `session.discardPending()`, or fix the cause and `session.resume()` |
 | With a store, tools, `needsApproval`, permission rules and hooks get the session id as `ctx.sessionId`, not the turn checkpoint key `<id>.turn-<n>`. | no opt-out |
 | Several calls of one step that need approval pause once, on all of them (`result.approvalIds`); calls that need no approval run before the pause. See [Several calls in one step](/approvals#several-calls-in-one-step). | no opt-out |
@@ -252,6 +262,7 @@ there is one. A change marked "no opt-out" closed a security or data-loss bug.
 | An aborted run ends `finishReason: 'aborted'` at once, even when the provider ignores the signal. See [Cancellation](/runs#cancellation). | no opt-out |
 | The `openrouter` provider created without `apiKey` reads `OPENROUTER_API_KEY` (it sent `OPENAI_API_KEY`). | pass `apiKey` |
 | The `@modelcontextprotocol/sdk` peer range is `^1.31.0`. | no opt-out |
+| With `output`, `responseFormat` is sent only on model calls that offer no tools (an agent without tools, the "answer now" call at `maxSteps`, the repair step); a call that offers tools relies on the schema in the prompt. A strict `json_schema` next to tools made `openai/gpt-4o-mini` via OpenRouter call tools until `maxSteps`. See [How it works](/structured-output#how-it-works). | `output: { schema, responseFormat: 'always' }` (already the default with `promptSchema: false`) |
 
 ### Tools, MCP and tracing
 
@@ -262,6 +273,7 @@ there is one. A change marked "no opt-out" closed a security or data-loss bug.
 | `defineTool()` throws `LOUSHO_CONFIG_INVALID` for a non-object `input` root or a `z.date()` / `z.bigint()` field; tool-call arguments that are not valid JSON reach the model as `LOUSHO_TOOL_ARGS_INVALID` instead of running the tool with `{}`. | no opt-out |
 | A flow `toolCall` step passes the agent's gate (`permissions`, `permissionMode`, approval) and validates its arguments; a call that needs approval fails with `LOUSHO_FLOW_TOOL_DENIED` without `approve`. See [Flows](/flows#tool-calls). | pass `approve` in the flow context |
 | `createShellTool` `allow` string patterns refuse arguments that leave the workspace (`..`, `~`, absolute paths), also through quotes. | an `allow` `CommandRule` with an `args` check |
+| `createFsTools` tools refuse paths through `.git` and leave `.git` out of `glob`, `grep` and `list_dir` results. See [Security model](/workspace-tools#security-model). | `deny: []` |
 | `SubprocessSandbox` writes only under `root` and runs containers as `1000:1000` with all capabilities dropped. See [Sandboxed tools](/guardrails#sandboxed-tools). | `root`, `user: 'root'` |
 | An MCP result made only of text reaches the model as `{ "text": ... }`. | no opt-out |
 | `redactContent` defaults to `true`: the deprecated `input` / `prompt` / `args` / `result` span attributes are left out, so `fileTraceExporter()` files hold no content. See [Observability](/observability#message-and-argument-content-is-opt-in). | `redactContent: false` (or `captureContent: true` for the `gen_ai.*` content) |
@@ -272,11 +284,16 @@ there is one. A change marked "no opt-out" closed a security or data-loss bug.
 
 | Change | Opt-out |
 | ------ | ------- |
-| `lousho dev`, `chat`, `acp`, `mcp` and `doctor` load `./.env` when it exists; variables already set win. See [CLI](/cli). | remove or rename `.env` |
+| `lousho dev`, `chat`, `acp`, `mcp`, `doctor`, `eval` and `build` load `./.env` when it exists; variables already set win. See [CLI](/cli). | remove or rename `.env` |
+| Every `lousho` usage error (unknown command or flag, bad value, extra argument) exits 2; 1 means the command ran and failed. See [CLI](/cli). | check for a non-zero exit instead of exactly 1 |
 | `t.maxCostUsd(n)` fails when a run reports no cost (the model has no known price). See [Evals](/evals). | `t.maxCostUsd(n, { unknownCost: 'skip' })` |
 | `lousho eval` gives each live, `--record` and `--drift` case 10 minutes instead of vitest's 5 s. See [Time limits](/evals#time-limits). | `--timeout <ms>` or `defineEval({ timeoutMs })` |
 | Agent Forge fails a run on a real provider with no API key (`LOUSHO_PROVIDER_MISSING_API_KEY`) instead of silently using the mock provider. | switch the agent's provider to `mock` |
 | The npm package no longer ships `llms-full.txt` (it stays in the repository; `llms.txt` ships). | fetch `llms-full.txt` from the repository |
+| `lousho eval` exits 1 when no case ran (every case skipped by `--tag`, or no `defineEval()` in the files). | pass the tags or globs that select cases |
+| `lousho mcp --port N` or `--host H` without `--http` is a usage error (exit 2); stdio has no port. | drop the flags, or add `--http` |
+| The `package.json` of a node-server or docker build no longer lists `@lousho/build-ai-agent` (the bundle contains it). | add it yourself if other code next to the build imports the SDK |
+| The npm package no longer ships `dist/cli/*.js` (the CommonJS CLI build) or `dist/cli/*.d.ts`; `bin/lousho.js` never loaded them. | run the CLI through `bin/lousho.js` (`npx lousho`) |
 
 ## What 1.0 promises
 

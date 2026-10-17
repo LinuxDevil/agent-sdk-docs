@@ -44,8 +44,14 @@ await agent.close();
 ```
 
 stdio entries are spawned with `command` and `args` (in `cwd`, when set); `env`
-is added to the default environment (`PATH` and the like), not a replacement for
-it. A server that does not start fails with
+is merged onto the MCP SDK's default allow-list (`PATH`, `HOME`, `USER`, `SHELL`, `TERM`
+and `LOGNAME` on POSIX; `PATH`, `SYSTEMROOT`, `APPDATA`, `TEMP`, `USERPROFILE` and a few
+more on Windows), not onto `process.env`. This holds with or without `env`, so
+any other variable the server needs (an API key, `NODE_ENV`, a proxy setting)
+is not inherited unless you list it: `env: { GITHUB_TOKEN: process.env.GITHUB_TOKEN }`. A failed
+tool call (the server exited, timed out or answered with a protocol error)
+rejects with [`LOUSHO_MCP_CALL_FAILED`](/errors#lousho_mcp_call_failed), naming
+`<server>__<tool>`. A server that does not start fails with
 [`LOUSHO_MCP_START_FAILED`](/errors#lousho_mcp_start_failed), whose message
 has the exit code and the last lines the process wrote to stderr.
 `stderr: 'forward'` (default) also copies the process's stderr to this one's,
@@ -226,7 +232,7 @@ import { createAgent } from '@lousho/build-ai-agent';
 import { loadMcpTools } from '@lousho/build-ai-agent/mcp';
 
 const tools = await loadMcpTools(mcpClient, 'my-server');
-const agent = createAgent({ prompt: '...', provider, tools });
+const agent = createAgent({ instructions: '...', provider, tools });
 ```
 
 `loadMcpTools` is also available from the package root and from
@@ -250,7 +256,7 @@ const searchDocs = defineTool({
   execute: ({ query }) => `results for ${query}`,
 });
 
-const supportAgent = createAgent({ prompt: 'You answer support questions.', provider, tools: [searchDocs] });
+const supportAgent = createAgent({ instructions: 'You answer support questions.', provider, tools: [searchDocs] });
 
 const server = await serveMcp({
   agent: supportAgent,            // exposed as ONE tool taking { message: string }
@@ -267,8 +273,13 @@ await server.close();
   (`agent.send(message, { signal })`). Over HTTP the run is also aborted when
   the client disconnects, and when a client timeout sends
   `notifications/cancelled` in a later `POST`: that cancel is matched to the
-  request by its id and the client (remote address, `Authorization`,
-  `User-Agent`), and ignored when several requests in flight match.
+  request by its id and the client. The server keeps no session state, but it
+  answers `initialize` with an `Mcp-Session-Id` header, which Streamable HTTP
+  clients (`connectMcp()`, the MCP SDK) send back, so two clients behind one
+  address and token are told apart. A client that sends no session id is known
+  by its remote address, `Authorization` and `User-Agent`, and its cancel is
+  ignored when several requests in flight match. The cancelled request is
+  answered with a JSON-RPC error (`-32800`, `Request cancelled`).
 - **Errors.** An agent failure comes back as an MCP result with `isError: true`.
 - **Approvals.** Approval-gated tools cannot be approved over MCP. A run that
   pauses for approval returns `isError: true` with a message saying so, and

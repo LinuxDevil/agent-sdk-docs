@@ -61,7 +61,8 @@ With `subagents`, the lead agent gets:
 2. ONE tool, `task`, with the input
    `{ agent: <one of the names>, prompt: string, description?: string, background?: boolean, taskId?: string, mode?: 'new' | 'resume' | 'fork' }`
    (`description` is an optional 3-5 word label used in events and hooks; `taskId` and
-   `mode` continue an earlier task, see [Continuing a task](#continuing-a-task)).
+   `mode` continue an earlier task, see [Continuing a task](#continuing-a-task);
+   `subagentOptions: { continuation: false }` leaves them out).
 3. Three tools for background tasks: `agent_status`, `agent_await` and
    `agent_cancel` (see [Background sub-agents](#background-sub-agents)).
 
@@ -75,14 +76,21 @@ The first bicycles appeared in the 1810s ...
 [sub-agent 'researcher': 3 step(s), finish reason 'stop', taskId 'task_1']
 ```
 
-If the sub-agent does not finish - it throws, runs out of `maxSteps`, or is
-aborted - the lead gets an error result (`isError: true`) that says why, for
-example `Sub-agent 'researcher' used all 10 of its steps (maxSteps) without
-giving a final answer.` An unknown agent name is also an error result listing
-the valid names. An answer cut off at the sub-agent's output token limit
-(finish reason `'length'`) is still returned, with a line after the footer
-saying it may be incomplete. Sub-agent token usage is added to the lead's `result.usage`,
-a [remote sub-agent](#remote-sub-agents)'s too.
+If the sub-agent does not finish - it throws, runs out of `maxSteps`, stops at
+a budget limit, or is aborted - the lead gets an error result (`isError: true`)
+that says why, for example `Sub-agent 'researcher' used all 10 of its steps
+(maxSteps) without giving a final answer.` An unknown agent name is also an
+error result listing the valid names. An answer cut off at the sub-agent's
+output token limit (finish reason `'length'`) is still returned, with a line
+after the footer saying it may be incomplete. A sub-agent with an `output`
+schema that runs out of steps makes one last forced call
+([Out of steps](/structured-output#out-of-steps)): when that call returns
+a valid object, the `task` result is that object (finish reason `'max-steps'`
+in the footer, plus a line saying the steps ran out), not an error. Sub-agent
+token usage is added to the lead's `result.usage`, a
+[remote sub-agent](#remote-sub-agents)'s too. The lead's own `result.toolErrors`
+counts only the lead's tool calls; the calls that failed inside its sub-agents
+(and theirs) are counted on `result.usage.delegated.toolErrors`.
 
 Errors at setup time are thrown with a fix: a sub-agent without a
 `description`, a value that is not a `createAgent()` agent, or a tool of your
@@ -142,7 +150,22 @@ as structured tool errors: an unknown `taskId`, one of another lead session,
 or one that belongs to another sub-agent fails with
 `LOUSHO_SUBAGENT_TASK_NOT_FOUND`; a task that is still running (a background
 task that has not ended) fails with `LOUSHO_SUBAGENT_TASK_BUSY`, telling the
-model to `agent_await` or `agent_cancel` it first.
+model to `agent_await` or `agent_cancel` it first. The error for another
+sub-agent's `taskId` tells the model to omit `taskId` to start a new task.
+
+A lead that never needs follow-ups can leave continuation out with
+`subagentOptions: { continuation: false }`: the `task` tool then has no
+`taskId` or `mode` argument, every call starts a new task, and neither the
+tool description nor the prompt block mentions taskIds. Weaker lead models
+sometimes pass one sub-agent's `taskId` to another and waste a turn on the
+error; this removes the option.
+
+```ts
+import { createAgent } from '@lousho/build-ai-agent';
+
+const analyst = createAgent({ provider, instructions: 'You analyze.', description: 'Analyzes data' });
+const lead = createAgent({ provider, subagents: { analyst }, subagentOptions: { continuation: false } });
+```
 
 A resumed or forked task is a normal `task` call otherwise: it can run in the
 background (it keeps its `taskId`), an approval inside it pauses and resumes
@@ -486,11 +509,13 @@ inherits:
 | Event listeners (`onAgentEvent`, `createAgent({ onEvent })`) and `stream()` | Yes | The sub-agent's events are forwarded with a `subagent` field. |
 | `toolConcurrency` | Yes, unless the sub-agent sets its own | |
 | `sandbox` | Yes | |
-| Token usage | Rolls up | Added to the lead's `result.usage` (totals, `byModel`, and `usage.delegated`) and counted against its `limits`, also when the sub-agent fails after spending tokens; a remote sub-agent's under `byModel['remote:<name>']`. |
+| Token usage | Rolls up | Added to the lead's `result.usage` (totals, `byModel`, and `usage.delegated`, whose `toolErrors` counts the sub-agents' failed tool calls) and counted against its `limits`, also when the sub-agent fails after spending tokens; a remote sub-agent's under `byModel['remote:<name>']`. |
+| Token, cost and duration `limits` | Shared | A sub-agent is also held to the lead's limits, counted with what the lead and its other sub-agents still running have spent: once they are reached, the sub-agent stops (`'budget-exceeded'`) before its next model call or tools, and the lead stops before its next model call. See [Budgets](/configuration#budgets). |
 | `maxSubagentDepth` | The remaining budget | See [Depth](#depth). |
 | `permissionMode` | Yes, unless the lead's is `'default'` | The sub-agent runs under the lead's [permission mode](/permission-modes#sub-agents), read at each of its tool calls; while the lead's is `'default'`, under its own (a sub-agent whose own mode is `'plan'` always stays in plan mode). A remote sub-agent does not inherit it: plan mode refuses a `task` call to one. |
 | `principal` | Yes | Who the lead's run acts for (route auth's caller, a channel's sender); a remote sub-agent is not told. |
 | `metadata` | Yes | The lead run's `metadata` — the sub-agent's hooks see it. |
+| `memory` | No | The lead's memory slots stay the lead's. A sub-agent with its own `memory` recalls into its own prompt and gets its own memory tools, scoped by the lead run's `sessionId`, `metadata` and `principal` (see [Memory](/memory#limitations)). |
 | `onLLMRequest`, `onToolCall` and the other single-run callbacks | No | They describe one run; use hooks or an event listener to observe sub-agents. |
 | `sessionId` / `checkpointStore` | No | A sub-agent is not checkpointed on its own. If the process dies while a sub-agent runs, the resumed lead runs that `task` call again. |
 | `output` schema | No | A sub-agent's output is its own: with one, `task` returns its validated object as JSON (see [Structured output](/structured-output#sub-agents)); without, text. |

@@ -11,7 +11,7 @@ Run it with `npx lousho <command>` inside a project that has the SDK installed.
 | Command | What it does | Details |
 | ------- | ------------ | ------- |
 | `lousho init [dir]` | Scaffold a project: an agent with an example tool, an offline test, `.env.example`; installs dependencies and runs `git init`. | [Installation](/installation#scaffolding-a-new-project) |
-| `lousho doctor [spec\|agent-dir] [--json] [--ping]` | Check Node, peer packages, provider keys, and optionally a spec file or agent directory; `--ping` also checks each configured provider endpoint answers. Prints a fix for every problem. | [Installation](/installation#troubleshooting-lousho-doctor) |
+| `lousho doctor [spec\|agent-dir\|agent.ts] [--json] [--ping]` | Check Node, peer packages, provider keys, and optionally a spec file, agent directory or agent module (its provider's key is then required); `--ping` also checks each configured provider endpoint answers and accepts the key. Prints a fix for every problem. | [Installation](/installation#troubleshooting-lousho-doctor) |
 | `lousho dev <path>` | Local dev server for a spec file, an agent directory or a TS agent: chat UI with a session per tab and streamed events, hot reload on save. | [Below](#lousho-dev) |
 | `lousho chat <path>` | Terminal REPL for a spec file, an agent directory or a TS agent: streams replies, shows tool calls, asks for approvals and questions. | [Below](#lousho-chat) |
 | `lousho acp <path>` | Serve a spec file, an agent directory or a TS agent to an editor (Zed and other ACP clients) over the Agent Client Protocol on stdio. | [ACP](/acp) |
@@ -33,10 +33,10 @@ lousho dev <spec.yaml|spec.json|agent-dir|agent.ts> [--port N] [--host H] [--all
 lousho chat <spec.yaml|spec.json|agent-dir|agent.ts> [--model provider/model] [--session id] [--store sqlite:<file>] [--traces[=dir]]
 lousho acp <spec.yaml|spec.json|agent-dir|agent.ts> [--model provider/model]
 lousho add <name> [--registry <url-or-path>] [--dir <agent-dir>] [--yes] [--allow <list>] [--overwrite] [--dry-run]    (or --list)
-lousho build <agent-dir|spec> --target=<node-server|cloudflare-worker|docker> [--out=<dir>]    (or --agent=<path>)
+lousho build <agent-dir|spec|agent.ts> --target=<node-server|cloudflare-worker|docker> [--out=<dir>]    (or --agent=<path>)
 lousho studio [--port N] [--host H] [--prod|--dev]
 lousho mcp <agent.yaml|json|agent-dir|agent.ts> [--http --port N --host H]
-lousho doctor [agent.yaml|json|agent-dir] [--json] [--ping]
+lousho doctor [agent.yaml|json|agent-dir|agent.ts] [--json] [--ping]
 lousho eval [globs...] [--tag t] [--junit path] [--json path] [--strict] [--judge] [--record | --replay | --drift [--drift-usage]] [--url <base> [--token <bearer>]] [--config vitest.config.ts] [--timeout <ms>]
 lousho traces [traceId|prefix] [--dir D] [--limit N] [--json] [--content]
 lousho --version
@@ -44,26 +44,29 @@ lousho --version
 
 Every command parses its flags the same way (Node's `parseArgs`, strict):
 `--flag value` and `--flag=value` both work, the last of a repeated flag wins
-(`--tag` accumulates), `--` ends the flags, and `-h` / `--help` prints the
-command's usage and exits 0. An unknown flag, a flag without its value (it
+(`--tag` accumulates), `--` ends the flags, and `-h` / `--help` (or `lousho help
+<command>`) prints the command's usage and flags and exits 0. An unknown flag, a flag without its value (it
 never takes the next flag as its value) or an extra argument fails with
 `LOUSHO_CONFIG_INVALID` and the usage line. A value that starts with `-` needs
 the `=` form: `--model=-x`. `--traces` is the one flag whose value is optional:
 it takes it only in the `=` form (`--traces=./t`), so `--traces agent.yaml` is
 still the flag followed by the path.
 
-A usage error exits 1, except for `lousho eval` and `lousho traces`, which
-exit 2 for it because 1 is their "something failed" verdict (a gate failure,
-no matching trace). `lousho build` prints where it wrote the build (default
+**Exit codes.** Every command exits 0 on success, 1 when it ran and failed
+(an agent that cannot load, a build error, `lousho eval`'s gate failure, no
+matching trace, `lousho add` refusing an item without `--yes`), and 2 for a
+usage error: an unknown command, an unknown flag, a missing or invalid
+value, an extra argument, or a missing `--target` or agent path. `lousho build` prints where it wrote the build (default
 `.lousho/build/<target>`) and the command to run there.
 
-**`.env`.** The commands that run an agent (`dev`, `chat`, `acp`, `mcp`) and
-`doctor` load `./.env` from the working directory when it exists, like
+**`.env`.** The commands that run an agent (`dev`, `chat`, `acp`, `mcp`),
+`doctor`, `eval` (judge evals need provider keys) and `build` load `./.env` from the working directory when it exists, like
 `node --env-file-if-exists=.env`: a variable already set in the environment
-wins over the file.
+wins over the file. A UTF-8 byte order mark at the start of the file (which
+PowerShell 5.1's `Set-Content -Encoding utf8` writes) is ignored.
 
 `lousho init` is the exception: it parses its own flags, and a bad flag or
-value fails with `InitUsageError` — its message printed as-is, exit code 1 —
+value fails with `InitUsageError` — its message printed as-is, exit code 2 —
 not the shared `LOUSHO_CONFIG_INVALID` path. The only short flags besides
 `-h` are `-y` for `--yes`, on `init` and on `add`.
 
@@ -148,8 +151,10 @@ without restarting the server or dropping the port:
   `require` specifiers, found once at startup; no bundler).
 
 Directory and module files are imported with a `?t=<time>` cache-busting query,
-so an edited tool or agent file is re-evaluated. A file *imported by* that file
-(a shared helper) stays cached by Node: restart `lousho dev` after editing one.
+so an edited tool or agent file is re-evaluated, and so are the local files it
+imports by relative specifier (a shared `./lib/helper.ts`): the query is passed
+on to them. Packages under `node_modules` stay cached; restart `lousho dev`
+after changing one.
 The console logs what reloaded. The new agent is built (and `ready()`, so MCP
 servers connect) before it replaces the old one, and the old one is then
 `close()`d. If the rebuild fails, the last good agent keeps answering, the error
@@ -168,11 +173,13 @@ Directories and modules are your code and run with your permissions; only run
   errors, so it then prints a warning.
 - `--allowed-hosts a,b` - extra host names the `Host` header may carry. To
   stop DNS rebinding (a web page re-pointing its own domain at your machine),
-  every route but `/health` and `/channels/*` answers `403`
-  (`LOUSHO_REQUEST_FORBIDDEN`) unless `Host` is `localhost`, a `127.x.x.x`
-  address or `[::1]`; off loopback, IP addresses and the `--host` name are
-  accepted too. Given, the list replaces that rule (loopback names stay
-  accepted); `*` accepts any host.
+  every route but `/health` and the channels that `verify` their requests
+  answers `403` (`LOUSHO_REQUEST_FORBIDDEN`) unless `Host` is `localhost`, a
+  `127.x.x.x` address or `[::1]`; off loopback, IP addresses and the `--host`
+  name are accepted too. The list adds to that rule (a tunnel's name, e.g.);
+  `*` accepts any host. A channel without `verify` (`httpChannel()` with no
+  `verify`) is checked like the dev routes, so reach it through a tunnel only
+  with its name in the list.
 - POST bodies must be `Content-Type: application/json` (`415` otherwise), and
   a browser POST from another origin is `403`, as on the deployed server
   ([Cross-site requests](/auth#cross-site-requests)).
@@ -213,7 +220,9 @@ Done, the report is on its way.
 - After each turn `[usage]` shows the tokens and, when every model used has
   known pricing, the cost (`~` marks estimated tokens).
 - Errors from the SDK print with their `[LOUSHO_...]` code and fix, and the
-  session continues.
+  session continues. A provider failure also names its category and HTTP
+  status, e.g. `error: User not found. (auth-failure, HTTP 401)` for a wrong
+  API key.
 - `--traces` or `--traces=<dir>` writes the session's runs to local trace files,
   as for `lousho dev`; a line on stderr says where.
 
@@ -241,6 +250,7 @@ scripted lines and a `mockModel` agent and no terminal.
 ```bash
 npx lousho build --target=node-server --agent=agent.yaml        # or docker / cloudflare-worker
 npx lousho build ./my-agent --target=node-server                # an agent directory (node-server, docker)
+npx lousho build src/agent.ts --target=node-server              # an agent module (node-server, docker)
 ```
 
 Writes the artifact to `--out` (default `.lousho/build/<target>`) and prints

@@ -68,6 +68,8 @@ const PAGES = {
   'docs/build-a-coding-agent.md': 'build-a-coding-agent',
   'docs/troubleshooting.md': 'troubleshooting',
   'docs/migrating-to-create-agent.md': 'migrating-to-create-agent',
+  'docs/migrating-from-ai-sdk.md': 'migrating-from-ai-sdk',
+  'docs/comparison.md': 'comparison',
   // 'mcp' is reserved by Mintlify's built-in MCP endpoint; the page lives at /mcp-integration.
   'docs/mcp.md': 'mcp-integration',
   'docs/hooks.md': 'hooks',
@@ -107,6 +109,8 @@ const SIDEBAR_TITLES = {
   observability: 'Tracing',
   'executor-api': 'Executor API',
   'migrating-to-create-agent': 'Migrating to createAgent()',
+  'migrating-from-ai-sdk': 'Migrating from the AI SDK',
+  comparison: 'Comparison',
   'build-a-coding-agent': 'Build a coding agent',
   'mcp-integration': 'MCP',
   runs: 'Runs and cancellation',
@@ -124,8 +128,8 @@ const SIDEBAR_TITLES = {
 /** Pages written by hand in this repository. Listed so the report can flag SDK docs with no page. */
 const HAND_WRITTEN = ['introduction', 'coding-agents', 'examples'];
 
-/** SDK docs that are deliberately not on the site (internal planning and research notes). */
-const SKIPPED = new Set(['docs/eslint-baseline-followup.md']);
+/** SDK docs that are deliberately not on the site. */
+const SKIPPED = new Set([]);
 
 // ---------------------------------------------------------------------------------------------
 

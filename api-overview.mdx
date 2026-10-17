@@ -59,7 +59,7 @@ How the pieces fit:
 
 ### Dynamic config
 
-`createAgent()`'s `model`, `instructions` (or `prompt`) and `tools` each take
+`createAgent()`'s `model`, `instructions` and `tools` each take
 the static value or a function of the run, `(ctx) => value | Promise<value>`
 (type `PerRun<T>`). `ctx` is `{ sessionId?, input, metadata?, principal? }` (type
 `RunConfigContext`): the `sessionId` of `send()` / `stream()` or the
@@ -318,9 +318,9 @@ Token estimates, the model price table, and the usage and cost of a run: see [Mo
 
 - `FlowBuilder` / `FlowExecutor` (`@lousho/build-ai-agent/flows`) - multi-step
   workflow graphs; see [Flows](/flows).
-- `WebhookTriggerAdapter`, `SlackTriggerAdapter`, `CronTriggerAdapter` and `TriggerRegistry`
-  (`@lousho/build-ai-agent/triggers`) - wake an agent from a webhook, a Slack
-  message or a schedule; see [Triggers](/triggers).
+- `TriggerAdapter` and `TriggerRegistry` (`@lousho/build-ai-agent/triggers`) -
+  the extension point for your own wake-up mechanism, plus `verifySlackSignature()`,
+  `parseCronExpression()` and the `WebhookAuth` helpers; see [Triggers](/triggers).
 - `jwt()`, `oidc()`, `basic()`, `apiToken()`, `anonymous()` and `routeAuth()`
   (`@lousho/build-ai-agent/auth`) - route auth as an ordered list; the caller
   it accepts reaches the run as `principal`; see [Route auth and principals](/auth).

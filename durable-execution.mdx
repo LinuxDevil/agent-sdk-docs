@@ -55,7 +55,18 @@ A checkpoint is the run's whole transcript plus its step count, usage,
 
 A run that rejects (a provider error, a throwing hook, a
 `PropagatingToolError`, a process crash) keeps its last `'in-progress'`
-checkpoint.
+checkpoint. When it rejects (rather than crashes), the checkpoint also gets the
+error as `lastError` and the count of failed attempts as `attempts`, so
+[`agent.pending()`](#recovering-after-a-crash) can tell a run that
+keeps failing from one a crash interrupted. The next checkpoint the run saves
+(it made progress) drops both.
+
+While a [sub-agent](/sub-agents) runs, what it has spent so far is saved on
+the lead's checkpoint after each of its model calls and tool results
+(`delegatedInFlight`). A sub-agent is not checkpointed itself: when the lead
+crashes mid-sub-agent and is resumed, the `task` call runs again and the
+sub-agent starts over, but the model calls of the interrupted attempt stay in
+the resumed run's `usage` (as one more delegated run).
 
 ## What happens when you send again with the same `sessionId`
 
@@ -166,8 +177,21 @@ for (const run of await agent.pending()) {
 }
 ```
 
+`agent.resume()` resolves with the finished `ExecutionResult` (or `null` when
+nothing was pending); it does not return a stream. To watch a resumed run's
+events, stream it instead: `agent.stream([], { sessionId })` resumes an
+unfinished `kind: 'run'` checkpoint without new input (see
+[above](#what-happens-when-you-send-again-with-the-same-sessionid)) and
+returns the usual `AgentRun`. A paused run streams with
+`agent.approvals.streamResolve()`.
+
+`pending()` reads the shared checkpoint store, so it also lists runs that
+are still running right now in another process or replica (as
+`'in-progress'`, without `lastError`) - not only crashed ones. See below for
+why resuming one of those is safe.
+
 Each entry is `{ sessionId, kind, checkpointId, status, approvalId?,
-approvalKind?, step, lastError? }`:
+approvalKind?, step, lastError?, attempts? }`:
 
 - `sessionId` is what `agent.resume()` takes: the `agent.session()` id for a
   session turn (`kind: 'session'`, checkpointed as `<id>.turn-<n>`), or the
@@ -175,10 +199,13 @@ approvalKind?, step, lastError? }`:
 - `status` is `'in-progress'` (interrupted) or `'awaiting-approval'` (decide
   `approvalId` with `agent.approvals.resolve()`; `agent.approvals.list()`
   shows the call).
-- `lastError` is set when the last attempt at a session turn failed. With
-  `retryable: false` (a 400 from the provider, for example) the same turn
-  will fail again: fix the cause before `agent.resume()`, or drop the turn
-  with `agent.session({ id }).discardPending()`.
+- `lastError` is set when the last attempt at a session turn, or at a
+  `send(msg, { sessionId })` run (`kind: 'run'`), failed; `attempts` counts
+  the attempts that failed in a row. With `retryable: false` (a 400 from the
+  provider, for example) it will fail again: fix the cause before
+  `agent.resume()`, or drop it with `agent.session({ id }).discardPending()`
+  (a run: `store.checkpoints.delete(id)`). An `'in-progress'` entry without
+  `lastError` was interrupted (a crash), or is still running.
 
 A run that is still running in some process is listed as `'in-progress'`
 too. Resuming it is safe: the run holds a lease (see [Run leases](#run-leases)),
@@ -190,6 +217,79 @@ without durable writes) is listed as `'in-progress'` with `lastError.code`
 `LOUSHO_CHECKPOINT_CORRUPT` (`retryable: false`), the error `send()` and
 `resume()` fail with; drop it with `discardPending()` (or `clear()`), or
 `store.checkpoints.delete(id)` for a run.
+
+### Recovering automatically
+
+`agent.recover()` runs that recipe for you, in the background: every
+`intervalMs` (default 30 seconds) it lists `agent.pending()` and calls
+`agent.resume()` on each `'in-progress'` run. Start it once per process, next
+to the code that serves traffic:
+
+```ts
+import { createAgent, defineTool, memoryStore, PropagatingToolError } from '@lousho/build-ai-agent';
+import { mockModel } from '@lousho/build-ai-agent/testing';
+import { z } from 'zod';
+
+let charges = 0;
+let attempts = 0;
+const tools = [
+  defineTool({ name: 'charge', description: 'Charge the card', input: z.object({}), execute: async () => `charged ${++charges}` }),
+  // Stands in for the process dying mid-step: it fails the first time only.
+  defineTool({
+    name: 'ship',
+    description: 'Ship the order',
+    input: z.object({}),
+    execute: async () => {
+      if (++attempts === 1) throw new PropagatingToolError('process died');
+      return 'shipped';
+    },
+  }),
+];
+const agent = createAgent({
+  provider: mockModel([{ toolCalls: [{ name: 'charge' }] }, { toolCalls: [{ name: 'ship' }] }, 'Order charged and shipped.']),
+  tools,
+  store: memoryStore(),
+});
+await agent.send('Charge and ship order 7', { sessionId: 'order-7' }).catch(() => undefined); // interrupted after the charge
+
+const recovery = agent.recover({
+  intervalMs: 1_000,
+  onRecovered: (run, result) => {
+    console.log(`${run.sessionId}: ${result.text}`); // order-7: Order charged and shipped.
+    void recovery.stop(); // a server keeps it running and stops it on shutdown (or passes `signal`)
+  },
+  onError: (error, run) => console.error('recovery failed', run?.sessionId, error),
+});
+await recovery.done; // resolves once the loop stopped
+console.log(charges); // 1: the completed charge step did not run again
+```
+
+What a sweep does with each pending run:
+
+- `'in-progress'`: resumed, from its last checkpoint, so completed steps never
+  run again (a tool that was mid-call runs again: make it idempotent).
+- `'awaiting-approval'` (a tool approval or an `ask_question`): left alone; a
+  human decides it with `agent.approvals.resolve()`.
+- A run whose `lastError` has `retryable: false`: left alone, since it would
+  fail the same way; `agent.pending()` still lists it.
+- A run still running in another process, or one whose crashed process's
+  [run lease](#run-leases) has not expired yet: its resume is turned away
+  with `LOUSHO_SESSION_BUSY` before anything runs, silently, and a later sweep
+  tries again once the lease is free. So a crashed run is finished at most
+  one lease expiry plus one `intervalMs` after the crash, and every replica
+  can run `recover()`: the leases make sure only one of them resumes a run.
+  The loop also never starts a second resume of a run it is already resuming.
+
+`onError(error, run?)` hears about a sweep that could not list the store
+(`run` undefined) and a resume that failed (`run` set); the loop keeps going
+either way. `onRecovered(run, result)` gets each run it finished. Aborting
+`signal` (or `stop()`) stops the polling and aborts the resumes in flight
+(their checkpoints stay for the next start); `done` resolves once everything
+settled. The loop keeps the process alive until it is stopped. Like
+`pending()`, `recover()` throws `LOUSHO_CONFIG_MISSING_CHECKPOINT_STORE`
+without a checkpoint store. With a custom store that has no leases
+(`acquireLease`), nothing stops it from resuming a run another process is
+still running: run it in one process only.
 
 ## Run leases
 
@@ -203,20 +303,59 @@ before any tool runs or any model is called (a resolved approval stays
 pending). Two replicas behind a load balancer therefore never run one turn's
 tool calls twice.
 
-A lease whose holder died is taken over once it expires. The file and SQLite
-stores also take it over at once when the holder was a process on the same host
-that is gone, so the usual "restart and resume" path does not wait. If a run
-stalls for longer than its lease (the event loop blocked for 30 seconds) and
-another process takes over, the stalled run stops with `LOUSHO_SESSION_BUSY` at
-its next checkpoint instead of overwriting the new holder's progress.
+A lease whose holder died is taken over once it expires. Expiry is judged by
+the clock of the process that wants the lease against the expiry the holder
+wrote with its own clock, so the file and SQLite stores wait one more lease
+period (30 seconds) past it: a run left by a crashed process on another
+machine is taken over 30 to 60 seconds after its last heartbeat, and replicas
+whose clocks disagree by less than about 50 seconds never take over each
+other's live runs. Keep replica clocks in sync (NTP); a larger skew can let
+two replicas run one turn.
+
+The file and SQLite stores take a lease over at once, without waiting, only
+when its holder is provably gone:
+
+- a run of the same process (the same thread and SDK instance) that no longer
+  runs, so the usual "restart and resume" path does not wait;
+- on Linux, a process that has exited, on the same host, the same boot and the
+  same PID namespace (the lease records the boot id, the PID namespace and the
+  process start time, so a reused process id does not count as alive or dead
+  by mistake);
+- on macOS and Windows, a process id of the same host that no longer exists.
+
+A run of another worker thread of the same process, or of another container
+with the same hostname on a shared volume (or a process restarted in a new
+container), is never taken over early: it waits for the expiry.
+
+The run's lease owner id is a fencing token. The heartbeat renews the lease
+only while the run still holds it (it never takes back a lease another process
+took, or one released after another process finished the run), and every
+checkpoint the run saves is written only if the run still holds the lease,
+atomically with that check in the file, SQLite and in-memory stores. So if a
+run stalls for longer than its lease (the process was paused, or the event loop
+blocked) and another process takes over, the stalled run stops with
+`LOUSHO_SESSION_BUSY` at its next checkpoint instead of overwriting the new
+holder's progress, and a session turn's late result is not added to the
+transcript. A tool call the stalled run was already making when it lost the
+lease is not undone: keep tools idempotent where a stall is possible.
 
 The file, SQLite and in-memory stores take leases atomically. KV has no
 compare-and-swap: `KVStore` writes the lease, waits 50 ms and reads it back,
 which serializes requests at one location but not across edge locations within
-KV's propagation delay. A custom `CheckpointStore` takes part by implementing
-`acquireLease(id, owner, ttlMs)` (an atomic "take or renew unless another owner
-holds an unexpired lease", resolving `true` when taken) and
-`releaseLease(id, owner)`; without them runs execute without leases.
+KV's propagation delay; its fenced saves are a read then a write. A custom
+`CheckpointStore` takes part by implementing `acquireLease(id, owner, ttlMs)`
+(an atomic "take or renew unless another owner holds an unexpired lease",
+resolving `true` when taken) and `releaseLease(id, owner)`; without them runs
+execute without leases. It can add `renewLease(id, owner, ttlMs)` (renew only
+the owner's own lease) and `saveIfLeased(id, checkpoint, owner)` (save only
+while the owner holds the lease, atomically); without them a run renews its
+lease with `acquireLease` right before each save, which leaves a short window.
+
+During a rolling upgrade from a release without run leases, the old replicas
+neither take nor respect leases, so a turn can still run on an old and a new
+replica at once until every replica runs the new release. A SQLite database
+opened by this release is migrated (the `leases` table) and is then refused by
+older releases; roll back by restoring a copy of the file.
 
 Schedules use the same mechanism: `fireSchedule()` (and so `startSchedules()`)
 claims each schedule's fire time in the agent's checkpoint store first, so
@@ -263,15 +402,52 @@ filtering and ordering for you. Without it `agent.pending()` throws
   touching the newer run. `discardPending()` withdraws the dropped turn's
   approvals at once.
 
+## Run a job once (webhook redelivery)
+
+A webhook or queue delivers at least once, so the same payload can arrive
+twice. Sending it again with the same `sessionId` is **not** a no-op: once
+the first run is `'finished'`, the second `send()` is a new turn of that
+conversation and calls the model again (in a consumer test it re-ran seven
+model calls). To run a job once, derive the `sessionId` from the delivery id
+and look at the checkpoint before sending:
+
+```ts
+import { createAgent, memoryStore } from '@lousho/build-ai-agent';
+
+const store = memoryStore();
+const agent = createAgent({ provider, store });
+
+export async function handleDelivery(deliveryId: string, payload: string) {
+  const sessionId = `job-${deliveryId}`;
+  const checkpoint = await store.checkpoints?.load(sessionId);
+
+  if (checkpoint?.status === 'finished') return; // already done: acknowledge the redelivery
+  if (checkpoint?.status === 'awaiting-approval') return; // paused: resolve it with agent.approvals.resolve()
+  if (checkpoint) {
+    await agent.resume(sessionId); // 'in-progress': a crash left it half done; finish it
+    return;
+  }
+  await agent.send(payload, { sessionId });
+}
+```
+
+The check-then-send is not atomic: two concurrent deliveries can both see no
+checkpoint. Serialise deliveries per id (a queue keyed by `deliveryId`, or a
+unique-insert in your own database) and keep the run lease on (see
+[Run leases](#run-leases)) so a second process fails with
+`LOUSHO_SESSION_BUSY` instead of running the job twice. Tools that run again
+on resume must still be idempotent, so also pass the call's `toolCallId` as
+the idempotency key of every side effect (see the next section).
+
 ## At-least-once tools: make side effects idempotent
 
 A tool that was **running** when the process died has no recorded result,
 so it runs again on resume. Tool execution is therefore at-least-once, not
 exactly-once. For tools with side effects (charging a card, sending an
 email), either gate them with `needsApproval` or make them idempotent.
-Each call's `toolCallId` (the model's id for the call, unchanged when it is
-re-run on resume) is passed to `execute`, so it works as an idempotency
-key:
+Each call's `toolCallId` (the model's id for the call, unchanged when that
+same call is re-run on resume) is passed to `execute`, so it works as an
+idempotency key against a re-run of one call:
 
 ```ts
 import { defineTool } from '@lousho/build-ai-agent';
@@ -290,6 +466,39 @@ const chargeCard = defineTool({
 
 (`toolCallId` is set for every tool run, including tools that route through
 `sandboxExecute`.)
+
+The built-in file tools are safe to re-run. `write_file` writes the same
+content again; an `edit_file` whose edit is already in the file (`old_string`
+gone, a non-empty `new_string` present) succeeds and says the edit was already
+applied, instead of telling the model that an applied edit failed. With
+`WorkspaceCheckpoints`, each change's backup is stored before the file is
+written and a re-run keeps the first backup, so `rewind()` restores the
+original content after a crash too (see
+[Workspace tools](/workspace-tools#the-tools)). The `shell` tool is not:
+a command that was running when the process died runs again.
+
+`toolCallId` (and `ctx.approval.id` for an approved call) identifies one call
+the model made. It only protects against that call running twice. If the
+process dies before the call is recorded, the model may make the call again
+as a **new** call with a new id and a new approval, and the id no longer
+matches. A side effect that must happen once per business event (one claim,
+one invoice) needs an idempotency key from your own data, such as the claim id
+in the arguments, checked or passed on to the system you write to:
+
+```ts
+import { defineTool } from '@lousho/build-ai-agent';
+import { z } from 'zod';
+
+declare const claims: { file(claim: { claimId: string }, opts: { idempotencyKey: string }): Promise<{ id: string }> };
+
+const fileClaim = defineTool({
+  name: 'file_claim',
+  description: 'File an insurance claim',
+  input: z.object({ claimId: z.string() }),
+  needsApproval: true,
+  execute: async ({ claimId }) => claims.file({ claimId }, { idempotencyKey: `claim:${claimId}` }), // a new call for the same claim cannot file twice
+});
+```
 
 ## Checkpoint history
 
@@ -595,8 +804,11 @@ if (original && replayed) {
   leases, the last save wins.
 - A run id (`sessionId` of `send()` / `stream()`) is 1-200 characters of
   letters, digits, `_`, `-` and `.`, not starting or ending with `.`, on every
-  store, and may not end with `.turn-<n>` or `.paused`: those are a session's
-  own checkpoint keys. Anything else fails with `LOUSHO_SESSION_ID_INVALID`.
+  store, and may not end with `.turn-<n>` or `.paused` (a session's own
+  checkpoint keys) or `.fire` (a schedule's fire claim). Anything else fails
+  with `LOUSHO_SESSION_ID_INVALID`. A session id (`agent.session({ id })`, the
+  routes' `sessionId`) has a stricter rule: 1-128 characters of
+  `A-Za-z0-9_-`, with no `.`.
 - If you call `resumeAfterApproval()` (the function behind
   `agent.approvals.resolve()`) without the `checkpointStore`, the session
   keeps its `'awaiting-approval'` mark and later `send()` (or `execute()`)
@@ -604,3 +816,10 @@ if (original && replayed) {
   delete the checkpoint). `agent.approvals.resolve()` passes it for you.
 - Workers KV is eventually consistent across locations - see
   [Deployment](/deployment) for the caveat.
+- The spend of a sub-agent still running when its lead crashed is kept for
+  in-process sub-agents only, as of its last model call or tool result: a
+  [remote sub-agent](/sub-agents#remote-sub-agents) reports its usage
+  when it ends, so an interrupted one's calls are not counted, and a
+  background sub-agent still running after the lead paused or finished does
+  not write the lead's checkpoint. Their limits are checked against a
+  sub-agent's usage only once it returns.

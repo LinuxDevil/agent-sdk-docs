@@ -25,12 +25,14 @@ const weather = defineTool({
 type WeatherArgs = ToolInput<typeof weather>;   // { location: string; units: 'celsius' | 'fahrenheit' }
 type WeatherResult = ToolOutput<typeof weather>; // { temperature: number; conditions: string }
 
-const agent = createAgent({ prompt: '...', provider, tools: [weather] });
+const agent = createAgent({ instructions: '...', provider, tools: [weather] });
 ```
 
 Tools the model provider runs itself (web search, code interpreter, file search) go in the same `tools` list; see [Hosted provider tools](/hosted-tools).
 
 With many tools, mark them `deferLoading` so the model finds them with a built-in `tool_search` tool instead of receiving every definition on every call; see [Tool search](/tool-search).
+
+Tools written for the Vercel AI SDK (`tool({ description, inputSchema, execute })`) convert with `fromAiSdkTools({ weather, sendEmail })`, `needsApproval` included; see [Migrating from the AI SDK](/migrating-from-ai-sdk#tools-fromaisdktools).
 
 ## `defineTool()` options
 
@@ -112,12 +114,12 @@ node.
 
 | Field | Value |
 | --- | --- |
-| `ctx.toolCallId` | The model's id for this call. It stays the same when the call is re-run after a crash. A call with no model turn behind it (a flow node) gets a generated id. |
+| `ctx.toolCallId` | The model's id for this call. It stays the same when that same call is re-run after a crash, but a crash before the call was recorded can make the model issue a new call with a new id, so it is not a business idempotency key (see [At-least-once tools](/durable-execution#at-least-once-tools-make-side-effects-idempotent)). A call with no model turn behind it (a flow node) gets a generated id. |
 | `ctx.messages` | A read-only copy of the transcript the model had seen before it made the call: no system prompt and not the assistant turn that made the call. Empty for a flow node. |
 | `ctx.abortSignal` | The run's `AbortSignal`, set when the run has one. |
 | `ctx.sessionId` | The run's session id — `agent.session({ id })`'s id or `send()`'s / `AgentExecutor.execute()`'s `sessionId` (`send({ sessionId })` needs `createAgent({ store })` with checkpoints, else it throws `LOUSHO_CONFIG_MISSING_CHECKPOINT_STORE`); absent when the run has none. |
 | `ctx.principal` | Who the run acts for (route auth's caller, a channel's sender), frozen; absent without one. See [Principals in tools and approvals](/auth#principals-in-tools-and-approvals). |
-| `ctx.approval` | Set when the call runs because a human approved it: the approval's `id` (an idempotency key for a side effect, see [Cloudflare Workers](/cloudflare-workers#deciding-one-approval-twice)), the decision's `note`, and `by`, who decided, when the decision named them. |
+| `ctx.approval` | Set when the call runs because a human approved it: the approval's `id` (it dedupes repeated attempts to run one decided call, see [Cloudflare Workers](/cloudflare-workers#deciding-one-approval-twice); a retried model turn gets a new approval, so a side effect that must happen once also needs a key from your own data, such as a claim id), the decision's `note`, and `by`, who decided, when the decision named them. |
 
 A `sandboxExecute(args, sandbox)` that ignores the third argument keeps working.
 
@@ -174,6 +176,30 @@ result; use it in your own tool wrappers so they match. A thrown error can pick
 its kind by carrying a `toolErrorKind` property. An error extending
 `PropagatingToolError` is not a result: it aborts the run.
 
+### Failed calls in the result
+
+The model sees each failed call and may still answer as if it had worked,
+ending the run with `finishReason: 'stop'`. `result.toolErrors` counts the
+run's tool calls whose result is an error (any `kind` above except `not-run`);
+it is absent when none failed. It counts only the run's own calls: the calls
+that failed inside its [sub-agents](/sub-agents) are counted on
+`result.usage.delegated.toolErrors`. Check it before trusting `text`, or cap it with
+`limits.maxToolErrors`: once that many calls have failed, the run stops before
+its next model call with `finishReason: 'budget-exceeded'` and
+`result.budget.limit` `'maxToolErrors'` (or rejects with `BudgetExceededError`
+under `onExceeded: 'throw'`, see [Budgets](/configuration#budgets)).
+
+```ts
+import { createAgent, defineTool } from '@lousho/build-ai-agent';
+import { z } from 'zod';
+
+const stats = defineTool({ name: 'stats', description: 'Weekly stats', input: z.object({}), execute: async () => (await fetch('https://stats.example.com/week')).json() });
+const agent = createAgent({ provider, tools: [stats], limits: { maxToolErrors: 3 } });
+const result = await agent.send('Summarise this week');
+if (result.budget?.limit === 'maxToolErrors') throw new Error('The stats tool keeps failing.');
+if (result.toolErrors) console.warn(`${result.toolErrors} tool call(s) failed; the answer may be incomplete.`);
+```
+
 ## Built-in tools
 
 | Export | Tool |
@@ -184,7 +210,7 @@ its kind by carrying a `toolErrorKind` property. An error extending
 | `createTodoTools()` | `todo_write` / `todo_read` so an agent can plan multi-step work; see [Todo tools](#todo-tools). |
 | `askQuestionTool()`, `createAgent({ askQuestion: true })` | `ask_question`: the agent asks the user something and the run pauses until `agent.approvals.answer()`; see [Asking the user a question](/approvals#asking-the-user-a-question). |
 | `createFsTools()`, `createShellTool()` | File system and shell tools for coding agents; see [Workspace tools](/workspace-tools). |
-| `createEmailTool()`, `createSlackTool()`, `createGitHubTools()`, `createJiraTools()` (from `@lousho/build-ai-agent/integrations`) | Integrations that need credentials, so they are built with options. `createSlackTool()` (and `SlackTriggerAdapter` from `/triggers`) reads the webhook URL from `SLACK_WEBHOOK_URL` unless you pass `webhookUrl`; `createJiraTools()` takes `baseUrl`, `email` and `apiToken` explicitly (conventionally from `JIRA_BASE_URL`, `JIRA_EMAIL` and `JIRA_API_TOKEN`). |
+| `createEmailTool()`, `createSlackTool()`, `createGitHubTools()`, `createJiraTools()` (from `@lousho/build-ai-agent/integrations`) | Integrations that need credentials, so they are built with options. `createSlackTool()` reads the webhook URL from `SLACK_WEBHOOK_URL` unless you pass `webhookUrl`; `createJiraTools()` takes `baseUrl`, `email` and `apiToken` explicitly (conventionally from `JIRA_BASE_URL`, `JIRA_EMAIL` and `JIRA_API_TOKEN`). |
 | `createAgent({ mcpServers })`, `connectMcp(servers)` | Every tool of MCP servers given as config (stdio `command` or HTTP `url`), named `<server>__<tool>`; see [Use MCP servers in an agent](/mcp-integration#use-mcp-servers-in-an-agent). |
 | `openApiTools(document, options)` | One tool per operation of an OpenAPI 3.0 / 3.1 document; mutating operations ask for approval. See [OpenAPI tools](/openapi-tools). |
 | `loadMcpTools(client, name)` | Every tool of a connected MCP server; see [MCP tools](/mcp-integration#tools-from-a-client-you-connected-yourself). |
@@ -264,7 +290,7 @@ emits a `todo.updated` stream event with the new list and its counts (see
 import { createAgent, createTodoTools, type TodoStore } from '@lousho/build-ai-agent';
 
 const todos = createTodoTools({ onChange: (list) => console.log(list.length, 'todos') });
-const planner = createAgent({ prompt: 'Plan multi-step work, then do it.', provider, tools: todos.tools });
+const planner = createAgent({ instructions: 'Plan multi-step work, then do it.', provider, tools: todos.tools });
 
 await planner.send('Migrate the repo to ESM');
 console.log(await todos.getTodos()); // [{ id: 'todo_1', content: '...', status: 'completed' }, ...]

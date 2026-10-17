@@ -19,7 +19,7 @@ validated with zod by `loadSpec()` (`src/spec/schema.ts`). It is the format
 | `provider.model` | `string`   | yes      | Model id every call uses (the provider's configured model; an agent's own `settings.model` would override it). |
 | `tools`          | `string[]` | no       | Built-in tool names (see below).                       |
 | `policy`         | `AgentSpecPolicy` | no | Approvals, guardrails, limits and more, enforced when the spec becomes an agent (see below). |
-| `triggers`       | `AgentSpecTrigger[]` | no | What runs the agent on its own — cron schedules (`{ type: 'cron', cron, input, name?, timezone? }`); see [Schedules](/schedules) and [Triggers](/triggers#cron-schedules). |
+| `triggers`       | `AgentSpecTrigger[]` | no | What runs the agent on its own — cron schedules (`{ type: 'cron', cron, input, name?, timezone? }`); see [Schedules](/schedules) and [Triggers](/triggers#cron-expressions). |
 | `mcpServers`     | `Record<string, McpServerSpec>` | no | MCP servers the agent uses, keyed by name (see below). |
 
 A missing or invalid field fails with an error naming the exact field, e.g.
@@ -60,7 +60,7 @@ which read the raw policy.
 | ------------------ | --------------------------------------------- | ----------- |
 | `requiresApproval` | `permissions` ([`ask`](/guardrails))       | `true`: every tool call pauses for approval. A list: only those tools pause. |
 | `guardrails`       | `guardrails` (input and output)               | Built-in guardrail names, or `{ name, ...options }` (table below). |
-| `limits`           | `limits` ([budgets](#budgets))                | `maxTokens`, `maxInputTokens`, `maxOutputTokens`, `maxCostUsd`, `maxDurationMs`, `maxSteps`, `onExceeded`. |
+| `limits`           | `limits` ([budgets](#budgets))                | `maxTokens`, `maxInputTokens`, `maxOutputTokens`, `maxCostUsd`, `maxDurationMs`, `maxSteps`, `maxToolErrors`, `onExceeded`. |
 | `askQuestion`      | `askQuestion`                                 | `true` adds the built-in `ask_question` tool. |
 | `compaction`       | `compaction`                                  | `true`, or `{ thresholdPercent: 0.8 }` (a fraction of the context window, above 0 up to 1). |
 
@@ -125,6 +125,7 @@ an invalid entry fails with the entry name in the message, e.g.
 `'mcpServers.files': missing 'command' (stdio server) or 'url' (HTTP server)`.
 An optional `approval` (`always`, the default, `annotations` or `never`) says which of the server's tools ask for approval; see [Approval for MCP tools](/mcp-integration#approval-for-mcp-tools).
 An optional `deferLoading: true` withholds the server's tools from the model until it finds them with `tool_search`; see [Tool search](/tool-search).
+An optional `optional: true` leaves out a server that cannot connect (with a warning) instead of failing every send; see [Use MCP servers in an agent](/mcp-integration#use-mcp-servers-in-an-agent).
 An HTTP entry may set `oauth` (`redirectUri`, optional `clientId`, `clientSecret`, `scopes` and `clientName`) to sign in to the server with OAuth instead of a static `Authorization` header; see [MCP servers with OAuth](/oauth#mcp-servers-with-oauth).
 `lousho doctor` checks each stdio `command` is resolvable.
 
@@ -217,7 +218,7 @@ for await (const event of agent.stream('Hello!')) {
   every call starts with the primary model.
 - `stream()` and `session.stream()` report each retry as a `provider.retry`
   event and each switch as `provider.fallback`; its `from` and `to` are provider
-  names (such as `openai`), not model ids (see
+  names (such as `openai`) and `fromModel` / `toModel` the model ids (see
   [Streaming](/stream-events#event-schema-version-1)). `send()` returns the
   final result as before.
 
@@ -241,11 +242,11 @@ const provider = withFallback(
   { onFallback: ({ from, to }) => console.warn(`falling back from ${from} to ${to}`) }
 );
 
-const agent = createAgent({ prompt: 'You are helpful.', provider });
+const agent = createAgent({ instructions: 'You are helpful.', provider });
 ```
 
 - `withRetry` retries `generate()` and `stream()` (default `maxRetries: 2`)
-  on rate limits, timeouts, network errors and 5xx responses, using the same
+  on rate limits, timeouts, network errors (including a dropped socket), malformed or truncated responses and 5xx responses, using the same
   classification as `compactProviderError()`. Auth failures, invalid requests
   and context-length errors are not retried; neither is a cancellation. A
   provider's `retryAfterMs` hint (`retry-after-ms` or `Retry-After`, on a 429 or
@@ -341,13 +342,13 @@ createAgent({ model: 'openai/gpt-4o-mini', subagents: { researcher }, rateLimit:
 | `model`        | A `'provider/model'` string such as `'openai/gpt-4o-mini'`, resolved with `resolveProvider()` (key from the env var above). Alternative to `provider`. |
 | `provider`     | An `LLMProvider` instance (real or mock). Alternative to `model`. If you pass both, `provider` is used and `model` becomes the agent's per-run model setting (a bare model id such as `'gpt-4o'`). |
 | `instructions` | System prompt. Optional (defaults to `'You are a helpful assistant.'`). |
-| `prompt`       | Working alias of `instructions`; passing both is an error.      |
+| `prompt`       | Deprecated alias of `instructions`; passing both is an error.      |
 | `tools`    | An array of `defineTool()` results, or a `Record<string, ToolDescriptor>` keyed by the name the agent uses (see [Tools](/tools)). |
 | `name`     | Agent name (default `'agent'`).                                    |
 | `description` | What the agent does, in a sentence. Required when it is used as a sub-agent. |
 | `maxSteps` | Passed through to `AgentExecutor.execute()`. A whole number >= 1; anything else throws `LOUSHO_CONFIG_INVALID`. |
 | `modelSettings` | Sampling settings sent on every model call: `{ maxTokens?, temperature?, topP?, frequencyPenalty?, presencePenalty?, stop?, seed?, toolChoice? }`. A `send()` / `stream()` call's own `modelSettings` win key by key. See [Model settings](#model-settings). |
-| `limits`   | Budgets of each run: `{ maxTokens?, maxInputTokens?, maxOutputTokens?, maxCostUsd?, maxDurationMs?, maxSteps?, onExceeded? }`. A tripped limit ends the run with `finishReason: 'budget-exceeded'`. See [Budgets](#budgets). |
+| `limits`   | Budgets of each run: `{ maxTokens?, maxInputTokens?, maxOutputTokens?, maxCostUsd?, maxDurationMs?, maxSteps?, maxToolErrors?, onExceeded? }`. A tripped limit ends the run with `finishReason: 'budget-exceeded'`. See [Budgets](#budgets). |
 | `toolConcurrency` | How many tool calls of one model turn run at once: a positive integer or `'unbounded'` (default). See [Parallel tool calls](/runs#parallel-tool-calls). |
 | `skills`   | Skills from `defineSkill()` / `loadSkills()`; see [Skills](/skills). |
 | `subagents`, `maxSubagentDepth` | Named sub-agents behind one `task` tool, and how deep they may nest (default 1); see [Sub-agents](/sub-agents). |
@@ -473,15 +474,34 @@ agent) or on `AgentExecutor.execute()` / `stream()`:
 | `maxOutputTokens` | Completion tokens (`usage.outputTokens`). |
 | `maxCostUsd`      | USD (`usage.costUsd`): the cost the provider reported for each call (OpenRouter's `usage.cost`), else the [price table](/models-and-cost#models-and-the-price-table) estimate. Not checked while a model used has unknown pricing (`costUsd` is `undefined`); a warning is logged once. |
 | `maxDurationMs`   | Wall-clock time of the `execute()` / `stream()` call. |
+| `maxToolErrors`   | Tool calls that ended in an error result (`result.toolErrors`, see [Tools](/tools#failed-calls-in-the-result)). The run stops before its next model call once that many have failed. Counted per run, also on `agent.session({ limits })` (each turn's own). |
 | `maxSteps`        | Model steps. An alias of the `maxSteps` option: when both are set the stricter wins (the option's tie reports `'max-steps'`); alone, it replaces the default of 10. With `output` set, running out of it makes the same forced answer call as `maxSteps` ([Structured output](/structured-output#out-of-steps)); the run still ends `'budget-exceeded'`, with `object` when the answer validated. |
 
 Limits are checked before every model call (so after every tool batch) and
 after a model call that asks for tools; `maxDurationMs` also aborts an
 in-flight model or tool call through the run's signal. A limit trips once the
-run reaches it. Usage of sub-agents counts toward their lead's budget: it is
-added when the sub-agent returns, so the lead stops before its next model call.
-A run that finishes on its own within the step that reached a limit keeps its
-own finish reason, like `maxSteps`.
+run reaches it. A run that finishes on its own within the step that reached a
+limit keeps its own finish reason, like `maxSteps`.
+
+**Sub-agents share their lead's budget.** Usage of sub-agents counts toward
+their lead's limits, and a sub-agent is held to them while it runs: before each
+of its model calls (and after a model call that asks for tools) it checks the
+lead's token, cost and duration limits against what the lead, the lead's other
+sub-agents still running, and it itself have spent - on top of its own
+`limits`. Once they are reached the sub-agent stops with `'budget-exceeded'`
+(always `'stop'`; the lead's `onExceeded` decides how the lead ends), the
+`task` call reports `Sub-agent '<name>' stopped at the <limit> limit`, and the
+lead stops before its next model call. Parallel sub-agents can still go over by
+the model calls they had in flight when the limit was reached (at most one
+each), not by a whole run each. A nested sub-agent is held to every lead above
+it. A sub-agent resumed after an approval is held to its own limits only.
+
+A spend limit (tokens, cost, duration) is a hard stop: a run with `output`
+that reaches one makes no forced answer call (that call would spend past the
+limit), so `result.object` is unset. What the run's tool calls returned before
+the limit tripped - finished sub-agents' answers included - stays in
+`result.messages` as tool results. Only running out of steps (`maxSteps` or
+`limits.maxSteps`) gets the forced answer call.
 
 When a limit trips, the run stops with `finishReason: 'budget-exceeded'` and
 `result.budget` (`{ limit, value, max, scope }`). Tool calls the model asked
