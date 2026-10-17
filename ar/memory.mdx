@@ -1,20 +1,15 @@
 ---
 title: "الذاكرة"
 ---
-
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/memory).
-</Warning>
-
 {/* Generated from docs/memory.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 الـ [session](/ar/sessions) (الجلسة) تتذكّر محادثة واحدة. الذاكرة هي اللي الـ agent يحتفظ فيه **عبر** المحادثات: تفضيلات المستخدم، حقائق انقالت له، قرارات اتخذت الأسبوع الماضي. تعطي الـ agent واحد أو أكثر من **memory slots** بأسماء؛ كل slot يخزّن عناصر نصية قصيرة عن طريق provider، ومفتاحها **scope**: ذاكرة وحدة للجميع، أو وحدة لكل session، أو وحدة لكل مستخدم.
 
-لكل slot، `createAgent({ memory })` تسوّي شيئين:
+لكل slot، `createAgent({ memory })`:
 
-1. **تسترجع** في بداية كل run (`send()`، `stream()`، كل turn في session): في أول model call في الـ run، تنحط أحدث العناصر في الـ system prompt داخل بلوك `<memory name="...">`. البلوك يظل لآخر الـ run وما ينحفظ في الـ transcript تبع الـ session.
-2. تعطي الـ model أداة **`remember_<name>`** (input `{ text }`) يخزّن فيها عنصر جديد، وأداة **`recall_<name>`** (input `{ query?, limit? }`) يبحث فيها في الـ slot، الأحدث أول.
+1. **تسترجع** في بداية كل run (`send()`، `stream()`، كل turn في session): في أول model call في الـ run، تنحط أحدث العناصر في الـ system prompt داخل بلوك `<memory name="...">`. البلوك يظل لآخر الـ run. الـ transcript المخزَّن تبع الـ session (`session.messages`) ما يحتفظ فيه، بس الـ transcript تبع الـ run نفسه يحتفظ فيه: `result.messages` من `send()` / `stream()`، والـ checkpoints تبع الـ run (الـ run اللي يكمل بعد approval يسترجع منها)، فيها رسالة الـ system مع العناصر المسترجَعة. لا تسجّلها في اللوق أو تصدّرها كأنها ما فيها ذاكرة.
+2. تعطي الـ model أداة **`remember_<name>`** (input `{ text }`، أو الـ `itemSchema` تبعك) يخزّن فيها عنصر جديد، وأداة **`recall_<name>`** (input `{ query?, limit? }`، والـ `limit` حدّه الأقصى 100) يبحث فيها في الـ slot، الأحدث أول. كل عنصر راجع فيه `id` و`text` و`createdAt`، وفوقها `score` من الـ vector provider، وفي الـ slot اللي ما فيها `itemSchema` باقي الـ `metadata` تبعه. وصف `remember_<name>` يقول للـ model كم تعيش العناصر: في المحادثات الجاية (`'global'`)، أو لاحقًا في نفس المحادثة (`'session'`)، أو في المحادثات الجاية مع نفس المستخدم أو الـ key (دالة scope). وتاغات الذاكرة داخل نص العنصر تتعمل لها escape (`&lt;memory`، `&lt;/memory`) عشان ما يقدر عنصر يفتح بلوك أو يسكّره.
+3. مع `expose: { forget: true }`، تعطيه كمان أداة **`forget_<name>`** (input `{ id }`) يحذف فيها عنصر غلط أو قديم. شوف [تصحيح الذاكرة](#تصحيح-الذاكرة).
 
 ## الذاكرة في الكود
 
@@ -51,12 +46,12 @@ const { text } = await agent.session({ id: 'user-42' }).send('What is the capita
 
 ## Scopes
 
-الـ run يقرأ ويكتب عناصر الـ scope key تبعه:
+الـ run يقرأ ويكتب عناصر الـ **scope key** تبعه. داخل الـ provider، العناصر تعيش تحت **`<slot name>#<scope key>`** (`notes#global`، `prefs#session:s1`)، فاثنين slots يطلع لهم نفس الـ scope يحتفظون بقوائم منفصلة — تقدر تشارك provider واحد (و`SqliteStore` واحد) بين الـ slots بأمان. `memoryKey(slot, ctx)` ترجع هالمفتاح لسياق run معيّن (أو `undefined` لما الـ slot مطفي)؛ استخدمها لما تعبّي عناصر slot أو تقراها أو تنظّفها من الكود.
 
 | `scope` | الـ scope key | ذاكرة وحدة لكل |
 |---|---|---|
 | `'global'` | `'global'` | agent (تتشاركها كل الـ runs) |
-| `'session'` | `'session:<id>'`: الـ `id` في `agent.session({ id })`، أو `sessionId` الممرَّر لـ `send()` / `stream()` | session |
+| `'session'` | `'session:<id>'`: الـ id في `agent.session({ id })`، أو `sessionId` الممرَّر لـ `send()` / `stream()` (ويحتاج `store` فيه checkpoints) | session |
 | `({ sessionId, metadata }) => string \| undefined` | اللي الدالة ترجعه | أي شي تعمل عليه key، مثل مستخدم |
 
 دالة الـ scope تشوف `sessionId` تبع الـ run والـ `metadata` اللي اتمرّرت لـ `send()` / `stream()`، فينفعك تحتفظ بذاكرة وحدة لكل مستخدم عبر كل الـ sessions تبعته:
@@ -75,9 +70,30 @@ const agent = createAgent({ provider: mockModel(['Hello!']), memory: [userFacts]
 await agent.send('Hi again!', { metadata: { userId: 'u-42' } });
 ```
 
-لما الـ run ما يكون إله scope key (slot من نوع `'session'` في `send()` بدون `sessionId`، أو دالة scope ترجع `undefined`)، الـ slot يكون مطفي لذلك الـ run: ما ينسترجع شي وما تنعرض الـ tools تبعتها.
+`lousho dev` و`lousho chat` ما يقدرون يمرّرون `metadata` للـ run، فدالة الـ scope اللي تقرا `metadata.userId` تكون مطفية هناك. عشان تجرّب ذاكرة لكل مستخدم في الـ terminal، اشتق الـ scope من `sessionId` كمان (مثلًا `` `user:${metadata?.userId ?? sessionId}` ``، مع `lousho chat --session <id>` كأنه "المستخدم")، أو جرّبها من سكربت بـ `send(..., { metadata })`.
+
+لما الـ run ما يكون إله scope key (slot من نوع `'session'` في `send()` بدون `sessionId`، أو دالة scope ترجع `undefined` أو `null`)، الـ slot يكون مطفي لذلك الـ run: ما ينسترجع شي وما تنعرض الـ tools تبعتها.
+
+دالة الـ scope لازم ترجع string مو فاضي (أو `undefined` / `null`). أي شي ثاني يفشّل الـ run بـ `LOUSHO_MEMORY_INVALID` مع اسم الـ slot، لأنه غير كذا بيحط عناصر كل المتصلين تحت key واحد مشترك: رقم أو object، أو string فاضي، أو key مبني من قيمة ناقصة مثل `user:undefined` أو `user:null` أو `user:[object Object]`. ودالة الـ scope اللي ترمي خطأ تفشّل الـ run بنفس الكود. و`defineMemory()` ترفض أي `scope` مو `'global'` أو `'session'` أو دالة.
 
 دالة الـ scope تشوف كمان `principal`، وهو المتصل اللي auth المسار تحقّق منه، وأأمن تعمل عليه key من `metadata` لأن المتصل يقدر يرسل أي metadata: شوف [قراءة الـ principal في الـ run](/ar/auth#قراءة-الـ-principal-في-الـ-run).
+
+### عناصر من قبل مفاتيح اسم الـ slot
+
+لحد `1.0.0-alpha.19`، العناصر كانت تعيش تحت الـ scope key لحاله (`global`، `session:s1`، `user:u-42`)، ويتشاركها كل slot إله نفس الـ scope. هالعناصر لسّا موجودة في الـ provider بس ما فيه slot يقراها. `migrateMemoryKeys(slot)` تنسخها للمفتاح الحالي تبع الـ slot، الأقدم أول. وآمن تشغّلها مع كل بداية: `add()` يشيل التكرار حسب النص، فما ينسخ شي مرتين. كل نسخة تحتفظ بـ `text` و`metadata` وتاخذ `id` و`createdAt` جداد.
+
+```ts
+import { defineMemory, fileMemory, migrateMemoryKeys } from '@lousho/build-ai-agent';
+
+const provider = fileMemory({ dir: './.lousho/memory' });
+const notes = defineMemory({ name: 'notes', scope: 'global', provider });
+const prefs = defineMemory({ name: 'prefs', scope: 'session', provider });
+
+await migrateMemoryKeys(notes); // global: no contexts needed
+await migrateMemoryKeys(prefs, { contexts: ['s1', 's2'].map((sessionId) => ({ sessionId })) });
+```
+
+لـ slot من نوع `'session'` أو دالة scope، مرّر السياقات اللي تبي تنقلها (`{ sessionId }`، `{ metadata }`، `{ principal }`)؛ والسياق اللي الـ slot ما يعطيه key ينتخطّى. العناصر القديمة تظل إلا إذا مرّرت `removeLegacy: true`. خلّيها ما دام فيه slot ثاني بنفس الـ scope لسّا ما انتقل: كانت مشتركة. والنتيجة تسرد كل مفتاح قديم كان فيه عناصر، ومفتاحه الجديد، والعدد.
 
 ## خيارات الإعداد
 
@@ -85,7 +101,7 @@ await agent.send('Hi again!', { metadata: { userId: 'u-42' } });
 
 | الخيار | النوع | الافتراضي | الوصف |
 |---|---|---|---|
-| `name` | `string` | إلزامي | من 1 إلى 55 حرف من `A-Za-z0-9_-`؛ الأداتان `remember_<name>` و`recall_<name>`. فريد لكل agent. |
+| `name` | `string` | إلزامي | من 1 إلى 55 حرف من `A-Za-z0-9_-`؛ الأدوات `remember_<name>` و`recall_<name>` و(مع `expose.forget`) `forget_<name>`. فريد لكل agent. |
 | `description` | `string` | ما فيه | اللي الـ slot تحتويه؛ ينضاف لوصف الـ tools. |
 | `scope` | `'global' \| 'session' \| (ctx) => string \| undefined` | إلزامي | شوف [Scopes](#scopes). |
 | `provider` | `MemoryProvider` | إلزامي | مكان تخزين العناصر: `inMemoryMemory()`، `fileMemory({ dir })`، أو واحد من عندك. |
@@ -94,21 +110,75 @@ await agent.send('Hi again!', { metadata: { userId: 'u-42' } });
 | `recall.query` | `'last-input' \| 'none'` | `'none'` | `'last-input'` تمرّر آخر رسالة مستخدم في الـ run للـ provider كـ `query`، عشان يسترجع العناصر ذات الصلة بدل الأحدث. |
 | `expose.remember` | `boolean` | `true` | يعرض tool الـ `remember_<name>`. |
 | `expose.recall` | `boolean` | `true` | يعرض tool الـ `recall_<name>`. |
+| `expose.forget` | `boolean` | `false` | يعرض tool الـ `forget_<name>` ويبيّن id كل عنصر في البلوك المسترجَع. شوف [تصحيح الذاكرة](#تصحيح-الذاكرة). |
+| `itemSchema` | schema من zod أو Standard Schema | `{ text: string }` | الـ input تبع `remember_<name>`. لما تضبطه، الـ arguments بعد الـ parse هي العنصر: `text` هو الـ JSON القانوني (canonical) لها و`metadata` هو الـ object بعد الـ parse، فالـ slot يفرض state منظّمة بدل نص حر. |
+| `itemKey` | `string \| string[]` | ما فيه | مع `itemSchema`: الحقل (أو الحقول) اللي تعرّف العنصر. لما تتذكّر عنصر بنفس حقول المفتاح، يستبدل العنصر المخزَّن. شوف [تصحيح الذاكرة](#تصحيح-الذاكرة). |
 
-الـ slot اللي فيها `expose: { remember: false }` read-only للـ model: إنت تملاها من الكود بـ `provider.add(scopeKey, { text })`.
+```ts
+import { z } from 'zod';
+import { defineMemory, inMemoryMemory } from '@lousho/build-ai-agent';
+
+const relationship = defineMemory({
+  name: 'relationship',
+  scope: 'global',
+  provider: inMemoryMemory(),
+  itemSchema: z.object({ trust: z.number(), mood: z.string(), insideJokes: z.array(z.string()) }),
+});
+// remember_relationship now takes { trust, mood, insideJokes }; recall returns e.g. {"insideJokes":[],"mood":"playful","trust":10}
+```
+
+الـ slot اللي فيها `expose: { remember: false }` read-only للـ model: إنت تملاها من الكود بـ `provider.add(memoryKey(slot)!, { text })`. ولـ scope من نوع `'session'` أو دالة، مرّر سياق الـ run: `memoryKey(slot, { sessionId, metadata })`. بدونه `memoryKey()` ترجع `undefined`، والـ providers المدمجة ترفض الـ scope key الناقص أو الفاضي بـ `LOUSHO_MEMORY_INVALID` بدل ما تخزّن العناصر تحت المفتاح `undefined`.
+
+### تصحيح الذاكرة
+
+افتراضيًا الذاكرة بس تكبر: لما تتذكّر حقيقة تغيّرت ينضاف عنصر ثاني، والاثنين يُسترجعون. فيه خياران يخلّون الـ slot يستبدل عناصر أو يشيلها.
+
+**`itemKey`** يخلّي الـ state المنظّمة تسوّي upsert. مع `itemSchema`، سمِّ الحقل (أو الحقول) اللي تعرّف العنصر. لما `remember_<name>` يستلم عنصر حقول مفتاحه تساوي حقول عنصر مخزَّن، يستبدل ذاك العنصر بدل ما يضيف نسخة ثانية. العنصر يحتفظ بالـ id تبعه، ويصير الأحدث، و`remember_<name>` يرجع `{ remembered: id, replaced: true }`:
+
+```ts
+import { z } from 'zod';
+import { defineMemory, inMemoryMemory } from '@lousho/build-ai-agent';
+
+const settings = defineMemory({
+  name: 'settings',
+  scope: 'global',
+  provider: inMemoryMemory(),
+  itemSchema: z.object({ topic: z.string(), value: z.string() }),
+  itemKey: 'topic',
+});
+// remember_settings({ topic: 'language', value: 'French' }), then
+// remember_settings({ topic: 'language', value: 'English' }) leaves one item: English.
+```
+
+**`expose: { forget: true }`** يضيف `forget_<name>({ id })`، اللي يحذف عنصر، وبعدها كل عنصر في بلوك `<memory>` المسترجَع يبيّن الـ id تبعه (`- The user wants answers in French. (id: 3f…)`)، فالـ model يقدر ينسى حقيقة ما عادت صحيحة ويتذكّر الجديدة. الـ id المجهول يرجع `{ forgotten: null, reason }` وما يغيّر شي. `forget_<name>` يحمل الـ annotations `readOnlyHint: false, destructiveHint: true`، فما يتعامل معه كـ read-only (مثلًا في plan mode).
+
+الاستبدال يستخدم `upsert(scopeKey, { id, text, metadata })` تبع الـ provider، وهي موجودة في كل provider مدمج. الـ provider المخصّص اللي ما فيه `upsert` ياخذ بدالها `remove()` ثم `add()`: العنصر ياخذ id جديد، والاستدعاءين مو atomic.
+
+### لما يفشل الاسترجاع
+
+الاسترجاع في بداية الـ run ما يفشّل الـ run. إذا الـ provider رمى خطأ (ملف ذاكرة تالف، أو انقطاع في قاعدة البيانات أو الـ KV)، الـ run يكمل بدون بلوك `<memory>` تبع ذاك الـ slot، و`console.warn` يذكر اسم الـ slot (مرة وحدة لكل slot في كل process). واستدعاء `recall_<name>` اللي يفشل يرجع الخطأ للـ model كـ tool error.
 
 ## Providers
 
 | Provider | التخزين |
 |---|---|
 | `inMemoryMemory({ maxItems? })` | هالعملية؛ يضيع عند إعادة التشغيل. للاختبارات والديمو. |
-| `fileMemory({ dir, maxItems? })` | ملف JSON لكل scope key في `dir` (المفتاح URI-encoded)، والكتابة atomic. |
+| `fileMemory({ dir, maxItems? })` | ملف JSON لكل scope key في `dir` (المفتاح URI-encoded، وكل حرف كبير ينكتب كـ `^` وبعده الحرف الصغير، فـ `user:Alice` و`user:alice` ياخذون ملفات مختلفة حتى على Windows وmacOS)، والكتابة atomic. |
 | `kvMemory({ binding?, maxItems? })` | KV namespace في Cloudflare Workers — الـ binding `AGENT_CHECKPOINTS` أو اللي تسمّيه `binding` — لملفات `memory/` تبع agent directory من نوع cloudflare-worker؛ مربوط بـ `env` لكل request. شوف [Cloudflare Workers](/ar/cloudflare-workers#build-and-deploy). |
 | `sqliteMemory(store, { maxItems? })` (من `/sqlite`) | جدول `memory_items` في ملف `SqliteStore` تبع الـ agent، مصفوفة JSON لكل scope key. |
 | `inMemoryVectorMemory({ embedder, maxItems?, minScore? })` | هالعملية؛ يسترجع بالمعنى. شوف [Semantic recall](#semantic-recall). |
 | `sqliteVectorMemory(store, { embedder, maxItems?, minScore? })` (من `/sqlite`) | جدول `memory_vectors` في ملف `SqliteStore` تبع الـ agent؛ يسترجع بالمعنى. |
 
-أول ثلاثة providers يحتفظون بحد أقصى `maxItems` عنصر لكل scope key (الافتراضي 1000؛ إذا زدت عنصر ينحذف الأقدم)، ويطابقون الـ `query` بالكلمات المفتاحية: العنصر يطابق إذا فيه كلمة من كلمات الـ query بطول 3 أحرف أو أكثر، بدون تمييز بين الأحرف الكبيرة والصغيرة.
+أول ثلاثة providers يحتفظون بحد أقصى `maxItems` عنصر لكل scope key (الافتراضي 1000؛ إذا زدت عنصر ينحذف الأقدم)، ويطابقون الـ `query` بالكلمات المفتاحية: العنصر يطابق إذا شارك الـ query كلمة كاملة، بدون تمييز بين الأحرف الكبيرة والصغيرة وبتجاهل `s` الجمع (`cat` تلاقي "has two cats" بس ما تلاقي "education"). بس كلمات الـ query اللي طولها 3 أحرف أو أكثر تنحسب، إلا إذا ما فيها ولا وحدة (`"AI"`). العناصر اللي تطابق كلمات أكثر من الـ query تجي أول، بعدها الأحدث. والـ query اللي ما تشارك ولا كلمة مع أي عنصر ما ترجع شي. المطابقة بالكلمات المفتاحية ما تعرف المترادفات: لو تبي الاسترجاع بالمعنى، استخدم [vector provider](#semantic-recall).
+كل provider مدمج يشيل التكرار حسب `text`: إضافة عنصر نصّه مخزَّن من قبل ترجع العنصر المخزَّن بدل نسخة مكرّرة (فالـ agent اللي يتذكّر نفس الحقيقة مرتين يحتفظ بنسخة وحدة).
+
+### أكثر من كاتب
+
+استدعاءات `add()` / `remove()` المتزامنة على provider واحد تحتفظ بكل العناصر. وبين أكثر من provider يعتمد على التخزين:
+
+- `fileMemory`: أكثر من provider على نفس الـ `dir`، في process واحد أو أكثر (اثنين process للـ agent، أو worker وCLI)، يحتفظون بكل العناصر. كل تغيير يمسك ملف قفل، `<key file>.lock`، وهو يقرا ملف المفتاح ويعيد كتابته؛ والقفل اللي خلّاه process انهار ينسحب منه بعد 30 ثانية، والقفل المحجوز أكثر من 10 ثواني يفشّل الاستدعاء بـ `LOUSHO_STORAGE_FAILED`. وأخطاء Windows المؤقتة `EPERM` / `EACCES` / `EBUSY` عند القراءة والاستبدال تتعاد محاولتها. نظام الملفات الشبكي اللي ما فيه إنشاء حصري atomic ما ياخذ هالضمان.
+- `sqliteMemory`: كل تغيير هو write transaction وحدة، فأكثر من provider وprocess على نفس قاعدة البيانات يحتفظون بكل العناصر.
+- `kvMemory` و`sqliteVectorMemory` والـ providers تبعك: التغييرات مرتّبة بس داخل object provider واحد. شارك object provider واحد بين الـ agents في نفس الـ process؛ واثنين process يكتبون نفس الـ scope key بنفس الوقت ممكن يضيّعون عنصر (آخر كتابة تكسب).
 
 ### SQLite
 
@@ -145,28 +215,30 @@ const myProvider: MemoryProvider = {
 };
 ```
 
+`upsert(scopeKey, { id?, text, metadata? })` اختيارية. أضفها عشان تستبدل العنصر في مكانه (نفس الـ id، و`createdAt` جديد، والأحدث أول) لـ slots الـ `itemKey`؛ بدونها الـ slot يستبدل بـ `remove()` ثم `add()`.
+
 ## اختبار الذاكرة
 
 مع [`mockModel`](/ar/testing)، تحقّق من الـ system prompt تبع أول request، وحرّك الـ tools بـ tool calls مكتوبة في السكربت:
 
 ```ts
-import { createAgent, defineMemory, inMemoryMemory } from '@lousho/build-ai-agent';
+import { createAgent, defineMemory, inMemoryMemory, memoryKey } from '@lousho/build-ai-agent';
 import { mockModel } from '@lousho/build-ai-agent/testing';
 
 const store = inMemoryMemory();
-await store.add('global', { text: 'The user likes tea.' });
 const notes = defineMemory({ name: 'notes', scope: 'global', provider: store });
+await store.add(memoryKey(notes)!, { text: 'The user likes tea.' });
 
 const model = mockModel([{ toolCalls: [{ name: 'remember_notes', args: { text: 'Lives in Oslo.' } }] }, 'Noted.']);
 await createAgent({ provider: model, memory: [notes] }).send('I moved to Oslo.');
 
 console.log(model.calls[0].messages[0].content); // ends with <memory name="notes">\n- The user likes tea.\n</memory>
-console.log((await store.list('global')).map((item) => item.text)); // ['Lives in Oslo.', 'The user likes tea.']
+console.log((await store.list(memoryKey(notes)!)).map((item) => item.text)); // ['Lives in Oslo.', 'The user likes tea.']
 ```
 
 ## القيود
 
-- الاسترجاع وtools الذاكرة يشتغلون على runs الـ agent نفسه، مو على الـ sub-agents تبعته. ولما `agent.approvals.resolve()` يكمّل run بعد وقفة approval، البلوك المسترجَع يظل في الـ prompt بس tools الذاكرة ما تنعرض لبقية ذلك الـ run.
+- ذاكرة الـ agent خاصة فيه: الـ slots تبع الـ lead ما تتشارك مع الـ [sub-agents](/ar/sub-agents) تبعه، والـ slots تبع الـ sub-agent ما تتشارك مع الـ lead. الـ sub-agent اللي فيه `memory` ياخذ الاسترجاع وtools الذاكرة الخاصة فيه لما أداة `task` تبع الـ lead تشغّله، مثل الـ runs تبعه لحاله، والـ scope keys تبعه مأخوذة من run الـ lead (الـ `sessionId` والـ `metadata` والـ `principal` تبعه)، فالـ slot من نوع `'session'` في الـ sub-agent يتبع session الـ lead. وهدف الـ [handoff](/ar/handoffs#ماذا-يتغيّر-وماذا-يبقى) يحتفظ بذاكرة الـ lead (البلوكات المسترجَعة والـ tools، تحت نفس الـ scope keys)؛ والـ slots اللي في `memory` تبع الهدف نفسه ما تُستخدم. ولما `agent.approvals.resolve()` يكمّل run بعد وقفة approval، البلوك المسترجَع يظل في الـ prompt بس tools الذاكرة ما تنعرض لبقية ذلك الـ run.
 - مجلد `memory/` في الـ agent directory جزء من الـ agent: شوف [Agent directories](/ar/agent-directories#memory).
 
 ## Semantic recall
@@ -202,7 +274,8 @@ const agent = createAgent({ model: 'openai/gpt-4o-mini', memory: [facts] });
 
 لو تبي الاسترجاع بالمعنى في بداية الـ run، اضبط `recall: { query: 'last-input' }` على الـ slot: آخر رسالة مستخدم في الـ run تصير هي الـ query، فبلوك `<memory>` يحتوي العناصر الأقرب لها بدل الأحدث. وبدونها، البلوك يحتوي أحدث `maxItems` عنصر، والترتيب الوحيد يصير عن طريق tool الـ `recall_<name>`.
 
-العناصر ما تنقارن إلا داخل الـ scope key تبعها، وبس إذا نفس الـ embedder (الـ `id` تبعه) هو اللي سوّاها. الـ `id` ينخزّن مع كل vector: بعد ما تغيّر الـ model أو الـ `id`، العناصر القديمة تتخطّى عند الترتيب (بس تظل تطلع في السرد بدون query) لحد ما تنادي `await provider.reindex()`، اللي يعيد لها الـ embed على دفعات ويرجع كم وحدة غيّر. و`reindex(scopeKey)` تعالج scope key واحد بس.
+العناصر ما تنقارن إلا داخل الـ scope key تبعها، وبس إذا نفس الـ embedder (الـ `id` تبعه) هو اللي سوّاها. الـ id ينخزّن مع كل vector: بعد ما تغيّر الـ model أو الـ id، العناصر القديمة تتخطّى عند الترتيب (بس تظل تطلع في السرد بدون query) لحد ما تنادي `await provider.reindex()`، اللي يعيد لها الـ embed على دفعات ويرجع كم وحدة غيّر.
+و`reindex(providerKey)` تعالج مفتاح واحد بس — لمفتاح slot، مرّر `memoryKey(slot, ctx)`.
 
 `hashEmbedder()` من `@lousho/build-ai-agent/testing` هو embedder حتمي يشتغل offline للاختبارات: bag من جذوع الكلمات بعد hash، فالنصوص اللي تتشارك كلمات تطلع قريبة من بعض. هو مو نموذج دلالي وما يعرف إن "vegetarian" و"eat" لهم علاقة ببعض.
 

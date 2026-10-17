@@ -2,12 +2,6 @@
 title: "MCP (Model Context Protocol)"
 sidebarTitle: "MCP"
 ---
-
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/mcp-integration).
-</Warning>
-
 {/* Generated from docs/mcp.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 MCP يشتغل في الاتجاهين. الـ agent يستطيع مناداة tools موجودة في سيرفرات MCP،
@@ -29,8 +23,8 @@ npm install @modelcontextprotocol/sdk
 `await agent.ready()`، أو تلقائيًا عند أول `send()` / `stream()`.
 tools كل سيرفر تنضاف باسم `<server>__<tool>` (مثل `docs__search`).
 إذا سيرفر فشل في الاتصال، النداء يفشل، والنداء التالي يحاول من جديد.
-`agent.close()` يقطع الاتصال بها (ويوقف عمليات stdio)؛ وأي tool call بعده
-يعيد الاتصال. بدون `mcpServers` لا تفعل `ready()` و`close()` شيئًا.
+`agent.close()` يقطع الاتصال بها (ويوقف عمليات stdio)؛ وأي tool call بعده،
+أو `ready()`، يعيد الاتصال. بدون `mcpServers` لا تفعل `ready()` و`close()` شيئًا.
 بادئة `vendor/` في الـ model تحدد الـ provider؛ ومع OpenRouter استخدم
 `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`).
 
@@ -48,12 +42,46 @@ const { text } = await agent.send('List the files here.');
 await agent.close();
 ```
 
-مدخلات stdio تنطلق بـ`command` و`args`؛ و`env` تنضاف إلى
-البيئة الافتراضية (`PATH` وما شابه) وليست بديلًا عنها. مدخلات HTTP
+مدخلات stdio تنطلق بـ`command` و`args` (داخل `cwd` إذا ضُبط)؛ و`env`
+تُدمَج فوق قائمة المتغيرات المسموحة الافتراضية في MCP SDK (`PATH` و`HOME` و`USER` و`SHELL` و`TERM`
+و`LOGNAME` على POSIX؛ و`PATH` و`SYSTEMROOT` و`APPDATA` و`TEMP` و`USERPROFILE` وعدد قليل
+غيرها على Windows)، وليس فوق `process.env`. وهذا صحيح سواء ضبطت `env` أو لا، لذلك
+أي متغير آخر يحتاجه السيرفر (API key، أو `NODE_ENV`، أو إعداد proxy)
+لا يُورَّث إلا إذا ذكرته: `env: { GITHUB_TOKEN: process.env.GITHUB_TOKEN }`. الـ tool call
+الفاشل (السيرفر خرج، أو انتهت مهلته، أو ردّ بخطأ في البروتوكول)
+يُرفض بـ[`LOUSHO_MCP_CALL_FAILED`](/ar/errors#lousho_mcp_call_failed) مع ذكر
+`<server>__<tool>`. والسيرفر الذي لا يبدأ يفشل بـ
+[`LOUSHO_MCP_START_FAILED`](/ar/errors#lousho_mcp_start_failed)، ورسالته
+فيها exit code وآخر الأسطر التي كتبتها العملية على stderr.
+`stderr: 'forward'` (الافتراضي) ينسخ أيضًا stderr العملية إلى stderr العملية الحالية،
+و`'capture'` يحتفظ بآخر الأسطر فقط، و`'inherit'` / `'ignore'` لا يحتفظان بشيء.
+`connectTimeoutMs` (لـ stdio أو HTTP) يحدّ مدة مصافحة `initialize`؛
+والافتراضي هو 60 ثانية الخاصة بـ MCP SDK. افتراضيًا السيرفر الذي يفشل في الاتصال
+يُفشل كل `send()` للـ agent؛ علّم السيرفر الذي تستطيع الاستغناء عنه
+بـ`optional: true` فيُترك خارجًا مع `console.warn` بدل ذلك (وتبقى tools الخاصة به
+خارجًا طوال عمر الـ agent). و`connectMcp()` تتخطى السيرفر `optional`
+بنفس الطريقة، حتى مع `onError: 'throw'`. مدخلات HTTP
 تستخدم streamable HTTP transport وترسل الـ `headers` الثابتة مع كل
 طلب. ويمكن لمدخل HTTP أيضًا تسجيل الدخول عبر OAuth كما يصفه MCP
 authorization spec: أضف `oauth: { redirectUri }` فيسجّل operator دخول
 الـ agent مرة واحدة؛ انظر [سيرفرات MCP مع OAuth](/ar/oauth#خوادم-mcp-مع-oauth).
+
+كل tool call يستلم abort signal الخاص بالـ run، فإيقاف الـ run يلغي نداء MCP
+الجاري. `timeoutMs` على المدخل (stdio أو HTTP) يحدّ مدة كل نداء إلى
+ذلك السيرفر؛ وبدونه تُطبَّق المهلة الافتراضية في MCP SDK وهي 60 ثانية.
+و`loadMcpTools(client, name, { timeoutMs })` تأخذ نفس الخيار.
+
+نتيجة الـ tool التي محتواها نص فقط تصل إلى الـ model على شكل `{ "text": ... }`.
+كائن النتيجة يظل فيه `content` (الأجزاء) للكود الذي يقرأه، لكنه
+لا يُرسَل إلى الـ model مرة ثانية. النتائج التي فيها صور أو صوت أو
+resources تحتفظ بكل الأجزاء، و`structuredContent` يُستخدم كنتيجة إذا
+أرسله السيرفر. بيانات Base64 (حقل `data` في جزء صورة أو صوت، أو `blob`
+في resource) تبقى على الجزء للكود، لكن الـ model يستلم بدلها نصًا مؤقتًا مثل
+`[image: image/png, 400000 base64 characters, not sent to the model]`. وكما في
+كل نتيجة tool، الباقي محدود بـ`maxToolResultChars` (انظر
+[الـ Tools](/ar/tools#ماذا-يحدث-لما-الـ-model-يستدعي-tool))، ووصف الـ tool
+الأطول من 2,000 حرف يُقص، لأنه يُرسَل مع كل
+طلب.
 
 الـ map هو نفسه الذي يعرّفه ملف spec؛ انظر
 [الإعدادات](/ar/configuration) (قسم `mcpServers`) لصيغة YAML.
@@ -70,16 +98,27 @@ authorization spec: أضف `oauth: { redirectUri }` فيسجّل operator دخو
 - `lazy` (الافتراضية `true`): بعد `close()` أو انقطاع الاتصال، الـ tool call
   التالي يعيد الاتصال. مع `false` النداء يفشل بدل ذلك. سرد الـ tools
   يحتاج اتصالًا، لذلك `lazy` لا تؤجّل أول اتصال أبدًا.
-- `logger`: يستقبل تحذيرات السيرفرات والـ tools المتخطّاة (الافتراضي: لا شيء).
+- `logger`: يستقبل تحذيرات السيرفرات والـ tools المتخطّاة، وتحذيرًا
+  (فيه exit code وآخر أسطر stderr) عندما ينغلق اتصال سيرفر
+  بدون `close()` (الافتراضي: لا شيء).
 - `tokens`: الـ token store (`AgentStore.tokens`) للسيرفرات التي فيها `oauth`؛
   مطلوب إذا كان أي سيرفر عنده `oauth`.
+- `onToolsChanged(tools)`: تُستدعى بعد تغيّر قائمة tools أحد السيرفرات (انظر أدناه).
 
 ترجع `{ tools, close(), status() }`؛ و`status()` تعطي لكل سيرفر واحدة من القيم
-`'idle'` أو `'connected'` أو `'failed'` أو `'needs-auth'` (سيرفر `oauth`
-لم يسجّل التطبيق دخوله إليه).
+`'idle'` (لم يتصل بعد، أو بعد `close()`)، أو `'connected'`، أو `'failed'`
+(لم يستطع الاتصال، أو انقطع اتصاله، مثلًا خرجت عملية stdio؛
+ومع `lazy` الـ tool call التالي يعيد الاتصال)، أو `'needs-auth'` (سيرفر
+`oauth` لم يسجّل التطبيق دخوله إليه).
+
+الـ tools تُسرَد عبر كل صفحات `tools/list` (`nextCursor`)، حتى 100
+صفحة لكل سيرفر. وعندما يرسل سيرفر `notifications/tools/list_changed`، تُسرَد
+tools الخاصة به من جديد: `tools` يتحدّث في مكانه (تُضاف الـ tools الجديدة، وتُحذف
+التي اختفت) وتُستدعى `onToolsChanged`. والـ agent الذي فيه `mcpServers` يعرض
+القائمة الجديدة من نداء الـ model التالي.
 
 `tools` هي `Record<string, ToolDescriptor>` بمفتاح `<server>__<tool>` —
-يعني record، وليست الـ array التي تنتجها `defineTool()`. و`createAgent({ tools })`
+يعني map، وليست الـ array التي تنتجها `defineTool()`. و`createAgent({ tools })`
 يقبل الشكلين ويجمعهما: `tools: [myTool, mcp.tools]` تسجّل عناصر الـ array
 بأسمائها وعناصر الـ record بمفاتيحها، فتجتمع الـ tools الخاصة بك وtools MCP
 في قائمة واحدة. (النشر داخل record واحد، `tools: { ...mcp.tools, my_tool: myTool }`،
@@ -104,25 +143,61 @@ await mcp.close();
 `tools: [...createFsTools(workspace), ...Object.values(mcp.tools)]` (كل
 descriptor من MCP يحمل اسم `<server>__<tool>` الخاص به، فيشتغل `Object.values` أيضًا).
 
+### أسماء الـ tools والفلترة
+
+الـ providers تقبل أسماء tools تطابق `^[a-zA-Z0-9_-]{1,64}$`؛ وMCP يسمح بأكثر من ذلك.
+اسم `<server>__<tool>` الذي فيه أحرف أخرى تُستبدل فيه بـ`_`، والاسم
+الأطول من 64 حرفًا يُختصر، مع hash قصير حتى تبقى الأسماء مختلفة؛
+والأسماء التي تظل متصادمة تأخذ لاحقة `_2` أو `_3`. السيرفر يُنادى دائمًا
+باسم الـ tool الأصلي، الذي يحتفظ به `descriptor.metadata.mcp.tool`، والـ tool
+الذي تغيّر اسمه يُسجَّل كتحذير. الأسماء الصالحة لا تتغير.
+
+لا يجوز لـ tool من MCP أن تأخذ اسم tool أخرى في الـ agent: إذا كان
+`<server>__<tool>` لسيرفر يساوي اسم tool محلية، يفشل الـ run بـ
+`LOUSHO_CONFIG_INVALID` بدل أن تحل tool الـ MCP محل الـ tool المحلية (ومحل
+بوابة الـ approval الخاصة بها). غيّر اسم الـ tool المحلية، أو اترك tool الـ MCP خارجًا عبر
+`tools: { exclude }`.
+
+`tools: { include, exclude }` على مدخل السيرفر (أو
+`loadMcpTools(client, name, { tools })`) يحمّل بعض tools فقط، بأسمائها في
+MCP: `include` يُبقي المذكورة فقط، ثم `exclude` يحذف المذكورة.
+واسم في `include` لا يعرضه السيرفر يُسجَّل كتحذير.
+
+```ts
+const mcpServers = {
+  hosting: { command: 'npx', args: ['-y', 'hosting-mcp'], tools: { exclude: ['multi-execute'] } },
+};
+```
+
 ### الـ approval على tools MCP
 
+افتراضيًا **كل tool من MCP تطلب [approval](/ar/approvals)**: الـ run
+يتوقف حتى يقرر إنسان (أو الـ callback `approve` الخاص بك).
+
 سيرفرات MCP تصف كل tool بـ annotations: `readOnlyHint` و
-`destructiveHint` و`idempotentHint` و`openWorldHint` و`title`. هي مجرد
-hints، لكن الـ SDK يستخدمها إعدادًا افتراضيًا لـ[الـ approvals](/ar/approvals)
-(الموافقات): الـ tool مع `readOnlyHint: true` يشتغل مباشرة. والـ tool مع
+`destructiveHint` و`idempotentHint` و`openWorldHint` و`title`. هي
+كلام السيرفر نفسه، وليست ضمانًا، لذلك الـ SDK لا يثق بها إلا إذا اخترت ذلك صراحةً
+عبر `approval: 'annotations'`: عندها الـ tool مع `readOnlyHint: true` يشتغل
+(ويمكن أن يشتغل في [plan mode](/ar/permission-modes))؛ والـ tool مع
 `destructiveHint: true`، أو الذي لا يرسل `destructiveHint` أصلًا (الافتراضي في
-spec MCP أنه destructive)، يوقف الـ run حتى إنسان يوافق. و`destructiveHint: false`
-يشتغل. يعني الـ tool بدون annotations يسأل دائمًا. الـ annotations الخام
-تبقى في `descriptor.metadata.mcp.annotations`، و`title` يصبح `displayName`.
+spec MCP أنه destructive)، يوقف الـ run حتى يوافق إنسان؛
+و`destructiveHint: false` يشتغل. الـ annotations الخام تبقى في
+`descriptor.metadata.mcp.annotations` في كل الأحوال، و`title` يصبح
+`displayName`.
 
 اضبط `approval` في مدخل السيرفر (`mcpServers` أو `createAgent` أو `connectMcp()`) أو
 في `loadMcpTools(client, name, { approval })`:
 
-- `'annotations'` (الافتراضية): كما في الأعلى.
-- `'always'` / `'never'`: اسأل عن كل tool / لا تسأل عن أي منها.
-- دالة `({ name, annotations }) => boolean` تقرر لكل tool (`name` هو
-  اسم الـ tool المجرّد؛ و`annotations` هي `{}` إذا السيرفر لم يرسل شيئًا).
-  في الكود فقط؛ أما ملف spec فيأخذ السلاسل الثلاث.
+- `'always'` (الافتراضية): اسأل عن كل tool. والـ plan mode يرفض كل tools
+  هذا السيرفر.
+- `'annotations'`: ثق بـ hints السيرفر، كما في الأعلى. استخدمها فقط مع سيرفرات
+  تثق بها.
+- `'never'`: لا تسأل عن أي منها.
+- دالة `({ name, annotations, args }) => boolean` تقرر لكل نداء
+  (`name` هو اسم الـ tool المجرّد؛ و`annotations` هي `{}` إذا السيرفر لم يرسل
+  شيئًا؛ و`args` هي arguments النداء). تسمح لك بوضع بوابة على meta-tool مثل
+  `execute({ operation })` حسب arguments الخاصة به، لأن hints السيرفر ليست دائمًا
+  صحيحة. في الكود فقط؛ أما ملف spec فيأخذ السلاسل الثلاث.
 
 [قواعد الصلاحيات](/ar/approvals#سياسات-الصلاحيات) تشتغل أولًا، ولا يزال بإمكانها
 `allow` أو `deny` أو `ask`.
@@ -133,7 +208,10 @@ import { createAgent } from '@lousho/build-ai-agent';
 const agent = createAgent({
   model: 'openai/gpt-4o-mini',
   mcpServers: {
+    // The default: every tool asks.
     files: { command: 'npx', args: ['-y', '@modelcontextprotocol/server-filesystem', '.'] },
+    // A server you trust to label its tools: its read-only tools run.
+    github: { url: 'https://api.githubcopilot.com/mcp/', approval: 'annotations' },
     // Ask before anything except tools whose name starts with `search`.
     docs: { url: 'https://example.com/mcp', approval: ({ name }) => !name.startsWith('search') },
     // A server you trust: never ask.
@@ -153,7 +231,7 @@ import { createAgent } from '@lousho/build-ai-agent';
 import { loadMcpTools } from '@lousho/build-ai-agent/mcp';
 
 const tools = await loadMcpTools(mcpClient, 'my-server');
-const agent = createAgent({ prompt: '...', provider, tools });
+const agent = createAgent({ instructions: '...', provider, tools });
 ```
 
 `loadMcpTools` متوفرة أيضًا من جذر الحزمة ومن
@@ -177,7 +255,7 @@ const searchDocs = defineTool({
   execute: ({ query }) => `results for ${query}`,
 });
 
-const supportAgent = createAgent({ prompt: 'You answer support questions.', provider, tools: [searchDocs] });
+const supportAgent = createAgent({ instructions: 'You answer support questions.', provider, tools: [searchDocs] });
 
 const server = await serveMcp({
   agent: supportAgent,            // exposed as ONE tool taking { message: string }
@@ -191,17 +269,35 @@ await server.close();
 
 - **Stateless.** كل نداء لـ tool الـ agent محادثة جديدة.
 - **الإلغاء.** إلغاء طلب MCP يوقف الـ run
-  (`agent.send(message, { signal })`).
+  (`agent.send(message, { signal })`). وعبر HTTP يتوقف الـ run أيضًا عندما
+  ينقطع الـ client، وعندما ترسل مهلة عند الـ client
+  `notifications/cancelled` في `POST` لاحق: ذلك الإلغاء يُطابَق مع
+  الطلب بالـ id الخاص به وبالـ client. السيرفر لا يحتفظ بأي session state، لكنه
+  يرد على `initialize` بترويسة `Mcp-Session-Id`، والتي يرسلها Streamable HTTP
+  clients (`connectMcp()` وMCP SDK) مرة أخرى، فيمكن التمييز بين client اثنين خلف نفس
+  العنوان ونفس الـ token. أما الـ client الذي لا يرسل session id فيُعرَف
+  بعنوانه البعيد و`Authorization` و`User-Agent`، ويُتجاهل الإلغاء الذي يرسله
+  إذا طابق أكثر من طلب جارٍ. والطلب الملغى
+  يُرَد عليه بخطأ JSON-RPC (`-32800`، `Request cancelled`).
 - **الأخطاء.** فشل الـ agent يرجع نتيجة MCP فيها `isError: true`.
 - **الـ approvals.** الـ tools المشروطة بـ approval لا يمكن الموافقة عليها عبر
   MCP. الـ run الذي يتوقف بانتظار approval يرجع `isError: true` مع رسالة
-  توضّح ذلك. والـ tools المعلَّمة `needsApproval` لا تُعرض مباشرة إلا إذا
+  توضّح ذلك، وتُرفض الـ approvals المعلّقة الخاصة به بدون إكمال الـ run، حتى لا
+  تتراكم في approval store الخاص بالـ agent. والـ tools المعلَّمة `needsApproval` لا تُعرض مباشرة إلا إذا
   مرّرت `allowApprovalTools: true`؛ وإذا فعلت، الـ clients يشغّلونها **بدون أي
   موافقة بشرية**.
 - **stdio.** لا يُكتب على stdout شيء غير بروتوكول MCP؛ التحذيرات تذهب إلى stderr.
 - **HTTP.** يربط `127.0.0.1` افتراضيًا. أضف `auth: { type: 'bearer', token }`
   لاشتراط ترويسة `Authorization: Bearer`. والربط بـ host غير loopback
-  بدون `auth` يسجّل تحذيرًا.
+  بدون `auth` يسجّل تحذيرًا. ولمنع DNS rebinding (صفحة ويب تعيد توجيه
+  الـ domain الخاص بها إلى جهازك)، الربط على loopback يرد بـ`403` إلا إذا كانت
+  ترويسة `Host` هي `localhost` أو عنوان `127.x.x.x` أو `[::1]` (وليس أبدًا
+  اسمًا مثل `127.attacker.example`)، وأي طلب ترويسة
+  `Origin` فيه ليست same-origin مع `Host` يأخذ `403`. اضبط
+  `allowedHosts: ['mcp.internal']` لقبول أسماء أخرى (يحل محل
+  الافتراضي الخاص بـ loopback؛ وعلى ربط غير loopback لا يوجد فحص لـ Host إلا إذا
+  ضبطته) و`allowedOrigins: ['https://app.example']` لقبول طلبات المتصفح
+  من origin آخر. القيمة `['*']` تعطّل أيًّا من الفحصين.
 
 ### Annotations
 

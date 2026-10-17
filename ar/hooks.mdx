@@ -1,12 +1,6 @@
 ---
 title: "Hooks"
 ---
-
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/hooks).
-</Warning>
-
 {/* Generated from docs/hooks.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 الـ hook هو object بالشكل `{ name, preToolCall?, postToolCall?, preGenerate?, postGenerate? }` يشتغل داخل الـ agent loop، حول كل tool call وكل model call. استخدمه لكتابة audit log، أو لرفض tool، أو لحجب نتيجة أو قصّها، أو لحقن context قبل الـ model call، أو لتغيير الـ request اللي ينبعث (header أو `temperature`).
@@ -42,7 +36,7 @@ const lookup = defineTool({
 });
 
 const agent = createAgent({
-  prompt: 'You answer questions.',
+  instructions: 'You answer questions.',
   provider: mockModel([{ toolCalls: [{ name: 'lookup', args: { query: 'hooks' } }] }, { text: 'Done.' }]),
   tools: [lookup],
   hooks: [auditHook],
@@ -62,7 +56,7 @@ await agent.send('Look up hooks');
 | `preGenerate(ctx)` | قبل كل model call. | `GenerateHookContext`: `request` (كائن الـ `GenerateOptions` الـ live اللي بينبعث) و`emit?`، زائد الحقول المشتركة. | لا شيء؛ عدّل `ctx.messages` أو `ctx.request`، أو ارمِ error. |
 | `postGenerate(ctx, result)` | بعد ما يخلص كل model call، مع الـ `GenerateResult` الخاص به. | `GenerateHookContext`. | لا شيء؛ أو ارمِ error. |
 
-الحقول المشتركة في كل context هي `agentId` و`agentName` و`sessionId` و`messages` (سجل المحادثة الـ live) و`metadata` (مساحة حرة تحط فيها اللي تريده) و`subagent` (تتعبّى داخل sub-agent). سياقات الـ tool call تحمل أيضًا `resumedAfterApproval`: تكون `true` فقط لما الـ hook يشتغل على call يُعاد تشغيله بعد ما شخص وافق على إيقافه، عشان hook عنده state (مثل loop guard أو عدّاد audit) يقدر يتخطى إعادة التشغيل بـ `if (ctx.resumedAfterApproval) return;`. ويوجد `ctx.emit` لما يكون للـ run listeners (`createAgent({ onEvent })` أو `onAgentEvent`) أو لما يكون فيه streaming، ويضيف حدثَي `compaction.start` و`compaction.done` إلى أحداث الـ run.
+الحقول المشتركة في كل context هي `agentId` و`agentName` و`sessionId` و`messages` (سجل المحادثة الـ live) و`metadata` (مساحة حرة تحط فيها اللي تريده) و`subagent` (تتعبّى داخل sub-agent). سياقات الـ tool call تحمل أيضًا `resumedAfterApproval`: تكون `true` فقط لما الـ hook يشتغل على call يُعاد تشغيله بعد ما شخص وافق على إيقافه، عشان hook عنده state (مثل loop guard أو عدّاد audit) يقدر يتخطى إعادة التشغيل بـ `if (ctx.resumedAfterApproval) return;`. ويوجد `ctx.emit` لما يكون للـ run listeners (`createAgent({ onEvent })` أو `onAgentEvent`) أو لما يكون فيه streaming، ويضيف حدثَي `compaction.start` و`compaction.done` إلى أحداث الـ run. وداخل run الـ executor، يحصل `preGenerate` أيضًا على `ctx.generate(provider, request, purpose)`: model call جانبي (يستخدمه الـ summarizer الخاص بالـ compaction) له `chat` span خاص به موسوم بـ `lousho.call.purpose`، ويُحسب ضمن `usage` الخاص بالـ run وضمن الـ budgets.
 
 ## Hook outcomes
 
@@ -138,7 +132,7 @@ const noShell: AgentHook = {
 };
 
 const model = mockModel([{ toolCalls: [{ name: 'shell', args: { command: 'ls' } }] }, { text: 'I could not run it.' }]);
-const agent = createAgent({ prompt: 'You help.', provider: model, tools: [shell], hooks: [noShell] });
+const agent = createAgent({ instructions: 'You help.', provider: model, tools: [shell], hooks: [noShell] });
 
 const result = await agent.send('List the files');
 console.log(result.text);
@@ -173,7 +167,7 @@ const defaultLimit: AgentHook = {
 };
 
 const model = mockModel([{ toolCalls: [{ name: 'search', args: { query: 'hooks' } }] }, { text: 'Found it.' }]);
-const agent = createAgent({ prompt: 'You search.', provider: model, tools: [search], hooks: [defaultLimit] });
+const agent = createAgent({ instructions: 'You search.', provider: model, tools: [search], hooks: [defaultLimit] });
 
 await agent.send('Search for hooks');
 ```
@@ -206,7 +200,7 @@ const redact: AgentHook = {
 };
 
 const model = mockModel([{ toolCalls: [{ name: 'read_log', args: {} }] }, { text: 'Read it.' }]);
-const agent = createAgent({ prompt: 'You read logs.', provider: model, tools: [readLog], hooks: [redact] });
+const agent = createAgent({ instructions: 'You read logs.', provider: model, tools: [readLog], hooks: [redact] });
 
 await agent.send('Read the log');
 const toolMessage = model.calls[1].messages.at(-1);
@@ -230,7 +224,7 @@ const addDate: AgentHook = {
 };
 
 const model = mockModel(['Noted.']);
-const agent = createAgent({ prompt: 'You help.', provider: model, hooks: [addDate] });
+const agent = createAgent({ instructions: 'You help.', provider: model, hooks: [addDate] });
 
 await agent.send('Hello');
 console.log(model.calls.length); // 1

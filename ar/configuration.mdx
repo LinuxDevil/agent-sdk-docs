@@ -1,12 +1,6 @@
 ---
 title: "الإعدادات"
 ---
-
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/configuration).
-</Warning>
-
 {/* Generated from docs/configuration.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 ## ملفات تعريف الـ agent (`AgentSpec`)
@@ -14,6 +8,8 @@ title: "الإعدادات"
 الـ agent التصريحي (declarative) ملف YAML (`.yaml`/`.yml`) أو JSON (`.json`)،
 تتحقق منه `loadSpec()` بمكتبة zod (`src/spec/schema.ts`). هي الصيغة التي
 يخدمها `lousho dev` وينشرها `lousho build`.
+
+> المقتطفات في هذه الصفحة تترك لك بعض الأسماء: `provider` هو أي `LLMProvider` (دون اتصال: `createMockProvider()`).
 
 | الحقل            | النوع      | مطلوب    | الوصف                                                   |
 | ---------------- | ---------- | -------- | ------------------------------------------------------- |
@@ -23,7 +19,7 @@ title: "الإعدادات"
 | `provider.model` | `string`   | نعم      | معرّف الـ model المستخدم في كل call (الـ model المضبوط لدى الـ provider؛ و`settings.model` الخاصة بالـ agent تتجاوزه إن وُجدت). |
 | `tools`          | `string[]` | لا       | أسماء الـ tools المدمجة (انظر أدناه).                  |
 | `policy`         | `AgentSpecPolicy` | لا | الموافقات والـ guardrails والحدود وغيرها، وتُفرَض عند تحوّل الـ spec إلى agent (انظر أدناه). |
-| `triggers`       | `AgentSpecTrigger[]` | لا | ما يشغّل الـ agent من تلقاء نفسه — جداول cron (`{ type: 'cron', cron, input, name?, timezone? }`)؛ انظر [الجداول الزمنية](/ar/schedules) و[المُشغِّلات](/ar/triggers#جداول-cron). |
+| `triggers`       | `AgentSpecTrigger[]` | لا | ما يشغّل الـ agent من تلقاء نفسه — جداول cron (`{ type: 'cron', cron, input, name?, timezone? }`)؛ انظر [الجداول الزمنية](/ar/schedules) و[المُشغِّلات](/ar/triggers#slack). |
 | `mcpServers`     | `Record<string, McpServerSpec>` | لا | سيرفرات MCP التي يستخدمها الـ agent، مفهرسة بالاسم (انظر أدناه). |
 
 الحقل الناقص أو غير الصالح يفشل بخطأ يسمّي الحقل نفسه، مثل
@@ -64,7 +60,7 @@ policy الخام.
 | ------------------ | --------------------------------------------- | ----------- |
 | `requiresApproval` | `permissions` ([`ask`](/ar/guardrails))       | `true`: كل tool call يتوقف لانتظار الموافقة. قائمة: تتوقف تلك الـ tools فقط. |
 | `guardrails`       | `guardrails` (input وoutput)                  | أسماء guardrails مدمجة، أو `{ name, ...options }` (الجدول أدناه). |
-| `limits`           | `limits` ([الميزانيات](#الميزانيات))          | `maxTokens`, `maxInputTokens`, `maxOutputTokens`, `maxCostUsd`, `maxDurationMs`, `maxSteps`, `onExceeded`. |
+| `limits`           | `limits` ([الميزانيات](#الميزانيات))          | `maxTokens`, `maxInputTokens`, `maxOutputTokens`, `maxCostUsd`, `maxDurationMs`, `maxSteps`, `maxToolErrors`, `onExceeded`. |
 | `askQuestion`      | `askQuestion`                                 | `true` تضيف الـ tool المدمج `ask_question`. |
 | `compaction`       | `compaction`                                  | `true`، أو `{ thresholdPercent: 0.8 }` (نسبة من نافذة السياق، فوق 0 وحتى 1). |
 
@@ -127,9 +123,10 @@ mean":
 كل مدخل يضبط واحدًا فقط من `command` / `url`؛ و`args`/`env` لـ stdio فقط
 و`headers` لـ HTTP فقط. تتحقق `loadSpec()` من الحقل، والمدخل غير الصالح
 يفشل برسالة تذكر اسمه، مثل
-`'mcpServers.files': AgentSpec validation failed: missing 'command' (stdio server) or 'url' (HTTP server)`.
-والحقل الاختياري `approval` (`annotations` أو `always` أو `never`) يحدد أي أدوات السيرفر تطلب موافقة؛ انظر [الموافقة على أدوات MCP](/ar/mcp-integration#الـ-approval-على-tools-mcp).
+`'mcpServers.files': missing 'command' (stdio server) or 'url' (HTTP server)`.
+والحقل الاختياري `approval` (`always`، وهو الافتراضي، أو `annotations` أو `never`) يحدد أي أدوات السيرفر تطلب موافقة؛ انظر [الموافقة على أدوات MCP](/ar/mcp-integration#الـ-approval-على-tools-mcp).
 والاختياري `deferLoading: true` يحجب أدوات السيرفر عن الـ model حتى يجدها بـ `tool_search`؛ انظر [Tool search](/ar/tool-search).
+والاختياري `optional: true` يستبعد السيرفر الذي يتعذّر الاتصال به (مع تحذير) بدل أن يُفشل كل send؛ انظر [استخدام سيرفرات MCP داخل agent](/ar/mcp-integration#استخدام-سيرفرات-mcp-داخل-agent).
 ومدخل HTTP يقدر يضبط `oauth` (`redirectUri`، واختياريًا `clientId` و`clientSecret` و`scopes` و`clientName`) ليسجّل الدخول للسيرفر بـ OAuth بدل header `Authorization` ثابت؛ انظر [سيرفرات MCP مع OAuth](/ar/oauth#خوادم-mcp-مع-oauth).
 ويتأكد `lousho doctor` أن كل `command` لسيرفر stdio يمكن الوصول إليه.
 
@@ -210,15 +207,21 @@ for await (const event of agent.stream('Hello!')) {
   `createAgent` هؤلاء الـ providers مع إطفاء الـ retries الخاصة بـ `ai`
   SDK (`maxRetries: 0`)، فيحصل الـ retry في مكان واحد، والافتراضي
   `{ maxRetries: 2 }` يجري نفس عدد الـ calls كما في السابق.
-- نسخة `provider` التي تمرّرها تحتفظ بسلوك الـ retry الخاص فيها؛ ولا
-  تُغلَّف بـ `withRetry()` إلا إذا ضبطت `retry`. و`fallbackModels` تعمل
-  معها أيضًا.
+- نسخة provider مدمجة (`OpenAIProvider` أو `AnthropicProvider` أو
+  `OpenRouterProvider` أو `OllamaProvider`) أو provider من `fromAiSdk()`
+  تُغلَّف أيضًا بـ `withRetry()` حتى بدون `retry`: وحينها بـ `maxRetries`
+  الخاص بالـ provider نفسه (الافتراضي 2)، فتطلق محاولاتها أحداث `provider.retry`
+  مثل سلسلة الـ model. وتخرج استدعاءاتها مع إطفاء الـ retries الخاصة بـ `ai`
+  SDK، فـ `{ maxRetries: 2 }` يرسل 3 طلبات على الأكثر، و`retry: false` يرسل
+  كل call مرة واحدة. أما أي نسخة `provider` أخرى (الـ `LLMProvider` الخاص
+  بك) فلا تُغلَّف إلا إذا ضبطت `retry`. و`fallbackModels` تعمل معها كلها.
 - قيم `fallbackModels` سلاسل بالصيغة `provider/model`، تُحلّ مثل `model`
   عند إنشاء الـ agent. يشغّل الـ agent
   `withFallback([withRetry(primary), withRetry(fallback1), ...])`:
   كل call يبدأ بالـ model الأساسي.
 - تبلّغ `stream()` و`session.stream()` عن كل إعادة محاولة كحدث `provider.retry`
-  وعن كل تبديل كـ `provider.fallback` (انظر
+  وعن كل تبديل كـ `provider.fallback`؛ وفيه `from` و`to` أسماء الـ providers
+  (مثل `openai`) و`fromModel` / `toModel` معرّفات الـ models (انظر
   [Streaming](/ar/stream-events#event-schema-version-1)). أما `send()` فترجع
   النتيجة النهائية كما في السابق.
 
@@ -242,29 +245,98 @@ const provider = withFallback(
   { onFallback: ({ from, to }) => console.warn(`falling back from ${from} to ${to}`) }
 );
 
-const agent = createAgent({ prompt: 'You are helpful.', provider });
+const agent = createAgent({ instructions: 'You are helpful.', provider });
 ```
 
 - تعيد `withRetry` محاولة `generate()` و`stream()` (الافتراضي `maxRetries: 2`)
-  عند rate limits وانتهاء المهلة وأخطاء الشبكة وردود 5xx، بنفس التصنيف الذي
-  تستخدمه `compactProviderError()`. لا تُعاد المحاولة عند فشل المصادقة ولا
-  الطلبات غير الصالحة ولا أخطاء طول السياق؛ ولا عند الإلغاء. وتلميح
-  `retryAfterMs` من الـ provider (هيدر `Retry-After`) يحل محل تأخير الـ
-  backoff. مرّر `retryOn(error, attempt)` لتغيّر القاعدة، و`timeoutMs` لمهلة
-  لكل محاولة، و`signal` لإيقاف الـ retry.
-- استدعاء `stream()` يُعاد فقط إذا رُفض. والخطأ الذي يقع داخل stream أُرجع
-  سلفًا لا تُعاد محاولته.
+  عند rate limits وانتهاء المهلة وأخطاء الشبكة (ومنها انقطاع الـ socket)
+  والردود المشوّهة أو المبتورة وردود 5xx، بنفس التصنيف الذي تستخدمه
+  `compactProviderError()`. لا تُعاد المحاولة عند فشل المصادقة ولا الطلبات
+  غير الصالحة ولا أخطاء طول السياق؛ ولا عند الإلغاء. وتلميح `retryAfterMs`
+  من الـ provider (`retry-after-ms` أو `Retry-After`، مع 429 أو 503) يحل محل
+  تأخير الـ backoff، إلا إذا كان أطول من `backoff.maxMs` (الافتراضي 30 ثانية):
+  عندها يفشل الـ call فورًا بـ `CompactedLLMProviderError` يحمل التلميح في
+  `compacted.retryAfterMs`، فيقرر الكود الخاص بك هل ينتظر. مرّر
+  `retryOn(error, attempt)` لتغيّر القاعدة، و`timeoutMs` لمهلة لكل محاولة،
+  و`signal` لإيقاف الـ retry. مع `stream()` لا يحدّ `timeoutMs` إلا انتظار
+  أول chunk: الـ stream الذي بدأ لا يقطعه أبدًا. و`idleTimeoutMs` (للـ stream
+  فقط) يُفشل الـ stream الذي يسكت بين chunk وآخر أطول من ذلك، بـ
+  `TimeoutError` (ولا يُعاد إلا إذا لم يخرج بعد أي نص أو tool call).
+- استدعاء `stream()` يُعاد إذا رُفض، وإذا فشل الـ stream قبل أي مخرجات:
+  chunks الـ reasoning والـ text deltas الفارغة لا تُحتسب، فالـ runtime
+  المحلي الذي يرسل `reasoning-end` فارغًا ثم 500 (LM Studio) يُعاد. أما الفشل
+  بعد نص أو tool call أو بعد الانتهاء فلا يُعاد. والـ agent يبث استدعاءات
+  الـ model كلما كان له event listener، فهذا ما يجعل `agent.stream()` بنفس
+  متانة `send()`.
+- الـ reasoning الذي بُثّ قبل فشل كهذا يكون قد بُلِّغ عنه سلفًا. في run الـ
+  agent ينتهي reasoning المحاولة الفاشلة بـ `reasoning.done` الخاص بها، ثم
+  يأتي حدث `provider.retry`، ثم يبدأ reasoning المحاولة المعادة من جديد بـ
+  `reasoning.start`. و`reasoning` الخاص بالخطوة (وبالـ run) هو reasoning
+  المحاولة الناجحة وحدها.
 - تجرّب `withFallback` الـ providers واحدًا تلو الآخر، وترمي آخر خطأ إذا
   فشلوا جميعًا. افتراضيًا تنتقل للـ fallback عند أي خطأ ما عدا الإلغاء
   (ويغيّر `fallbackOn` هذا). كل fallback يعمل بـ `defaultModel` الخاص فيه.
-  و`name` و`defaultModel` يذكران الـ provider الذي خدم آخر call.
+  كل call يحتفظ بحالة fallback خاصة به، فالـ calls المتزامنة لا ترى تبديلات
+  بعضها. و`name` و`defaultModel` هما للـ provider الأول؛ ونتيجة الـ call (والـ
+  stream) تسمّي الـ provider والـ model اللذين خدماه في `servedBy`، ويسجّل
+  الـ run استهلاك ذلك الـ call وتكلفته تحت ذلك الـ model في `usage.byModel`.
 - تطبّق `resilientProvider(provider, { maxRetries, timeout })` حقلَي
   `LLMProviderConfig` اللذين يحملان الاسمين نفسيهما.
-- الـ providers المدمجون يمرّرون `maxRetries` من إعداداتهم (الافتراضي 2) إلى
-  الـ retries الداخلية في `ai` SDK، وهي تعمل داخل كل محاولة `withRetry`.
-  أنشئ الـ provider الذي ستغلّفه بـ `maxRetries: 0`
-  (`new OpenAIProvider({ apiKey, maxRetries: 0 })`) ليحصل الـ retry في مكان
-  واحد. وتفعل `createAgent()` هذا للـ models التي تحلّها هي.
+- `withRetry` هي طبقة الـ retry الوحيدة: الـ providers المدمجون يرسلون
+  استدعاءاتها مع إطفاء الـ retries الخاصة بـ `ai` SDK، أيًّا كانت قيمة
+  `maxRetries` في إعداداتهم. وتلك الـ `maxRetries` (الافتراضي 2) هي عدد
+  محاولات `ai` SDK للـ provider المستخدم دون تغليف (يُستدعى مباشرة)، وهي عدد
+  `withRetry()` الذي تستخدمه `createAgent()` لذلك الـ provider حين لا يكون
+  `retry` مضبوطًا.
+- الـ call الذي يصطدم بـ rate limit (429) يفشل، بعد استنفاد المحاولات، بـ
+  `LOUSHO_PROVIDER_RATE_LIMITED`؛ والـ calls الفاشلة الأخرى بـ
+  `LOUSHO_PROVIDER_REQUEST_FAILED` (انظر [الأخطاء](/ar/errors)).
+- كل إعادة محاولة تُسجَّل على span الـ `chat` الخاص بالـ call كـ
+  `lousho.retry.count` و`lousho.retry.errors` (انظر [Observability](/ar/observability)).
+
+## حدود المعدّل (rate limits)
+
+تضع `withRateLimit(provider, limits)` استدعاءات `generate()` و`stream()`
+الخاصة بالـ provider في طابور كي تبقى تحت حدود من جهة العميل، فلا يقدر
+تفرّع الـ sub-agents ولا موجات الـ flows ولا مجموعات الـ evals على إطلاق
+استدعاءات model بلا حد. كل حد اختياري:
+
+```ts
+import { withRateLimit, resolveProvider } from '@lousho/build-ai-agent';
+
+const provider = withRateLimit(resolveProvider('openai/gpt-4o-mini'), {
+  requestsPerMinute: 60, // calls started per rolling minute
+  tokensPerMinute: 200_000, // estimated tokens per rolling minute
+  maxConcurrent: 4, // calls in flight at once
+});
+```
+
+- تُقبَل الـ calls بترتيب الوصول (الأول يدخل أولًا). والـ call الذي ينتظر
+  دوره يُرفَض بسبب الـ `signal` الخاص به فور إلغائه، ولا يبدأ أبدًا.
+- يحجز `tokensPerMinute` لكل call قيمة `estimateTokens()` لرسائله وتعريفات
+  الـ tools مضافًا إليها `maxTokens` الخاص به، ثم يعيد حجزه بالاستهلاك الذي
+  يبلّغ عنه الـ provider. والـ call الواحد الأكبر من الحد يعمل مع ذلك، وحده
+  في نافذته.
+- يحتفظ `stream()` بخانة `maxConcurrent` الخاصة به حتى ينتهي الـ stream.
+- الحدود غير الصالحة (ليست عددًا موجبًا، أو `maxConcurrent` ليس عددًا
+  صحيحًا) ترمي `LOUSHO_CONFIG_INVALID`.
+- غلّف خارج `withRetry()` لتحسب الـ call ومحاولاته المعادة كواحد، أو داخلها
+  لتحسب كل محاولة.
+- مرّر `createRateLimiter(limits)` بدل الحدود لتتشارك عدة providers ميزانية
+  واحدة.
+
+يأخذ `createAgent({ rateLimit })` الحدود نفسها (أو limiter). ميزانية واحدة
+تغطي كل استدعاءات الـ model في runs الـ agent، بما فيها الـ sub-agents
+وأهداف الـ handoff التي يبدأها الـ run (الـ sub-agent يرث ميزانية run الـ
+lead، فيدخل الـ provider الخاص به الطابور أيضًا). أعطِ عدة agents نفس
+`createRateLimiter()` ليتشاركوها.
+
+```ts
+import { createAgent } from '@lousho/build-ai-agent';
+
+const researcher = createAgent({ model: 'openai/gpt-4o-mini', instructions: 'You research.', description: 'Finds sources' });
+createAgent({ model: 'openai/gpt-4o-mini', subagents: { researcher }, rateLimit: { maxConcurrent: 2 } });
+```
 
 ## خيارات `createAgent()`
 
@@ -273,32 +345,49 @@ const agent = createAgent({ prompt: 'You are helpful.', provider });
 | `model`        | سلسلة `'provider/model'` مثل `'openai/gpt-4o-mini'`، تُحلّ بـ `resolveProvider()` (المفتاح من متغير البيئة أعلاه). بديل عن `provider`. |
 | `provider`     | نسخة `LLMProvider` (حقيقية أو mock). بديل عن `model`. إذا مرّرت الاثنين يُستخدم `provider` ويصير `model` إعداد الـ model لكل run (معرّف model مجرّد مثل `'gpt-4o'`). |
 | `instructions` | الـ system prompt. اختياري (الافتراضي `'You are a helpful assistant.'`). |
-| `prompt`       | alias شغّال لـ `instructions`؛ تمرير الاثنين معًا خطأ.          |
+| `prompt`       | alias مُهمَل لـ `instructions`؛ تمرير الاثنين معًا خطأ.          |
 | `tools`    | مصفوفة من نواتج `defineTool()`، أو `Record<string, ToolDescriptor>` مفهرسة بالاسم الذي يستخدمه الـ agent (انظر [الـ tools](/ar/tools)). |
 | `name`     | اسم الـ agent (الافتراضي `'agent'`).                            |
 | `description` | ما يفعله الـ agent، في جملة. مطلوب عندما يُستخدم كـ sub-agent. |
-| `maxSteps` | يُمرَّر كما هو إلى `AgentExecutor.execute()`.                    |
-| `limits`   | ميزانيات كل run: `{ maxTokens?, maxInputTokens?, maxOutputTokens?, maxCostUsd?, maxDurationMs?, maxSteps?, onExceeded? }`. الحد المستوفى ينهي الـ run بـ `finishReason: 'budget-exceeded'`. انظر [الميزانيات](#الميزانيات). |
+| `maxSteps` | يُمرَّر كما هو إلى `AgentExecutor.execute()`. عدد صحيح >= 1؛ وأي قيمة أخرى ترمي `LOUSHO_CONFIG_INVALID`. |
+| `modelSettings` | إعدادات الـ sampling المرسلة مع كل call للـ model: `{ maxTokens?, temperature?, topP?, frequencyPenalty?, presencePenalty?, stop?, seed?, toolChoice? }`. و`modelSettings` الخاصة باستدعاء `send()` / `stream()` تغلب مفتاحًا بمفتاح. انظر [إعدادات الـ model](#إعدادات-الـ-model). |
+| `limits`   | ميزانيات كل run: `{ maxTokens?, maxInputTokens?, maxOutputTokens?, maxCostUsd?, maxDurationMs?, maxSteps?, maxToolErrors?, onExceeded? }`. الحد المستوفى ينهي الـ run بـ `finishReason: 'budget-exceeded'`. انظر [الميزانيات](#الميزانيات). |
 | `toolConcurrency` | كم tool call من turn واحد للـ model يعمل معًا: عدد صحيح موجب أو `'unbounded'` (الافتراضي). انظر [الـ tool calls المتوازية](/ar/runs#tool-calls-متوازية). |
 | `skills`   | skills من `defineSkill()` / `loadSkills()`؛ انظر [Skills](/ar/skills). |
 | `subagents`, `maxSubagentDepth` | sub-agents مسمّاة خلف tool واحد اسمه `task`، وأقصى عمق لتداخلها (الافتراضي 1)؛ انظر [الـ sub-agents](/ar/sub-agents). |
 | `handoffs`, `maxHandoffs` | agents يقدر هذا الـ agent يسلّمهم المحادثة كلها، بـ tool `transfer_to_<name>` لكل واحد، وكم handoff مسموح في الـ run الواحد (الافتراضي 5)؛ انظر [الـ handoffs](/ar/handoffs). |
 | `toolSearch` | يضبط [tool search](/ar/tool-search) للـ tools المعلَّمة بـ `deferLoading`: `{ thresholdPercent?, maxResults?, contextWindow?, search? }`، أو `false` لإرسال كل tool في كل call. |
-| `store`    | `AgentStore` (`SqliteStore`، أو `memoryStore()`، أو `{ sessions?, checkpoints?, approvals? }`): المخازن الافتراضية لـ `agent.session()` وللموافقات ولـ runs الـ `send(message, { sessionId })`؛ و`agent.resume(id)` يكمل run انقطع. انظر [Durable sessions](/ar/sessions#durable-sessions). |
+| `store`    | `AgentStore` (`SqliteStore`، أو `memoryStore()`، أو `{ sessions?, checkpoints?, approvals? }`): المخازن الافتراضية لـ `agent.session()` وللموافقات ولـ runs الـ `send(message, { sessionId })`؛ و`agent.resume(id)` يكمل run انقطع. انظر [Durable sessions](/ar/sessions#stores). |
 | `memory`   | خانات ذاكرة من `defineMemory()`: تُستحضر داخل الـ system prompt في بداية كل run، مع tools `remember_<name>` / `recall_<name>`. انظر [الذاكرة](/ar/memory). |
 | `approvalStore` | أين يُحفَظ توقف `needsApproval` (الافتراضي: `store.approvals`، وإلا `InMemoryApprovalStore` لكل agent)؛ انظر [الموافقات](/ar/approvals). |
 | `approve`  | `(call) => boolean`: حسم الموافقات بالكود بدل التوقف.            |
 | `projectInstructions` | `true` أو `{ cwd?, files? }`: إلحاق أقرب `AGENTS.md` / `CLAUDE.md` بالتعليمات (مطفأ افتراضيًا؛ انظر [تعليمات المشروع](#تعليمات-المشروع)). |
-| `retry`    | خيارات `withRetry()` لاستدعاءات الـ model الفاشلة، أو `false`. الافتراضي `{ maxRetries: 2 }` لسلاسل `model`؛ ونسخة `provider` تُغلَّف فقط إذا ضُبط. انظر [الـ retry والـ fallback](#الـ-retry-والـ-fallback-عند-الـ-provider). |
+| `retry`    | خيارات `withRetry()` لاستدعاءات الـ model الفاشلة، أو `false`. الافتراضي `{ maxRetries: 2 }` لسلاسل `model`، و`maxRetries` الخاص بالـ provider نفسه (الافتراضي 2) لنسخة provider مدمجة أو من `fromAiSdk()`؛ وأي نسخة `provider` أخرى لا تُغلَّف إلا إذا ضُبط. انظر [الـ retry والـ fallback](#الـ-retry-والـ-fallback-عند-الـ-provider). |
 | `fallbackModels` | سلاسل `provider/model` تُجرَّب بالترتيب عندما يظل الـ model يفشل بعد استنفاد محاولاته. |
+| `rateLimit` | `{ requestsPerMinute?, tokensPerMinute?, maxConcurrent? }` (أو `createRateLimiter()`): يضع استدعاءات الـ model الخاصة بالـ agent، واستدعاءات الـ sub-agents وأهداف الـ handoff التابعة له، في طابور تحت ميزانية واحدة. انظر [حدود المعدّل](#حدود-المعدّل-rate-limits). |
 | `hooks`    | `AgentHook[]` تعمل حول كل call للـ model وكل tool call، بالترتيب، قبل الـ compaction hook (انظر [الـ hooks](/ar/hooks)). |
-| `compaction` | `true` (تنظيف نتائج الـ tools القديمة فوق 90% من نافذة السياق) أو `{ strategy?, thresholdPercent?, contextWindow?, protectedTokens?, summarizer? }`؛ و`summarizer` (`'provider/model'` أو `LLMProvider`) يختار الاستراتيجية ثنائية المرحلتين. تبلّغ `stream()` عن `compaction.start` / `compaction.done`. انظر [Context compaction](/ar/compaction#تفعيل-الـcompaction-على-agent). |
+| `compaction` | `true` (تنظيف نتائج الـ tools القديمة فوق 90% من نافذة السياق) أو `{ strategy?, thresholdPercent?, contextWindow?, protectedTokens?, reserveOutputTokens?, onCompaction?, summarizer? }`؛ و`summarizer` (`'provider/model'` أو `LLMProvider`) يختار الاستراتيجية ثنائية المرحلتين. تبلّغ `stream()` عن `compaction.start` / `compaction.done`. انظر [Context compaction](/ar/compaction#تفعيل-الـcompaction-على-agent). |
+| `mcpServers` | سيرفرات MCP المطلوب الاتصال بها، مفهرسة بالاسم (stdio `{ command, args?, env? }` أو HTTP `{ url, headers? }`)؛ أدواتها تُسمّى `<server>__<tool>` وتطلب موافقة افتراضيًا. و`optional: true` يستبعد السيرفر الذي يتعذّر الاتصال به. انظر [MCP](/ar/mcp-integration#استخدام-سيرفرات-mcp-داخل-agent). |
+| `subagentOptions` | خيارات الـ sub-agents في الخلفية: `maxConcurrent` (الافتراضي 3)، و`awaitBackgroundOnFinish` (الافتراضي `false`)، و`background: false` لعرض الـ tool `task` وحده. انظر [الـ sub-agents](/ar/sub-agents). |
+| `codeMode` | `true` أو `CodeModeOptions`: يضيف tool اسمه `run_code` يتيح للـ model استدعاء أدوات الـ agent من script قصير واحد داخل sandbox من QuickJS. انظر [Code mode](/ar/code-mode). |
+| `guardrails` | guardrails المدخلات والمخرجات والـ tools لكل run؛ والـ sub-agents ترثها. انظر [Guardrails](/ar/guardrails). |
+| `maxToolResultChars` | أقصى عدد أحرف من نتيجة tool واحدة يحصل عليه الـ model (الافتراضي `50_000`؛ و`Infinity` تلغي السقف). انظر [الـ tools](/ar/tools). |
+| `onAgentDrift` | ماذا يفعل الـ resume حين يختلف الـ agent عن الذي أوقف الـ run: `'warn'` (الافتراضي) أو `'error'` أو `'ignore'`. انظر [Durable execution](/ar/durable-execution#استئناف-run-بعد-ما-يتغير-الـ-agent). |
+| `reasoning` | مقدار تفكير الـ model قبل أن يجيب: مستوى جهد (effort)، أو `{ effort, budgetTokens, summary, force }`. انظر [Reasoning](/ar/reasoning). |
+| `promptCaching` | `'auto'` (الافتراضي) يضع نقاط `cache_control` الخاصة بـ Anthropic لـ models Claude؛ و`false` لا يضع شيئًا. انظر [Prompt caching](/ar/models-and-cost#الـ-prompt-caching). |
+| `output` | schema للرد النهائي؛ و`send()` / `stream()` تُحلّان بـ `result.object`. انظر [Structured output](/ar/structured-output). |
+| `onEvent` | يُستدعى مع كل `AgentEvent` من runs الـ agent، بنفس الترتيب الذي يُخرجها به `stream()`. انظر [الاستماع دون iteration](/ar/streaming#الاستماع-بدون-iterating). |
+| `exporter`, `captureContent`, `redactContent` | التتبّع: `TraceExporter` يستقبل span لكل run، وهل يُسجَّل محتوى الرسائل والـ tools على الـ spans (مطفأ افتراضيًا)، وهل تُستبعد attributes المحتوى المُهمَلة (الافتراضي `true`). انظر [Observability](/ar/observability#متقدم-الـ-executor-api-1). |
+| `approvalTtlMs` | كم يبقى التوقف لانتظار الموافقة قابلًا للحسم، بالمللي ثانية؛ وإذا حُسم بعدها يُرفَض الـ call. غير مضبوط: لا تنتهي التوقفات أبدًا. انظر [انتهاء صلاحية الموافقة](/ar/approvals#انتهاء-مهلة-الموافقة). |
+| `askQuestion` | يضيف الـ tool المدمج `ask_question`؛ ويتوقف الـ run حتى `agent.approvals.answer()`. مطفأ افتراضيًا. انظر [سؤال المستخدم](/ar/approvals#سؤال-المستخدم). |
+| `permissions`, `permissionMode` | قواعد الصلاحيات (`allow` / `ask` / `deny`) وpreset مسمّى فوقها (`'default'` أو `'plan'` أو `'acceptEdits'` أو `'dontAsk'`). انظر [سياسات الصلاحيات](/ar/approvals#سياسات-الصلاحيات) و[أوضاع الصلاحيات](/ar/permission-modes). |
+| `onPermissionDecision`, `onPermissionModeChange` | callbacks للتدقيق: مدخل واحد لكل قرار صلاحية لـ tool call، وواحد لكل تبديل وضع. انظر [أوضاع الصلاحيات](/ar/permission-modes). |
 
 إذا لم تمرّر `model` ولا `provider`، تحل `createAgent()` من البيئة:
 `LOUSHO_MODEL` (سلسلة `'provider/model'`) إن كانت مضبوطة، وإلا أول provider
 متغيّره مضبوط، ويُفحص بهذا الترتيب: `OPENAI_API_KEY`
 (`openai/gpt-4o-mini`)، ثم `ANTHROPIC_API_KEY`
-(`anthropic/claude-3-5-sonnet-latest`)، ثم `OPENROUTER_API_KEY`
+(`anthropic/claude-sonnet-4-5`)، ثم `OPENROUTER_API_KEY`
 (`openrouter/openai/gpt-4o-mini`)، ثم `OLLAMA_BASE_URL` (`ollama/llama3`).
 وإذا لم يكن أي منها مضبوطًا ترمي خطأً يسرد بالضبط أي خيارات أو متغيرات
 تحل المشكلة.
@@ -307,6 +396,75 @@ const agent = createAgent({ prompt: 'You are helpful.', provider });
 (`createAgent: OPENAI_API_KEY is not set. ...`)، والبادئة غير المعروفة تسرد
 البادئات المدعومة وتقترح أقربها، والـ peer dependency الاختيارية الناقصة
 تطبع أمر `npm install` كاملًا.
+
+## إعدادات الـ model
+
+يضبط `modelSettings` خيارات الـ sampling لكل call يجريه الـ agent للـ model.
+واستدعاء `send()` أو `stream()` يقدر يمرّر إعداداته الخاصة، وهي تغلب إعدادات
+الـ agent مفتاحًا بمفتاح:
+
+```ts
+import { createAgent } from '@lousho/build-ai-agent';
+
+const agent = createAgent({
+  model: 'openai/gpt-4o-mini',
+  modelSettings: { maxTokens: 1024, temperature: 0.2 },
+});
+
+// This run sends maxTokens: 256 and temperature: 0.2.
+await agent.send('Summarize the log in one line.', { modelSettings: { maxTokens: 256 } });
+```
+
+المفاتيح هي `maxTokens` و`temperature` و`topP` و`frequencyPenalty`
+و`presencePenalty` و`stop` و`seed` و`toolChoice` (`'auto'` أو `'required'` أو `'none'` أو `{ type: 'function', function: { name } }`؛ ولا يُرسَل في call بلا tools). المفتاح الذي تتركه لا يُرسَل أصلًا،
+فتسري القيمة الافتراضية للـ provider نفسه، وكذلك القيمة التي يضيفها provider
+مغلِّف إلى الطلب. الـ sub-agents وأهداف الـ handoff تستخدم `modelSettings`
+الخاصة بها، لا الخاصة بالـ lead. ومجلد الوكيل يقدر يضبط نفس الكائن كـ
+`modelSettings` في ملف `agent.json` الخاص به.
+
+تُفحص القيم قبل أي call للـ model، عند `createAgent()` وعند كل
+`send()` / `stream()`: `temperature` من 0 إلى 2، و`topP` من 0 إلى 1،
+و`frequencyPenalty` و`presencePenalty` من -2 إلى 2، و`maxTokens` عدد صحيح
+لا يقل عن 1، و`seed` عدد صحيح، و`stop` مصفوفة نصوص. القيمة خارج المدى، أو
+المفتاح غير المعروف (مثل `maxOutputTokens` الخاص بـ AI SDK)، ترمي
+`ConfigurationError` بالكود `LOUSHO_CONFIG_INVALID` ويسمّي الحقل `field` فيه
+المفتاح، مثل `modelSettings.temperature`. والـ provider ذو المدى الأضيق
+(`temperature` عند Anthropic من 0 إلى 1) يظل يرفض القيمة الخارجة عنه.
+
+### خيارات كل استدعاء
+
+إلى جانب `modelSettings`، يقدر استدعاء `send()` أو `stream()` يضبط
+`maxSteps` الخاص به (بدل الخاص بالـ agent؛ عدد صحيح لا يقل عن 1، ويُفحص مثل
+الخاص بـ `createAgent`) و`instructions`، وهي تُلحَق بتعليمات الـ agent لذلك
+الـ run:
+
+```ts
+import { createAgent } from '@lousho/build-ai-agent';
+
+const agent = createAgent({ model: 'openai/gpt-4o-mini', instructions: 'You triage support tickets.' });
+await agent.send('Summarize the ticket.', { maxSteps: 2, instructions: 'Answer in French.' });
+```
+
+الـ `instructions` الملحقة تذهب مع كل call للـ model في الـ run (وكذلك
+calls هدف الـ handoff) لكنها لا تُكتب في الـ transcript، فالـ call اللاحق
+بنفس `sessionId` يعمل بدونها ما لم يمرّرها مجددًا. والـ run الذي يُستكمل
+عبر `agent.approvals.resolve()` أو `agent.resume()` يستخدم `maxSteps`
+والتعليمات الخاصة بالـ agent.
+
+لتتشارك الخيارات بين عدة agents، اجعل نوعها `CreateAgentBase` وانشرها
+(spread) داخل `createAgent()`. لا تستخدم `Partial<CreateAgentConfig>`: هذا
+النوع يُبقي `model` / `provider` و`instructions` / `prompt` متنافيَين، فيرفض
+TypeScript نشره بجانب literal يضبط أحدهما.
+
+```ts
+import { createAgent, type CreateAgentBase } from '@lousho/build-ai-agent';
+
+const shared: CreateAgentBase = { maxSteps: 8, modelSettings: { temperature: 0 } };
+
+function triageAgent(overrides: Partial<CreateAgentBase> = {}) {
+  return createAgent({ model: 'openai/gpt-4o-mini', instructions: 'Triage the incident.', ...shared, ...overrides });
+}
+```
 
 ## الميزانيات
 
@@ -318,16 +476,35 @@ run للـ agent) أو في `AgentExecutor.execute()` / `stream()`:
 | `maxTokens`       | tokens الـ prompt مع tokens الإكمال في الـ run (`usage.totalTokens`). |
 | `maxInputTokens`  | tokens الـ prompt (`usage.inputTokens`). |
 | `maxOutputTokens` | tokens الإكمال (`usage.outputTokens`). |
-| `maxCostUsd`      | التكلفة التقديرية بالدولار (`usage.costUsd`، من [جدول الأسعار](/ar/models-and-cost#الـ-models-وجدول-الأسعار)). لا يُفحص طالما فيه model مستخدم تسعيره مجهول (`costUsd` تساوي `undefined`). |
+| `maxCostUsd`      | بالدولار (`usage.costUsd`): التكلفة التي أبلغ عنها الـ provider لكل call (`usage.cost` عند OpenRouter)، وإلا فتقدير [جدول الأسعار](/ar/models-and-cost#الـ-models-وجدول-الأسعار). لا يُفحص طالما فيه model مستخدم تسعيره مجهول (`costUsd` تساوي `undefined`)؛ ويُسجَّل تحذير مرة واحدة. |
 | `maxDurationMs`   | الزمن الفعلي لاستدعاء `execute()` / `stream()`. |
-| `maxSteps`        | خطوات الـ model. alias للخيار `maxSteps`: إذا ضُبط الاثنان يغلب الأشد تقييدًا (وعند التعادل يُبلَّغ عن `'max-steps'` الخاص بالخيار)؛ ولوحده يحل محل الافتراضي 10. |
+| `maxToolErrors`   | الـ tool calls التي انتهت بنتيجة خطأ (`result.toolErrors`، انظر [الـ tools](/ar/tools#tools-مدمجة)). يتوقف الـ run قبل call الـ model التالي بمجرد أن يفشل هذا العدد. يُحتسب لكل run، وكذلك على `agent.session({ limits })` (لكل turn على حدة). |
+| `maxSteps`        | خطوات الـ model. alias للخيار `maxSteps`: إذا ضُبط الاثنان يغلب الأشد تقييدًا (وعند التعادل يُبلَّغ عن `'max-steps'` الخاص بالخيار)؛ ولوحده يحل محل الافتراضي 10. ومع ضبط `output`، نفاده يجري نفس call الإجابة الإجبارية التي يجريها `maxSteps` ([Structured output](/ar/structured-output#testing))؛ ويظل الـ run ينتهي بـ `'budget-exceeded'`، ومعه `object` إذا اجتازت الإجابة التحقق. |
 
 تُفحص الحدود قبل كل call للـ model (يعني بعد كل دفعة tools) وبعد call الـ
 model التي تطلب tools؛ و`maxDurationMs` يلغي أيضًا call model أو tool
-جارية عبر signal الـ run. الحد يُستوفى فور بلوغ الـ run له. واستهلاك الـ
-sub-agents يُحتسب من ميزانية الـ lead الخاص بهم: يُضاف عند عودة الـ
-sub-agent، فيتوقف الـ lead قبل call الـ model التالي. والـ run الذي ينتهي
-بنفسه داخل الخطوة التي بلغت الحد يحتفظ بسبب انتهائه هو، مثل `maxSteps`.
+جارية عبر signal الـ run. الحد يُستوفى فور بلوغ الـ run له. والـ run الذي
+ينتهي بنفسه داخل الخطوة التي بلغت الحد يحتفظ بسبب انتهائه هو، مثل `maxSteps`.
+
+**الـ sub-agents تتشارك ميزانية الـ lead الخاص بها.** استهلاك الـ sub-agents
+يُحتسب من حدود الـ lead، والـ sub-agent يلتزم بها أثناء عمله: قبل كل call
+له للـ model (وبعد call للـ model يطلب tools) يفحص حدود الـ tokens والتكلفة
+والمدة الخاصة بالـ lead مقابل ما أنفقه الـ lead، والـ sub-agents الأخرى
+التابعة له التي ما زالت تعمل، والـ sub-agent نفسه - فوق `limits` الخاصة به.
+وبمجرد بلوغها يتوقف الـ sub-agent بـ `'budget-exceeded'` (دائمًا `'stop'`؛
+و`onExceeded` الخاص بالـ lead يقرر كيف ينتهي الـ lead)، ويبلّغ call الـ `task`
+بـ `Sub-agent '<name>' stopped at the <limit> limit`، ويتوقف الـ lead قبل
+call الـ model التالي. الـ sub-agents المتوازية قد تتجاوز مع ذلك بقدر
+استدعاءات الـ model التي كانت جارية عند بلوغ الحد (واحد على الأكثر لكل
+منها)، لا بقدر run كامل لكل منها. والـ sub-agent المتداخل يلتزم بحدود كل
+lead فوقه. أما الـ sub-agent الذي يُستأنف بعد موافقة فيلتزم بحدوده هو فقط.
+
+حد الإنفاق (tokens، تكلفة، مدة) إيقاف صارم: الـ run الذي فيه `output` ويبلغ
+أحدها لا يجري call إجابة إجبارية (ذلك الـ call سينفق فوق الحد)، فتبقى
+`result.object` غير مضبوطة. وما أرجعته tool calls الـ run قبل استيفاء الحد -
+ومعه إجابات الـ sub-agents التي انتهت - يبقى في `result.messages` كنتائج
+tools. نفاد الخطوات وحده (`maxSteps` أو `limits.maxSteps`) يحصل على call
+الإجابة الإجبارية.
 
 عند استيفاء حد، يتوقف الـ run بـ `finishReason: 'budget-exceeded'` ومعه
 `result.budget` (`{ limit, value, max, scope }`). الـ tool calls التي طلبها

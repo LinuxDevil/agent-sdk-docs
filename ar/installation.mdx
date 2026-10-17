@@ -1,17 +1,11 @@
 ---
 title: "التثبيت"
 ---
-
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/installation).
-</Warning>
-
 {/* Generated from docs/installation.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 ## المتطلبات
 
-- Node.js **22.19 أو أحدث** (`engines.node` في `package.json`، والرقم مفروض من الاعتمادية `undici@8`؛ و`undici` لا تُحمَّل إلا عندما ترسل `http_request` أو `web_fetch` طلبًا، راجع [Optional peers](#optional-peers)).
+- Node.js **22.19 أو أحدث** (`engines.node` في `package.json`، والرقم مفروض من الاعتمادية `undici@8`، التي تضع هي نفسها `engines` على `>=22.19.0`. ميزات Node الأخرى المرتبطة بإصدار معيّن والتي تستخدمها الـ SDK هي `node:sqlite` لـ `SqliteStore` (22.13) وإزالة الأنواع المدمجة (native type stripping) لملفات الـ agent بصيغة `.ts` (22.18)، وكلتاهما تحت هذا الحد الأدنى، فخفضه يعني تخفيف قيد اعتمادية `undici` أولًا. و`undici` لا تُحمَّل إلا عندما ترسل الأداة `http_request` أو `web_fetch` طلبًا، راجع [Optional peers](#optional-peers)).
 - TypeScript اختيارية لكننا ننصح بها — الـ SDK تأتي مع type definitions كاملة.
 
 ## تثبيت الحزمة
@@ -26,17 +20,17 @@ yarn add @lousho/build-ai-agent ai zod
 
 `ai` (وهي Vercel AI SDK: `^4.3.19` أو `^6.0.0` أو `^7.0.0`) و`zod` (`^3.25.76 || ^4.0.0`) peer dependencies إجبارية. الإصدار `ai` 5 غير مدعوم.
 
-أي schema من الإصدارين الرئيسيين لـ zod تشتغل في كل مكان تقبل فيه الـ SDK schema: `defineTool({ input })`، و`output` منظَّم، وأدوات MCP. يشمل هذا schemas من zod 4 عبر `zod/v4` مع zod 3.25 مثبت، وschemas من zod 3 عبر `zod/v3` على zod 4. حقل `input` في `defineTool` يمكن أن يكون أيضًا schema من مكتبة [Standard Schema](https://standardschema.dev) أخرى، إذا كانت تكشف الـ JSON Schema الخاصة بها (`~standard.jsonSchema`). الـ model يحتاج JSON Schema، فأي Standard Schema بلا واحدة يترفض — استخدم zod لتلك الأدوات. حزم الـ providers الخاصة بـ `ai` 4 تعلن zod 3 كـ peer dependency، فاقرن zod 4 مع `ai` 6 أو 7.
+أي schema من الإصدارين الرئيسيين لـ zod تشتغل في كل مكان تقبل فيه الـ SDK schema: `defineTool({ input })`، و`output` منظَّم، وأدوات MCP. يشمل هذا schemas من zod 4 عبر `zod/v4` مع zod 3.25 مثبت، وschemas من zod 3 عبر `zod/v3` على zod 4. حقل `input` في `defineTool` يمكن أن يكون أيضًا schema من مكتبة [Standard Schema](https://standardschema.dev) أخرى، إذا كانت تكشف الـ JSON Schema الخاصة بها (`~standard.jsonSchema`). الـ model يحتاج JSON Schema، فأي Standard Schema بلا واحدة تُرفض — استخدم zod لتلك الأدوات. حزم الـ providers الخاصة بـ `ai` 4 تعلن zod 3 كـ peer dependency، فاقرن zod 4 مع `ai` 6 أو 7.
 
 ### حزم الـ providers
 
 كل provider حقيقي لـ LLM يعتمد على peer dependency اختيارية، بالإصدار الرئيسي الذي يتوافق مع إصدار `ai` لديك. ثبّت الزوج من صف واحد:
 
-| `ai`      | OpenAI وOpenRouter: `@ai-sdk/openai` | Anthropic: `@ai-sdk/anthropic` | Ollama                                 |
-| --------- | ------------------------------------ | ------------------------------ | -------------------------------------- |
-| `^4.3.19` | `^0.0.42` (أو `^1.0.0`)              | `^0.0.42` (أو `^1.0.0`)        | `ollama-ai-provider@^1.2.0`            |
-| `^6.0.0`  | `^3.0.0`                             | `^3.0.0`                       | `ollama-ai-provider-v2@^3.0.0` (zod 4) |
-| `^7.0.0`  | `^4.0.0`                             | `^4.0.0`                       | `ollama-ai-provider-v2@^4.0.0` (zod 4) |
+| `ai`      | OpenAI وOpenRouter: `@ai-sdk/openai` | Anthropic: `@ai-sdk/anthropic` | Google: `@ai-sdk/google` | Ollama                                 |
+| --------- | ------------------------------------ | ------------------------------ | ------------------------ | -------------------------------------- |
+| `^4.3.19` | `^0.0.42` (أو `^1.0.0`)              | `^0.0.42` (أو `^1.0.0`)        | `^1.2.0`                 | `ollama-ai-provider@^1.2.0`            |
+| `^6.0.0`  | `^3.0.0`                             | `^3.0.0`                       | `^3.0.0`                 | `ollama-ai-provider-v2@^3.0.0` (zod 4) |
+| `^7.0.0`  | `^4.0.0`                             | `^4.0.0`                       | `^4.0.0`                 | `ollama-ai-provider-v2@^4.0.0` (zod 4) |
 
 على الإصدار الرئيسي الحالي من `ai` مثلًا:
 
@@ -74,7 +68,7 @@ try {
 | الحزمة                      | النطاق    | تتيح                                                                                            | التثبيت                                          |
 | --------------------------- | --------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------ |
 | `dockerode`                 | `^5.0.1`  | Docker sandboxing: `SubprocessSandbox` (وفحص `lousho doctor` للاتصال بـ Docker)                | `npm install dockerode@^5.0.1`                   |
-| `@modelcontextprotocol/sdk` | `^1.30.1` | MCP: `createAgent({ mcpServers })` / `connectMcp()`، و`serveMcp()`، و`lousho mcp`              | `npm install @modelcontextprotocol/sdk@^1.30.1`  |
+| `@modelcontextprotocol/sdk` | `^1.31.0` | MCP: `createAgent({ mcpServers })` / `connectMcp()`، و`serveMcp()`، و`lousho mcp`              | `npm install @modelcontextprotocol/sdk@^1.31.0`  |
 | `@opentelemetry/api`        | `^1.9.1`  | OpenTelemetry tracing: `createOtelTraceExporter()` من `@lousho/build-ai-agent/otel`            | `npm install @opentelemetry/api@^1.9.1`          |
 | `react`                     | `^18`، `^19` | React bindings (`@lousho/build-ai-agent/react`)                                             | `npm install react`                              |
 | `vue`                       | `^3`      | Vue bindings (`@lousho/build-ai-agent/vue`)                                                    | `npm install vue@^3`                             |
@@ -92,9 +86,13 @@ The optional package 'dockerode' is not installed, but Docker sandboxing (Subpro
 
 `undici` و`yaml` تبقيان اعتماديتين عاديتين. `yaml` تحلّل ملفات مواصفات الـ agents وملفات `agent.yaml` والـ skills، وليس في Node parser مدمج لـ YAML. أما `undici` فتُحمَّل عند أول طلب تجريه `http_request` أو `web_fetch`: كلتاهما تتصل عبر `Agent` من undici يفحص العنوان في DNS lookup ويثبّت الاتصال عليه، و`http_request` تحصر أيضًا `validateSSL: false` في ذلك `Agent`. الـ `fetch` العامة لا توفّر أيًّا من هذين السلوكين.
 
+### حجم الحزمة
+
+الـ tarball حجمه نحو 4 MB مضغوطًا (15 MB بعد فك الضغط). هذه مقايضة مقصودة ومعلنة، لا مصادفة: المجلد `src/` يُشحن لأن `lousho build` يجمّع `src/deploy/runtime.worker.ts` و`src/index.ts` من الحزمة المثبتة، ولأن source maps في `dist/` تشير إليه (الـ maps لا تحمل الكود المصدري مضمَّنًا فيها؛ وتضمينه بدلًا من ذلك مع حذف `src/` أعطى حجمًا أكبر عند القياس، 5.2 MB مضغوطًا). أما `apps/agent-forge/` فهي لوحة التحكم المبنية مسبقًا التي يقدّمها `lousho studio`. والملف `llms-full.txt` بحجم 1 MB موجود في المستودع، لا في الحزمة.
+
 ## نقاط الدخول تتشارك الكود (ESM وCJS)
 
-مداخل الحزمة (`.` و`./hooks` و`./tools` و`./mcp` وغيرها) مبنية بـ code splitting: تستورد chunks مشتركة من `dist/`. لذلك class أو singleton مثل `HookRegistry` أو `SDKError` أو `globalToolRegistry` هو الكائن نفسه أيًّا كان المدخل الذي تستورده منه، في ESM وفي CJS. لكن `import` من ESM و`require` من CJS للحزمة في عملية واحدة يحمّلان نسختين منفصلتين (dual-package hazard المعروف في Node)، فالـ class من إحداهما ليس `===` نظيره من الأخرى. `instanceof SDKError` و`instanceof HookRegistry` آمنان بين النسختين لأنهما يفحصان علامة `Symbol.for`؛ لبقية الـ classes استخدم صيغة modules واحدة في العملية.
+مداخل الحزمة (`.` و`./hooks` و`./tools` و`./mcp` وغيرها) مبنية بـ code splitting: تستورد chunks مشتركة من `dist/`. لذلك class أو singleton مثل `HookRegistry` أو `SDKError` أو `globalToolRegistry` هو الكائن نفسه أيًّا كان المدخل الذي يصدّره وتستورده أنت منه، ضمن صيغة modules واحدة (`globalToolRegistry` يصدّره `./executor` و`./tools`، لا الجذر). لكن `import` من ESM و`require` من CJS للحزمة في عملية واحدة يحمّلان نسختين منفصلتين (dual-package hazard المعروف في Node)، فالـ class من إحداهما ليس `===` نظيره من الأخرى. `instanceof SDKError`، و`instanceof` لكل subclass من `SDKError` تصدّرها الـ SDK (`ValidationError` و`TimeoutError` و`RateLimitError` و`LLMProviderError` و`MissingPeerDependencyError` وغيرها)، و`instanceof HookRegistry`، كلها آمنة بين النسختين لأنها تفحص علامة `Symbol.for`؛ لبقية الـ classes استخدم صيغة modules واحدة في العملية.
 
 نقاط الدخول التي يصرّح بها `exports`، وماذا تحتوي كل واحدة:
 
@@ -115,10 +113,24 @@ The optional package 'dockerode' is not installed, but Docker sandboxing (Subpro
 | `@lousho/build-ai-agent/auth` | مصادقة المسارات: `routeAuth()` و`jwt()` و`oidc()` و`basic()` و`apiToken()` و`anonymous()` |
 | `@lousho/build-ai-agent/kv` | `KVStore` و`KVCheckpointStore` لـ Cloudflare Worker مكتوب يدويًّا |
 | `@lousho/build-ai-agent/traces` | `fileTraceExporter()` و`listTraces()` و`readTrace()` (ما يقرأه `lousho traces`) |
-| `@lousho/build-ai-agent/triggers` | `WebhookTriggerAdapter` و`SlackTriggerAdapter` و`CronTriggerAdapter` و`TriggerRegistry` |
+| `@lousho/build-ai-agent/triggers` | `TriggerAdapter` و`TriggerRegistry` و`verifySlackSignature` و`parseCronExpression` |
 | `@lousho/build-ai-agent/react` | `useLoushoAgent()` وhelpers لـ React (يحتاج `react`) |
 | `@lousho/build-ai-agent/vue` | `useLoushoAgent()` كـ composable لـ Vue (يحتاج `vue`) |
 | `@lousho/build-ai-agent/svelte` | `loushoAgent()` كـ store لـ Svelte |
+
+### إعدادات TypeScript
+
+ملفات الـ declarations تجتاز فحص الأنواع مع `skipLibCheck: false` على zod 3 وzod 4، ومع `moduleResolution` بالقيم `bundler` و`nodenext` و`node16` (ESM). تركيبة واحدة فقط تفشل، وسببها من المصدر الأعلى (upstream): مشروع CommonJS (بلا `"type": "module"`) مع `module`/`moduleResolution: "node16"` و`ai` 7. فـ `ai` 7 تُشحن كـ ES modules فقط، ووضع node16 في TypeScript لا يسمح لكود CommonJS باستيراد تلك الأنواع (الخطأ TS1479 داخل declarations الخاصة بالـ SDK). استخدم `"module": "nodenext"` (يحلّها) أو `"moduleResolution": "bundler"`، أو أضف `"type": "module"`، أو أبقِ `skipLibCheck: true` (وهو ما تستخدمه مشاريع `lousho init`).
+
+declarations المدخل الجذر تستخدم أنواع Node (`Buffer`، واستيرادات من `node:crypto` و`node:http` و`node:net`)، فثبّت `@types/node`. TypeScript 6 لم تعد تحمّل كل حزم `@types` افتراضيًّا (القيمة الافتراضية لـ `types` صارت `[]`)، فعلى TypeScript 6 وما بعدها أضفها أيضًا في `tsconfig.json`، وإلا سيُبلغ `skipLibCheck: false` عن `Cannot find name 'Buffer'` و`Cannot find module 'node:http'` داخل declarations الخاصة بالـ SDK:
+
+```json
+{
+  "compilerOptions": {
+    "types": ["node"]
+  }
+}
+```
 
 ## التثبيت من build محلي
 
@@ -135,6 +147,8 @@ npm install ./lousho-build-ai-agent-<version>.tgz ai zod
 ```
 
 ولعمل scaffold لمشروع جديد بالطريقة نفسها، من الـ checkout: `node bin/lousho.js init ../my-agent --sdk-path .`.
+
+على Windows، الأمر `npx C:\abs\path\create-lousho-agent-<version>.tgz` لا يفعل شيئًا بصمت (سلوك غريب في npm مع المسارات المطلقة التي تبدأ بحرف قرص). استخدم بدلًا منه مسارًا نسبيًّا (`npx ./create-lousho-agent-<version>.tgz my-agent`) أو صيغة `file:` (`npx file:C:/abs/path/create-lousho-agent-<version>.tgz my-agent`).
 
 الأمر `npm install github:LinuxDevil/agent-sdk` **لا** يعمل: `dist/` غير موجود في git، وليس في المستودع خطوة `prepare` تعمل build، فينتهي التثبيت بلا نقاط دخول.
 
@@ -191,15 +205,17 @@ lousho doctor
 1. إصدار Node عندك مقابل `engines.node` في الحزمة.
 2. الـ peers الإجبارية `ai` و`zod`: مثبتة وضمن نطاق `peerDependencies` الخاص بالـ SDK (يُحلَّ من المجلد الحالي).
 3. حزم الـ providers الاختيارية (`@ai-sdk/openai` و`@ai-sdk/anthropic`، و`ollama-ai-provider` على `ai` 4 أو `ollama-ai-provider-v2` على `ai` 6/7)، مع أمر `npm install` لكل ناقصة. حزمة provider لا تتوافق مع `ai` المثبت (مثلًا `ai` 7 مع `@ai-sdk/openai` 1.x) تُعلَّم مع الإصدار الذي عليك تثبيته بدلًا منها.
-4. هل متغير مفتاح API لكل provider مضبوط. يُطبع فقط اسم المتغير و`set` أو `not set`، ولا تُطبع القيمة أبدًا. ويعرض أيضًا أي provider سيختاره `createAgent()` افتراضيًّا في بيئتك.
-5. مع مسار ملف مواصفات (`lousho doctor agent.yaml`): تُتحقَّق صحة الملف مع مسارات الحقول لكل خطأ، وتُفحص حزمة الـ provider والمفتاح (الناقص منهما يصبح إخفاقًا)، ويجب أن تكون عناصر `tools` أدوات مدمجة، وأن يكون أي أمر في `mcpServers` قابلًا للحل.
+4. هل متغير مفتاح API لكل provider مضبوط. يُطبع فقط اسم المتغير و`set` أو `not set`، ولا تُطبع القيمة أبدًا. وعندما يكون `OPENAI_BASE_URL` أو `ANTHROPIC_BASE_URL` مضبوطًا (سيرفر محلي أو متوافق مع OpenAI)، يعرض سطر ذلك الـ provider أيضًا الـ base URL، بلا أي بيانات اعتماد أو query string فيه. ويعرض أيضًا أي provider سيختاره `createAgent()` افتراضيًّا في بيئتك. ويُعرض `OPENAI_BASE_URL` عندما يكون مضبوطًا (بلا أي بيانات اعتماد أو query فيه).
+5. مع مسار ملف مواصفات (`lousho doctor agent.yaml`): تُتحقَّق صحة الملف مع مسارات الحقول لكل خطأ، وتُفحص حزمة الـ provider والمفتاح (الناقص منهما يصبح إخفاقًا)، ويجب أن تكون عناصر `tools` أدوات مدمجة، وأن يكون أي أمر في `mcpServers` قابلًا للحل. أما مجلد agent أو module لـ agent بصيغة `.ts`/`.js` (`lousho doctor src/agent.ts`، وهو ما يشغّله `npm run doctor` في مشروع مُنشأ بـ scaffold) فيُحمَّل بالطريقة التي يحمّله بها `lousho dev`، وتُفحص حزمة الـ provider الخاصة بالـ model ومفتاحه بالطريقة نفسها. بدون مسار، غياب المفتاح مجرد تحذير، لأن doctor لا يمكنه معرفة أي provider يستخدمه الـ agent عندك.
 6. إمكانية الوصول إلى Ollama — فقط إذا استخدم ملف المواصفات Ollama أو كان `OLLAMA_HOST` مضبوطًا.
 7. توفر Docker — تحذير فقط إذا استخدم ملف المواصفات أداة داخل sandbox.
+8. مع `--ping`: طلب `GET` لكل provider متغيره مضبوط، بمهلة 5 ثوانٍ، إلى endpoint يتطلب المفتاح: `/models` لـ OpenAI وAnthropic، و`/api/v1/key` لـ OpenRouter (لأن `/models` عنده يجيب بلا مفتاح). المفتاح المرفوض (HTTP 401/403) إخفاق؛ والسيرفر الذي لا يمكن الوصول إليه تحذير. مع ضبط `OPENAI_BASE_URL` يُرسل ping إلى `<base>/models`، ويوضّح السطر أنه يبيّن إمكانية الوصول فقط، لأن السيرفر المحلي قد لا يتحقق من المفاتيح. المفاتيح تُرسل إلى الـ provider الخاص بها فقط ولا تُطبع أبدًا.
+
+على Windows تستخدم أسطر الإصلاح صيغة PowerShell (`$env:OPENAI_API_KEY="<your key>"`) بدلًا من `export`.
 
 رمز الخروج `1` إذا فشل أي فحص و`0` غير ذلك (التحذيرات لا تفشل)، فيصلح بوابة لـ CI. أضف `--json` لمخرجات تقرؤها الآلة. الألوان تُستخدم فقط عندما يكون stdout على terminal و`NO_COLOR` غير مضبوط.
 
 للمشكلات غير المتعلقة بالتثبيت، راجع [استكشاف الأخطاء وإصلاحها](/ar/troubleshooting).
-
-عندك إصدار `1.0.0-alpha.*`؟ راجع [الترقية إلى 1.0](/ar/upgrading) للواردات التي انتقلت وواجهات API المحذوفة والمعاد تسميتها.
+قادم من إصدار `1.0.0-alpha.*`؟ راجع [الترقية إلى 1.0](/ar/upgrading) للواردات التي انتقلت وواجهات API المحذوفة والمعاد تسميتها.
 
 التالي: [البدء السريع](/ar/quickstart).
