@@ -3,23 +3,19 @@ title: "Runs: أسباب الانتهاء والإلغاء والـtools الم�
 sidebarTitle: "Runs والإلغاء"
 description: "كيف ينتهي الـrun، كيف توقفه، وكيف تعمل الـtool calls في دورة model واحدة بالتوازي."
 ---
-
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/runs).
-</Warning>
-
 {/* Generated from docs/runs.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 ## أسباب الانتهاء
 
-`result.finishReason` تقول لك لماذا انتهى الـrun. يمكن أن يكون سبب الـmodel نفسه لدورته الأخيرة: `'stop'` أو `'length'` أو `'tool_calls'` أو `'content_filter'` أو `'error'`. أو `'awaiting-approval'` إذا توقف الـrun على tool call تحتاج approval من إنسان. أو `'aborted'` إذا ألغيته بـ`signal`. أو `'max-steps'`. أو `'output-invalid'` إذا لم يطابق الرد `output` schema حتى بعد خطوة الإصلاح — راجع [Structured output](/ar/structured-output). أو `'budget-exceeded'` إذا ضربت ميزانية في `limits` مثل `maxTokens` أو `maxCostUsd`، و`result.budget` تحدد أيّ واحدة — راجع [الميزانيات](/ar/configuration#الميزانيات). أو `'guardrail'` إذا حجب guardrail إدخال أو إخراج أو أدوات الـrun، و`result.guardrail` تحدد أيّ واحد — راجع [guardrails الإدخال والإخراج](/ar/guardrails#input-و-output-guardrails).
+`result.finishReason` تقول لك لماذا انتهى الـrun. يمكن أن يكون سبب الـmodel نفسه لدورته الأخيرة: `'stop'` أو `'length'` أو `'tool_calls'` أو `'content_filter'` أو `'error'` أو `'other'`، وأي سبب يبلّغ عنه الـprovider خارج هذه القائمة يصبح `'other'`. أو `'awaiting-approval'` إذا توقف الـrun على tool call تحتاج approval من إنسان. أو `'aborted'` إذا ألغيته بـ`signal`. أو `'max-steps'`. أو `'output-invalid'` إذا لم يطابق الرد `output` schema حتى بعد خطوة الإصلاح — راجع [Structured output](/ar/structured-output). أو `'budget-exceeded'` إذا ضربت ميزانية في `limits` مثل `maxTokens` أو `maxCostUsd`، و`result.budget` تحدد أيّ واحدة — راجع [الميزانيات](/ar/configuration#الميزانيات). أو `'guardrail'` إذا حجب guardrail إدخال أو إخراج أو أدوات الـrun، و`result.guardrail` تحدد أيّ واحد — راجع [guardrails الإدخال والإخراج](/ar/guardrails#input-و-output-guardrails).
+
+النوع (`ExecutionFinishReason`) هو union مغلق، فالمقارنة بسبب مكتوب بشكل خاطئ لا تمر في الـcompile.
 
 `'max-steps'` تعني أن ميزانية `maxSteps` (الافتراضية 10) انتهت والـmodel كان ما زال يريد يكمل، فقد يكون الرد فارغًا أو جزئيًا. الـrun الذي ينتهي طبيعيًا ضمن الميزانية يحتفظ بـ`'stop'`. الخطوات التي تأتي من `initialSteps` أو من استئناف بعد approval تُحسب ضمن الميزانية، و`result.steps` هو عدد الخطوات التي تمت. السبب نفسه موجود في `run.done` ضمن [streaming](/ar/streaming)، وفي `finish` اللي هو مقابلها في `onEvent` الـdeprecated.
 
 ```ts
 import { createAgent, createMockProvider } from '@lousho/build-ai-agent';
-const agent = createAgent({ prompt: 'You are helpful.', provider: createMockProvider(), maxSteps: 3 });
+const agent = createAgent({ instructions: 'You are helpful.', provider: createMockProvider(), maxSteps: 3 });
 const result = await agent.send('Research this thoroughly');
 if (result.finishReason === 'max-steps') console.warn(`Gave up after ${result.steps} steps`);
 ```
@@ -30,7 +26,7 @@ if (result.finishReason === 'max-steps') console.warn(`Gave up after ${result.st
 
 ```ts
 import { createAgent, createMockProvider } from '@lousho/build-ai-agent';
-const agent = createAgent({ prompt: 'You are helpful.', provider: createMockProvider() });
+const agent = createAgent({ instructions: 'You are helpful.', provider: createMockProvider() });
 const controller = new AbortController();
 setTimeout(() => controller.abort(), 5_000); // e.g. from a Stop button
 const result = await agent.send('Write a long report', { signal: controller.signal });
@@ -41,15 +37,17 @@ console.log(result.finishReason); // 'aborted' if it was cancelled, else 'stop'
 
 ```ts
 import { createAgent, createMockProvider } from '@lousho/build-ai-agent';
-const agent = createAgent({ prompt: 'You are helpful.', provider: createMockProvider() });
+const agent = createAgent({ instructions: 'You are helpful.', provider: createMockProvider() });
 const result = await agent.send('Summarize this', { signal: AbortSignal.timeout(30_000) });
 ```
 
 كيف يتصرف الإلغاء:
 
 - الـ`signal` يُفحص قبل كل call للـmodel وقبل كل tool call. ويُمرَّر إلى الـprovider عبر `GenerateOptions.signal` (يُرسل إلى `ai` SDK باسم `abortSignal`) وإلى كل tool عبر `execute(args, { abortSignal })`، فالعمل الجاري يقدر يوقف مبكرًا. الـ`httpTool` الجاهزة تمرره إلى `fetch`، والـruns الفرعية المفوَّضة (أداة `task`) تُلغى مع الـrun الأب.
-- الـrun الملغى **يرجع نتيجة** ولا يرمي rejection: `finishReason: 'aborted'` مع الرسائل والخطوات اللي تمت. الـrejection الناتج عن الإلغاء، مثل `AbortError`، لا يُعتبر فشلًا: أغلفة الـretry والـfallback الخاصة بالـprovider لا تعيد محاولته، ولا يُختصر إلى خطأ provider.
+- الـrun الملغى **يرجع نتيجة** ولا يرمي rejection: `finishReason: 'aborted'` مع الرسائل والخطوات اللي تمت. إذا قطع الإلغاء call للـmodel يعمل بالـstreaming، يبقى النص الذي بثّه في `result.text` (وفي رسالة assistant معلَّمة بـ`interrupted`). الـrejection الناتج عن الإلغاء، مثل `AbortError`، لا يُعتبر فشلًا: أغلفة الـretry والـfallback الخاصة بالـprovider لا تعيد محاولته، ولا يُختصر إلى خطأ provider.
 - أحداث الـrun تنتهي بـ`run.done` مع `finishReason: 'aborted'`.
+- الـrun لا ينتظر provider يتجاهل الـsignal: يُترك الـcall للـmodel لحظة الإلغاء (ويُهمَل رده المتأخر وأي شيء يبثّه بعدها) وينتهي الـrun بـ`'aborted'`. ولا يُنتظر كذلك الـtool الذي يتجاهل `abortSignal` الخاص به: ينتهي الـrun بـ`'aborted'` دون call جديد للـmodel، ويأخذ الـcall الذي ما زال يعمل نتيجة 'cancelled'، ويستمر الـtool في العمل في الخلفية (والنتيجة التي تصل في لحظة إطلاق الـsignal نفسها تُحفظ). `defineTool({ timeoutMs })` يضع حدًا لمدة call الـtool: الـcall الذي ما زال يعمل عندها يفشل بخطأ tool يراه الـmodel، والـrun الذي يُلغى أثناء تشغيل call كهذا يتوقف عن انتظاره.
+- `result.abortReason` يقول لك السبب: سبب الـsignal على شكل `{ name, message }`، حيث `name` هو `'TimeoutError'` مع `AbortSignal.timeout()`، و`'AbortError'` مع `controller.abort()` (مع نص السبب إذا كان string، مثل `controller.abort('user left')`)، أو اسم الـError نفسه إذا كان السبب Error.
 - مع `sessionId` و`checkpointStore` تُحفظ الحالة في checkpoint. إذا استدعيت `execute()` ثانية بنفس الـ`sessionId` يكمل الـrun من حيث توقف، وأي `input` جديد ينضاف كرسالة مستخدم تالية (راجع [Durable execution](/ar/durable-execution)). الـtool calls التي لم يصلها الـrun تأخذ نتيجة `{ error }` تفيد بأنها أُلغيت، فتبقى المحادثة صالحة للـprovider.
 - الـsignal الملغاة مسبقًا ترجع فورًا دون استدعاء الـprovider.
 
@@ -69,7 +67,7 @@ const getWeather = defineTool({
 });
 
 const agent = createAgent({
-  prompt: 'You are a travel assistant.',
+  instructions: 'You are a travel assistant.',
   provider: createMockProvider(),
   tools: [getWeather],
   toolConcurrency: 4, // at most 4 tool calls of a turn in flight

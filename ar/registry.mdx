@@ -1,12 +1,6 @@
 ---
 title: "Registry"
 ---
-
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/registry).
-</Warning>
-
 {/* Generated from docs/registry.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 `lousho add` يثبّت tool أو skill أو channel أو schedule أو خانة memory أو kit
@@ -19,7 +13,12 @@ agent directory كامل: تثبيته يوزّع `agent.*` و`instructions.md` 
 
 `lousho add` يشتغل بدون أي إعداد: بدون `--registry` أو `LOUSHO_REGISTRY` يقرأ
 الـregistry الافتراضي على `https://registry.lousho.com/index.json`، وهو مجلد
-`registry/dist/` في مستودع الـSDK مُقدَّم كـJSON ثابت. `--registry`
+`registry/dist/` في مستودع الـSDK مُقدَّم كـJSON ثابت. إذا تعذّر الوصول لهذا
+الـhost، يقرأ `lousho add` بدلًا منه نفس المجلد المحفوظ في المستودع من وسم
+الإصدار (release tag) الخاص بنسخة الـSDK المثبّتة
+(`https://raw.githubusercontent.com/LinuxDevil/agent-sdk/v<version>/registry/dist/index.json`،
+مثلًا `v1.0.0-alpha.19`)؛
+الـregistry الافتراضي وحده يرجع لهذا البديل، أما الـregistry الذي تسمّيه بنفسك فلا. `--registry`
 و`LOUSHO_REGISTRY` توجّهه إلى registry ثاني، والقيمة `none` (في أي منهما)
 تعطّل الـregistry بالكامل — ساعتها `lousho add` يفشل بـ`LOUSHO_CONFIG_INVALID`،
 وهذا يناسب الاستخدام offline أو البيئات المقفولة.
@@ -38,6 +37,17 @@ agent directory كامل: تثبيته يوزّع `agent.*` و`instructions.md` 
 | `incident-response` | kit (agent directory للاستجابة للحوادث بنمط SRE: webhook تنبيهات متحقق بـHMAC، approvals للمعالجة حسب مستوى الخطورة، وtimeline للتدقيق) | `fs-write`, `INCIDENT_WEBHOOK_SECRET`, `INCIDENT_TIMELINE_FILE` |
 | `open-meteo-weather` | tool | `api.open-meteo.com`, `geocoding-api.open-meteo.com` |
 
+الـcoding kits (`coding-kit` و`coding-pi`) تستخدم الـagent directory نفسه
+كمساحة عمل المشروع. لذلك ترفض أدوات الملفات فيها تعديل ملفات الـagent نفسه:
+`agent.*` و`approve.*` و`hooks.*` و`instructions*` و`lousho-registry.json`،
+وأي شيء تحت `.lousho/` و`tools/` و`skills/` و`subagents/` و`.git/`
+و`node_modules/`. والـshell فيها يشغّل فقط `node --test` (مسارات ملفات
+اختبار، بدون flags) و`git status`. ومع ذلك تظل الـkits تشغّل الاختبارات التي
+يكتب الـagent الكود لها، يعني كود الـagent يشتغل بصلاحيات مستخدمك. استخدم shell
+داخل sandbox للعمل غير الموثوق (شوف [أدوات مساحة العمل](/ar/workspace-tools)).
+والـsub-agent الخاص بالبرمجة من Pi في kit الـ`coding-pi` له أدواته الخاصة،
+وهذه القواعد لا تغطيها.
+
 ```bash
 lousho add --list                       # the default registry's items
 lousho add open-meteo-weather --dir ./my-agent
@@ -49,8 +59,8 @@ lousho add --list --registry none       # fails: the registry is disabled
 | الخيار | المعنى |
 | ---- | ------- |
 | `--registry <url-or-path>` | الـindex: رابط `http(s)` أو مسار محلي (`LOUSHO_REGISTRY` إذا لم يُعطَ، وإلا الـregistry الافتراضي). القيمة `none` تعطّل الـregistry. |
-| `--dir <agent-dir>` | الـagent directory الذي يُكتب فيه (الافتراضي: المجلد الحالي، ولازم يكون موجودًا). |
-| `--yes`, `-y` | لا يسأل عن تأكيد. مطلوب لما stdin ما يكون terminal. لا يمنح الصلاحيات المرتفعة بنفسه (شوف `--allow`). |
+| `--dir <agent-dir>` | الـagent directory الذي يُكتب فيه (الافتراضي: المجلد الحالي). لازم يكون موجودًا، إلا مع `kit` فهو ينشئه. ومع أي عنصر آخر، المجلد الذي ليس فيه `agent.*` أو `instructions.md` يعطي تحذيرًا: فقط الـagent directory يحمّل `tools/` و`skills/` (مشروع `lousho init` يستورد الـtools في `src/agent.ts` بدلًا من ذلك). |
+| `--yes`, `-y` | لا يسأل عن تأكيد. مطلوب لما stdin ما يكون terminal. لا يمنح الصلاحيات المرتفعة بنفسه (شوف `--allow`). الخياران يُفحصان قبل طباعة أي شيء: التشغيل غير التفاعلي بدونهما يفشل بسطر واحد يسمّي الخيارات التي يحتاجها العنصر بالضبط، مثل `pass --yes --allow exec,fs-write`. |
 | `--allow <list>` | مع `--yes`، الصلاحيات المرتفعة التي تمنحها، مفصولة بفواصل: `exec` و`fs-write` و`network` و`env`. العنصر الذي يطلب واحدة ما سمّيتها يُرفض. |
 | `--overwrite` | يستبدل الملفات الموجودة (بدونه الملف الموجود يعطي `LOUSHO_REGISTRY_FILE_EXISTS`). |
 | `--dry-run` | يطبع الـmanifest والملفات، لا يكتب شيئًا، ويخرج 0. |
@@ -184,7 +194,19 @@ server. `name` و`type` في المستند لازم يطابقا مدخلهما
 - **الـapproval.** أدوات العنصر المصرِّح فيه بـ`exec: true` أو
   `needsApproval: true` — وأدوات أي عنصر unattested لم يعد إيصاله القديم
   يشهد للكود المعدَّل — تنتظر [approval](/ar/approvals) دائمًا؛ و`deny` من
-  `needsApproval` الخاصة بالأداة نفسها يظل رافضًا.
+  `needsApproval` الخاصة بالأداة نفسها يظل رافضًا. ولا شيء داخل الـagent
+  directory يقدر يتجاوزها: [قاعدة صلاحيات](/ar/approvals#سياسات-الصلاحيات)
+  من نوع `allow` و[وضع صلاحيات](/ar/permission-modes) (`acceptEdits`) لا يشغّلان الاستدعاء
+  (قاعدة `deny` أو `plan` أو `dontAsk` تظل ترفضه)، وملف `approve` الخاص
+  بالمجلد نفسه يؤجّله. الذي يقرر فقط هو شخص يحلّ التوقف
+  (`agent.approvals.resolve()`) أو callback `approve` يمرّره كودك إلى
+  `loadAgentDir(dir, { approve })`.
+- **الـsub-agents.** مجلد الـsub-agent داخل العنصر المثبَّت (`subagents/<name>/`
+  في الـkit) يخضع لنفس الإيصال: أدواته مقيّدة مثل باقي أدوات العنصر، وملف
+  `approve` الخاص به يؤجّل استدعاءاتها المفروضة أيضًا. توقف الـsub-agent ليس
+  له مقبض `approvals.resolve()`، فالذي يقرر فيها هو callback `approve` الذي
+  يمرّره كودك إلى `loadAgentDir()`؛ وبدونه لا يشتغل الاستدعاء المفوَّض، ويُبلَّغ
+  الوكيل الرئيسي أن الـsub-agent توقف بانتظار approval.
 - **الشبكة.** أثناء عمل أداة لعنصر له إيصال، `fetch` يقتصر على الـhosts التي
   يصرّح بها `network`: الـhost غير المدرج في الـmanifest يُرفض، والعنصر الذي
   لا يصرّح بأي `network` لا يقدر يعمل fetch أصلًا.

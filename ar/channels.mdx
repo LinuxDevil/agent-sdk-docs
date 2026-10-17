@@ -14,7 +14,7 @@ POST <basePath>/<name>  ->  verify  ->  parse  ->  session turn  ->  reply (or o
 ```
 
 الـ channels حلّت محل الـ trigger adapters المدمجة (راجع
-[الانتقال من الـ triggers](/ar/upgrading#deprecated-لكنها-ما-زالت-تشتغل-في-1-x)).
+[الانتقال من الـ triggers](/ar/upgrading#الانتقال-من-الـ-triggers)).
 وتضيف الشي اللي ينقص الـ triggers: كل محادثة على الطرف هي
 [session](/ar/sessions) (جلسة)، والـ approvals والأسئلة ترجع للطرف.
 
@@ -429,7 +429,7 @@ turn المكمل ينضم لـ transcript الـ session. ونقرة زر بع�
 
 ملفات `channels/*.ts` في [agent directory](/ar/agent-directories) تنحمل
 كقنوات كمان، وسيرفر node يركّبها. ولو عندك handler خاص لـ Slack،
-`verifySlackSignature()` (راجع [Triggers](/ar/triggers#مصادقة-webhook))
+`verifySlackSignature()` (راجع [Triggers](/ar/triggers#تواقيع-طلبات-slack))
 يفحص توقيع الطلب.
 
 ## Telegram

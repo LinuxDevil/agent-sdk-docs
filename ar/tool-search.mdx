@@ -1,12 +1,6 @@
 ---
 title: "Tool search"
 ---
-
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/tool-search).
-</Warning>
-
 {/* Generated from docs/tool-search.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 agent عنده tools كثيرة (عدة سيرفرات MCP أو toolkit داخلية كبيرة) يرسل
@@ -111,8 +105,15 @@ tool أخرى (الـ approvals والصلاحيات والـ guardrails تنط�
 
 الترتيب الافتراضي يقارن كلمات الاستعلام باسم كل tool مؤجلة (مقسَّمًا عند
 `_` و`-` و`__` وحدود camelCase) ووصفها، بلا حساسية لحالة الأحرف. الكلمة
-في الاسم تُحسب ثلاثة أضعاف الكلمة في الوصف، والتعادل يُرتَّب بالاسم.
-نفس الدالة مُصدَّرة باسم `rankToolsByKeywords(query, tools)`.
+في الاسم تُحسب ثلاثة أضعاف الكلمة في الوصف، وصيغ الجمع تُوحَّد مع المفرد
+(`statuses` تجد `status`). والكلمة القريبة تأخذ جزءًا من النقاط: من نفس
+عائلة الكلمة (`sending` تجد `send`)، أو مرادف من جدول صغير مدمج لأفعال
+وأسماء الـ tools الشائعة (`fetch` / `get` / `retrieve`، و`delete` /
+`remove`، و`share` / `stock` / `equity`، و`value` / `price` / `quote`)،
+فالاستعلام `share value` يجد `fetch_equity_quote`. الكلمات المطابقة تمامًا
+تبقى أعلى من القريبة، والتعادل يُرتَّب بالاسم. نفس الدالة مُصدَّرة باسم
+`rankToolsByKeywords(query, tools)`. ويبقى البحث لفظيًا: للبحث الدلالي
+الحقيقي مرّر `search` خاصة بك (مثلًا embeddings).
 
 ## خيارات `toolSearch`
 
@@ -124,7 +125,7 @@ tool أخرى (الـ approvals والصلاحيات والـ guardrails تنط�
 | ------ | ------- | ----------- |
 | `thresholdPercent` | `0.1` | التأجيل فقط حين تبلغ التعريفات المؤجلة هذه الحصة من الـ context window. القيمة `0` تؤجّل دائمًا. |
 | `maxResults` | `5` | عدد الـ tools التي تُحمَّل في كل بحث. |
-| `contextWindow` | من الـ model registry، وإلا 128,000 | الـ context window الخاص بالـ model، لحساب العتبة. |
+| `contextWindow` | من الـ model registry، وإلا 128,000 | الـ context window الخاص بالـ model، لحساب العتبة. القيمة الاحتياطية 128,000 تطبع `console.warn` مرة واحدة؛ اضبطه (أو استخدم `registerModel()`) مع الـ models المحلية. |
 | `search(query, tools)` | الترتيب بالكلمات المفتاحية | ترتيبك الخاص (مثلًا embeddings): أرجِع أسماء الـ tools، الأفضل أولًا. الأسماء غير المعروفة والمكررة تُسقَط. وإذا رمت الدالة خطأً، يصير الاستدعاء tool error ولا يُحمَّل شيء. |
 
 ```ts
@@ -189,9 +190,10 @@ Claude Agent SDK.
 
 ## Prompt caching
 
-قائمة الـ tools تتغير حين تُحمَّل الـ tools. الـ providers الذين يخزنون
-مؤقتًا بادئة الطلب (Anthropic prompt caching والتخزين التلقائي في
-OpenAI) يضعون تعريفات الـ tools في أولها، فالخطوة التي تحمّل tools قد
-تفوت الـ cache من تلك النقطة. التحميل يحدث بضع مرات في الـ run الواحد
-على الأكثر؛ وإذا كانت الـ runs عندك تعيد استخدام بادئة مخزَّنة طويلة
-عبر استدعاءات كثيرة، قارن التكلفة مع `toolSearch: false`.
+قائمة الـ tools تتغير حين تُحمَّل الـ tools. OpenAI يخزّن بادئة الطلب
+مؤقتًا تلقائيًا، ومع models Claude يضع الـ SDK نقاط cache الخاصة بـ Anthropic
+([`promptCaching: 'auto'`](/ar/models-and-cost#الـ-prompt-caching)). وكلاهما يضع
+تعريفات الـ tools في أول البادئة، فالخطوة التي تحمّل tools تفوت الـ cache من
+تلك النقطة وتكتب إدخالًا جديدًا. التحميل يحدث بضع مرات في الـ run الواحد على
+الأكثر. وإذا كانت الـ runs عندك تعيد استخدام بادئة مخزَّنة طويلة عبر استدعاءات
+كثيرة، قارن التكلفة مع `toolSearch: false`.

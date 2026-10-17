@@ -1,12 +1,6 @@
 ---
 title: "Streaming"
 ---
-
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/streaming).
-</Warning>
-
 {/* Generated from docs/streaming.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 `agent.stream()` تشغّل الـ agent بنفس طريقة `agent.send()` بالضبط، وترجع لك
@@ -16,6 +10,8 @@ title: "Streaming"
 بدون أي تحويل. بادئة `vendor/` في اسم الـ model هي التي تختار الـ provider؛
 ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثال
 `openrouter/openai/gpt-4o-mini`).
+
+> المقتطفات في هذه الصفحة تترك لك بعض الأسماء: `provider` هو أي `LLMProvider` (بدون اتصال: `createMockProvider()`)؛ و`agent` هو ناتج `createAgent()`؛ و`input` هو نص المستخدم، من نوع `string`؛ و`approvalStore` هو `ApprovalStore`؛ و`toolRegistry` هو `ToolRegistry`.
 
 ```ts
 import { createAgent } from '@lousho/build-ai-agent';
@@ -55,6 +51,13 @@ interface AgentRun extends AsyncIterable<AgentEvent> {
   `finishReason: 'aborted'`؛ والـ run الموقوف بانتظار approval يرجع
   `finishReason: 'awaiting-approval'` مع `approvalId`. ترك `result` بدون
   `await` لن يسبّب أبدًا unhandled rejection.
+- **الـ run الفاشل يرمي الخطأ من الحلقة.** لما يفشل الـ run، تُخرج `for await`
+  حدثَي `error` و`run.done { finishReason: 'error' }`، ثم ترمي من جديد الخطأ
+  الذي يرفض به `run.result` (نفس الخطأ الذي كانت `send()` سترميه)، فـ `try`
+  حول الحلقة يلتقطه. مرّر `{ throwOnError: false }` إلى `stream()` لتنتهي
+  الحلقة بشكل عادي وتقرأ الفشل من الأحداث أو من `run.result`. الإلغاء، والخروج
+  المبكر بـ `break`، والتوقف بانتظار approval لا ترمي خطأ أبدًا. أما streams
+  الـ session و`approvals.streamResolve()` فما زالت تنتهي بشكل عادي.
 - **لو خرجت من حلقة `for await` مبكرًا، الـ run يتلغي** (عبر نفس مسار
   `signal`، شوف [الإلغاء](#الإلغاء)). وعندها `result` يرجع
   `finishReason: 'aborted'`.
@@ -83,6 +86,8 @@ console.log(result.finishReason, result.text);
 ```
 
 ## الاستماع بدون iterating
+
+الـ listener الذي يرمي خطأ لا يُفشل الـ run (فقد تكون أدواته أحدثت آثارًا جانبية بالفعل): الخطأ يُسجَّل مرة واحدة لكل run عبر `console.warn` ويكمل الـ run.
 
 لمراقبة كل run بدون ما تعمل iterate على stream، أعطِ الـ agent listener:
 `createAgent({ onEvent })`، أو `onAgentEvent` في خيارات
@@ -125,7 +130,7 @@ listener الآن:
 | `start` (`agentId`, `agentName`) | `run.start` (`agentId`, `agentName`) |
 | `text-delta` (لم يكن يصدر أبدًا) | `text.delta` (`text`) |
 | `text-complete` (`text`, `stepUsage`) | `text.done` (`text`)؛ استهلاك الخطوة على `step.done` (`usage`) |
-| `tool-call` (`toolCall`) | `tool.start` (`toolCallId`, `toolName`، و`args` بعد تحليلها) |
+| `tool-call` (`toolCall`) | `tool.start` (`toolCallId`, `toolName`، و`args` بعد تحليلها؛ و`rawArgs` لما يكون نص الـ model غير JSON صالح كما أُرسل) |
 | `tool-result` (`toolResult`) | `tool.done` (`result`, `durationMs`, `replacedByHook`)، أو `tool.error` (`error.name`, `error.message`) |
 | `error` (`error: Error`) | `error` (`error: { name, message }`) |
 | `abort` (`abortReason`, `usage`) | `run.done` مع `finishReason: 'aborted'` (والسبب هو `reason` في الـ signal) |
@@ -326,7 +331,9 @@ for await (const event of agent.stream('Weather in Paris?')) {
 ## مثال: Server-Sent Events
 
 كل event serializable كـ JSON، فنقطة نهاية SSE ما هي إلا `res.write` واحد
-لكل event. ألغِ الـ run لما ينقطع اتصال العميل.
+لكل event. ألغِ الـ run لما ينقطع اتصال العميل. أما مع turns الـ session، فـ
+`createRouteHandler()` يعمل العكس افتراضيًا: الـ turn يكتمل ويُحفظ حتى لو
+غادر العميل (شوف [Next.js](/ar/nextjs#المسارات)).
 
 ```ts
 import { createServer } from 'node:http';

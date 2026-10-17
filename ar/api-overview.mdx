@@ -50,10 +50,10 @@ npm run docs:build   # writes docs/api/index.html
 | `resumeAfterApproval()` (من `@lousho/build-ai-agent/executor`) | استئناف execution متوقف على approval (موافقة) بشري. متقدم: راجع [واجهة الـ executor](/ar/executor-api). |
 | `InMemoryApprovalStore`       | `ApprovalStore` محلي داخل الـ process؛ هو الـ store الافتراضي للـ agents التي تُنشأ بـ `createAgent()`. |
 | `StorageServiceApprovalStore`, `LocalStorageCheckpointStore` (من `/utils`) | stores للـ approvals والـ checkpoints مبنية على ملفات فوق `StorageService` (راجع [Approvals](/ar/approvals) و[Durable execution](/ar/durable-execution)). |
-| `SqliteStore` (من `/sqlite`) | sessions وcheckpoints وapprovals في ملف SQLite واحد (راجع [Sessions](/ar/sessions#تعليمات-المشروع)). |
-| `fileStore(dir)`              | sessions وcheckpoints وapprovals كملفات JSON عادية تحت `dir` (راجع [Sessions](/ar/sessions#تعليمات-المشروع)). |
+| `SqliteStore` (من `/sqlite`) | sessions وcheckpoints وapprovals في ملف SQLite واحد (راجع [Sessions](/ar/sessions#choosing-a-store)). |
+| `fileStore(dir)`              | sessions وcheckpoints وapprovals كملفات JSON عادية تحت `dir` (راجع [Sessions](/ar/sessions#choosing-a-store)). |
 | `KVStore`, `KVCheckpointStore` (من `/kv`) | stores على binding من Cloudflare Workers KV، لـ Worker تكتبه بنفسك (راجع [النشر](/ar/deployment)). |
-| `AgentStore`, `memoryStore()` | خيار `createAgent({ store })`: `{ sessions?, checkpoints?, approvals?, tokens? }`، وواحد يشتغل في الذاكرة (راجع [Sessions](/ar/sessions#تعليمات-المشروع)؛ `tokens` فيه tokens الـ OAuth، راجع [OAuth](/ar/oauth)). |
+| `AgentStore`, `memoryStore()` | خيار `createAgent({ store })`: `{ sessions?, checkpoints?, approvals?, tokens? }`، وواحد يشتغل في الذاكرة (راجع [Sessions](/ar/sessions#choosing-a-store)؛ `tokens` فيه tokens الـ OAuth، راجع [OAuth](/ar/oauth)). |
 | `SessionAwaitingApprovalError` | يرميه `execute()` إذا الـ `sessionId` الممرّر متوقف على approval (راجع [Durable execution](/ar/durable-execution)). |
 | `SDKError`, `ERROR_CODES`    | الكلاس الأساس لأخطاء الـ SDK: `code` ثابت و`hint` ورابط `docs` (راجع [الأخطاء](/ar/errors)). |
 
@@ -228,7 +228,7 @@ approval معلّق. الـ tools تنفّذ at-least-once عبر الـ crash،
 | `httpTool`, `currentDateTool`, `dayNameTool` | tools مدمجة. |
 | `createFsTools(fs, options?)`, `createShellTool(shell, options?)` | tools للـ workspace (`read_file`، `write_file`، `edit_file`، `list_dir`، `glob`، `grep`، `shell`) فوق `FsProvider` / `ShellProvider`. راجع [tools الـ workspace](/ar/workspace-tools). |
 | `NodeWorkspace`, `MemoryWorkspace`, `SandboxShell` | providers للـ workspace: مجلد حقيقي (المسارات محصورة داخل `root`، وبيئة shell فيها الحد الأدنى)، وشجرة في الذاكرة مع `exec` سكربتي للاختبارات، و`ShellProvider` فوق `SandboxAdapter` (Docker). |
-| `createTodoTools({ store?, onChange? })`     | tools باسم `todo_write` / `todo_read` (مع `getTodos()`) تخلّي الـ agents يخططون الشغل متعدد الخطوات ويتابعونه؛ راجع [tools الـ todo](/ar/tools#متقدم-toolregistry). |
+| `createTodoTools({ store?, onChange? })`     | tools باسم `todo_write` / `todo_read` (مع `getTodos()`) تخلّي الـ agents يخططون الشغل متعدد الخطوات ويتابعونه؛ راجع [tools الـ todo](/ar/tools#todo-tools). |
 | `connectMcp(servers, options?)`             | يتصل بسيرفرات MCP من الـ config (stdio أو HTTP) ويحمّل tools حقّهم؛ راجع [مشاركة السيرفرات عبر `connectMcp()`](/ar/mcp-integration#مشاركة-السيرفرات-عبر-connectmcp). |
 | `loadMcpTools(client, connectionName)`       | يحمّل tools سيرفر MCP متصل كـ `ToolDescriptor`. متاحة من جذر الحزمة ومن `@lousho/build-ai-agent/tools` و`@lousho/build-ai-agent/mcp`. |
 
@@ -306,7 +306,7 @@ const tools = await loadMcpTools(mcpClient, 'my-server', {
 `{ structuredContent, text, content }` و`content` فيه بس الأجزاء غير النصية،
 عشان الصور والصوت والموارد ما تنرمي أبدًا.
 
-tools الـ todo وأخطاء الـ tools: راجع [Tools](/ar/tools#متقدم-toolregistry).
+tools الـ todo وأخطاء الـ tools: راجع [Tools](/ar/tools#todo-tools).
 
 ## الـ models والـ tokens والتكلفة
 

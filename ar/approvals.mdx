@@ -230,7 +230,7 @@ const chat = agent.session(); // the first staging deploy asks, later ones in th
 الوقفات تنحفظ في `InMemoryApprovalStore` لكل agent، إلا إذا مرّرت
 `approvalStore` أو `store` فيه `approvals`. عشان تحسم وقفة بعد restart،
 أعط الـ agent durable store، مثل SQLite (شوف
-[اختيار المخزن](/ar/sessions#تعليمات-المشروع)):
+[اختيار المخزن](/ar/sessions#choosing-a-store)):
 
 ```ts
 import { createAgent } from '@lousho/build-ai-agent';
@@ -563,7 +563,7 @@ approval معلّق (شوف [Durable execution](/ar/durable-execution)).
 | ----- | --------------------- |
 | `InMemoryApprovalStore` | الـ process هذي بس؛ الافتراضي لـ `createAgent()`. |
 | `StorageServiceApprovalStore(storage)` | ملفات JSON عبر `StorageService`. |
-| `fileStore(dir)` | ملف JSON لكل وقفة، `<dir>/approvals/<id>.json`، على جهاز واحد؛ الـ approval ينحسم من process واحدة بس (شوف [اختيار المخزن](/ar/sessions#تعليمات-المشروع)). |
+| `fileStore(dir)` | ملف JSON لكل وقفة، `<dir>/approvals/<id>.json`، على جهاز واحد؛ الـ approval ينحسم من process واحدة بس (شوف [اختيار المخزن](/ar/sessions#choosing-a-store)). |
 | `SqliteStore.approvals` | ملف SQLite واحد، تتشاركه عدة processes بأمان؛ الـ approval ينحسم من وحدة منهم بس. |
 
 الـ `ApprovalStore` يحتاج `save()` و`resolve()`. أما `load(id)` (يقرأ وقفة

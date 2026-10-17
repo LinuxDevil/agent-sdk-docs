@@ -159,7 +159,7 @@ hooks، فالـ API الخاص به مقفول على tab المتصفح الل
    نفسها اللي يقرأها `lousho traces`، في
    `.lousho/agents/<agent id>/traces/<day>/<trace id>.jsonl` تحت المجلد
    اللي بدأت `lousho studio` منه (انظر
-   [التتبّعات المحلية](/ar/observability#backends)):
+   [التتبّعات المحلية](/ar/observability#local-traces)):
    `npx lousho traces --dir .lousho/agents/<agent id>/traces` يعرض نفس
    الـ runs في الـ terminal، وحذف مجلد الـ agent يحذف الـ traces الخاصة
    به. الـ tab يعرض محتوى الـ spans: أسماء الـ models والـ tools، أعداد
@@ -238,7 +238,7 @@ Agent Forge يحتفظ بكل الـ checkpoints لكل run، لا الأخير�
 store الخاص به (`server/checkpointStore.ts`) يحتفظ بنفس السجل المحدود اللي
 يحتفظ به `LocalStorageCheckpointStore` في الـ SDK — أحدث 50 حفظة لكل run،
 تحت `.lousho/agents/<id>/checkpoint-history/` (انظر [سجل الـ
-checkpoints](/ar/durable-execution#التوافق-مع-البيانات-المخزنة)). من هذا
+checkpoints](/ar/durable-execution#checkpoint-history)). من هذا
 السجل تقدر تعمل fork (تفريع) لـ run عند أي خطوة، تغيّر اللي صار فيها،
 وتعيد تشغيله بجانب الأصل —
 [`AgentExecutor.fork()`](/ar/durable-execution#fork-و-replay)

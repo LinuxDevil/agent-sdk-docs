@@ -64,7 +64,7 @@ export default {
 | `approve` | `createAgent({ approve })`: مسار لملف يصدّر افتراضيًا دالة الـ approver، أو الدالة مضمّنة في config برمجي |
 | `approvalTtlMs` | `createAgent({ approvalTtlMs })`: المللي ثانية قبل أن تنتهي approval (موافقة) بلا رد؛ و`ttlMs` في قاعدة `ask` يغلب عليه |
 | `limits` | `createAgent({ limits })`، مثل `{ "maxCostUsd": 0.05 }` |
-| `modelSettings` | `createAgent({ modelSettings })`، مثل `{ "maxTokens": 1024, "temperature": 0.2 }`؛ راجع [إعدادات الـ model](/ar/configuration#تعليمات-المشروع) |
+| `modelSettings` | `createAgent({ modelSettings })`، مثل `{ "maxTokens": 1024, "temperature": 0.2 }`؛ راجع [إعدادات الـ model](/ar/configuration#إعدادات-الـ-model) |
 | `retry` | `createAgent({ retry })`، مثل `{ "maxRetries": 4, "timeoutMs": 30000, "backoff": { "initialMs": 1000 } }`؛ `timeoutMs` يحدّ كل محاولة، و`false` يرسل كل استدعاء مرة واحدة. `retryOn` و`onRetry` و`signal` دوال، فهي لملفات config البرمجية فقط |
 | `output` | `createAgent({ output })`: Standard Schema (مثل كائن zod) يجب أن تطابقه الإجابة النهائية. في ملفات config البرمجية فقط (JSON/YAML لا يحمل schema)؛ ومن الكود، `loadAgentDir(dir, { output })` يعطي `result.object` نوعه أيضًا |
 | `store` | `createAgent({ store })`: القيمة `{ "dir": "./.lousho" }` (تُحَلّ نسبةً إلى مجلد الـ agent) تصبح `fileStore()` — الـ sessions والـ checkpoints والـ approvals المعلّقة تبقى بعد إعادة التشغيل؛ ويمكن ضبط `historyLimit` و`tokenKey` أيضًا. وفي config برمجي يمكن تمرير كائن `AgentStore` بدلًا منها. Node فقط |
@@ -269,4 +269,4 @@ npx lousho build ./my-agent --target=node-server    # or docker
 
 ## التقديم عبر MCP
 
-`lousho mcp` يأخذ مجلد agent كما يأخذ ملف spec ([الإعداد](/ar/configuration)): `lousho mcp ./my-agent` يقدّمه كخادم MCP ([MCP](/ar/mcp-integration#annotations)).
+`lousho mcp` يأخذ مجلد agent كما يأخذ ملف spec ([الإعداد](/ar/configuration)): `lousho mcp ./my-agent` يقدّمه كخادم MCP ([MCP](/ar/mcp-integration#تشغيل-agent-كسيرفر-mcp)).

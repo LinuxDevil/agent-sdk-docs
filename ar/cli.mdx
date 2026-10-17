@@ -15,7 +15,7 @@ title: "CLI"
 | `lousho add <name>` | يثبّت tool أو skill أو channel أو schedule أو memory slot من JSON registry داخل مجلد agent، بعد ما يعرض الـ permission manifest ويفحص الكود مقابله. | [Registry](/ar/registry) |
 | `lousho mcp <spec>` | يقدّم الـ agent كسيرفر MCP (stdio، أو HTTP مع `--http`). | [MCP](/ar/mcp-integration#تشغيل-agent-كسيرفر-mcp) |
 | `lousho eval [globs...]` | يشغّل ملفات `*.eval.ts` تحت vitest؛ ويطبع ملخصًا ويكتب تقارير JUnit/JSON. | [Evals](/ar/evals#lousho-eval) |
-| `lousho traces [id]` | يعرض آخر runs حفظها `fileTraceExporter()` (المدة، والـ model والـ tool calls، والـ tokens، والتكلفة)، أو يطبع run واحد كشجرة spans. | [Observability](/ar/observability#backends) |
+| `lousho traces [id]` | يعرض آخر runs حفظها `fileTraceExporter()` (المدة، والـ model والـ tool calls، والـ tokens، والتكلفة)، أو يطبع run واحد كشجرة spans. | [Observability](/ar/observability#local-traces) |
 | `lousho build --target=<t> --agent=<spec>` | يبني سيرفر Node أو Docker image أو Cloudflare Worker جاهزًا للنشر. | [النشر](/ar/deployment) |
 | `lousho studio` | يفتح Agent Forge، الـ dashboard المرئية، على port محلي واحد. | [Agent Forge](/ar/agent-forge) |
 
@@ -81,7 +81,7 @@ npx lousho dev ./my-agent --no-schedules   # do not fire the directory's cron sc
 | `POST /chat/:sessionId/approvals/:id` `{ "approved", "note"? }` أو `{ "answer" }` | يبتّ في الـ approval المعلّق (`agent.approvals.streamResolve()`)، أو يجيب على سؤال (`agent.approvals.streamAnswer()`)، ويرسل تكملة الـ turn كـ SSE. ويمكن أن يتوقف مرة أخرى بـ `approval.requested` جديد. يعيد `404` إذا لم يكن `id` معلّقًا. وإذا توقفت خطوة الـ turn على عدة calls، يُبتّ في كل id وحده؛ والقرار الذي يترك غيره معلّقًا يرسل `run.done` مع `finishReason: 'awaiting-approval'`، وآخر قرار هو الذي يشغّل الخطوة. |
 | `POST /chat` `{ "message" }` | Deprecated: بلا session وبلا streaming. يعيد `ExecutionResult` الخاص بالـ agent كـ JSON، مع header `Deprecation: true`. |
 
-`--traces` (أو `--traces=<dir>`) يكتب كل run في ملفات traces محلية عبر `fileTraceExporter()`، في `.lousho/traces` إلا إذا سمّيت مجلدًا، فيعرض `npx lousho traces` ماذا فعل الـ agent. هو معطّل افتراضيًا لأن الملفات تحتوي محتوى الـ prompts وarguments ونتائج الـ tools، والـ flag يطبع المجلد الذي يكتب فيه. ينطبق على ملفات spec ومجلدات الـ agents والـ modules بالتساوي (الـ `exporter` الخاص بالـ module يُستبدل ما دام الـ flag مضبوطًا). انظر [Local traces](/ar/observability#backends).
+`--traces` (أو `--traces=<dir>`) يكتب كل run في ملفات traces محلية عبر `fileTraceExporter()`، في `.lousho/traces` إلا إذا سمّيت مجلدًا، فيعرض `npx lousho traces` ماذا فعل الـ agent. هو معطّل افتراضيًا لأن الملفات تحتوي محتوى الـ prompts وarguments ونتائج الـ tools، والـ flag يطبع المجلد الذي يكتب فيه. ينطبق على ملفات spec ومجلدات الـ agents والـ modules بالتساوي (الـ `exporter` الخاص بالـ module يُستبدل ما دام الـ flag مضبوطًا). انظر [Local traces](/ar/observability#local-traces).
 
 الـ sessions تعيش في `memoryStore()` داخل العملية (تختفي إذا وقّفت `lousho dev`)، أو في الـ `store` الخاص بالـ agent إذا ضبطته خيارات `createAgent()` في الـ module. تكملة الـ approval تُرسل streaming هي الأخرى: الـ endpoint يشغّلها بـ `agent.approvals.streamResolve()` (أو `streamAnswer()` إذا كان سؤالًا) ويرسل events الـ turn المكمّل — الـ tool call المبتوت فيه، والـ text deltas، وتوقفًا آخر محتملًا، و`run.done` — فور حدوثها.
 
