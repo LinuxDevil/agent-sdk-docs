@@ -1,12 +1,6 @@
 ---
 title: "أوضاع الصلاحيات"
 ---
-
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/permission-modes).
-</Warning>
-
 {/* Generated from docs/permission-modes.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 وضع الصلاحيات يحط الـ agent في حالة لها اسم، بدل ما تكتب rules: ينظر بس ما يلمس (`plan`)، يعدّل الملفات بدون سؤال (`acceptEdits`)، أو ما يوقف أبدًا (`dontAsk`). بدّله في نص الـ session، نفس الطريقة اللي تشتغل فيها مع coding agent: خطّط أول، بعدين خلّيه يعدّل.
@@ -61,9 +55,10 @@ await session.send('Apply the plan.'); // write_file and edit_file run without a
   `list_dir`، `glob`، `grep`، `todo_read`، `current_date`، `day_name`،
   `web_fetch`، `load_skill`، وكل memory tool بصيغة `recall_<name>`،
   و`agent_status` / `agent_await` (تراقب الـ sub-agents الشغالة في الخلفية).
-  الـ [OpenAPI tool](/ar/openapi-tools) لعملية `GET` عندها نفس الـ hint، والـ
-  [MCP tool](/ar/mcp-integration) تحتفظ بالـ hint اللي بعثه خادمها. وهذا كلام
-  الخادم بس، ما هو ضمان — فلا تربط إلا خوادم تثق فيها.
+  الـ [OpenAPI tool](/ar/openapi-tools) لعملية `GET` عندها نفس الـ hint. أما الـ
+  [MCP tool](/ar/mcp-integration) فما تُحسب read-only إلا لو مدخل خادمها في
+  الإعدادات ضابط `approval: 'annotations'`: الـ hint كلام الخادم بس، ما هو
+  ضمان، فافتراضيًا وضع plan يرفض كل MCP tool.
 - الـ `ask_question` الجاهزة (هي بس تسأل؛ والـ call يظل واقف بانتظار الجواب)
   و`task` (الـ sub-agent الخاص بها يرث plan mode، شوف تحت).
 - الـ [hosted provider tools](/ar/hosted-tools) تشتغل داخل طلب الـ provider،

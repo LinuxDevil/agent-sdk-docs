@@ -1,8 +1,117 @@
 ---
 title: "Decisions"
 ---
+{/* Generated from docs/decisions.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-{/* pending-translation */}
-<Note>
-هذه الصفحة لم تُترجَم إلى العربية بعد. اقرأ [النسخة الإنجليزية](/decisions).
-</Note>
+`decide()` يستدعي OpenAI Decisions API (`POST /v1/decisions`): endpoint مصمَّم لهذا الغرض، يقيّم input مشتركًا مقابل أسئلة typed ويرجّع إجابات معايَرة (calibrated) أسرع بحوالي 10 مرات من دورة model كاملة. هو الشكل السريع والحتمي لنمط القرار الـ typed، أي التصنيف والتوجيه والبوابات والتقييم بالدرجات، بدون ما تشغّل run كامل لـ agent.
+
+نسخة beta عامة: `gpt-6-luna` هو الـ model الوحيد الذي يقدّمه الـ endpoint، والواجهة قد تتغيّر. الـ endpoint ليس جزءًا من chat completions، لذلك لا يمرّ عبر providers الخاصة بـ `createAgent()` ولا عبر OpenRouter؛ يحتاج `OPENAI_API_KEY` (أو `apiKey`/`baseURL` لـ endpoint متوافق).
+
+```ts
+import { decide } from '@lousho/build-ai-agent';
+
+const { answers } = await decide({
+  input: 'I was charged twice for my order.',
+  questions: [
+    {
+      type: 'choice',
+      name: 'route',
+      instructions: 'Which team should handle this complaint?',
+      choices: [
+        { value: 'billing', description: 'Payments, invoices, and refunds.' },
+        { value: 'technical', description: 'Problems using the product.' },
+        { value: 'other', description: 'Anything else.' },
+      ],
+    },
+  ],
+});
+
+const route = answers[0];
+if (route.type === 'choice' && route.confidence >= 0.7) {
+  console.log(`routing to ${route.choice}`); // routing to billing
+}
+```
+
+## أنواع الأسئلة
+
+```ts
+import { decide, type DecisionQuestion } from '@lousho/build-ai-agent';
+
+const questions: DecisionQuestion[] = [
+  // predicate: probability 0-1 that a condition holds
+  { type: 'predicate', name: 'is_spam', instructions: 'Is this message spam?' },
+  // choice: one of a fixed unordered set
+  {
+    type: 'choice',
+    name: 'route',
+    instructions: 'Which team?',
+    choices: [
+      { value: 'billing', description: 'Payments and refunds.' },
+      { value: 'shipping', description: 'Delivery and tracking.' },
+    ],
+  },
+  // score: probability-weighted position across ordered levels
+  {
+    type: 'score',
+    name: 'severity',
+    instructions: 'How severe is this issue?',
+    levels: [
+      { label: 'Cosmetic', description: 'Appearance only.' },
+      { label: 'Workaround available', description: 'Fails, but another way works.' },
+      { label: 'Fully blocked', description: 'Fails with no workaround.' },
+    ],
+  },
+];
+```
+
+- إجابات **predicate** تحمل `probability`؛ استخدم حدًّا أدنى (`probability >= 0.9`) حين تكون "نعم" الخاطئة مكلفة.
+- إجابات **choice** تحمل `choice`، و`probabilities` لكل خيار، و`confidence`. أضف خيارًا احتياطيًا مثل `'other'` إذا كانت فئاتك لا تغطي كل input.
+- إجابات **score** تحمل `score` (مؤشر موزون قد يقع بين مستويين)، و`probabilities` لكل مستوى، و`confidence`. عرّف المستويات من الأدنى إلى الأعلى بمعايير واضحة ومختلفة.
+- أي سؤال قد يرجع `{ type: 'refusal' }`؛ تعامل معه كمسار "أرسله للمراجعة" عندك.
+
+الأسئلة المستقلة تتشارك `input` واحدًا وطلبًا واحدًا:
+
+```ts
+import { decide, type DecisionQuestion } from '@lousho/build-ai-agent';
+
+const questions: DecisionQuestion[] = [
+  { type: 'predicate', name: 'is_spam', instructions: 'Is this spam?' },
+  {
+    type: 'choice',
+    name: 'route',
+    instructions: 'Which team?',
+    choices: [{ value: 'billing' }, { value: 'shipping' }],
+  },
+];
+
+const userMessage = 'I was charged twice for my order.';
+const { answers } = await decide({ input: userMessage, questions });
+const byName = Object.fromEntries(answers.map((a) => [a.name, a]));
+```
+
+`input` يقبل أيضًا صيغة الرسائل مع صور base64 مضمّنة (`{ type: 'input_image', image_url: 'data:...' }`) للفحوصات البصرية مثل فحص الأضرار؛ روابط الصور المستضافة و`file_id` غير مدعومة.
+
+## الخيارات
+
+```ts
+import { decide } from '@lousho/build-ai-agent';
+
+const result = await decide({
+  input: '...',
+  questions: [{ type: 'predicate', name: 'relevant', instructions: 'Is this relevant?' }],
+  model: 'gpt-6-luna',                    // default; currently the only served model
+  apiKey: process.env.OPENAI_API_KEY,     // default: OPENAI_API_KEY
+  baseURL: 'https://api.openai.com/v1',   // override for a compatible endpoint
+  timeoutMs: 30_000,                      // request timeout; also accepts `signal`
+});
+```
+
+الأخطاء من نوع `SDKError`: غياب المفتاح يعطي `LOUSHO_PROVIDER_MISSING_API_KEY`، والـ `429` يعطي `LOUSHO_PROVIDER_RATE_LIMITED`، وأخطاء HTTP الأخرى أو الردود غير السليمة تعطي `LOUSHO_PROVIDER_REQUEST_FAILED`، والإلغاء أو تجاوز المهلة يعطي `LOUSHO_OPERATION_TIMEOUT`.
+
+## متى تستخدم ماذا
+
+- **`decide()`**: إجابة typed عن input واحد: التوجيه، الفلترة، درجة الخطورة، بوابات الثقة. سريع ومعايَر، لكن بدون نص حر وبدون tools.
+- **[المخرجات المنظَّمة](/ar/structured-output)** (`createAgent({ output })`): حين تحتاج JSON schema خاصًا بك: حقول مستخرجة، أو شرح مكتوب، أو object على شكل الـ domain عندك. يعمل مع أي provider، بما فيها endpoints المخرجات المنظَّمة الصارمة (راجع [حدود الـ schema](/ar/structured-output#حدود-الـ-schema)).
+- **[الوكلاء الفرعيون](/ar/sub-agents)** أو [مسارات العمل](/ar/flows): حين يحتاج القرار tools أو استدلالًا متعدد الخطوات قبل أن يجيب.
+
+[مثال coding-agent-workflows](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/coding-agent-workflows) يعرض نفس نمط التوجيه/الثقة/الحد الأدنى مبنيًا على schemas الخاصة بـ `output`؛ استبدل خطوة الفرز فيه بـ `decide()` إذا كنت على OpenAI وتريد الـ endpoint المخصص. وصفحة [تقنيات كتابة الموجّهات](/ar/prompting-techniques#قرارات-typed-بأسلوب-system-one) تضع الشكلين في سياق كتالوج القرارات الـ typed الأوسع.

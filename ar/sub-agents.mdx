@@ -1,12 +1,6 @@
 ---
 title: "Sub-agents"
 ---
-
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/sub-agents).
-</Warning>
-
 {/* Generated from docs/sub-agents.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 الـsub-agent (وكيل فرعي) هو agent مستقل — تعليمات وmodel وtools وskills
@@ -65,9 +59,10 @@ const { text } = await lead.send('Write a short article about the history of the
    sub-agent (`- name: description`)، وجملة تقول إن الـsub-agent
    يشوف بس الـprompt اللي يستلمه.
 2. tool وحدة بس، `task`، إدخالها
-   `{ agent: <one of the names>, prompt: string, description: string, background?: boolean, taskId?: string, mode?: 'new' | 'resume' | 'fork' }`
-   (`description` اسم مختصر من 3 إلى 5 كلمات يُستخدم في الـevents والـhooks؛
-   و`taskId` و`mode` يكملون مهمة سابقة، راجع [تكملة مهمة](#تكملة-مهمة)).
+   `{ agent: <one of the names>, prompt: string, description?: string, background?: boolean, taskId?: string, mode?: 'new' | 'resume' | 'fork' }`
+   (`description` اسم مختصر اختياري من 3 إلى 5 كلمات يُستخدم في الـevents والـhooks؛
+   و`taskId` و`mode` يكملون مهمة سابقة، راجع [تكملة مهمة](#تكملة-مهمة)؛
+   و`subagentOptions: { continuation: false }` يشيلهم).
 3. ثلاث tools للمهام الخلفية: `agent_status` و`agent_await` و`agent_cancel`
    (راجع [Sub-agents في الخلفية](#sub-agents-في-الخلفية)).
 
@@ -81,12 +76,21 @@ The first bicycles appeared in the 1810s ...
 [sub-agent 'researcher': 3 step(s), finish reason 'stop', taskId 'task_1']
 ```
 
-إذا الـsub-agent ما خلّص — رمى خطأ، أو استهلك كل `maxSteps`، أو انقطع —
-الـlead ياخذ نتيجة خطأ (`isError: true`) تشرح السبب، مثل
-`Sub-agent 'researcher' used all 10 of its steps (maxSteps) without
-giving a final answer.` واسم agent مجهول كمان يرجع نتيجة خطأ تعدّد
-الأسماء الصحيحة. استهلاك الـsub-agent من الـtokens ينضاف لـ`result.usage`
-الخاصة بالـlead، واستهلاك الـ[remote sub-agent](#remote-sub-agents) كمان.
+إذا الـsub-agent ما خلّص — رمى خطأ، أو استهلك كل `maxSteps`، أو وقف عند حد
+budget، أو انقطع — الـlead ياخذ نتيجة خطأ (`isError: true`) تشرح السبب، مثل
+`Sub-agent 'researcher' used all 10 of its steps
+(maxSteps) without giving a final answer.` واسم agent مجهول كمان يرجع نتيجة خطأ تعدّد
+الأسماء الصحيحة. والجواب اللي ينقطع عند حد الـoutput tokens للـsub-agent
+(finish reason `'length'`) يرجع رغم ذلك، ومعه سطر بعد الـfooter يقول إنه
+ممكن يكون ناقص. والـsub-agent اللي عنده `output` schema وخلصت خطواته يسوي
+استدعاء أخير إجباري ([Out of steps](/ar/structured-output#عند-نفاد-الخطوات)): لما
+يرجع هذا الاستدعاء كائن صالح، نتيجة `task` تكون هذا الكائن (finish reason
+`'max-steps'` في الـfooter، ومعه سطر يقول إن الخطوات خلصت)، مو خطأ.
+استهلاك الـsub-agent من الـtokens ينضاف لـ`result.usage` الخاصة بالـlead،
+واستهلاك الـ[remote sub-agent](#remote-sub-agents) كمان. و`result.toolErrors`
+الخاصة بالـlead نفسه تعدّ بس الـtool calls حقته؛ أما الاستدعاءات اللي فشلت
+داخل الـsub-agents حقه (وداخل sub-agents حقتهم) فتنحسب في
+`result.usage.delegated.toolErrors`.
 
 أخطاء الإعداد تُرمى ومعها طريقة الحل: sub-agent بدون `description`،
 أو قيمة ليست agent من `createAgent()`، أو tool من عندك اسمها أصلًا
@@ -146,7 +150,23 @@ await chat.send('Ask the researcher which source it trusted most.'); // the lead
 tool errors منظمة: `taskId` مجهول، أو تابع لـsession لـlead ثاني، أو تابع
 لـsub-agent ثاني، يفشل بـ`LOUSHO_SUBAGENT_TASK_NOT_FOUND`؛ ومهمة ما زالت
 شغالة (مهمة background ما خلصت) تفشل بـ`LOUSHO_SUBAGENT_TASK_BUSY`، وتقول
-للـmodel يستدعي `agent_await` أو `agent_cancel` عليها قبل.
+للـmodel يستدعي `agent_await` أو `agent_cancel` عليها قبل. والخطأ الخاص
+بـ`taskId` تابع لـsub-agent ثاني يقول للـmodel يحذف `taskId` حتى يبدأ مهمة
+جديدة.
+
+الـlead اللي ما يحتاج متابعات أبدًا يقدر يشيل التكملة بـ
+`subagentOptions: { continuation: false }`: وقتها الـtool `task` ما يكون
+فيها وسيط `taskId` ولا `mode`، وكل استدعاء يبدأ مهمة جديدة، ولا وصف الـtool
+ولا بلوك الـprompt يذكرون الـtaskIds. الـmodels الأضعف للـlead أحيانًا تمرر
+`taskId` حق sub-agent لـsub-agent ثاني وتضيع دورة على الخطأ؛ وهذا الخيار
+يشيل الاحتمال.
+
+```ts
+import { createAgent } from '@lousho/build-ai-agent';
+
+const analyst = createAgent({ provider, instructions: 'You analyze.', description: 'Analyzes data' });
+const lead = createAgent({ provider, subagents: { analyst }, subagentOptions: { continuation: false } });
+```
 
 المهمة المستأنفة أو المفروعة (forked) هي استدعاء `task` عادي في الباقي:
 تقدر تشغلها بالخلفية (وتحتفظ بنفس الـ`taskId`)، والـapproval داخلها توقف
@@ -195,6 +215,12 @@ const lead = createAgent({
 مع `AgentExecutor.execute()`، ألحق نفس الخيارات بقيمة `subagents`
 بـ`withSubagentOptions(subagents, options)` اللي ترجعها. وفي `createAgent()`
 تتقدّم `subagentOptions` على الخيارات الملحقة بهذه الطريقة.
+
+الـlead اللي ما يحتاج مهام خلفية أبدًا يقدر يشيلها بـ
+`subagentOptions: { background: false }`: وقتها الـlead ياخذ بس الـtool
+`task`، بدون وسيط `background` حقها، وبلوك الـprompt ما يذكر المهام
+الخلفية. وهذا يوفر الـschemas والنصوص حق الثلاث tools (كم مئة token) في كل
+طلب للـlead.
 
 الـsub-agent الخلفي يرث من run الـlead مثل المتزامن (hooks وtracing
 وevent listeners وتجميع الاستهلاك)، و`maxSubagentDepth` ينطبق نفس الشي.
@@ -487,11 +513,13 @@ sub-agents خاصة بهم: run عند الحد ببساطة ما تنعرض ل�
 | مستمعو الـevents (`onAgentEvent`، `createAgent({ onEvent })`) و`stream()` | نعم | events الـsub-agent تتمرر مع حقل `subagent`. |
 | `toolConcurrency` | نعم، إلا إذا الـsub-agent عيّن قيمته | |
 | `sandbox` | نعم | |
-| استهلاك الـtokens | يتجمّع | ينضاف لـ`result.usage` الخاصة بالـlead (الإجماليات و`byModel` و`usage.delegated`)؛ وللبعيد تحت `byModel['remote:<name>']`. |
+| استهلاك الـtokens | يتجمّع | ينضاف لـ`result.usage` الخاصة بالـlead (الإجماليات و`byModel` و`usage.delegated`، اللي `toolErrors` فيها تعدّ الـtool calls الفاشلة للـsub-agents) وينحسب ضمن `limits` حقه، حتى لو الـsub-agent فشل بعد ما صرف tokens؛ وللبعيد تحت `byModel['remote:<name>']`. |
+| `limits` الـtokens والتكلفة والمدة | مشتركة | الـsub-agent كمان مقيّد بحدود الـlead، محسوبة مع اللي صرفه الـlead والـsub-agents الثانية حقه اللي ما زالت شغالة: لما يوصلون للحدود، الـsub-agent يوقف (`'budget-exceeded'`) قبل استدعاء الـmodel أو الـtools التالي، والـlead يوقف قبل استدعاء الـmodel التالي حقه. راجع [Budgets](/ar/configuration#الميزانيات). |
 | `maxSubagentDepth` | الرصيد الباقي | راجع [Depth](#depth). |
 | `permissionMode` | نعم، إلا إذا كانت الخاصة بالـlead `'default'` | الـsub-agent يشتغل تحت [permission mode](/ar/permission-modes#الـ-sub-agents) الخاصة بالـlead، وتُقرأ عند كل tool call له؛ وطالما الخاصة بالـlead `'default'` يشتغل بالخاصة فيه (sub-agent وضعه `'plan'` يظل في plan دائمًا). الـremote sub-agent ما يرثها: plan mode يرفض استدعاء `task` إليه. |
 | `principal` | نعم | الطرف اللي يشتغل run الـlead لحسابه (مستدعي route auth، مرسل قناة)؛ والـremote sub-agent ما يُقال له. |
 | `metadata` | نعم | `metadata` الخاصة بـrun الـlead — hooks الـsub-agent تشوفها. |
+| `memory` | لا | خانات الذاكرة حق الـlead تظل للـlead. الـsub-agent اللي عنده `memory` خاصة فيه يسترجع منها في الـprompt حقه وياخذ memory tools خاصة فيه، بنطاق `sessionId` و`metadata` و`principal` الخاصة بـrun الـlead (راجع [Memory](/ar/memory#القيود)). |
 | `onLLMRequest` و`onToolCall` وباقي callbacks الخاصة بـrun واحد | لا | تصف run واحد؛ استخدم hooks أو event listener لتراقب الـsub-agents. |
 | `sessionId` / `checkpointStore` | لا | الـsub-agent ما ياخذ checkpoints خاصة فيه. إذا الـprocess ماتت وsub-agent شغال، الـlead المستأنف يعيد ذلك الاستدعاء `task`. |
 | `output` schema | لا | مخرجات الـsub-agent خاصة فيه: مع schema، `task` ترجع الكائن بعد الـvalidation كـJSON (راجع [المخرجات المنظمة](/ar/structured-output#sub-agents))؛ وبدونها، نص. |
