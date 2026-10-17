@@ -1,12 +1,6 @@
 ---
 title: "مجلدات agent"
 ---
-
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/agent-directories).
-</Warning>
-
 {/* Generated from docs/agent-directories.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 تقدر تعرّف الـ agent كمجلد. `loadAgentDir()` تقرأه وتستدعي `createAgent()` بالخيارات التي تصفها الملفات، فترجع بالضبط ما ترجعه `createAgent()`. يبقى الـ typed code API هو المرجع الأساسي: المجلد طريقة ثانية لكتابة نفس الخيارات، وتقدر تنتقل إلى الكود في أي وقت بدون إعادة كتابة.
@@ -35,7 +29,8 @@ my-agent/
   schedules/*.{ts,mts,cts,js,mjs,cjs}              # defineSchedule() cron schedules (see schedules.md)
   channels/*.{ts,mts,cts,js,mjs,cjs}               # a channel each: defineChannel(), webhookChannel(), ... (see channels.md)
   memory/*.{ts,mts,cts,js,mjs,cjs}                 # a memory slot each: defineMemory() (see memory.md); part of the agent
-  auth.{ts,mts,cts,js,mjs,cjs}                     # route auth for the deployed server: jwt(), oidc(), basic(), ... (see auth.md)
+  auth.{ts,mts,cts,js,mjs,cjs}                     # route auth for the deployed server: jwt(), oidc(), basic(), ... (see auth.md),
+                                                   # plus optional named authorizeSession / authorizeApproval exports
 ```
 
 مسموح بملف config واحد فقط. الملفات داخل `tools/` وعناصر `skills/` و`subagents/` تُقرأ مرتّبة، فيكون التحميل deterministic ويعطي نفس النتيجة كل مرة.
@@ -69,6 +64,9 @@ export default {
 | `approve` | `createAgent({ approve })`: مسار لملف يصدّر افتراضيًا دالة الـ approver، أو الدالة مضمّنة في config برمجي |
 | `approvalTtlMs` | `createAgent({ approvalTtlMs })`: المللي ثانية قبل أن تنتهي approval (موافقة) بلا رد؛ و`ttlMs` في قاعدة `ask` يغلب عليه |
 | `limits` | `createAgent({ limits })`، مثل `{ "maxCostUsd": 0.05 }` |
+| `modelSettings` | `createAgent({ modelSettings })`، مثل `{ "maxTokens": 1024, "temperature": 0.2 }`؛ راجع [إعدادات الـ model](/ar/configuration#تعليمات-المشروع) |
+| `retry` | `createAgent({ retry })`، مثل `{ "maxRetries": 4, "timeoutMs": 30000, "backoff": { "initialMs": 1000 } }`؛ `timeoutMs` يحدّ كل محاولة، و`false` يرسل كل استدعاء مرة واحدة. `retryOn` و`onRetry` و`signal` دوال، فهي لملفات config البرمجية فقط |
+| `output` | `createAgent({ output })`: Standard Schema (مثل كائن zod) يجب أن تطابقه الإجابة النهائية. في ملفات config البرمجية فقط (JSON/YAML لا يحمل schema)؛ ومن الكود، `loadAgentDir(dir, { output })` يعطي `result.object` نوعه أيضًا |
 | `store` | `createAgent({ store })`: القيمة `{ "dir": "./.lousho" }` (تُحَلّ نسبةً إلى مجلد الـ agent) تصبح `fileStore()` — الـ sessions والـ checkpoints والـ approvals المعلّقة تبقى بعد إعادة التشغيل؛ ويمكن ضبط `historyLimit` و`tokenKey` أيضًا. وفي config برمجي يمكن تمرير كائن `AgentStore` بدلًا منها. Node فقط |
 
 أي مفتاح غير معروف يعتبر خطأ مع اقتراح (`'modle' (did you mean 'model'?)`).
@@ -136,9 +134,17 @@ export default defineTool({
 
 ### Sub-agents
 
-كل مجلد داخل `subagents/` هو نفسه مجلد agent (ويمكن أن يكون له `subagents/` خاص به). لازم يحتوي `description` في الـ config. يحصل الأب على tool باسم `delegate_to_<name>` تشغّل الـ sub-agent بنص المهمة وترجع إجابته النهائية. الـ sub-agent يستخدم `model` الخاص فيه إن حدّده، وإلا ورث موديل الأب؛ أما `provider` override الممرَّر إلى `loadAgentDir()` فيصل إلى الجميع.
+كل مجلد داخل `subagents/` هو نفسه مجلد agent (ويمكن أن يكون له `subagents/` خاص به). لازم يحتوي `description` في الـ config. كل واحد منها sub-agent أصلي للأب: يدخل في خريطة `subagents` الخاصة بالأب، فيفوّض إليه الـ model الخاص بالأب عبر tool الـ `task` (راجع [Sub-agents](/ar/sub-agents)). ويحصل الأب أيضًا على tool باسم `delegate_to_<name>`، باقية كاسم بديل متوافق مع الإصدارات السابقة: تأخذ نص المهمة وترجع الإجابة النهائية للـ sub-agent، وتعمل عبر نفس الـ runtime الذي يعمل به `task`. الـ sub-agent يستخدم `model` الخاص فيه إن حدّده، وإلا ورث model الأب؛ أما `provider` override الممرَّر إلى `loadAgentDir()` فيصل إلى الجميع.
 
-مجلد sub-agent يضبط `"engine": "pi"` في الـ config يصير بدلًا من ذلك sub-agent من نوع Pi coding-agent: ينتهي في خريطة `subagents` الخاصة بالأب (tool الـ `task`) بدل الحصول على tool باسم `delegate_to_<name>`، والـ sessions (الجلسات) فيه تعمل داخل مجلد الأب — مساحة العمل التي تتشاركها file tools الخاصة بالأب وجلسة Pi. `model` يأخذ المعرّف المعتاد `pi/<provider>/<model>`، وقواعد `permissions` تتحكم في tool calls الخاصة بجلسة Pi (`read` و`bash` و`edit` و`write` وغيرها). باقي مفاتيح الـ config تُتجاهَل: Pi يحمل system prompt الخاص فيه وcoding tools الخاصة به. تشغيل sub-agent من نوع `pi` يحتاج الـ peer dependency الاختيارية `@earendil-works/pi-coding-agent` والـ Node runtime — هدف Cloudflare Worker يرفضه.
+في الحالتين يعمل الـ sub-agent داخل run الأب، مثل أي sub-agent في `createAgent()`:
+
+- قواعد `permissions` الخاصة بالأب تأتي أولًا في الـ sub-agent، فـ `deny('write_file')` على الأب يسري على الشجرة كلها؛
+- استدعاء من الـ sub-agent يحتاج approval يوقف run الأب مؤقتًا (`finishReason: 'awaiting-approval'`، و`subagentPath` في الـ approval المعلّقة يسمّي الـ sub-agent)، و`agent.approvals.resolve()` يكمله. الـ `approve` الخاص بمجلد الـ sub-agent نفسه يحسم استدعاءاته أولًا؛ وإن لم يوجد، يحسمها `approve` الممرَّر إلى `loadAgentDir()` في الكود، وإلا ينتظر الاستدعاء إنسانًا. ملف `approve` الخاص بمجلد الأب لا يحسم استدعاءات الـ sub-agents التابعة له؛
+- استهلاكه من الـ tokens يُضاف إلى استهلاك الأب (`result.usage.delegated`)، وأحداثه تصل إلى listeners الأب موسومة بـ `event.subagent`، والـ spans الخاصة به تتداخل تحت trace الأب.
+
+مجلدات `subagents/` المتداخلة ترفع `maxSubagentDepth` الخاص بالأب إلى عمق الشجرة (إلا إذا مرّرت قيمة بنفسك)، فيستطيع كل مستوى أن يفوّض.
+
+مجلد sub-agent يضبط `"engine": "pi"` في الـ config يصير بدلًا من ذلك sub-agent من نوع Pi coding-agent: يدخل في خريطة `subagents` الخاصة بالأب (tool الـ `task`) بدون الاسم البديل `delegate_to_<name>`، والـ sessions (الجلسات) فيه تعمل داخل مجلد الأب — مساحة العمل التي تتشاركها file tools الخاصة بالأب وجلسة Pi. `model` يأخذ المعرّف المعتاد `pi/<provider>/<model>`، وقواعد `permissions` تتحكم في tool calls الخاصة بجلسة Pi (`read` و`bash` و`edit` و`write` وغيرها). باقي مفاتيح الـ config تُتجاهَل: Pi يحمل system prompt الخاص فيه وcoding tools الخاصة به. تشغيل sub-agent من نوع `pi` يحتاج الـ peer dependency الاختيارية `@earendil-works/pi-coding-agent` والـ Node runtime — هدف Cloudflare Worker يرفضه.
 
 ```json
 // subagents/coder/agent.json
@@ -185,6 +191,21 @@ const { manifest } = await resolveAgentDir('./my-agent', {
 console.log(manifest.memory); // names found in memory/
 ```
 
+الـ `dir` النسبي في ملف `memory/*.ts` يُحَلّ نسبةً إلى مجلد العمل للعملية، لا إلى مجلد الـ agent (بخلاف `store.dir` في `agent.ts`، فهو نسبي إلى مجلد الـ agent). لذلك `./.lousho/memory` المجرّد يضع الذاكرة في شجرة غير شجرة الـ sessions، ويتغيّر مكانها عندما تشغّل الـ agent من مجلد آخر أو من build. اربطه بالـ module بدلًا من ذلك، فيقع دائمًا بجانب باقي حالة الـ agent:
+
+```ts
+// memory/notes.ts
+import { fileURLToPath } from 'node:url';
+import { fileMemory } from '@lousho/build-ai-agent';
+
+export default {
+  scope: 'global',
+  provider: fileMemory({ dir: fileURLToPath(new URL('../.lousho/memory', import.meta.url)) }),
+};
+```
+
+المسار يتبع الـ module: الـ build المنسوخ أو المحزَّم يُبقي ذاكرته بجانبه، فوجّهه إلى مسار مطلق ثابت (أو provider قاعدة بيانات) إذا كان لازم تبقى الذاكرة بعد إعادة النشر.
+
 ## كيف يقابل `createAgent()`
 
 | المجلد | خيار `createAgent()` |
@@ -193,7 +214,7 @@ console.log(manifest.memory); // names found in memory/
 | مفاتيح `agent.*` | الخيارات في الجدول أعلاه |
 | `tools/` | `tools: [...]` |
 | `skills/` | `skills: await loadSkills('./skills')` |
-| `subagents/<name>/` | مدخل `delegate_to_<name>` واحد ضمن `tools` |
+| `subagents/<name>/` | مدخل واحد في `subagents` (tool الـ `task`)، مع اسم بديل `delegate_to_<name>` ضمن `tools` |
 
 `resolveAgentDir()` ترجع الخيارات المجمَّعة وmanifest، وهذا مفيد للاختبارات والأدوات:
 
@@ -209,7 +230,7 @@ const agent = createAgent({ ...config, maxSteps: 3 });
 
 ## Overrides
 
-الوسيط الثاني يأخذ نفس خيارات `createAgent()` ويغلب على الملفات. استخدمه لتبديل الـ model في الاختبارات:
+الوسيط الثاني يأخذ نفس خيارات `createAgent()` ويغلب على الملفات. كل خيار يُمرَّر إلى الـ agent، بما فيها الخيارات التي لا يعلنها أي ملف (`guardrails` و`onEvent` و`retry` و`reasoning` و`redactContent` و`output` وغيرها). استخدمه لتبديل الـ model في الاختبارات:
 
 ```ts
 import { loadAgentDir } from '@lousho/build-ai-agent';
@@ -244,8 +265,8 @@ npx lousho dev ./my-agent
 npx lousho build ./my-agent --target=node-server    # or docker
 ```
 
-مجلد الـ agent هو وحدة النشر: الخادم المبني يحمّله بـ `resolveAgentDir()` عند الإقلاع، ويشغّل `schedules/` ويركّب `channels/` تحت `/channels`، ويحمي مسارات الدردشة بـ `auth.ts` إن وُجدت ([مصادقة المسارات والهويات](/ar/auth))، ويطبع ما وجده منها. ملفات الكود (الـ config، و`auth.ts`، وملف `hooks.*` / `approve.*` الجذري، و`tools/`، و`schedules/`، و`channels/`، و`memory/`، ومثلها في كل sub-agent) تُحزَّم إلى `dist/agent/**.js`، وتُنسَخ `instructions.md` (مع `instructions/<family>.md`) و`skills/` وملفات config بصيغة JSON/YAML بجانبها، فالخادم لا يحتاج TypeScript loader ولا مصادر ولا `node_modules`. راجع [النشر](/ar/deployment#مجلدات-الـagent). هدف Cloudflare Worker يبني مجلدًا أيضًا مع تضمين كل مجلد فرعي: `subagents/` تصبح `delegate_to_` tools، و`schedules/` تصبح cron triggers، و`channels/` تُركَّب تحت `/channels`، و`memory/` slots تعمل على `kvMemory()` ([Cloudflare Workers](/ar/cloudflare-workers#build-and-deploy)).
+مجلد الـ agent هو وحدة النشر: الخادم المبني يحمّله بـ `resolveAgentDir()` عند الإقلاع، ويشغّل `schedules/` ويركّب `channels/` تحت `/channels`، ويحمي مسارات الدردشة بـ `auth.ts` إن وُجدت ([مصادقة المسارات والهويات](/ar/auth))، ويطبع ما وجده منها. الدالة التي يصدّرها `auth.ts` باسم `authorizeSession` أو `authorizeApproval` تحدّد من يستطيع استخدام session ومن يستطيع حسم approval، مثل مدير يوافق على طلب معلّق لمستخدم ([من يستطيع حسم الموافقة](/ar/auth#من-يقدر-يحسم-الـ-approval))؛ وبدونهما يُبقي الخادم الإعدادات الافتراضية (الـ session والـ approvals الخاصة بها ملك للمستدعي الذي بدأها). ملفات الكود (الـ config، و`auth.ts`، وملف `hooks.*` / `approve.*` الجذري، و`tools/`، و`schedules/`، و`channels/`، و`memory/`، ومثلها في كل sub-agent) تُحزَّم إلى `dist/agent/**.js`، ولا يُنسَخ بجانبها إلا `instructions.md` (مع `instructions/<family>.md`) و`skills/` وملف config بصيغة JSON/YAML (ومثلها في كل sub-agent)، فالخادم لا يحتاج TypeScript loader ولا مصادر ولا `node_modules`. لا يُنسَخ أي شيء آخر: ملفات `.env`، ومخزن الـ sessions في `.lousho/` (أو `store.dir` في الـ config)، وأي ملف آخر تبقى خارج الـ build وصورة Docker الخاصة به. راجع [النشر](/ar/deployment#مجلدات-الـagent). هدف Cloudflare Worker يبني مجلدًا أيضًا مع تضمين كل مجلد فرعي: `subagents/` تصبح `delegate_to_` tools، و`schedules/` تصبح cron triggers، و`channels/` تُركَّب تحت `/channels`، و`memory/` slots تعمل على `kvMemory()` ([Cloudflare Workers](/ar/cloudflare-workers#build-and-deploy)).
 
-## ما لا يغطيه هذا
+## التقديم عبر MCP
 
-`lousho mcp` ما زال يأخذ ملف spec للـ agent ([الإعداد](/ar/configuration))، لا مجلدًا.
+`lousho mcp` يأخذ مجلد agent كما يأخذ ملف spec ([الإعداد](/ar/configuration)): `lousho mcp ./my-agent` يقدّمه كخادم MCP ([MCP](/ar/mcp-integration#annotations)).

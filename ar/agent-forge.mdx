@@ -1,12 +1,6 @@
 ---
 title: "Agent Forge"
 ---
-
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/agent-forge).
-</Warning>
-
 {/* Generated from docs/agent-forge.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 Agent Forge (`apps/agent-forge`) هو الـ dashboard المرئي المرافق لهذه الـ
@@ -43,9 +37,12 @@ npx lousho studio
 ```
 
 الأمر يشغّل سيرفر محلي واحد ويطبع الرابط (الافتراضي
-`http://127.0.0.1:4750`). افتحه في المتصفح وتشوف الـ canvas، والشريط
+`http://127.0.0.1:4750/?token=<random>`). افتح هذا الرابط بالضبط في المتصفح وتشوف الـ canvas، والشريط
 الأيسر (الـ agents المحفوظين + لوحة nodes وhooks)، والـ Inspector على
 اليمين، وdrawer سفلي فيه tabs Chat/Logs/Trace/Output/Settings.
+لما يكون العرض أقل من 860px، الشريط الأيسر والـ Inspector يصيرون لوحات
+منزلقة تفتحها من الشريط العلوي، وأزرار Debug وImport وExport وSave تنتقل
+لقائمة **More** (`⋯`) فيه.
 
 flags مفيدة:
 
@@ -56,10 +53,49 @@ npx lousho studio --prod            # force production mode (see below)
 npx lousho studio --dev             # force dev mode (monorepo only)
 ```
 
+### رمز الوصول
+
+الـ studio يقدر يخزّن مفاتيح الـ providers، ويبدأ runs، وينفّذ كود الـ
+hooks، فالـ API الخاص به مقفول على tab المتصفح اللي فتحته من الرابط
+المطبوع:
+
+- كل تشغيل يولّد token عشوائي ويطبعه في الرابط (`?token=...`). الصفحة
+  تحتفظ به لهذا الـ tab (يبقى بعد الـ reload) وترسله مع كل استدعاء API
+  (header `x-lousho-studio-token`) ومع الـ WebSocket (query `?token=`).
+  أي طلب بدونه يرجع `401`. لو فتحت `http://127.0.0.1:4750` بدون token
+  في tab جديد، الصفحة تنفتح لكن استدعاءات الـ API فيها تفشل لين تستخدم
+  الرابط المطبوع.
+- السيرفر ما يرسل أي CORS headers، ويرفض (`403`) أي طلب `Origin` حقه
+  مو origin الـ studio نفسه، أو `Host` حقه مو اسم loopback
+  (`localhost`، `127.0.0.1`، `[::1]`) ولا الـ `--host` اللي ربطت عليه. مع
+  `--host 0.0.0.0` أي `Host` ينقبل، والـ token يصير الحماية الوحيدة.
+- `GET /health` والـ client الـ static ما يحتاجون token.
+
+من `curl`، مرّر الـ token: `curl -H "x-lousho-studio-token: $TOKEN" localhost:4750/agents`.
+
+`lousho studio` يمرّر هذي القيم للعمليات اللي يشغّلها عبر متغيرات بيئة؛
+ما تحتاج تضبطها بنفسك إلا لما تشغّل سيرفر الـ studio بدون الـ CLI:
+
+| المتغير | يقرؤه | المعنى |
+| --- | --- | --- |
+| `LOUSHO_STUDIO_TOKEN` | API server الخاص بالـ studio | رمز الوصول. إذا ما انضبط، السيرفر يولّد واحد عشوائي لكل تشغيل. |
+| `LOUSHO_STUDIO_ALLOWED_ORIGINS` | API server الخاص بالـ studio | origins إضافية مفصولة بفواصل تنقبل غير origin الـ studio نفسه (وضع dev يضبطها على origin الـ Vite dev server). |
+| `LOUSHO_STUDIO_API_URL` | الـ Vite dev server (وضع dev) | وين يمرّر استدعاءات الـ API (الافتراضي `http://127.0.0.1:4750`). |
+
+### وين تعيش الـ agents
+
 `lousho studio` يحفظ ملفات specs الـ agents وحالة الـ runs تحت `.lousho/`
 في المجلد اللي شغّلته منه: ملفات YAML للـ agents تحت `.lousho/agents/`،
 وبجانبها الـ checkpoints (نقاط الحفظ) والـ approvals. نفس ترتيب `.lousho/`
 اللي يستخدمه `lousho dev` و`lousho build`.
+
+الشريط الأيسر يعرض بالضبط الـ agents الموجودة في `.lousho/agents/` هذا:
+أي ملف YAML تضيفه هناك يظهر، وأي agent تنشئه في الـ studio ينكتب هناك
+فورًا (الـ autosave و**Save** الاثنين يكتبون الملف)، فتقدر تحاوره على
+طول. مشروع ثاني، مفتوح في `lousho studio` خاص به، يعرض الـ agents حقته
+فقط. المتصفح ما يحتفظ بشي إلا مسودة لتعديل ما قدر يوصل للسيرفر (تنرسل
+في التحميل الجاي)، محفوظة لكل مجلد workspace على حدة. أي ملف في
+`.lousho/agents/` ما عاد ينقرأ صح يتم تخطيه مع تحذير في سجل السيرفر.
 
 ### وضع production ووضع dev
 
@@ -83,17 +119,25 @@ npx lousho studio --dev             # force dev mode (monorepo only)
 1. **أنشئ agent.** في tab "Agents" بالشريط الأيسر، اضغط **New**، سمّه،
    واختر قالب بداية. أسرع طريق للتجربة بدون مفاتيح API هو **Blank
    graph** — node `llm` واحد يستخدم الـ `mock` provider المدمج. Agent
-   Forge ينشئ الـ agent ويفتحه على الـ canvas.
+   Forge ينشئ الـ agent بهذا الاسم (`.lousho/agents/<name>.yaml`، مع
+   `name: <name>` في الـ spec) ويفتحه على الـ canvas. بطاقة الـ agent
+   المفتوح فيها **Rename** و**Delete**. الـ Rename ينقل الـ spec للاسم
+   الجديد؛ المحادثات والـ traces والـ checkpoints السابقة تبقى تحت الاسم
+   القديم.
 2. **شوف الـ graph.** الـ agent الفارغ هو node `llm` واحد. اسحب nodes
    إضافية من اللوحة في الشريط الأيسر (**Trigger**، **LLM step**، **Tool
-   call**، **Approval gate**، **Response / output**) ووصّلهم ببعض بالسحب
-   بين الـ handles. اضغط على node لتعدّل إعداداته (prompt،
+   call**، **Approval gate**، **Response / output**)، أو اضغط على عنصر في
+   اللوحة (أو اضغط Enter عليه) حتى تضيفه في وسط الـ canvas، ووصّلهم ببعض
+   بالسحب بين الـ handles. اضغط على node لتعدّل إعداداته (prompt،
    provider/model، tools، breakpoints) في الـ Inspector على اليمين.
 3. **شغّله.** اضغط **Run** في الشريط العلوي. مع الـ `mock` provider ما
    في شي يحتاج إعداد — يرجّع مخرجات جاهزة وثابتة، وهذا بالضبط المطلوب
    حتى تجرب باقي الواجهة بدون مفتاح API لـ LLM حقيقي. الـ status pill في
-   الشريط العلوي يتتبع الـ run (`running` → `idle`/`error`/`awaiting
-   approval`).
+   الشريط العلوي يتتبع الـ run (`running` → `done`، أو `stopped` بعد ما
+   تضغط **Stop**، أو `error`، أو `awaiting approval`). الـ Run يرسل prompt
+   ثابت، وtab الـ Chat يعرضه كفقاعة **Run input** بدل ما يعرضه كرسالة
+   منك. إذا سيرفر الـ studio وقف، يظهر banner يقول إن الاتصال انقطع،
+   والـ studio يرجع يتصل لما السيرفر يرجع.
 4. **تابعه في الـ debug console.** افتح tab **Logs** في الـ drawer
    السفلي لسجل حي تقدر تفلتره لأحداث الـ run
    (trigger/llm/tool/sandbox/checkpoint/approval)، أو **Trace** لـ
@@ -115,7 +159,7 @@ npx lousho studio --dev             # force dev mode (monorepo only)
    نفسها اللي يقرأها `lousho traces`، في
    `.lousho/agents/<agent id>/traces/<day>/<trace id>.jsonl` تحت المجلد
    اللي بدأت `lousho studio` منه (انظر
-   [التتبّعات المحلية](/ar/observability#local-traces)):
+   [التتبّعات المحلية](/ar/observability#backends)):
    `npx lousho traces --dir .lousho/agents/<agent id>/traces` يعرض نفس
    الـ runs في الـ terminal، وحذف مجلد الـ agent يحذف الـ traces الخاصة
    به. الـ tab يعرض محتوى الـ spans: أسماء الـ models والـ tools، أعداد
@@ -151,7 +195,8 @@ canvas.
    فيهما الخارج فعليًا.
 2. افتح قسم **Hooks** في الـ Inspector. اسحب **Pre-hook** أو
    **Post-hook** من لوحة الشريط الأيسر وأفلته على الـ node — أو أفلته
-   مباشرة في قسم Hooks — لإرفاق hook جديد. يعطيك اختيار من قوالب بداية
+   مباشرة في قسم Hooks — أو اضغط على العنصر في اللوحة والـ node محدد،
+   لإرفاق hook جديد. يعطيك اختيار من قوالب بداية
    (`redact-pii`، `rate-limit`، `audit-log`، `inject-context`) تبدأ منها
    وتعدلها.
 3. اضغط على chip الـ hook لتحدده، وعدّل كوده في محرر CodeMirror. الكود
@@ -193,7 +238,7 @@ Agent Forge يحتفظ بكل الـ checkpoints لكل run، لا الأخير�
 store الخاص به (`server/checkpointStore.ts`) يحتفظ بنفس السجل المحدود اللي
 يحتفظ به `LocalStorageCheckpointStore` في الـ SDK — أحدث 50 حفظة لكل run،
 تحت `.lousho/agents/<id>/checkpoint-history/` (انظر [سجل الـ
-checkpoints](/ar/durable-execution#checkpoint-history)). من هذا
+checkpoints](/ar/durable-execution#التوافق-مع-البيانات-المخزنة)). من هذا
 السجل تقدر تعمل fork (تفريع) لـ run عند أي خطوة، تغيّر اللي صار فيها،
 وتعيد تشغيله بجانب الأصل —
 [`AgentExecutor.fork()`](/ar/durable-execution#fork-و-replay)
@@ -235,14 +280,15 @@ runs الخاصة بالـ agent نفسه، و`<id>.fork-<n>` لـ fork من ا�
 التسلسل لـ agent اسمه `weather` شغّلته مرة واحدة:
 
 ```bash
-curl localhost:4750/runs/weather/history
+# $TOKEN is the ?token= value `lousho studio` printed
+curl -H "x-lousho-studio-token: $TOKEN" localhost:4750/runs/weather/history
 # {"runId":"weather","steps":[{"step":1,"status":"finished","finishReason":"stop","toolCalls":[],"tokens":...}]}
 
-curl -X POST localhost:4750/runs/weather/fork -H 'content-type: application/json' \
+curl -X POST localhost:4750/runs/weather/fork -H "x-lousho-studio-token: $TOKEN" -H 'content-type: application/json' \
   -d '{"fromStep":1,"patch":{"appendInput":"And in Celsius?"}}'
 # {"runId":"weather.fork-1","fromStep":1,"status":{"status":"running",...}}
 
-curl 'localhost:4750/runs/compare?a=weather&b=weather.fork-1'
+curl -H "x-lousho-studio-token: $TOKEN" 'localhost:4750/runs/compare?a=weather&b=weather.fork-1'
 # {"a":[...],"b":[...],"divergedAt":2,"drift":[{"field":"steps","committed":"1","current":"2"}]}
 ```
 
@@ -261,6 +307,22 @@ adapter — `node-server` أو `docker` أو `cloudflare-worker` — ويشغّ�
 الخاصة بهم، نفس طريقة `lousho dev` و`lousho build` (انظر
 [الإعداد](/ar/configuration))، والـ `mock` provider ما يحتاج credentials.
 
+المفاتيح المخزّنة مشفّرة بـ AES-256-GCM في `.lousho/secrets.json`. مفتاح
+التشفير يتولّد أول مرة تحتاجه وينحفظ جنبه في `.lousho/secrets.key`
+(الاثنين بصلاحية `0600` على POSIX). هذا يبعد المفاتيح عن أي شي ينسخ النص
+المشفّر وحده — backup، أو zip للمشروع، أو YAML لـ agent تشاركه — لكن أي
+أحد يقدر يقرأ الملفين باسم مستخدمك يقدر يفك تشفيرهم. هذا مو keychain
+النظام. خلّ `.lousho/` خارج الـ version control وخارج الأرشيفات اللي
+تشاركها، وفضّل متغيرات البيئة على الأجهزة المشتركة.
+
+الـ agent اللي الـ provider حقه ما عنده مفتاح (لا مفتاح مخزّن ولا متغير
+بيئة) ما يشتغل. **Run** و**Chat** يفشلون بـ
+`LOUSHO_PROVIDER_MISSING_API_KEY` ورسالة تقول الحل: أضف المفتاح في
+Settings، أو اضبط متغير البيئة، أو غيّر provider الـ agent إلى `mock`. الـ
+studio أبدًا ما يبدّل للـ mock provider من نفسه. الـ provider pill في
+الشريط العلوي يعرض الـ `provider/model` اللي الـ agent يشتغل عليه فعليًا،
+والـ agent اللي يستخدم mock عليه شارة **MOCK**.
+
 ## وضع التطوير
 
 إذا كنت تشتغل داخل الـ monorepo الخاص بالـ SDK نفسها — تساهم في Agent
@@ -276,7 +338,8 @@ npx lousho studio --dev   # or just `npx lousho studio` before building
 
 هذا يشغّل الـ API server مباشرة من TypeScript (`tsx`)، ومعه Vite dev
 server حقيقي مع hot-module reload لـ `apps/agent-forge/src/**`، كعمليتين
-تشتغلان جنب بعض. وحتى تبني حزمة الـ production اللي يستخدمها الباقي —
+تشتغلان جنب بعض. افتح الرابط المطبوع `http://localhost:5173/?token=...`؛
+Vite مثبّت على port 5173 والـ API server يقبل هذا الـ origin. وحتى تبني حزمة الـ production اللي يستخدمها الباقي —
 وتتحقق من اللي يُشحن فعلًا:
 
 ```bash

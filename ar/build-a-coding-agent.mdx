@@ -2,12 +2,6 @@
 title: "ابنِ coding agent"
 sidebarTitle: "ابنِ coding agent"
 ---
-
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/build-a-coding-agent).
-</Warning>
-
 {/* Generated from docs/build-a-coding-agent.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 هذه الصفحة تبني coding agent يشتغل في الـ terminal على طريقة Claude Code: يقرأ ملفات مشروعك ويعدّلها، يشغّل أوامر، يسألك قبل ما يكتب ملف أو يشغّل شي خطر، ويخلّي المحادثة مكملة لأسئلة المتابعة. تحتاج Node 22، ومفتاح API في متغيّر البيئة اللي يتوقعه الـ provider (`OPENAI_API_KEY` للـ model المستخدم هنا)، ومجلد مشروع تشغّله فيه. الملف الجاهز في آخر [الخطوة 5](#5-خلي-المحادثة-شغالة)، وتشغّله هكذا `npx tsx coding.ts "Fix the failing test"`.
@@ -43,7 +37,7 @@ const tools = [
 ];
 ```
 
-أداة الـ shell تطلب approval افتراضيًا (`needsApproval: true`)؛ الـ predicate فوق يخلّي أي شي ثاني، مثل `npm test` أو `git status`، يشتغل بدون سؤال. الطريقة الثانية لتخطّي السؤال هي قائمة `allow` بالأوامر اللي تثق فيها مع `needsApproval: false`، مثل ما هو مكتوب في أول [Workspace tools](/ar/workspace-tools). الـ regex تسهيل، ما هو حد أمني: أمر الـ shell ينكتب بطرق كثيرة. لأي شي ما تتحكم فيه، خلي الافتراضي ووافق على كل أمر، أو شغّل الـ shell داخل sandbox (راجع `SandboxShell` في [Workspace tools](/ar/workspace-tools#sandboxed-shell-sandboxshell)).
+أداة الـ shell تطلب approval افتراضيًا (`needsApproval: true`)؛ الـ predicate فوق يخلّي أي شي ثاني، مثل `npm test` أو `git status`، يشتغل بدون سؤال. الطريقة الثانية لتخطّي السؤال هي قائمة `allow` بالأوامر اللي تثق فيها مع `needsApproval: false`، مثل ما هو مكتوب في أول [Workspace tools](/ar/workspace-tools). استخدم هناك قواعد دقيقة مثل `{ command: 'npm test' }`: النص العادي مثل `'npm test'` يسمح بالأمر مع أي arguments، بما فيها flags تكتب خارج الـ workspace. الـ regex تسهيل، ما هو حد أمني: أمر الـ shell ينكتب بطرق كثيرة. لأي شي ما تتحكم فيه، خلي الافتراضي ووافق على كل أمر، أو شغّل الـ shell داخل sandbox (راجع `SandboxShell` في [Workspace tools](/ar/workspace-tools#sandboxed-shell-sandboxshell)).
 
 ## 3. شغّله وتابع الـ stream
 
@@ -159,7 +153,14 @@ try {
 }
 ```
 
-أول مهمة تجي من سطر الأوامر (أو من prompt إذا ما فيه مهمة)؛ بعد كل رد البرنامج يسأل عن السطر التالي، وسطر فاضي أو `exit` ينهي البرنامج. الـ session تعيش في الذاكرة، فتنتهي مع انتهاء العملية؛ إذا تريد محادثة تبقى بين runs، أعطِ الـ agent store (مخزن) (راجع [اختيار store](/ar/sessions#choosing-a-store)).
+أول مهمة تجي من سطر الأوامر (أو من prompt إذا ما فيه مهمة)؛ بعد كل رد البرنامج يسأل عن السطر التالي، وسطر فاضي أو `exit` ينهي البرنامج. الـ session تعيش في الذاكرة، فتنتهي مع انتهاء العملية؛ إذا تريد محادثة تبقى بين runs، أعطِ الـ agent store (مخزن) (راجع [اختيار store](/ar/sessions#تعليمات-المشروع)).
+
+### الـ turns الطويلة وإعادة التشغيل
+
+- **السياق.** الـ turn في coding agent يقرأ ملفات ويشغّل اختبارات ويعدّل على مدى خطوات كثيرة؛ وكل نتيجة tool تبقى في الـ transcript، فـ turn من 40 خطوة ممكن يتجاوز نافذة سياق (context window) بحجم 128k token قبل ما يخلص. مرّر `createAgent({ compaction: true })` (أو دالة تلخيص، راجع [ضغط السياق](/ar/compaction)): يضغط السياق قبل كل استدعاء للـ model، حتى بين خطوات الـ turn الواحد.
+- **الانهيار.** مع store متين، الـ turn اللي انقتل في النص يكمّله `session.send()` التالي أو `session.resume()`. والـ tool call اللي كان شغّال لما العملية ماتت يشتغل مرة ثانية ([at-least-once](/ar/durable-execution#متقدم-executor-api)). و`write_file` و`edit_file` المدمجتين آمنتين لإعادة التشغيل: `write_file` تكتب نفس المحتوى مرة ثانية، و`edit_file` اللي تعديلها موجود أصلًا في الملف (`old_string` اختفى و`new_string` موجود) تنجح برسالة "the edit was already applied" بدل ما تفشل. ومع [`WorkspaceCheckpoints`](/ar/workspace-tools#الأدوات)، نسخة احتياطية لكل تغيير تنحفظ قبل كتابة الملف، وإعادة التشغيل تحتفظ بأول نسخة، فـ `rewind()` يرجّع الأصل حتى بعد الانهيار.
+- **عرض التقدّم أثناء الاستئناف.** `session.resume()` ترجع نتيجة، مو stream، و`session.stream()` ما تبث الـ turn المعلّق اللي تكمّله قبل الرسالة الجديدة. لعرض التقدّم، سجّل `session.on((event) => ...)` قبل الاستدعاء، أو مرّر `createAgent({ onEvent })`: الاثنين يستلمون `AgentEvent`s حق الـ turn المستأنف (`tool.start`، `text.delta`، ...، `run.done`) أول بأول.
+- **الـ approvals بعد إعادة التشغيل.** `agent.approvals.streamResolve({ id, approved })` (أو `resolve()`) من process جديد، بنفس الـ store المتين، يكمّل الـ turn المتوقف في الـ session حقه؛ بدون ما تستدعي `session.resume()` قبلها.
 
 ## 6. اختبره بدون model
 

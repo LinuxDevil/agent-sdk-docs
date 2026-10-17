@@ -2,12 +2,6 @@
 title: "AI SDK UI (useChat)"
 sidebarTitle: "AI SDK UI (useChat)"
 ---
-
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/ai-sdk-ui).
-</Warning>
-
 {/* Generated from docs/ai-sdk-ui.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 إذا كان الـ front end عندك يستخدم أصلًا الـ UI hooks في Vercel AI SDK (`useChat` من `@ai-sdk/react` ومثيلاتها في Vue وSvelte وAngular)، تقدر تخليها على حالها وتشغّل Lousho agent خلف الـ route. ثلاث دوال مُصدَّرة من جذر الحزمة تتولى التحويل. ما تستورد شيء من `ai`، وما تستخدم أي `node:*` module، وتشتغل على Node وWorkers وأي runtime مبني على Fetch.
@@ -81,7 +75,7 @@ export function Chat() {
 | `tool.partial` | `tool-output-available` مع `preliminary: true` (AI SDK 5 فما فوق): snapshot من [streaming tool](/ar/tools#streaming-للنتائج-الجزئية) |
 | `tool.done` / `tool.error` | `tool-output-available` / `tool-output-error` |
 | `approval.requested` | `data-lousho-approval` (أدناه) |
-| `todo.updated` | `data-lousho-todos`: data part بالشكل `{ todos, counts }` فيه قائمة الـ todos كاملة، بنفس الـ id `todos` فكل تحديث يستبدل اللي قبله (راجع [Todo tools](/ar/tools#todo-tools)) |
+| `todo.updated` | `data-lousho-todos`: data part بالشكل `{ todos, counts }` فيه قائمة الـ todos كاملة، بنفس الـ id `todos` فكل تحديث يستبدل اللي قبله (راجع [Todo tools](/ar/tools#متقدم-toolregistry)) |
 | `error` | `error` |
 | `run.done` | `finish` |
 
@@ -123,5 +117,7 @@ export function Chat() {
 ## تحويل الرسائل الواردة
 
 `fromUIMessages()` تحوّل الـ text parts إلى نص، والـ file parts من نوع `image/*` إلى image parts، وباقي الـ file parts إلى file parts — والـ `url` الخاص بالـ part (عنوان `data:` أو `http(s)`) يصير هو البيانات. أجزاء الـ tool وreasoning وdata وsource وأي جزء غير معروف تتجاهلها، والرسائل اللي تطلع فاضية تحذفها.
+
+الرسائل تجي من الـ client، فما يُحتفظ إلا برسائل `user` و`assistant`: رسالة `system` (أو أي role ثاني، أو أي عنصر ما هو رسالة أصلًا) تُحذف، حتى ما يقدر المستدعي يضيف تعليمات إلى الـ prompt الخاص بالـ agent. حدّد التعليمات على الـ agent نفسه (`createAgent({ instructions })`)، مو في الطلب.
 
 ممكن ينضاف لاحقًا subpath مخصص `@lousho/build-ai-agent/ai-sdk-ui`؛ حاليًا الدوال تجي من جذر الحزمة.
