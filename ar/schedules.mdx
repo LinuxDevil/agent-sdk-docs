@@ -1,15 +1,9 @@
 ---
 title: "Schedules"
 ---
-
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/schedules).
-</Warning>
-
 {/* Generated from docs/schedules.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-الـ **schedule** يشغّل الـ agent على تعبير cron، بدون أن يطلبه أحد: ملخص صباحي، تنظيف ليلي. تعرّف واحدًا بـ `defineSchedule()`، ومجلد الـ agent يلتقطها من `schedules/`، و`startSchedules()` (أو سيرفر node) يشغّلها داخل العملية. الـ schedules بديل عن `CronTriggerAdapter` الـ deprecated (راجع [Triggers](/ar/triggers#جداول-cron)).
+الـ **schedule** يشغّل الـ agent على تعبير cron، بدون أن يطلبه أحد: ملخص صباحي، تنظيف ليلي. تعرّف واحدًا بـ `defineSchedule()`، و[مجلد الـ agent](/ar/agent-directories) يلتقطها من `schedules/`، و`startSchedules()` (أو سيرفر node) يشغّلها داخل العملية. الـ schedules حلّت محل `CronTriggerAdapter` (راجع [الانتقال من الـ triggers](/ar/upgrading#الانتقال-من-الـ-triggers)).
 
 ## عرّف schedule
 
@@ -30,14 +24,56 @@ const cleanup = defineSchedule({
 });
 
 const running = startSchedules(agent, [morning, cleanup]);
-// later, on shutdown:
-running.stop();
+// later, on shutdown (resolves once the runs in flight have finished):
+await running.stop();
 ```
 
 - `cron`: خمسة حقول (`minute hour day-of-month month day-of-week`) أو `@hourly` أو `@daily` أو `@weekly` أو `@monthly`، ويُحسَب في `timezone` (اسم IANA، والافتراضي منطقة الجهاز الزمنية). إذا كان التعبير غير صالح، أو حدّدت `prompt` و`run` معًا، أو ما حدّدت أي واحد منهما، `defineSchedule()` يرمي `LOUSHO_SCHEDULE_INVALID` مباشرة — لا عند أول firing. راجع [الأخطاء](/ar/errors#lousho_schedule_invalid).
 - `run` تستقبل `{ agent, firedAt, name }`.
 
-`startSchedules(agent, schedules, { now?, setTimer?, onError? })` يحتفظ بمؤقّت واحد لكل schedule. أي run يرمي خطأ يروح إلى `onError` (الافتراضي: `console.error`) ولا يوقّف باقي الـ schedules أبدًا. الـ schedule لا يتداخل مع نفسه: لو الـ firing السابق ما زال شغّالًا، يتخطّى `startSchedules` الإطلاق التالي ويبلّغ `onError`. والـ fires التي فاتت أثناء تعليق العملية يتخطّاها بدل إعادة تشغيلها. `now` و`setTimer` تحقنهما بنفسك حتى لا تنام الاختبارات أبدًا.
+`startSchedules(agent, schedules, { now?, setTimer?, onError?, keepAlive? })` يحتفظ بمؤقّت واحد لكل schedule. أي run يرمي خطأ يروح إلى `onError` (الافتراضي: `console.error`) ولا يوقّف باقي الـ schedules أبدًا. والـ turn الخاص بـ prompt schedule إذا انتهى بأي `finishReason` غير `'stop'` يُعتبَر run فاشلًا أيضًا: `onError` يستقبل خطأ `LOUSHO_SCHEDULE_RUN_INCOMPLETE` يذكر السبب، مثلًا `'awaiting-approval'` (مع id الـ approval المعلّقة، وتبقى معلّقة إلى أن تحسمها بـ `agent.approvals.resolve()`)، أو `'output-invalid'` أو `'max-steps'`. الـ schedule لا يتداخل مع نفسه: لو الـ firing السابق ما زال شغّالًا، يُتخطّى الإطلاق التالي ويُبلَّغ به `onError`. والـ fires التي فاتت أثناء تعليق العملية تُتخطّى بدل إعادة تشغيلها. `now` و`setTimer` قابلان للحقن حتى لا تنام الاختبارات أبدًا.
+
+`stop()` يمسح المؤقّتات، فلا ينطلق شيء بعدها، ويرجع promise يُحسَم بعد أن تنتهي الـ runs الجارية فعلًا. يمكنك استدعاؤه بدون `await`.
+
+المؤقّتات unref'd: لا تُبقي العملية حيّة بمفردها أبدًا، فالسيرفر أو الاختبار ينتهي بشكل طبيعي. لذلك السكربت الذي لا يفعل شيئًا غير تشغيل الـ schedules سينتهي فورًا؛ مرّر `keepAlive: true` لهذه الحالة:
+
+```ts
+import { createAgent, createMockProvider, defineSchedule, startSchedules } from '@lousho/build-ai-agent';
+
+const agent = createAgent({ instructions: 'You write reports.', provider: createMockProvider() });
+const running = startSchedules(agent, [defineSchedule({ cron: '@hourly', prompt: 'Check the queue.' })], { keepAlive: true });
+process.once('SIGTERM', () => void running.stop().then(() => agent.close()));
+```
+
+## شغّل schedule الآن
+
+`fireSchedule(agent, schedule, { name?, firedAt?, sessionId? })` يطلق الـ schedule مرة واحدة، فورًا، تمامًا كما تفعل الـ tick: يستدعي `run`، أو يرسل `prompt` كـ turn (في `sessionId` إذا أعطيته، وهذا يحتاج agent له store؛ وافتراضيًا كل firing يعمل في session خاصة به، `schedule-<name>-<fire time>`، عندما يكون للـ agent ‏store، و`schedule-<name>` عندما يحدّد الـ schedule ‏`sharedSession: true`). ويرفض (reject) عندما يفشل الـ run، بما في ذلك بـ `LOUSHO_SCHEDULE_RUN_INCOMPLETE`، فهو مناسب لأمر "run now" في العمليات وللاختبارات.
+
+مع `store` للـ agent (ملف، SQLite، KV أو `memoryStore()`)، كل firing يحجز أولًا اسم الـ schedule ووقت الإطلاق (بدقة الثانية) في `store.checkpoints`، فعدة نسخ (replicas) تشغّل `startSchedules()` على store واحد تطلق كل tick مرة واحدة فقط: النسخ التي تخسر الحجز تُحسَم بدون تشغيل أي شيء. وإطلاقان يدويان لنفس الـ schedule في نفس الثانية يُحسَبان tick واحدة أيضًا. على KV الحجز best effort عبر مواقع الـ edge (راجع [التنفيذ المتين](/ar/durable-execution#run-leases)).
+
+```ts
+import { createAgent, createMockProvider, defineSchedule, fireSchedule } from '@lousho/build-ai-agent';
+
+const agent = createAgent({ instructions: 'You write reports.', provider: createMockProvider() });
+const report = defineSchedule({ name: 'report', cron: '0 9 * * *', prompt: 'Run the daily report.' });
+await fireSchedule(agent, report);
+```
+
+## الـ prompt schedules والـ sessions
+
+إطلاق الـ prompt schedule هو run من نوع `agent.send(prompt, { sessionId })`، وليس turn من نوع `agent.session({ id })` (راجع [نوعان من معرّف المحادثة](/ar/sessions#two-kinds-of-conversation-id)). الـ id الخاص به `schedule-<name>-<fire time>` (و`schedule-<name>` مع `sharedSession: true`)، ومحادثته تُحفَظ في `store.checkpoints` الخاص بالـ agent، كـ checkpoint منتهية، إذا كان للـ agent واحد؛ وبدون checkpoint store يعمل الإطلاق بلا id ولا يحفظ شيئًا. `GET /chat/<id>` و`agent.session({ id }).load()` يقرآن من الـ session store، فيعرضان transcript فارغًا لـ id خاص بـ schedule. اقرأ تقرير الإطلاق من الـ checkpoint store بدلًا من ذلك، أو أكمله بـ `agent.fork(id)`:
+
+```ts
+import { createAgent, createMockProvider, defineSchedule, fireSchedule, memoryStore } from '@lousho/build-ai-agent';
+
+const store = memoryStore();
+const agent = createAgent({ instructions: 'You write reports.', provider: createMockProvider(), store });
+const firedAt = new Date('2026-10-05T09:00:00Z');
+await fireSchedule(agent, defineSchedule({ name: 'weekly-report', cron: '0 9 * * MON', prompt: 'Summarise last week.' }), { firedAt });
+
+const fire = await store.checkpoints.load('schedule-weekly-report-2026-10-05T090000Z');
+console.log(fire?.status, fire?.messages.at(-1)?.content); // 'finished', the report
+```
 
 ## في مجلد الـ agent
 
@@ -79,7 +115,7 @@ triggers:
     input: Summarise last week.
 ```
 
-`lousho build` يكتب التعبيرات بعد إزالة المكرر في `[triggers] crons`، و`scheduled()` في الـ Worker يشغّل كل trigger يساوي `cron` فيه التعبيرَ المستدعى، كـ turn للـ agent داخل `ctx.waitUntil()`. كل trigger له session خاصة به، `schedule-<name>`، فيمكنك فحص تشغيلاته في الـ session store على KV عند ربط `AGENT_CHECKPOINTS` (`GET /chat/schedule-weekly-report`). الـ run يتم داخل `ctx.waitUntil()`، بعد انتهاء عمر الطلب، فأعطِ الـ agent ‏store ‏(`KVStore` على `AGENT_CHECKPOINTS`) — الـ in-memory store يحفظ جلسات `schedule-<name>` فقط إلى أن يُعاد تدوير الـ isolate. إذا فشل trigger يُسجَّل بـ `console.error` (الاسم ورمز الخطأ) ولا يوقّف الباقي أبدًا، و`scheduled()` لا يرمي أبدًا.
+`lousho build` يكتب التعبيرات بعد إزالة المكرر في `[triggers] crons`، و`scheduled()` في الـ Worker يشغّل كل trigger يساوي `cron` فيه التعبيرَ المستدعى، كـ turn للـ agent داخل `ctx.waitUntil()`. كل firing له session خاصة به، `schedule-<name>-<fire time>` (مثلًا `schedule-weekly-report-2026-10-05T090000Z`)، فالمهمة اليومية لا تعيد إرسال كل التقارير السابقة، ويمكن قراءة الـ run الخاص به من الـ checkpoints في KV عند ربط `AGENT_CHECKPOINTS` (راجع [الـ prompt schedules والـ sessions](#الـ-prompt-schedules-والـ-sessions)؛ وليس عبر `GET /chat/<id>`). حدّد `sharedSession: true` على prompt schedule معرَّف بـ `defineSchedule()` لتحتفظ بـ session واحدة `schedule-<name>` بدلًا من ذلك؛ وعندها تكبر محادثتها مع كل firing. الـ run يتم داخل `ctx.waitUntil()`، بعد انتهاء عمر الطلب، فأعطِ الـ agent ‏store ‏(`KVStore` على `AGENT_CHECKPOINTS`) — الـ in-memory store يحفظ sessions الـ schedule فقط إلى أن يُعاد تدوير الـ isolate. إذا فشل trigger يُسجَّل بـ `console.error` (الاسم ورمز الخطأ) ولا يوقّف الباقي أبدًا، و`scheduled()` لا يرمي أبدًا. والـ turn الذي ينتهي بـ `finishReason` غير `'stop'` يُسجَّل بنفس الطريقة، كـ `LOUSHO_SCHEDULE_RUN_INCOMPLETE`.
 
 الـ cron triggers في Cloudflare تختلف عن التي تعمل داخل العملية، لذلك يفشل البناء بـ `LOUSHO_SCHEDULE_INVALID` مع ذكر اسم الـ trigger، بدل أن يُخرج config يُنشَر ولا ينطلق أبدًا: التعبيرات بتوقيت UTC (لا `timezone`)، وخمسة حقول بالضبط (بلا ثوانٍ وبلا `@daily`)، ويوم الأسبوع لازم يكون `*` أو أسماء (`MON-FRI`)، لأن Cloudflare ترقّم الأيام من 1 إلى 7 بدءًا من الأحد. أصغر فاصل زمني ممكن دقيقة واحدة، وقد تبدأ Cloudflare الـ run متأخرةً بضع ثوانٍ.
 

@@ -1,15 +1,11 @@
 ---
 title: "Tools"
 ---
-
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/tools).
-</Warning>
-
 {/* Generated from docs/tools.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 الـ tool هو دالة typed يقدر الـ model يستدعيها. عرّفه بـ `defineTool()`: أنواع الوسائط والنتيجة تُستنتج من zod `input`، الوسائط تمر على validation قبل ما `execute` تشتغل، والنتيجة تنحط في أي مكان يقبل tools (`createAgent({ tools: [...] })`، `ToolRegistry.register(tool)`، `AgentBuilder.addTool(tool)`).
+
+> الأمثلة في هذي الصفحة تترك لك بعض الأسماء: `provider` هو أي `LLMProvider` (بدون إنترنت: `createMockProvider()`).
 
 ```ts
 import { defineTool, createAgent, type ToolInput, type ToolOutput } from '@lousho/build-ai-agent';
@@ -25,12 +21,14 @@ const weather = defineTool({
 type WeatherArgs = ToolInput<typeof weather>;   // { location: string; units: 'celsius' | 'fahrenheit' }
 type WeatherResult = ToolOutput<typeof weather>; // { temperature: number; conditions: string }
 
-const agent = createAgent({ prompt: '...', provider, tools: [weather] });
+const agent = createAgent({ instructions: '...', provider, tools: [weather] });
 ```
 
 الـ tools اللي الـ provider نفسه يشغّلها (web search، code interpreter، file search) تحطها في نفس قائمة `tools`؛ شوف [Hosted provider tools](/ar/hosted-tools).
 
 لو عندك tools كثيرة، علّمها `deferLoading` عشان الـ model يلاقيها بـ `tool_search` (tool مدمج) بدل ما يستلم كل التعريفات في كل call؛ شوف [Tool search](/ar/tool-search).
+
+الـ tools المكتوبة لـ Vercel AI SDK (`tool({ description, inputSchema, execute })`) تتحوّل بـ `fromAiSdkTools({ weather, sendEmail })`، ومعها `needsApproval`؛ شوف [الانتقال من AI SDK](/ar/migrating-from-ai-sdk#الـ-tools-fromaisdktools).
 
 ## خيارات `defineTool()`
 
@@ -45,10 +43,16 @@ const agent = createAgent({ prompt: '...', provider, tools: [weather] });
 | `annotations` | لا | تلميحات MCP (`readOnlyHint`، `destructiveHint`، ...) تتخزّن في `metadata.mcp.annotations`. `readOnlyHint: true` تخلّي الـ tool يشتغل في [plan mode](/ar/permission-modes#أي-الـ-tools-read-only). |
 | `deferLoading` | لا | يحجب تعريف الـ tool عن الـ model لحد ما يلاقيه بـ `tool_search`. شوف [Tool search](/ar/tool-search). |
 | `editsFiles` | لا | الـ tool يعدّل ملفات: [`permissionMode: 'acceptEdits'`](/ar/permission-modes#تعديل-الملفات-علامة-editsfiles) يشغّل الـ calls بدون سؤال. تتخزّن في `metadata.editsFiles`. |
+| `timeoutMs` | لا | أطول وقت يقدر الـ call يشتغله، بالـ ms. الـ call اللي لسّا شغال بعدها يفشل بـ tool error يشوفه الـ model، والـ `abortSignal` حقه يتلغي، والـ run يكمل بدونه. ما ينطبق على tool يبث (`async function*`). |
 | `requiresSandbox` | لا | يشغّل الـ tool عبر `SandboxAdapter` المعدّ بدل ما يشتغل في العملية نفسها (يحتاج `sandboxExecute`). شوف [Guardrails و sandboxing](/ar/guardrails#sandboxed-tools). |
 | `sandboxExecute(args, sandbox)` | لا | مسار التنفيذ داخل الـ sandbox، يُستخدم لما `requiresSandbox` تكون true. |
 
 `defineTool()` تفحص الاسم والوصف وzod `input` لما تستدعيها، وترمي خطأ يقول لك كيف تصلّح القيمة الغلط. تسجيل toolين بنفس الاسم يرمي خطأ يسمّي التعارض.
+
+وترفض كمان (`LOUSHO_CONFIG_INVALID`) أي `input` ما يقدر أي model يلبّيه:
+
+- **الجذر لازم يكون object.** الـ providers يرسلوا وسائط الـ tool كـ JSON object، فـ `z.string()` أو `z.array(...)` في الجذر ينرفض. لفّه: `z.object({ value: z.string() })`.
+- **لا حقول `z.date()` ولا `z.bigint()`.** الـ model يكتب هناك نص ISO أو رقم، وهذي الـ schemas ترفض الاثنين، فكل call بيفشل. استخدم `z.coerce.date()` (أو `z.iso.datetime()` لو تبي تخلي النص) و`z.coerce.bigint()` (أو `z.number().int()`).
 
 الـ tool المعرف هو `ToolDescriptor` عادي: يحمل الـ schema في `inputSchema` (نفس الـ schema اللي في `input`) ودالة `execute` مباشرة. أما حقل `.tool` (كائن `{ description, parameters, execute }` من `ai` v4) فقديم: لسّا يتبنى للتوافق، ويُقرأ حقل حقل — descriptor مكتوب بإيدك بدون `inputSchema` يسوّي fallback على `tool.parameters`، وواحد بدون `execute` يسوّي fallback على `tool.execute`، كل واحد لحاله.
 
@@ -57,6 +61,7 @@ const agent = createAgent({ prompt: '...', provider, tools: [weather] });
 - **الـ validation أول.** وسائط الـ model تتحلل بـ `inputSchema` (الـ defaults والـ coercions والـ transforms تتطبّق) قبل ما الـ hooks و`needsApproval` و`execute` يشوفوها. الوسائط اللي ما تطابق ما توصل `execute` أبد: الـ model يستلم نتيجة `ToolArgumentsValidationError` منظّمة ويقدر يسوّي retry.
 - **الأخطاء نتائج.** الـ tool اللي يرمي يعطي الـ model `{ error, toolName, message, kind }` (بدون stack trace) والـ run يكمل. شوف [الأخطاء](#الأخطاء).
 - **Calls متوازية.** أكثر من call في model turn واحد يشتغلوا بالتوازي؛ حدّهم بـ `toolConcurrency` (`1` للتسلسل الكامل). النتائج توصل الـ transcript بترتيب calls الـ model. شوف [الـ tool calls المتوازية](/ar/runs#tool-calls-متوازية).
+- **حد الحجم.** النتيجة اللي الـ JSON حقها أطول من `maxToolResultChars` (`createAgent({ maxToolResultChars })`، الافتراضي `50_000` حرف، تقريبًا 12k token) توصل الـ model، والـ transcript، كبدايتها ونهايتها مع علامة تقول كم حرف انقص. `Infinity` تطفي الحد. `onToolResult` والـ hooks وأحداث `tool.done` يستلموا النتيجة كاملة.
 - **الإلغاء.** الـ `AbortSignal` الخاص بالـ run يوصل كل call كـ `ctx.abortSignal`، فيقدر الشغل الطويل يوقف بدري.
 - **التقدّم.** `execute` مكتوبة كـ `async function*` تبث snapshots من مخرجاتها وهي شغالة؛ آخر snapshot هو النتيجة. شوف [Streaming للنتائج الجزئية](#streaming-للنتائج-الجزئية).
 - **Calls كثيرة في خطوة وحدة.** مع `createAgent({ codeMode })` يقدر الـ model كمان يستدعي tools من برنامج JavaScript قصير (`run_code`)، وكل call يمر بنفس الفحوص. شوف [Code mode](/ar/code-mode).
@@ -68,12 +73,12 @@ const agent = createAgent({ prompt: '...', provider, tools: [weather] });
 
 | الحقل | القيمة |
 | --- | --- |
-| `ctx.toolCallId` | الـ id اللي الـ model أعطاه لهذا الـ call. يبقى نفسه لما الـ call يتعاد بعد crash. الـ call اللي ما فيه model turn وراه (node في flow) ياخذ id مولّد. |
+| `ctx.toolCallId` | الـ id اللي الـ model أعطاه لهذا الـ call. يبقى نفسه لما نفس الـ call يتعاد بعد crash، بس الـ crash اللي يصير قبل ما الـ call يتسجل ممكن يخلي الـ model يسوّي call جديد بـ id جديد، فهو مو idempotency key للبزنس (شوف [At-least-once tools](/ar/durable-execution#at-least-once-tools-خلّي-الـ-side-effects-idempotent)). الـ call اللي ما فيه model turn وراه (node في flow) ياخذ id مولّد. |
 | `ctx.messages` | نسخة read-only من الـ transcript اللي الـ model شافه قبل ما يسوّي الـ call: بدون system prompt وبدون turn المساعد اللي سوّى الـ call. فاضية لـ node في flow. |
 | `ctx.abortSignal` | الـ `AbortSignal` الخاص بالـ run، يتضبط لما يكون للـ run واحد. |
-| `ctx.sessionId` | الـ session id الخاص بالـ run — الـ id في `agent.session({ id })` أو `sessionId` الممرر لـ `send()` / `AgentExecutor.execute()`؛ يغيب لما ما في session. |
+| `ctx.sessionId` | الـ session id الخاص بالـ run — الـ id في `agent.session({ id })` أو `sessionId` الممرر لـ `send()` / `AgentExecutor.execute()` (`send({ sessionId })` يحتاج `createAgent({ store })` مع checkpoints، وإلا يرمي `LOUSHO_CONFIG_MISSING_CHECKPOINT_STORE`)؛ يغيب لما ما في session. |
 | `ctx.principal` | مين الـ run يشتغل بالنيابة عنه (المستدعي في route auth، مرسل القناة)، frozen؛ يغيب لما ما فيه واحد. شوف [Principals في الـ tools والـ approvals](/ar/auth#principals-in-tools-and-approvals). |
-| `ctx.approval` | يتضبط لما الـ call يشتغل لأن إنسان وافق عليه: `note` حق القرار، و`by` أي مين قرّر، لما القرار يسمّيه. |
+| `ctx.approval` | يتضبط لما الـ call يشتغل لأن إنسان وافق عليه: `id` الـ approval (يمنع تكرار محاولات تشغيل call واحد اتقرر، شوف [Cloudflare Workers](/ar/cloudflare-workers#البتّ-في-approval-واحد-مرتين)؛ الـ model turn اللي يتعاد ياخذ approval جديد، فالـ side effect اللي لازم يصير مرة وحدة يحتاج كمان key من بياناتك أنت، زي claim id)، و`note` حق القرار، و`by` أي مين قرّر، لما القرار يسمّيه. |
 
 الدالة `sandboxExecute(args, sandbox)` اللي تتجاهل الوسيط الثالث تظل شغالة.
 
@@ -122,6 +127,21 @@ const agent = createAgent({ prompt: '...', provider, tools: [weather] });
 
 `toolErrorResult({ toolName, error, kind?, toolCallId?, details? })` تبني هذه النتيجة؛ استخدمها في الـ wrappers حقك عشان تطلع نفس الشكل. الخطأ المرمي يقدر يختار kindه بحمل خاصية `toolErrorKind`. أما الخطأ اللي يورث `PropagatingToolError` فمو نتيجة: يوقّف الـ run.
 
+### الـ calls الفاشلة في النتيجة
+
+الـ model يشوف كل call فاشل وممكن برضو يجاوب كأنه نجح، وينهي الـ run بـ `finishReason: 'stop'`. `result.toolErrors` يعدّ tool calls الـ run اللي نتيجتها خطأ (أي `kind` من فوق ما عدا `not-run`)؛ ويغيب لما ما فشل شي. يعدّ بس calls الـ run نفسه: الـ calls اللي فشلت داخل الـ [sub-agents](/ar/sub-agents) حقه تنعد في `result.usage.delegated.toolErrors`. افحصه قبل ما تثق في `text`، أو حط له حد بـ `limits.maxToolErrors`: أول ما يفشل هالعدد من الـ calls، الـ run يوقف قبل model call الجاي بـ `finishReason: 'budget-exceeded'` و`result.budget.limit` قيمته `'maxToolErrors'` (أو يرفض بـ `BudgetExceededError` مع `onExceeded: 'throw'`، شوف [الميزانيات](/ar/configuration#الميزانيات)).
+
+```ts
+import { createAgent, defineTool } from '@lousho/build-ai-agent';
+import { z } from 'zod';
+
+const stats = defineTool({ name: 'stats', description: 'Weekly stats', input: z.object({}), execute: async () => (await fetch('https://stats.example.com/week')).json() });
+const agent = createAgent({ provider, tools: [stats], limits: { maxToolErrors: 3 } });
+const result = await agent.send('Summarise this week');
+if (result.budget?.limit === 'maxToolErrors') throw new Error('The stats tool keeps failing.');
+if (result.toolErrors) console.warn(`${result.toolErrors} tool call(s) failed; the answer may be incomplete.`);
+```
+
 ## Tools مدمجة
 
 | التصدير | الـ tool |
@@ -132,7 +152,7 @@ const agent = createAgent({ prompt: '...', provider, tools: [weather] });
 | `createTodoTools()` | `todo_write` / `todo_read` عشان الـ agent يخطط شغل متعدد الخطوات؛ شوف [Todo tools](#todo-tools). |
 | `askQuestionTool()`, `createAgent({ askQuestion: true })` | `ask_question`: الـ agent يسأل المستخدم شي والـ run يوقف لحد `agent.approvals.answer()`؛ شوف [سؤال المستخدم](/ar/approvals#سؤال-المستخدم). |
 | `createFsTools()`, `createShellTool()` | tools لنظام الملفات والـ shell للـ coding agents؛ شوف [Workspace tools](/ar/workspace-tools). |
-| `createEmailTool()`, `createSlackTool()`, `createGitHubTools()`, `createJiraTools()` (من `@lousho/build-ai-agent/integrations`) | تكاملات تحتاج credentials، فتتبنى بخيارات. |
+| `createEmailTool()`, `createSlackTool()`, `createGitHubTools()`, `createJiraTools()` (من `@lousho/build-ai-agent/integrations`) | تكاملات تحتاج credentials، فتتبنى بخيارات. `createSlackTool()` تقرأ رابط الـ webhook من `SLACK_WEBHOOK_URL` إلا لو مرّرت `webhookUrl`؛ `createJiraTools()` تاخذ `baseUrl` و`email` و`apiToken` صريحة (عادةً من `JIRA_BASE_URL` و`JIRA_EMAIL` و`JIRA_API_TOKEN`). |
 | `createAgent({ mcpServers })`, `connectMcp(servers)` | كل tools سيرفرات MCP المعطاة في الإعداد (`command` لـ stdio أو `url` لـ HTTP)، بأسماء `<server>__<tool>`؛ شوف [استخدام سيرفرات MCP في agent](/ar/mcp-integration#استخدام-سيرفرات-mcp-داخل-agent). |
 | `openApiTools(document, options)` | tool لكل operation في مستند OpenAPI 3.0 / 3.1؛ العمليات اللي تغيّر بيانات تطلب approval. شوف [OpenAPI tools](/ar/openapi-tools). |
 | `loadMcpTools(client, name)` | كل tools سيرفر MCP متصل؛ شوف [MCP tools](/ar/mcp-integration#tools-من-client-اتصلت-به-بنفسك). |
@@ -170,7 +190,7 @@ const agent = createAgent({ model: 'openai/gpt-4o-mini', tools: [webFetch] });
 import { createAgent, createTodoTools, type TodoStore } from '@lousho/build-ai-agent';
 
 const todos = createTodoTools({ onChange: (list) => console.log(list.length, 'todos') });
-const planner = createAgent({ prompt: 'Plan multi-step work, then do it.', provider, tools: todos.tools });
+const planner = createAgent({ instructions: 'Plan multi-step work, then do it.', provider, tools: todos.tools });
 
 await planner.send('Migrate the repo to ESM');
 console.log(await todos.getTodos()); // [{ id: 'todo_1', content: '...', status: 'completed' }, ...]

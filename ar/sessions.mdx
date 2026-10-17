@@ -1,17 +1,13 @@
 ---
 title: "Sessions"
 ---
-
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/sessions).
-</Warning>
-
 {/* Generated from docs/sessions.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 `agent.send(text)` turn واحد وبس: كل call بتبدأ من سجل فاضي.
 الـ **session** (جلسة) هي محادثة فيها أكثر من turn: بتحتفظ بسجل المحادثة
 وبتمرّره للـ model مع كل `send()`.
+
+> الأمثلة في الصفحة دي بتسيب لك تعريف بعض الأسماء: `provider` هو أي `LLMProvider` (من غير اتصال: `createMockProvider()`).
 
 ```ts
 import { createAgent } from '@lousho/build-ai-agent';
@@ -33,13 +29,13 @@ console.log(session.id, session.messages.length);
 | `send(input, { signal })` | يبعت رسالة user مع المحادثة كلها حتى اللحظة، ويرجع `ExecutionResult` المعتاد. |
 | `stream(input, { signal })` | زي `send()`، بس يرجع `AgentRun` بيعمل stream للـ turn كـ typed events - شوف [Streaming a session turn](#streaming-a-session-turn). |
 | `messages` | snapshot للقراءة بس من سجل المحادثة (رسائل الـ user والـ assistant والـ tool؛ من غير الـ system prompt). تعديل الـ snapshot ما يغيّر الـ session. |
-| `load()` | يقرأ سجل المحادثة المحفوظ من الـ store. `send()` بيعملها عنك؛ استدعِها عشان تعرض السجل قبل أول `send()` في session مستأنفة. |
+| `load()` | يقرأ سجل المحادثة المحفوظ من الـ store. `send()` بيعملها عنك؛ استدعِها عشان تعرض السجل قبل أول `send()` في session مستأنفة. كل call (`load()` و`send()` و`history()`، ...) بيقرأ الـ store من جديد، فالـ turns اللي كائن session تاني عملها commit لنفس الـ id بتبان. |
 | `compact(options?)` | يعمل compaction لسجل المحادثة على طول - شوف [ضغط سياق جلسة](/ar/compaction#الـcompaction-على-session). |
-| `clear()` | يفرّغ سجل المحادثة ويحفظه فاضي (الـ store ما يفضل فيه رسائل للـ id). يحافظ على id الـ session والـ store والـ options؛ يمسح checkpoint بتاع turn منقطعة؛ وخانات الـ memory مشتركة بين الـ sessions وما بتتأثر. يبعت `context.cleared` للـ listeners على `on()`. يرمي `LOUSHO_SESSION_BUSY` لو في turn شغالة، و`LOUSHO_SESSION_AWAITING_APPROVAL` لو turn durable مستنية approval. |
+| `clear()` | يفرّغ سجل المحادثة ويحفظه فاضي (الـ store ما يفضل فيه رسائل للـ id). يحافظ على id الـ session والـ store والـ options؛ يمسح checkpoint كل turn والـ checkpoint history بتاعتها (`<id>.turn-<n>`، واللي فيها نسخ من سجل المحادثة)، فـ `agent.fork('<id>.turn-<n>')` ما يقدر يرجّع المحادثة؛ وخانات الـ memory مشتركة بين الـ sessions وما بتتأثر. يبعت `context.cleared` للـ listeners على `on()`. يرمي `LOUSHO_SESSION_BUSY` لو في turn شغالة، و`LOUSHO_SESSION_AWAITING_APPROVAL` لو turn durable مستنية approval. |
 | `on(listener)` | يسمع events الـ session: events كل turn أول ما تحصل (turns بتاع `send()` و`stream()`، وturn متوقفة `agent.approvals.resolve()` بيكمّلها)، زيادة على events بتاع `compact()` / `clear()` (`compaction.start` و`compaction.done` و`context.cleared`)؛ ويرجع function بتشيل الـ listener. events الـ turn هي `AgentEvent` اللي `stream()` بتاعها بيطلّعها. |
-| `pending()` | في [durable session](#durable-sessions): الـ turn اللي لسه ما خلصت (`{ status, approvalId?, approvalKind? }`؛ `approvalKind` بتكون `'question'` لما الـ turn مستنية `ask_question`)، أو `null`. |
+| `pending()` | في [durable session](#durable-sessions): الـ turn اللي لسه ما خلصت (`{ status, approvalId?, approvalKind?, idempotencyKey? }`؛ `approvalKind` بتكون `'question'` لما الـ turn مستنية `ask_question`؛ و`idempotencyKey` هو الـ `Idempotency-Key` بتاع HTTP للـ turn، شوف [إعادة إرسال turn](/ar/deployment#إعادة-إرسال-turn))، أو `null`. |
 | `resume({ signal })` | في durable session: يخلّص turn منقطعة ويرجع بنتيجتها، أو `null` لو ما فيه turn pending. |
-| `discardPending()` | في durable session: يرمي turn ما خلصت من غير ما يشغّلها. |
+| `discardPending()` | في durable session: يرمي turn ما خلصت من غير ما يشغّلها، ويسحب الـ approvals اللي كانت مستنياها (ما بتتسرد تاني، وأي محاولة تقرّر واحدة منها بتفشل بـ `LOUSHO_APPROVAL_NOT_FOUND`). وكمان بيرمي checkpoint بتاع turn ما ينفعش يتقري (`LOUSHO_CHECKPOINT_CORRUPT`). |
 | `history()` | خطوات سجل المحادثة (خطوة لكل رد من الـ model، مع الـ tool calls بتاعته ونتائجها) - شوف [Forking a session](#forking-a-session). |
 | `fork({ fromStep, id?, patch? })` | session جديدة بتبدأ من سجل محادثة الـ session دي لحد خطوة معينة؛ والـ session دي ما بتتغير - شوف [Forking a session](#forking-a-session). |
 
@@ -73,7 +69,8 @@ calls `send()` اللي تجي مع بعض على نفس الـ session بتتص
   غير كده بتستنى النقطة الآمنة التالية، زي `'queue'`. الـ call بيرجع
   بنتيجة الـ turn، ونفس الـ fallbacks بتسري.
 
-بادئة `vendor/` في اسم الـ model هي اللي بتحدد الـ provider؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثال `openrouter/openai/gpt-4o-mini`).
+بادئة `vendor/` في اسم الـ model هي اللي بتحدد الـ provider؛ ومع OpenRouter استخدم
+`openrouter/<vendor>/<model>` (مثال `openrouter/openai/gpt-4o-mini`).
 
 ```ts
 import { createAgent } from '@lousho/build-ai-agent';
@@ -89,9 +86,24 @@ console.log((await second) === (await first)); // true: one turn, one result
 `send()` و`stream()` بياخدو string، أو content parts (`[{ type: 'text', ... }, { type: 'image', ... }]`، رسالة user واحدة)، أو `Message[]`؛ والـ stores بتحتفظ بالـ parts، شوف [المدخلات متعددة الوسائط](/ar/providers#إدخال-multimodal).
 
 `send()` اللي بيرمي (error من الـ provider، أو tool بترمي
-`PropagatingToolError`) أو بيتلغي بـ `signal` بيسيب سجل المحادثة
-زي ما كان بالظبط قبل الـ call. والـ `send()` الملغي بيرجع بـ
-`finishReason: 'aborted'`، زي `agent.send()`. وسجل المحادثة المحفوظ
+`PropagatingToolError`) بيسيب سجل المحادثة زي ما كان بالظبط قبل الـ call.
+أما `send()` اللي بيتلغي بـ `signal` (زرار Stop مثلًا) فبيحتفظ باللي قاله
+الـ user والـ model لحد اللحظة، عشان `GET /chat/:id` والـ turn الجاية
+يفضل عندهم السياق:
+
+- رسالة الـ user، بشرط إن الـ model اتنادى (signal ملغي من قبل أول
+  call للـ model بيرمي الـ turn كلها)؛
+- الـ turn لحد آخر tool call اتنفذت (الـ tool calls بتاعة الـ assistant
+  ونتائجها؛ والـ calls اللي في نفس الدفعة وما بدأتش بياخدو نتيجة
+  "cancelled")، فـ side effect زي refund مستحيل يضيع من السجل؛
+- الرد اللي الـ model كان عمله stream لحد ما اتوقف، كرسالة assistant
+  فيها `metadata: { interrupted: true }` (`stream()` بس هو اللي بيعمل stream؛
+  `send()` العادي ما عندوش رد جزئي).
+
+والـ `send()` الملغي بيرجع بـ `finishReason: 'aborted'`، زي `agent.send()`.
+والـ `usage` بتاعه بيحسب call الـ model اللي اتوقف، بتقدير من الـ request
+والنص اللي اتعمله stream لو الـ provider ما بلّغش بحاجة، عشان
+`limits.maxCostUsd` بتاع الـ session ما يتحسبش أقل من الحقيقة. وسجل المحادثة المحفوظ
 مستحيل يكون فيه turn للـ assistant فيه tool calls من غير نتائج الـ tools المقابلة.
 
 `send()` اللي بيتوقف عند tool فيها `needsApproval` بيرجع بـ
@@ -131,8 +143,10 @@ const { text } = await session.send('What is my name?');
   بالظبط زي ما `send()` بيحفظهم، وبس بعدها `run.done` يتسلّم. يعني لما
   حلقة `for await` تخلص، أو `run.result` يرجع، سجل المحادثة
   يكون كامل. والـ events شايلة `runId` بتاع الـ handle المُرجَع.
-- run ملغي (بـ `signal`، أو لما تطلع من الحلقة بدري) أو فاشل
-  بيسيب سجل المحادثة زي ما كان قبل الـ call، زي `send()`. والـ run اللي
+- الـ run الفاشل بيسيب سجل المحادثة زي ما كان قبل الـ call، زي `send()`.
+  أما الـ run الملغي (بـ `signal`، أو لما تطلع من الحلقة بدري) فبيحتفظ برسالة
+  الـ user والـ tool calls اللي اتنفذت والرد اللي اتعمله stream لحد اللحظة
+  (متعلّم بـ `metadata.interrupted`)، زي `send()` الملغي. والـ run اللي
   كان خلص أصلًا لما الحلقة اتسابت بيتحفظ. والـ run الفاشل بيقفل
   الـ stream بـ `error` و`run.done` (`finishReason: 'error'`)،
   و`run.result` بيرمي. وده بيشمل store بيفشل في الـ load أو الـ save:
@@ -146,6 +160,30 @@ const { text } = await session.send('What is my name?');
 الـ sessions طبقة رفيعة: الـ session ماسكة سجل المحادثة وبتسلّمه للـ
 executor في كل turn. ومن غير checkpoint store، الـ turn بتتحفظ بس لما
 تخلص، فـ crash في نص turn بيضيّعها؛ شوف القسم اللي بعده.
+
+## Two kinds of conversation id
+
+`agent.session({ id })` و`agent.send(msg, { sessionId })` محادثتين مختلفتين.
+الـ SDK عنده طريقتين يحفظ بيهم محادثة تحت id، وما بيتشاركوش
+نفس التخزين:
+
+| | `agent.session({ id }).send(msg)` | `agent.send(msg, { sessionId })` |
+| --- | --- | --- |
+| هو إيه | session: سجل محادثة، و`send()` واحد لكل turn | run واحد durable (شوف [durable execution](/ar/durable-execution))؛ لو ناديته تاني بنفس الـ id بيكمّله |
+| المحادثة محفوظة فين | `store.sessions` تحت `id` (كل turn بيتعملها checkpoint كـ `<id>.turn-<n>` وهي شغالة) | `store.checkpoints` تحت `sessionId` (الـ `messages` بتاعة الـ checkpoint) |
+| محتاج إيه | ولا حاجة (في الـ memory افتراضيًا) | `store.checkpoints` (ومن غيره `LOUSHO_CONFIG_MISSING_CHECKPOINT_STORE`) |
+| تقراها تاني بـ | `session.load()`، `GET /chat/:id` | `store.checkpoints.load(sessionId)` (الـ `messages` بتاعته)، `agent.fork(sessionId)` |
+| تكمّلها بعد crash بـ | `agent.session({ id }).resume()` | `agent.resume(sessionId)` |
+
+استخدم طريقة واحدة لكل id. الـ id اللي بيتستخدم بالطريقتين بيمسك محادثتين ما لهمش علاقة ببعض:
+الـ turn اللي اتبعتت بطريقة ما بتشوفش الـ turns اللي اتبعتت بالطريقة التانية، و
+`GET /chat/:id` بيعرض سجل محادثة الـ session بس. `agent.resume(id)` بيدوّر
+على run بتاع `send({ sessionId })` الأول، ولو مش لاقي، ساعتها بس بيعمل resume
+للـ turn الـ pending بتاعة الـ session، فلو الاتنين موجودين بيخلّص الـ run ويسيب
+turn الـ session pending (خلّصها بـ `agent.session({ id }).resume()`).
+والـ prompt schedules بتشتغل كـ runs بتاع `send({ sessionId })` (شوف
+[الجداول الزمنية](/ar/schedules#الـ-prompt-schedules-والـ-sessions))، فاقرا تقارير الـ schedule
+من `store.checkpoints`، مش من `GET /chat/:id`.
 
 ## Durable sessions
 
@@ -175,11 +213,31 @@ console.log(finished?.text, await agent.session({ id: 'user-42' }).pending()); /
   الـ agent، جزء بجزء.
 - `agent.resume(id)` هو نفسه `agent.session({ id }).resume()`، الفرق إنه
   بيخلّص الأول run بدأت بـ `agent.send(message, { sessionId: id })` (شوف
-  [durable execution](/ar/durable-execution)).
+  [durable execution](/ar/durable-execution) و
+  [نوعين الـ id](#two-kinds-of-conversation-id)).
 - كل turn بتشتغل بـ `sessionId: '<session id>.turn-<n>'` (و`n` هو طول
   سجل المحادثة وقت ما الـ turn بدأت)، فالـ process الجديدة تلاقي
   الـ turn المنقطعة من غير أي شغل تتبّع زيادة. والـ turn اللي خلصت بتنضم
   لسجل المحادثة، بالظبط زي `send()` العادية، وcheckpoint بتاعتها بتتمسح.
+  id الـ turn ده مجرد مفتاح للـ checkpoint: الـ tools و`needsApproval` وقواعد
+  الـ permissions والـ hooks بتاعة الـ tool calls لسه بياخدو id الـ session نفسه كـ `ctx.sessionId`.
+  الـ checkpoint history بتاعة الـ turn بتفضل محفوظة لآخر `turnHistoryLimit`
+  turns اتعملها commit (الافتراضي 10، `agent.session({ id, turnHistoryLimit })`)، عشان
+  `agent.fork('<id>.turn-<n>', { fromStep })` يقدر يعمل fork منهم؛ والـ histories بتاعة
+  الـ turns الأقدم بتتمسح مع commit الـ turns الجديدة (كل entry في الـ history فيها نسخة من
+  سجل المحادثة كله، فلو احتفظت بـ history كل الـ turns الـ store هيكبر بمربع
+  طول المحادثة)، حتى لو كل turn بتستخدم كائن store أو process جديدة.
+  والـ history اللي برا النافذة وموجودة أصلًا في الـ store -
+  من إصدار أقدم، أو تحت `turnHistoryLimit` أكبر - بتتمسح هي كمان
+  على مدار الـ commits الجاية، لحد 32 turn في كل commit، الأقدم الأول؛ والـ process
+  اللي بتعمل commit لـ turn واحدة بس بتخلّص أقدم 32، و
+  `fileStore(dir).prune()` / `SqliteStore.prune()` بيمسحوا الباقي.
+  أما `session.fork()` فبيشتغل من سجل المحادثة ومش مقيّد بالحد ده.
+- وهي شغالة، الـ turn بتمسك run lease على الـ checkpoint بتاعتها (شوف
+  [durable execution](/ar/durable-execution#run-leases)): أي `send()` على نفس
+  الـ session من process أو replica أو كائن store تاني بيفشل بـ
+  `LOUSHO_SESSION_BUSY` قبل ما يشغّل أي حاجة، بدل ما يعمل resume للـ turn
+  الشغالة ويشغّل الـ tool calls بتاعتها مرة تانية.
 - `resume()` بيكمّل الـ turn عن طريق مسار الـ resume في الـ executor
   (`input: []`): الـ tool calls اللي نتائجها اتسجلت ما بتتنفذش تاني،
   ورد الـ model المسجّل ما بيتطلبش تاني. بس tool كانت شغالة
@@ -189,15 +247,41 @@ console.log(finished?.text, await agent.session({ id: 'user-42' }).pending()); /
   بيبعتوا الرسالة الجديدة، فالـ model بيشوف الـ turn خلصت (events بتاع
   الـ turn اللي اتعملها resume ما بتتعمل stream). استخدم `pending()` تشيك
   الأول، أو `discardPending()` عشان ترمي الـ turn اللي ما خلصت.
+- الـ turn اللي بتفشل بتسجّل الـ error وعدد المحاولات على الـ checkpoint بتاعتها
+  (`lastError` و`attempts`). لو الـ error مش هيروح بإعادة المحاولة (400 من
+  الـ provider زي تجاوز طول السياق، أو فشل في الـ auth)، الـ
+  `send()` / `stream()` الجاي ما بيعيدش الـ turn: بيفشل بـ
+  `LOUSHO_SESSION_TURN_FAILED`. استدعِ `discardPending()` عشان ترمي الـ turn، أو
+  `resume()` عشان تعيد المحاولة بعد ما تصلّح السبب. والفشل التاني (crash، أو
+  5xx، أو error في الشبكة) لسه الـ `send()` الجاي بيعمله resume. وده بيسري
+  كمان على turn أول call للـ model فيها فشل: الـ run لسه ما حفظش أي
+  checkpoint، فالـ session بتحتفظ بالـ input بتاع الـ turn كـ turn pending
+  (`pending()` بيبلّغ إنها `in-progress`) وبتشغّلها تاني من الـ input ده.
 - turn بتتوقف عند tool فيها `needsApproval` بتفضل في checkpoint بتاعتها، مش في
   سجل المحادثة، لحد ما تخلص. وهي مستنية، `resume()` و`send()`
   و`stream()` بيرموا `SessionAwaitingApprovalError` (ومعه `approvalId`)،
   و`agent.approvals.resolve({ id, approved })` بيكمّل الـ turn في الـ
-  session دي. بعد restart، افتح الـ session واستدعِ `resume()` (أو `send()`)
-  مرة قبل ما تقرر، عشان الـ agent يعرف الـ approval تخص أنهي
-  session؛ وادِّ الاتنين agents نفس الـ `store` الدائم (أو `approvalStore`).
-- turn ملغية بتترمي (checkpoint بتاعتها بتتمسح)، زي من غير
-  checkpoint store. و`clear()` بيمسح الـ turn الـ pending كمان.
+  session دي. بعد restart، `agent.approvals.resolve()` أو `streamResolve()`
+  من الـ process الجديدة بيكمّلوها برضه: الـ agent بيلاقي الـ session من
+  سجل التوقف (للـ session ids اللي فيها حروف وأرقام و`_` و`-`)، فما فيه
+  داعي تفتح الـ session أو تستدعي `resume()` الأول. وادِّ الاتنين agents
+  نفس الـ `store` الدائم (أو `approvalStore`).
+- `resume()` بيرجع نتيجة الـ turn اللي خلصت؛ ما بيعملش stream، و
+  `stream()` برضه ما بيعملش stream للـ turn الـ pending اللي بيخلّصها الأول. وعشان
+  تعرض تقدّم turn اتعملها resume، سجّل `session.on(listener)` قبل
+  الـ call (أو مرّر `createAgent({ onEvent })`): بيوصله الـ `AgentEvent` بتاع الـ turn
+  أول ما تحصل.
+- الـ turn المتوقفة بتقفل id الـ session: الـ session بتسجّلها تحت
+  `<id>.paused` في الـ checkpoint store، فـ `agent.send(message, { sessionId: id })`،
+  و`agent.stream()` بنفس الـ `sessionId`، وأي كائن session على سجل محادثة
+  مختلف (store تاني، أو سجل بطول مختلف) بيترفضوا بـ
+  `SessionAwaitingApprovalError` (`LOUSHO_SESSION_AWAITING_APPROVAL`) هم كمان، و
+  `pending()` بتاعهم بيبلّغ عن التوقف. قرّر الـ approval، أو ارمِ الـ turn بـ
+  `agent.session({ id }).discardPending()`، عشان الـ session تقبل turns جديدة تاني.
+- الـ turn الملغية الـ checkpoint بتاعتها بتتمسح؛ واللي احتفظت بيه (رسالة الـ user،
+  والـ tool calls اللي اتنفذت، والرد المنقطع) بينضم لسجل المحادثة، زي
+  من غير checkpoint store. و`clear()` بيمسح الـ turn الـ pending كمان، والـ checkpoint
+  history بتاعة كل turn، فالـ turns اللي اتمسحت ما بقاش ينفع يتعملها fork.
 
 ## Stores
 
@@ -210,13 +294,29 @@ interface SessionStore {
   load(id: string): Promise<Message[] | undefined>;
   save(id: string, messages: readonly Message[]): Promise<void>;
   delete(id: string): Promise<void>;
+  // Optional compare-and-swap: save only if the stored transcript still has this revision.
+  saveIf?(id: string, expectedRevision: string, messages: readonly Message[]): Promise<boolean>;
 }
 ```
+
+كل turn بتعمل commit عن طريق `saveIf` لو الـ store عنده، مع
+`transcriptRevision(<the transcript the turn started from>)`. فلو عمليتين (أو
+كائنين store على نفس البيانات) خلّصوا turn على نفس الـ session في نفس
+اللحظة، ما ينفعش الاتنين يعملوا commit: واحدة بتكسب، والـ `send()` بتاع التانية بيرمي
+`LOUSHO_SESSION_BUSY`. `MemorySessionStore` و`FileSessionStore` (ملف
+`<id>.json.lock` بيتنشأ بشكل حصري؛ والـ lock اللي أقدم من `staleLockMs`،
+الافتراضي 10 ثواني، بيتاخد منه) و`SqliteStore.sessions` (transaction واحدة
+`BEGIN IMMEDIATE`) بيعملوا implement ليها. والـ store اللي ما عندوش، زي `KVStore.sessions` (الـ KV
+ما فيه compare-and-swap)، بياخد load ومقارنة وsave بأحسن مجهود، وممكن
+writer في process تانية يدخل بينهم، فتضيع turn واحدة.
 
 - `MemorySessionStore` (الافتراضي، store جديد لكل session) بيعيش طول ما
   الـ process عايشة. شارك نفس الـ instance بين الـ sessions عشان تلاقيها بالـ id.
 - `FileSessionStore(dir)` بيكتب ملف JSON واحد لكل session (`<dir>/<id>.json`)،
-  كتابة atomic (ملف مؤقت وبعدين rename)، وبينشئ `dir` أول save.
+  كتابة atomic (ملف مؤقت وبعدين rename)، وبينشئ `dir` أول save. وكل
+  حرف uppercase في الـ id بيتكتب كـ `^` وبعده الحرف lowercase
+  (`Alice` -> `^alice.json`)، فالـ ids اللي بتختلف في حالة الحروف بس بياخدو ملفات
+  مختلفة على Windows وmacOS كمان.
 
 ```ts
 import { createAgent, FileSessionStore } from '@lousho/build-ai-agent';
@@ -258,8 +358,12 @@ ids بتاع الـ sessions لازم تطابق `^[A-Za-z0-9_-]{1,128}$` (بت�
 `createAgent({ store: { sessions, checkpoints, approvals } })`. و`memoryStore()`
 و`fileStore(dir)` و`SqliteStore` و`KVStore` `AgentStore`s جاهزة. وللملفات
 العادية، `fileStore(dir)` بتكتب ملف JSON واحد لكل session وcheckpoint وapproval
-pending تحت `dir`، وكل واحد بيتكتب في ملف مؤقت وبعدين بيتعمله rename
-لمكانه، من غير ملفات lock:
+pending تحت `dir`، وكل واحد بيتكتب في ملف مؤقت، وبيتعمله flush على الديسك، وبعدين بيتعمله rename
+لمكانه (فلا crash ولا انقطاع كهربا بيسيب نص ملف أبد). على Windows، الـ rename فوق ملف، أو قراية ملف،
+مفتوح عند writer أو reader تاني بيفشل للحظة بـ `EPERM` أو `EACCES` أو
+`EBUSY`؛ و`fileStore()` و`FileSessionStore` بيعيدوا المحاولة مع backoff قصير (حوالي
+1.3 ثانية في المجموع) وبعدين بيفشلوا بـ `LOUSHO_STORAGE_FAILED`. والـ saves المتزامنة على نفس
+الملف لسه بتنتهي بواحد منهم بس (آخر rename هو اللي بيكسب):
 
 ```ts
 import { createAgent, fileStore } from '@lousho/build-ai-agent';
@@ -269,12 +373,38 @@ const agent = createAgent({ provider, store: fileStore('./.lousho') });
 await agent.session({ id: 'user-42' }).send('Hello');
 ```
 
+في كل اسم ملف، الحرف الـ uppercase في الـ id بيتكتب كـ `^` وبعده
+الحرف lowercase (`Alice` -> `sessions/^alice.json`): أنظمة الملفات الافتراضية
+في Windows وmacOS ما بتفرّقش بين حالة الحروف، و`alice` و`Alice` لازم ما يتشاركوش
+نفس سجل المحادثة. والـ id اللي ما فيهوش حروف uppercase بيفضل باسمه العادي. والملف
+اللي اتحفظ بإصدار أقدم تحت اسم فيه حروف مختلطة (`Alice.json`) لسه بيتقري
+لنفس الـ id ده بالظبط، وبيتنقل لاسمه الجديد في الـ save الجاي. والـ id اللي
+هيعمل اسم ملف طويل زيادة بعد الـ encoding (session id كله uppercase طوله 128 حرف
+زائد `.turn-<n>`)، أو اسم جهاز في Windows (`nul`، `com1`)، بيتخزن
+كـ `~<prefix>~<hash>.json` بدل كده.
+
 كل ملف `checkpoints/<id>.json` جنبه ملف `checkpoint-history/<id>.json`: الـ history المحدودة بتاع الـ checkpoint، الأقدم الأول. والمجلدات بتتنشأ عند أول كتابة، فـ `approvals/` (و`oauth/`) ما بيظهروا إلا بعد أول approval pending (أو sign-in).
 
 تقرير approval من `fileStore` آمن عبر الـ processes (caller واحد بس
-اللي بياخد السجل)؛ بس عمليتين بيكتبوا نفس الـ session في نفس اللحظة ما فيه
-تنسيق بينهم، فآخر كتابة هي اللي بتكسب. ولو عندك أكتر من process
-بتتشارك store، استخدم `SqliteStore`.
+اللي بياخد السجل، والـ claim اللي سابه resolver وقع بيتاخد منه بعد
+دقيقة)؛ والـ session بتعمل commit للـ turns بتاعتها بـ compare-and-swap تحت ملف lock
+(`sessions/<id>.json.lock`)، والـ run الشغال اللي بيتعمله checkpoint بيمسك الـ run lease بتاعه
+في `leases/<id>.json` (شوف [durable execution](/ar/durable-execution#run-leases)).
+ولو عندك processes كتير بتتشارك store، `SqliteStore` هو الاختيار الأمتن.
+
+`fileStore(dir).prune({ olderThanMs })` بيمسح اللي آخر كتابة ليه كانت من أكتر من
+`olderThanMs`، زي `SqliteStore.prune()`: سجلات المحادثات والـ checkpoints وملفات
+الـ checkpoint history، زائد sign-ins بتاع OAuth الـ pending المنتهية. والـ run المتوقف على
+approval pending بيفضل، مهما كان قديم (الـ checkpoint بتاعته والـ history بتاعته وسجل محادثة
+الـ session بتاعته)، وكمان الـ approvals الـ pending وOAuth tokens بيفضلوا. وبيرجع
+بالأعداد، `{ sessions, checkpoints, checkpointHistory, oauthPending }`:
+
+```ts
+import { fileStore } from '@lousho/build-ai-agent';
+
+const store = fileStore('./.lousho');
+await store.prune({ olderThanMs: 30 * 24 * 60 * 60 * 1000 }); // a month
+```
 
 وأي object عنده الدوال التلاتة بتاع جزء معين بيشتغل مكانه كمان: `SessionStore`
 على Redis، أو `CheckpointStore` مبني على KV على Cloudflare Workers (الـ
@@ -308,7 +438,11 @@ store.close();
   الجديدة بتعدي round-trip من غير ما تتغير.
 - `prune()` بيشيل الـ sessions والـ checkpoints اللي ما اتحدثت خلال `olderThanMs`،
   والـ approvals اللي اتحسمت قبل المدة دي وsign-ins بتاع OAuth الـ pending المنتهية؛
-  أما الـ approvals اللي لسه ما اتحسمت وOAuth tokens فبيفضلوا.
+  أما الـ approvals اللي لسه ما اتحسمت وOAuth tokens فبيفضلوا، وكمان الـ turn المتوقفة على
+  approval لسه ما اتحسمت (الـ checkpoint بتاعتها وسجل محادثة الـ session)،
+  مهما كانت قديمة. وتقرير approval الـ turn المتوقفة بتاعتها اتمسحت على أي حال
+  بيفشل بـ [`LOUSHO_APPROVAL_ORPHANED`](/ar/errors#lousho_approval_orphaned)
+  من غير ما يشغّل الـ tool.
 - ملف مش database بتاع SQLite بيفشل بـ error بيذكر المسار؛
   واستخدام الـ store بعد `close()` بيرمي error واضح.
 
@@ -385,9 +519,12 @@ console.log(fork.id, reply.text); // 'trip-fork-1', 'Porto has a direct flight a
   اللي الـ session عليه وقت الـ fork)، فالـ streaming والـ approvals والـ turns المعمولها checkpoint بيشتغلوا زي أي
   `agent.session()`، و`agent.session({ id: fork.id, store })` بيكمّلها
   بعدين، حتى في process تانية. والـ id بتاعته هو `id` لو
-  مرّرته، وإلا `<id>-fork-<n>` لأول `n` من 1 ما لها سجل محادثة. و`id`
+  مرّرته، وإلا `<id>-fork-<n>` لأول `n` من 1 ما لها سجل محادثة (ولو الـ id
+  طويل زيادة على اللاحقة دي، `<start of id>-<8 hex of its hash>-fork-<n>`، ويفضل
+  في حدود 128 حرف). و`id`
   إله سجل محادثة أصلًا (أو نفس id الـ session) بيترفض بـ
   [`LOUSHO_SESSION_EXISTS`](/ar/errors#lousho_session_exists).
+- الـ `messages` بتاعة الـ fork بتمسك سجل محادثته أول ما `fork()` يرجع.
 - سجل محادثة الـ session الأصلية وcheckpoints بتاعتها ما بيتغيروا.
 - الـ budgets: الـ spend المسجَّل لـ `limits` بيفضل على الرسائل المحتفَظ فيها، فـ
   `limits` بتاع الـ fork بيبدأ من اللي الـ session صرفته عند نهاية آخر

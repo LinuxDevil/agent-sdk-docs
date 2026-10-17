@@ -2,11 +2,6 @@
 title: "Skills"
 ---
 
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/skills).
-</Warning>
-
 {/* Generated from docs/skills.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 الـ skill هي مجموعة تعليمات لها اسم (مستند markdown) يحمّلها الـ model **فقط لما يحتاجها**. هذي هي فكرة progressive disclosure: بدل ما تلصق كل playbook في الـ system prompt، تسرد الـ skills بالاسم مع وصف من سطر واحد، والـ model يجيب النص الكامل عند الطلب.
@@ -25,7 +20,7 @@ title: "Skills"
 import { createAgent, defineSkill } from '@lousho/build-ai-agent';
 
 const agent = createAgent({
-  prompt: 'You are a release engineer.',
+  instructions: 'You are a release engineer.',
   provider,
   skills: [
     defineSkill({
@@ -67,15 +62,16 @@ Use the imperative mood and link the PR.
 
 - `description` مطلوب.
 - `name` اختياري، وقيمته الافتراضية اسم المجلد (في تنسيق `SKILL.md`) أو اسم الملف بدون `.md`.
-- المجلدات اللي ما فيها `SKILL.md` نتجاهلها.
-- الـ skills ترجع مرتبة بالاسم، فالنتيجة deterministic.
-- الأخطاء تسمي الملف والمشكلة: `description` ناقص، YAML غير صالح، اسم غير صالح، مجلد ما يتقرى، أو skill-ين بنفس الاسم (والمسارين الاثنين مذكورين).
+- المجلدات اللي ما فيها `SKILL.md` نتجاهلها. ونفس الشي لأي ملف `.md` منفرد ما فيه frontmatter (مثل `README.md`): يتم تخطيه مع تحذير في الـ console بدل ما يفشل التحميل كله. أما الملف اللي فيه frontmatter بس ما فيه `description` فهو لسا خطأ.
+- الـ skill اللي بتنسيق `<name>/SKILL.md` تحفظ مجلدها في `skill.directory`. بعدها `load_skill` تضيف مسار المجلد وتسرد الملفات اللي جنب `SKILL.md` (لحد 50 ملف)، وتتسجّل tool باسم `read_skill_file` (مدخلها `{ skill, path }`) عشان تقرأها. المسار نسبي لمجلد الـ skill وما يقدر يطلع منه: `..` والمسارات المطلقة والـ symlinks اللي تطلع برا كلها مرفوضة. تقدر تقرأ ملفات نصية لحد 256 KB. `defineSkill({ directory })` يضبط نفس الحقل لـ skill تبنيها في الكود. ولو عندك tool خاصة فيك اسمها `read_skill_file` تتعارض بنفس الطريقة اللي تتعارض فيها `load_skill`.
+- الـ skills ترجع مرتبة بالاسم، فالـ prompts تطلع deterministic.
+- الأخطاء نوعها `LOUSHO_SKILL_INVALID` وتسمي الملف والمشكلة: `description` ناقص، YAML غير صالح، اسم غير صالح، مجلد ما يتقرى، أو skill-ين بنفس الاسم (والمسارين الاثنين مذكورين).
 
 ```ts
 import { createAgent, loadSkills } from '@lousho/build-ai-agent';
 
 const agent = createAgent({
-  prompt: 'You are a release engineer.',
+  instructions: 'You are a release engineer.',
   provider,
   skills: [...(await loadSkills('./skills'))],
 });

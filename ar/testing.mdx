@@ -1,12 +1,6 @@
 ---
 title: "اختبار الـ agents"
 ---
-
-{/* pending-translation */}
-<Warning>
-لم تُحدَّث ترجمة هذه الصفحة بعد، والنسخة الإنجليزية هي الأحدث والأصح، وقد يختلف المحتوى أدناه عنها. اقرأ [النسخة الإنجليزية](/testing).
-</Warning>
-
 {/* Generated from docs/testing.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 `@lousho/build-ai-agent/testing` يوفّر `mockModel`: ‏`LLMProvider` يشتغل بسكربت deterministic للـ unit tests. تكتب ماذا يفترض أن يقول الـ model في كل turn، تشغّل الـ agent، وبعدين تتحقق بالضبط ماذا أرسل الـ agent للـ model. بلا network، بلا API keys، بلا flakiness.
@@ -24,7 +18,7 @@ import { createAgent } from '@lousho/build-ai-agent';
 import { mockModel } from '@lousho/build-ai-agent/testing';
 
 const model = mockModel(['Hello! How can I help?']);
-const agent = createAgent({ prompt: 'You are friendly.', provider: model });
+const agent = createAgent({ instructions: 'You are friendly.', provider: model });
 
 const result = await agent.send('hi');
 
@@ -57,7 +51,7 @@ describe('weather agent', () => {
       { text: 'It is 21°C in Paris.' },                                  // turn 2
     ]);
     const agent = createAgent({
-      prompt: 'You report the weather.',
+      instructions: 'You report the weather.',
       provider: model,
       tools: [getWeather],
     });
@@ -84,7 +78,7 @@ import { mockModel } from '@lousho/build-ai-agent/testing';
 
 it('surfaces a provider failure', async () => {
   const model = mockModel([{ error: new Error('upstream 503') }]);
-  const agent = createAgent({ prompt: 'x', provider: model });
+  const agent = createAgent({ instructions: 'x', provider: model });
 
   await expect(agent.send('hi')).rejects.toThrow();
   expect(model.calls).toHaveLength(1); // the failed request is still recorded
@@ -155,7 +149,7 @@ const provider = recordReplay(() => resolveProvider('openai/gpt-4o-mini'), {
   cassette: './__cassettes__/refund-flow.json',
   mode: process.env.LOUSHO_RECORD ? 'record' : 'replay', // or 'auto'
 });
-const agent = createAgent({ provider, prompt: 'You handle refund requests.' });
+const agent = createAgent({ provider, instructions: 'You handle refund requests.' });
 ```
 
 الوسيط الأول هو الـ provider الحقيقي، أو factory بشكل `() => provider` ما تُستدعى إلا وقت التسجيل (يعني الـ replay ما ينشئها أبدًا). ويمكن تكون `undefined` إذا بتسوي replay بس.
@@ -173,7 +167,7 @@ const agent = createAgent({ provider, prompt: 'You handle refund requests.' });
 
 ### ماذا يفحص الـ replay
 
-افتراضيًا الـ call رقم N يُجاب عليها بالـ entry رقم N، لكن بشرط يكون الـ request مطابقًا للي سُجّل: الـ model، دور كل message ومحتواها والـ tool calls فيها، أسماء الـ tools والـ parameter schemas حقّها، و`temperature` و`maxTokens`. عند عدم التطابق الخطأ يعرض أول اختلاف مع تلميح لإعادة التسجيل:
+افتراضيًا الـ call رقم N يُجاب عليها بالـ entry رقم N، لكن بشرط يكون الـ request مطابقًا للي سُجّل: الـ model، دور كل message ومحتواها والـ tool calls فيها، أسماء الـ tools والـ parameter schemas حقّها، و`temperature` و`maxTokens`. الـ tools تُقارَن بالاسم، فتسجيل نفس الـ tools بترتيب ثاني يظل مطابقًا (وهذا ينطبق برضو على الـ cassettes الأقدم اللي كانت تحفظ ترتيب التسجيل). عند عدم التطابق الخطأ يعرض أول اختلاف مع تلميح لإعادة التسجيل:
 
 ```text
 Call #2 does not match the recorded request in ./__cassettes__/refund-flow.json.
@@ -182,6 +176,8 @@ First difference at request.messages[1].content:
   actual:   "Refund order 9999"
 If the change is intentional, re-record the cassette (run with LOUSHO_RECORD=1, or set mode: 'record').
 ```
+
+هذا التلميح يفترض إنك ربطت `mode` بـ `LOUSHO_RECORD` مثل ما فوق. إذا تسجّل بطريقة ثانية، مرّر `rerecordHint` مع الأمر اللي يستخدمه مشروعك؛ وتحت `lousho eval` يذكر التلميح `npx lousho eval --record` بدلًا من ذلك.
 
 للـ calls المتوازية أو غير المرتّبة مرّر `match: 'request'`: كل call يلاقي أول entry غير مستخدمة بطلب مطابق تمامًا، بأي ترتيب. ونفاد الـ entries برضو `CassetteMismatchError`.
 
@@ -205,11 +201,12 @@ const provider = recordReplay(mockModel(['ok']), {
 
 - رفض الـ provider يُسجَّل ويُعاد كرفض بنفس الـ `name` والـ `message`.
 - `stream()` يسجّل الـ chunks ويعيدها كـ async iterable بلا تأخيرات؛ مرّر `replayTiming: true` عشان تسترجع التوقيت بين الـ chunks. وأثناء التسجيل يُقرأ الـ stream الحقيقي للنهاية قبل ما يُرجَع.
-- استهلاك الـ tokens يُسجَّل ويُعاد، فميزات التكلفة والـ usage تتصرف نفس الشيء في الـ replay.
+- استهلاك الـ tokens يُسجَّل ويُعاد بالكامل (بما فيه الـ cached-input tokens والـ reasoning tokens، والتكلفة اللي يبلّغ عنها الـ provider)، فميزات التكلفة والـ usage تتصرف نفس الشيء في الـ replay.
+- الـ reasoning blocks حقّة استدعاء `generate()` ‏(`result.reasoning`، مع الـ signatures حقّتها) تُسجَّل وتُعاد؛ والـ stream يحتفظ بالـ reasoning داخل الـ chunks المسجّلة. والـ cassettes المسجّلة قبل ما نصير نحتفظ بهذي البيانات تشتغل replay عادي، بس بدونها.
 
 ### متى تُكتب الـ cassette
 
-التسجيل يكتب الـ cassette بشكل atomic (ملف مؤقت ثم rename) بعد كل call. يعني الاختبار اللي يفشل بنص الطريق يترك cassette صالحة فيها كل الـ calls اللي صارت، مو cassette نص مكتوبة. `await provider.save()` يفرض الكتابة. ما فيه hook عند خروج الـ process. وكل session تسجيل تبدأ cassette جديدة وتستبدل الملف القديم.
+التسجيل يكتب الـ cassette بشكل atomic (ملف مؤقت ثم rename) بعد كل call. يعني الاختبار اللي يفشل بنص الطريق يترك cassette صالحة فيها كل الـ calls اللي صارت، مو cassette نص مكتوبة. `await provider.save()` يفرض الكتابة. ما فيه hook عند خروج الـ process. وكل session تسجيل تبدأ cassette جديدة وتستبدل الملف القديم. وإذا كان التسجيل الجديد فيه نفس التبادلات بالضبط اللي في الملف القديم، تنحفظ قيم `recordedAt` و`sdkVersion` القديمة، فإعادة التسجيل بلا تغيير تترك الملف نفسه byte بـ byte وما يظهر أي diff.
 
 ### تنقيح البيانات (اقرأ هذا قبل الـ commit)
 

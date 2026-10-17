@@ -19,7 +19,7 @@ title: "الإعدادات"
 | `provider.model` | `string`   | نعم      | معرّف الـ model المستخدم في كل call (الـ model المضبوط لدى الـ provider؛ و`settings.model` الخاصة بالـ agent تتجاوزه إن وُجدت). |
 | `tools`          | `string[]` | لا       | أسماء الـ tools المدمجة (انظر أدناه).                  |
 | `policy`         | `AgentSpecPolicy` | لا | الموافقات والـ guardrails والحدود وغيرها، وتُفرَض عند تحوّل الـ spec إلى agent (انظر أدناه). |
-| `triggers`       | `AgentSpecTrigger[]` | لا | ما يشغّل الـ agent من تلقاء نفسه — جداول cron (`{ type: 'cron', cron, input, name?, timezone? }`)؛ انظر [الجداول الزمنية](/ar/schedules) و[المُشغِّلات](/ar/triggers#slack). |
+| `triggers`       | `AgentSpecTrigger[]` | لا | ما يشغّل الـ agent من تلقاء نفسه — جداول cron (`{ type: 'cron', cron, input, name?, timezone? }`)؛ انظر [الجداول الزمنية](/ar/schedules) و[المُشغِّلات](/ar/triggers#تعابير-cron). |
 | `mcpServers`     | `Record<string, McpServerSpec>` | لا | سيرفرات MCP التي يستخدمها الـ agent، مفهرسة بالاسم (انظر أدناه). |
 
 الحقل الناقص أو غير الصالح يفشل بخطأ يسمّي الحقل نفسه، مثل
@@ -357,7 +357,7 @@ createAgent({ model: 'openai/gpt-4o-mini', subagents: { researcher }, rateLimit:
 | `subagents`, `maxSubagentDepth` | sub-agents مسمّاة خلف tool واحد اسمه `task`، وأقصى عمق لتداخلها (الافتراضي 1)؛ انظر [الـ sub-agents](/ar/sub-agents). |
 | `handoffs`, `maxHandoffs` | agents يقدر هذا الـ agent يسلّمهم المحادثة كلها، بـ tool `transfer_to_<name>` لكل واحد، وكم handoff مسموح في الـ run الواحد (الافتراضي 5)؛ انظر [الـ handoffs](/ar/handoffs). |
 | `toolSearch` | يضبط [tool search](/ar/tool-search) للـ tools المعلَّمة بـ `deferLoading`: `{ thresholdPercent?, maxResults?, contextWindow?, search? }`، أو `false` لإرسال كل tool في كل call. |
-| `store`    | `AgentStore` (`SqliteStore`، أو `memoryStore()`، أو `{ sessions?, checkpoints?, approvals? }`): المخازن الافتراضية لـ `agent.session()` وللموافقات ولـ runs الـ `send(message, { sessionId })`؛ و`agent.resume(id)` يكمل run انقطع. انظر [Durable sessions](/ar/sessions#stores). |
+| `store`    | `AgentStore` (`SqliteStore`، أو `memoryStore()`، أو `{ sessions?, checkpoints?, approvals? }`): المخازن الافتراضية لـ `agent.session()` وللموافقات ولـ runs الـ `send(message, { sessionId })`؛ و`agent.resume(id)` يكمل run انقطع. انظر [Durable sessions](/ar/sessions#durable-sessions). |
 | `memory`   | خانات ذاكرة من `defineMemory()`: تُستحضر داخل الـ system prompt في بداية كل run، مع tools `remember_<name>` / `recall_<name>`. انظر [الذاكرة](/ar/memory). |
 | `approvalStore` | أين يُحفَظ توقف `needsApproval` (الافتراضي: `store.approvals`، وإلا `InMemoryApprovalStore` لكل agent)؛ انظر [الموافقات](/ar/approvals). |
 | `approve`  | `(call) => boolean`: حسم الموافقات بالكود بدل التوقف.            |
@@ -377,7 +377,7 @@ createAgent({ model: 'openai/gpt-4o-mini', subagents: { researcher }, rateLimit:
 | `promptCaching` | `'auto'` (الافتراضي) يضع نقاط `cache_control` الخاصة بـ Anthropic لـ models Claude؛ و`false` لا يضع شيئًا. انظر [Prompt caching](/ar/models-and-cost#الـ-prompt-caching). |
 | `output` | schema للرد النهائي؛ و`send()` / `stream()` تُحلّان بـ `result.object`. انظر [Structured output](/ar/structured-output). |
 | `onEvent` | يُستدعى مع كل `AgentEvent` من runs الـ agent، بنفس الترتيب الذي يُخرجها به `stream()`. انظر [الاستماع دون iteration](/ar/streaming#الاستماع-بدون-iterating). |
-| `exporter`, `captureContent`, `redactContent` | التتبّع: `TraceExporter` يستقبل span لكل run، وهل يُسجَّل محتوى الرسائل والـ tools على الـ spans (مطفأ افتراضيًا)، وهل تُستبعد attributes المحتوى المُهمَلة (الافتراضي `true`). انظر [Observability](/ar/observability#متقدم-الـ-executor-api-1). |
+| `exporter`, `captureContent`, `redactContent` | التتبّع: `TraceExporter` يستقبل span لكل run، وهل يُسجَّل محتوى الرسائل والـ tools على الـ spans (مطفأ افتراضيًا)، وهل تُستبعد attributes المحتوى المُهمَلة (الافتراضي `true`). انظر [Observability](/ar/observability#محتوى-الرسائل-والـ-arguments-هو-opt-in). |
 | `approvalTtlMs` | كم يبقى التوقف لانتظار الموافقة قابلًا للحسم، بالمللي ثانية؛ وإذا حُسم بعدها يُرفَض الـ call. غير مضبوط: لا تنتهي التوقفات أبدًا. انظر [انتهاء صلاحية الموافقة](/ar/approvals#انتهاء-مهلة-الموافقة). |
 | `askQuestion` | يضيف الـ tool المدمج `ask_question`؛ ويتوقف الـ run حتى `agent.approvals.answer()`. مطفأ افتراضيًا. انظر [سؤال المستخدم](/ar/approvals#سؤال-المستخدم). |
 | `permissions`, `permissionMode` | قواعد الصلاحيات (`allow` / `ask` / `deny`) وpreset مسمّى فوقها (`'default'` أو `'plan'` أو `'acceptEdits'` أو `'dontAsk'`). انظر [سياسات الصلاحيات](/ar/approvals#سياسات-الصلاحيات) و[أوضاع الصلاحيات](/ar/permission-modes). |
@@ -478,8 +478,8 @@ run للـ agent) أو في `AgentExecutor.execute()` / `stream()`:
 | `maxOutputTokens` | tokens الإكمال (`usage.outputTokens`). |
 | `maxCostUsd`      | بالدولار (`usage.costUsd`): التكلفة التي أبلغ عنها الـ provider لكل call (`usage.cost` عند OpenRouter)، وإلا فتقدير [جدول الأسعار](/ar/models-and-cost#الـ-models-وجدول-الأسعار). لا يُفحص طالما فيه model مستخدم تسعيره مجهول (`costUsd` تساوي `undefined`)؛ ويُسجَّل تحذير مرة واحدة. |
 | `maxDurationMs`   | الزمن الفعلي لاستدعاء `execute()` / `stream()`. |
-| `maxToolErrors`   | الـ tool calls التي انتهت بنتيجة خطأ (`result.toolErrors`، انظر [الـ tools](/ar/tools#tools-مدمجة)). يتوقف الـ run قبل call الـ model التالي بمجرد أن يفشل هذا العدد. يُحتسب لكل run، وكذلك على `agent.session({ limits })` (لكل turn على حدة). |
-| `maxSteps`        | خطوات الـ model. alias للخيار `maxSteps`: إذا ضُبط الاثنان يغلب الأشد تقييدًا (وعند التعادل يُبلَّغ عن `'max-steps'` الخاص بالخيار)؛ ولوحده يحل محل الافتراضي 10. ومع ضبط `output`، نفاده يجري نفس call الإجابة الإجبارية التي يجريها `maxSteps` ([Structured output](/ar/structured-output#testing))؛ ويظل الـ run ينتهي بـ `'budget-exceeded'`، ومعه `object` إذا اجتازت الإجابة التحقق. |
+| `maxToolErrors`   | الـ tool calls التي انتهت بنتيجة خطأ (`result.toolErrors`، انظر [الـ tools](/ar/tools#الـ-calls-الفاشلة-في-النتيجة)). يتوقف الـ run قبل call الـ model التالي بمجرد أن يفشل هذا العدد. يُحتسب لكل run، وكذلك على `agent.session({ limits })` (لكل turn على حدة). |
+| `maxSteps`        | خطوات الـ model. alias للخيار `maxSteps`: إذا ضُبط الاثنان يغلب الأشد تقييدًا (وعند التعادل يُبلَّغ عن `'max-steps'` الخاص بالخيار)؛ ولوحده يحل محل الافتراضي 10. ومع ضبط `output`، نفاده يجري نفس call الإجابة الإجبارية التي يجريها `maxSteps` ([Structured output](/ar/structured-output#عند-نفاد-الخطوات))؛ ويظل الـ run ينتهي بـ `'budget-exceeded'`، ومعه `object` إذا اجتازت الإجابة التحقق. |
 
 تُفحص الحدود قبل كل call للـ model (يعني بعد كل دفعة tools) وبعد call الـ
 model التي تطلب tools؛ و`maxDurationMs` يلغي أيضًا call model أو tool

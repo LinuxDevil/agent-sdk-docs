@@ -21,7 +21,7 @@ await agent.send('Make it 3 people', { sessionId: 'chat-42' });
 const finished = await agent.resume('chat-42');
 ```
 
-خيار `store` هو اللي يسوي التوصيل كله: `store.checkpoints` يحمل checkpoints الـ run، و`store.approvals` يحمل توقفات الـ approval، و`agent.approvals.resolve()` تكمل تكتب checkpoints للـ run تحت `sessionId` حقه. `stream()` تاخذ `sessionId` أيضًا. والـ sessions (الجلسات) لها checkpoints هي كذلك: `agent.session({ id })` تحفظ checkpoint لكل turn، و`agent.resume(id)` (أو `session.resume()`) تنهي session انقطعت — شوف [durable sessions](/ar/sessions#stores).
+خيار `store` هو اللي يسوي التوصيل كله: `store.checkpoints` يحمل checkpoints الـ run، و`store.approvals` يحمل توقفات الـ approval، و`agent.approvals.resolve()` تكمل تكتب checkpoints للـ run تحت `sessionId` حقه. `stream()` تاخذ `sessionId` أيضًا. والـ sessions (الجلسات) لها checkpoints هي كذلك: `agent.session({ id })` تحفظ checkpoint لكل turn، و`agent.resume(id)` (أو `session.resume()`) تنهي session انقطعت — شوف [durable sessions](/ar/sessions#durable-sessions).
 
 تحت الغطاء، `createAgent()` تشغّل `AgentExecutor.execute()` مع `sessionId` و`checkpointStore`. السلوك الموصوف تحت هو سلوك الـ executor، و[القسم المتقدم](#متقدم-executor-api) يورّيك استدعاءاته.
 
