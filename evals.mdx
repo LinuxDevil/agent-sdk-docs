@@ -9,6 +9,12 @@ They are written with `defineEval()`, live in `*.eval.ts` files, run under
 [vitest](https://vitest.dev), and are best run in CI with `lousho eval`, which
 prints a summary and writes JUnit and JSON reports.
 
+> **vitest is required.** `lousho eval` does not run eval files itself: it runs
+> your `*.eval.ts` files through [vitest](https://vitest.dev), resolved from your
+> project's own `node_modules` (Lousho does not bundle it). Install it as a dev
+> dependency first; without it, `lousho eval` exits 1 with
+> `vitest was not found from <dir>` and the install command.
+
 ```bash
 npm install --save-dev vitest
 npx lousho eval
@@ -41,7 +47,7 @@ defineEval({
   // A factory builds a fresh agent (and a fresh script) for every case.
   agent: () =>
     createAgent({
-      prompt: 'You handle refund requests.',
+      instructions: 'You handle refund requests.',
       tools: [lookupOrder],
       provider: mockModel([
         { toolCalls: [{ name: 'lookup_order', args: { orderId: '42' } }] },
@@ -260,13 +266,16 @@ lousho eval [globs...] [--tag t] [--junit path] [--json path] [--strict] [--judg
 | `--drift` | re-record into a temp directory and report how each case's trajectory changed (`--drift-usage` also compares tokens) |
 
 It spawns the vitest installed in your project (vitest is *your* dependency; if
-it is missing the command prints `npm install --save-dev vitest` and exits 2),
+it is missing the command prints `npm install --save-dev vitest` and exits 1),
 then prints one row per case with its scores and duration, totals, and the gate
-failures and soft failures listed separately.
+failures and soft failures listed separately. The "with soft failures" total (`softFailed` in the JSON summary) counts every case with a failed soft assertion, including cases that also failed a gate.
 
 **Exit code:** `1` on any gate failure (or soft failure with `--strict`, or when
-vitest itself fails, for example a file that does not load), `2` when it cannot
-run at all (bad arguments, vitest missing), otherwise `0`.
+vitest itself fails, for example a file that does not load, or is not installed,
+or a `--junit`/`--json` report cannot be written, or when no case ran at all:
+no eval file matched, or a `--tag` matched no case), `2` for a usage error (bad
+arguments), otherwise `0`. A case that vitest fails after the case itself
+finished (it ran past its time limit) is reported as that case failing.
 
 How results are collected: each case appends one JSON line to a file named by
 the `LOUSHO_EVAL_RESULTS` environment variable, which `lousho eval` sets and
@@ -304,7 +313,7 @@ summary and in the JUnit and JSON reports.
 The report is standard JUnit: one `testsuite` per eval, one `testcase` per case.
 A failed gate is a `<failure message="...">` carrying the diagnostic message; a
 case that threw or timed out is an `<error>`; soft failures are `<system-out>`
-notes (or failures under `--strict`). When vitest fails something no eval case
+notes (or failures under `--strict`), also on a case that failed a gate. When vitest fails something no eval case
 reported - an eval file that does not load, a plain `test()` that fails - the
 report gets an `<error>` testcase for it under a `vitest` suite, one per file
 (or one for the whole run when `--config` is used and vitest names no file), so
