@@ -90,7 +90,8 @@
                   "sessions",
                   "runs",
                   "queue-and-steer",
-                  "durable-execution"
+                  "durable-execution",
+                  "pause-and-resume"
                 ]
               },
               {

@@ -40,6 +40,7 @@ const PAGES = {
   'docs/flows.md': 'flows',
   'docs/providers.md': 'providers',
   'docs/durable-execution.md': 'durable-execution',
+  'docs/pause-and-resume.md': 'pause-and-resume',
   'docs/compaction.md': 'compaction',
   'docs/guardrails.md': 'guardrails',
   'docs/workspace-tools.md': 'workspace-tools',
