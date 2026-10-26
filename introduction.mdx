@@ -28,16 +28,16 @@ console.log(text);
 ## What sets it apart
 
 <CardGroup cols={2}>
-  <Card title="Record, replay and catch drift" icon="flask-conical" href="/evals">
+  <Card title="Record, replay and catch drift" icon="alien-8bit" href="/evals">
     `lousho eval --record` saves each case's real provider run as a cassette, `--replay` runs it in CI with no network or key, and `--drift` re-records and reports how the tool-call trajectory changed. `defineEval()` asserts on which tools were called, in what order, with which arguments.
   </Card>
   <Card title="Durable approvals on your own stores" icon="database" href="/durable-execution">
     Sessions, checkpoints and approval pauses live in memory, files, one SQLite file or Cloudflare KV. A paused or interrupted run resumes from another request or another process, on a Worker too.
   </Card>
-  <Card title="One agent, many surfaces" icon="activity" href="/deployment">
+  <Card title="One agent, many surfaces" icon="robot" href="/deployment">
     `lousho build` ships the agent to a Node server, Docker or a Worker; `lousho acp` serves it to editors and `serveMcp` to MCP clients. Runs emit OpenTelemetry GenAI spans with token usage and USD cost.
   </Card>
-  <Card title="Self-hosted, across AI SDK majors" icon="box" href="/installation">
+  <Card title="Self-hosted, across AI SDK majors" icon="computer" href="/installation">
     One package, no platform account or hosted control plane. The `ai` peer accepts v4, v6 and v7, and `fromAiSdk()` / `fromAiSdkTools()` reuse your existing AI SDK models and tools.
   </Card>
 </CardGroup>
@@ -66,7 +66,7 @@ The agent is the same object everywhere. What changes is the surface in front of
   <Card title="In a web app" icon="browser" href="/react">
     `useLoushoAgent()` for React and Vue, a store for Svelte, the Vercel AI SDK's `useChat`, or `createRouteHandler(agent)` in any Fetch-API framework.
   </Card>
-  <Card title="In chat and on a schedule" icon="message-square" href="/channels">
+  <Card title="In chat and on a schedule" icon="message" href="/channels">
     Slack, Discord, webhooks and plain HTTP channels map messages to sessions and send approvals back. Cron schedules start runs on their own.
   </Card>
   <Card title="In an editor" icon="code" href="/acp">
