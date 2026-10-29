@@ -8,7 +8,7 @@
 // matter, links, MDX escaping). Do not edit a generated page; edit the SDK doc and
 // run the script again. Hand-written pages (see HAND_WRITTEN) are never touched.
 
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, posix, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { githubSlug, headings, mintSlug, slugList } from './anchors.mjs';
@@ -16,6 +16,9 @@ import { githubSlug, headings, mintSlug, slugList } from './anchors.mjs';
 const siteRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const sdkRoot = resolve(process.argv[2] ?? join(siteRoot, '..', 'agent-sdk'));
 const GITHUB = 'https://github.com/LinuxDevil/agent-sdk/blob/main/';
+// The SDK's docs/images/ (Studio screenshots) is mirrored to /images on this site.
+const SDK_IMAGES = 'docs/images/';
+const SITE_IMAGES = 'images';
 
 if (!existsSync(join(sdkRoot, 'docs', 'quick-start.md'))) {
   console.error(`No SDK docs found at ${sdkRoot}. Pass the path to an agent-sdk checkout.`);
@@ -181,6 +184,7 @@ function rewriteLink(target, fromFile) {
   if (/^(https?:|mailto:|#)/.test(target)) return target;
   const [path, anchor] = target.split('#');
   const resolved = posix.normalize(posix.join(posix.dirname(fromFile), path));
+  if (resolved.startsWith(SDK_IMAGES)) return `/${SITE_IMAGES}/${resolved.slice(SDK_IMAGES.length)}`;
   const slug = PAGES[resolved] ?? PAGES[posix.join(resolved, 'README.md')];
   if (slug) return `/${slug}${anchor ? `#${anchor}` : ''}`;
   return `${GITHUB}${resolved}${anchor ? `#${anchor}` : ''}`;
@@ -310,6 +314,26 @@ for (const [file, slug] of Object.entries(PAGES)) {
   written++;
 }
 
+// Mirror docs/images/ so the pages' screenshots resolve. The folder is generated, like the pages:
+// it is replaced on every run, so an image removed from the SDK disappears here too.
+const imagesSource = join(sdkRoot, SDK_IMAGES);
+const imagesTarget = join(siteRoot, SITE_IMAGES);
+rmSync(imagesTarget, { recursive: true, force: true });
+let images = 0;
+if (existsSync(imagesSource)) {
+  mkdirSync(imagesTarget, { recursive: true });
+  for (const name of readdirSync(imagesSource)) {
+    copyFileSync(join(imagesSource, name), join(imagesTarget, name));
+    images++;
+  }
+}
+const missingImages = Object.values(PAGES).flatMap((slug) => {
+  const text = readFileSync(join(siteRoot, `${slug}.mdx`), 'utf8');
+  return [...text.matchAll(new RegExp(String.raw`\]\(/${SITE_IMAGES}/([^)\s]+)\)`, 'g'))]
+    .filter((m) => !existsSync(join(imagesTarget, m[1])))
+    .map((m) => `${slug}: ${m[1]}`);
+});
+
 // Links in the SDK docs use GitHub's heading slugs; rewrite them to the ids Mintlify renders.
 const allSlugs = [...Object.values(PAGES), ...HAND_WRITTEN];
 const anchorMaps = {};
@@ -346,7 +370,8 @@ const unmapped = readdirSync(join(sdkRoot, 'docs'))
 const nav = readFileSync(join(siteRoot, 'docs.json'), 'utf8');
 const notInNav = [...Object.values(PAGES), ...HAND_WRITTEN].filter((slug) => !nav.includes(`"${slug}"`));
 
-console.log(`wrote ${written} pages from ${sdkRoot}`);
+console.log(`wrote ${written} pages and ${images} images from ${sdkRoot}`);
+if (missingImages.length) console.log(`images the pages link to that the SDK does not have:\n  ${missingImages.join('\n  ')}`);
 if (unmapped.length) console.log(`SDK docs with no page (add them to PAGES): ${unmapped.join(', ')}`);
 if (notInNav.length) console.log(`pages missing from docs.json navigation: ${notInNav.join(', ')}`);
 if (unresolved.length) console.log(`links to headings that do not exist:\n  ${unresolved.join('\n  ')}`);
@@ -355,4 +380,4 @@ const leftoverRefs = Object.values(PAGES).flatMap((slug) => {
   return [...text.matchAll(/\b(?:Eve|LOU-[A-Z]+\d[\w.]*)\b/g)].map((m) => `${slug}: ${m[0]}`);
 });
 if (leftoverRefs.length) console.log(`internal tracker ids left in prose (add a rewrite to INLINE_REWRITES):\n  ${leftoverRefs.join('\n  ')}`);
-if (unmapped.length || notInNav.length) process.exitCode = 1;
+if (unmapped.length || notInNav.length || missingImages.length) process.exitCode = 1;
