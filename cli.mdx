@@ -28,7 +28,7 @@ Every command that takes a `<spec>` reads an agent spec file (`.yaml`,
 ## Usage
 
 ```text
-lousho init [dir] [--provider P] [--template T] [--yes] [--no-install] [--no-git] [--package-manager PM] [--force] [--sdk-path <dir|tgz>] [--bot-name <name>] [--bot-token <token>] [--bot-username <handle>] [--allowed-chats <ids>] [--persona <text>]
+lousho init [dir] [--provider P] [--template T] [--yes] [--no-install] [--no-git] [--package-manager PM] [--force] [--sdk-path <dir|tgz>]
 lousho dev <spec.yaml|spec.json|agent-dir|agent.ts> [--port N] [--host H] [--allowed-hosts a,b] [--no-schedules] [--traces[=dir]]
 lousho chat <spec.yaml|spec.json|agent-dir|agent.ts> [--model provider/model] [--session id] [--store sqlite:<file>] [--traces[=dir]]
 lousho acp <spec.yaml|spec.json|agent-dir|agent.ts> [--model provider/model]
@@ -39,6 +39,8 @@ lousho mcp <agent.yaml|json|agent-dir|agent.ts> [--http --port N --host H]
 lousho doctor [agent.yaml|json|agent-dir|agent.ts] [--json] [--ping]
 lousho eval [globs...] [--tag t] [--junit path] [--json path] [--strict] [--judge] [--record | --replay | --drift [--drift-usage]] [--url <base> [--token <bearer>]] [--config vitest.config.ts] [--timeout <ms>]
 lousho traces [traceId|prefix] [--dir D] [--limit N] [--json] [--content]
+lousho observe <start|status|stop|rebuild-rollups|prune|export|token> [--port N] [--db path] [--host H] [--require-token] [--project X] [--webhook URL] [--retention-days N] [--session-idle-minutes N] [--older-than <N>d] [--since <N>d|<N>h|<N>m] [--agent X] [--out file]
+lousho prompt <push <file|->|list|get <name[@version|@label]>|label <name> <label> <version>> [--url U] [--port N] [--token T] [--json] [--name N] [--labels a,b] [--variables x,y]
 lousho --version
 ```
 
@@ -266,5 +268,92 @@ npx lousho studio --port 5000
 ```
 
 Starts one local server for the Agent Forge API and UI. Agents and run state
-are stored under `.lousho/` in the current directory. See
-[Agent Forge](/agent-forge) for the walkthrough.
+are stored under `.lousho/` in the current directory. The app has a left
+navigation: Agents (the builder) and Playground, then Traces, Threads and
+Monitoring, Evaluations (Scores, Datasets, Evaluators, Annotation queues),
+Prompts, Context Hub and Settings; everything past the Playground reads the
+`lousho observe` daemon. See [Agent Forge](/agent-forge) for the screens
+and the walkthrough.
+
+## `lousho observe`
+
+```bash
+npx lousho observe start                        # collector on http://127.0.0.1:7777
+npx lousho observe status                       # health + fleet counts
+npx lousho observe stop                         # <db>.pid + SIGTERM (checks the daemon serves --db)
+npx lousho observe rebuild-rollups              # recompute insight aggregates
+npx lousho observe prune --older-than 30d       # delete finished runs older than 30 days, then VACUUM
+npx lousho observe export --since 7d --out runs.jsonl # traces as JSONL, one per line
+npx lousho observe token create --project myapp # bearer key for non-loopback auth
+```
+
+Runs the local collector every agent reports to when `LOUSHO_OBSERVE` is
+set: traces, fleet monitoring, eval scores, the prompt registry and the
+context hub in one SQLite file (default `~/.lousho/observe.db`). Studio's
+[daemon screens](/agent-forge#screens) read it. `start` takes
+`--port` (or `LOUSHO_OBSERVE_PORT`), `--db`, `--host`, `--require-token`
+and a repeatable `--webhook` for alert hooks. Each daemon writes its own `<db name>.pid` beside the db
+(`observe.db` gives `observe.pid`), so two dbs in one folder never share a
+pidfile. `start` exits 1 when the port already serves a different db, and
+`stop` refuses to signal when the daemon at the pidfile's port reports another
+db or the port answers as a different service, and falls back to signalling
+when it cannot verify (unreachable, or an old one-line pidfile). `/health`
+tells which db a daemon serves only to callers on the same machine. See
+[The observe daemon](/observability#the-observe-daemon).
+
+`start --retention-days N` sets how long finished runs are kept (default 30;
+`0` keeps everything). Once a day the daemon deletes traces whose
+observations all finished more than N days ago. A trace with any run still
+open, and a session that is still `active`, is kept whatever its age. Rollups,
+prompts and hub entries are never pruned. `prune --older-than <N>d` (whole
+days, N >= 1) does the same pass now, prints the observation, score and session
+counts it deleted, and then runs `VACUUM` to reclaim disk space (the daily pass
+never does). If only the `VACUUM` fails (for example, the db is busy), the
+prune stays committed, the error goes to stderr and the exit code is 0. It is
+safe to run while the daemon is up. A bad N is a usage
+error (exit 2). See [Retention](/observability#retention).
+
+`start --session-idle-minutes N` sets when a conversation counts as finished
+(default 30; `0` turns it off, so a session stays `active` until its agent goes
+down). The daemon's sweep marks a session `ended` once none of its runs is
+still open (a run marked `interrupted` does not count) and nothing in it has started or finished for N minutes; its
+`ended_at` is the time of that last activity. A new run in an `ended` (or
+`interrupted`) session makes it `active` again. Ended sessions are then pruned
+by `--retention-days` like any other finished session. A bad N is a usage
+error (exit 2). See [Idle sessions](/observability#idle-sessions).
+
+`export` writes traces as JSONL: one line per trace, `{ trace, observations,
+scores }` (the same rows the trace API returns), oldest first, with no cap on
+how many. `--since <N>d` (or `<N>h`, `<N>m`) keeps traces that started within
+that window; `--agent X` keeps one agent, matched by `agent_id` or, when no
+agent has that id, by its registered name (a name shared by two agents is a
+usage error, exit 2). Without `--out` the lines go to stdout and nothing else
+does (the count goes to stderr, so a pipe stays clean); `--out file` creates or
+overwrites the file and prints the count to stdout. It reads the db directly, so
+no daemon needs to be running. See [Export](/observability#export).
+
+## `lousho prompt`
+
+```bash
+npx lousho prompt push prompt.md --name mira    # publishes a new version
+npx lousho prompt list
+npx lousho prompt get mira@latest
+npx lousho prompt label mira prod 3             # mira@prod -> 3 (was 2)
+npx lousho prompt get mira@prod
+```
+
+Publishes and reads prompt versions in the observe daemon's registry. Agents
+resolve them with `createAgent({ prompt: 'mira@latest' })` (or a label,
+`'mira@prod'`) or `LOUSHO_PROMPT`.
+
+- `push` publishes the file (`-` reads stdin) as the next version. A push
+  whose text and `--variables` equal the latest version's mints nothing and
+  prints `mira@2 is unchanged` (exit 0). `--labels prod,canary` points those
+  labels at the resulting version, the new one or the unchanged latest.
+- `get <name>[@ref]` prints a version's text; `ref` is an integer, `latest`
+  (the default) or a label. `--json` prints the row, whose `labels` are the
+  labels currently pointing at that version.
+- `label <name> <label> <version>` moves a label: a label points at exactly
+  one version, so this takes it off the one that held it, and prints
+  `mira@prod -> 3 (was 2)` (or `(was unset)` for a new label). A label is a
+  name without whitespace, `@` or `/`, and not `latest` or all digits. See [The observe daemon](/observability#the-observe-daemon).
