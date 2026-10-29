@@ -23,7 +23,8 @@ npm run sync -- /path/to/agent-sdk
 ```
 
 The script (`scripts/sync-sdk-docs.mjs`) adds front matter, rewrites links
-between pages, points links to source files at GitHub, and escapes what MDX
+between pages, points links to source files at GitHub, copies the SDK's
+`docs/images/` to `images/` (and points image links there), and escapes what MDX
 would otherwise read as JSX. It also drops internal tracker ids (such as
 `LOU-...` tickets) from the prose, since they mean nothing to a reader of the
 site, and prints any it could not remove. It reports any SDK doc that has no
