@@ -19,7 +19,7 @@ This doc covers: installation, the `lousho studio` quickstart, the
 authoring, time travel (replaying a run from a past step), the playground
 endpoint, and how settings/secrets/deploy wiring works.
 
-![The Agents screen: nav, canvas, inspector and the bottom drawer](/images/studio-agents.png)
+![The Agents screen: nav, agent rail, the fitted canvas with the Inspector folded, and the bottom drawer](/images/studio-agents.png)
 
 ## Installation
 
@@ -46,17 +46,22 @@ npx lousho studio
 This starts one local server and prints its URL (default
 `http://127.0.0.1:4750/?token=<random>`). Open that exact URL in a browser.
 It lands on the Agents screen (`#/agents`): the left navigation, the build
-toolbar (Run, Stop, Debug, Import, Export, Save and the provider pill), the
+toolbar (the agent's name and run status, the model badge, then Debug, Stop,
+Run, Import, Export and Save), the
 agent rail (your saved agents plus a node/hook palette), the canvas, the
 Inspector (right), and a bottom drawer with Chat, Logs, Trace, Output,
-History and Settings tabs. The other screens are one click away in the
+History and Settings tabs. An agent opens with nothing selected and the
+whole graph fitted in view; the Inspector stays folded away until you
+select a node, or press the **Inspector** button at the canvas's
+top-right (its accessible name is "Show inspector"), which is remembered. The other screens are one click away in the
 navigation; see [Navigation](#navigation).
 
 Below 860px wide the navigation becomes a drawer opened from the
 **Navigation** (menu) button at the top; picking a screen, the scrim or Esc
 closes it. On the Agents screen the agent rail and the Inspector become
-slide-over panels you open from the top bar, and Debug, Import, Export and
-Save move into its **More** (`⋯`) menu.
+slide-over panels you open from the top bar; Run (or Stop) and Save stay in
+the bar, and Debug, Import, Export and the model badge move into its **More
+actions** (`⋯`) menu.
 
 Useful flags:
 
@@ -137,7 +142,7 @@ The left navigation lists every screen, grouped:
 
 | Group | Item | Screen |
 | --- | --- | --- |
-| Build | **Agents** | The builder: canvas, Inspector, bottom drawer. The build toolbar (Run, Stop, Debug, Import, Export, Save, provider pill) shows only here. |
+| Build | **Agents** | The builder: canvas, Inspector, bottom drawer. The build toolbar (Run, Stop, Debug, Import, Export, Save, model badge) shows only here. |
 | Build | **Playground** | Try messages against a model without editing an agent. |
 | Observe | **Traces** | Every run the observe daemon holds, filtered and sorted; a row opens the trace. |
 | Observe | **Threads** | Sessions (conversations): one row per session, one turn per run. |
@@ -145,11 +150,15 @@ The left navigation lists every screen, grouped:
 | Evaluate | **Evaluations** | Tabs for Scores, Datasets, Evaluators and Annotation queues. |
 | Assets | **Prompts** | The prompt registry: versions, labels, diffs. |
 | Assets | **Context Hub** | Shared key-values agents publish to the daemon. |
-| | **Settings** | Provider keys, settings profiles and deploy. |
+| | **Settings** | Appearance, provider keys, settings profiles, deploy, collector and shortcuts. |
 
-Off the Agents screen the top bar names the screen and keeps the live run
-status pill, nothing else. The last nav item is the collector status (see
-[The collector](#the-collector-observe-daemon)).
+Off the Agents screen a page header names the screen and keeps the live run
+status pill (Settings leaves it out). Under Settings, a small card shows the collector status (see
+[The collector](#the-collector-observe-daemon)). The button beside the
+**Agent Forge** name at the top of the nav (**Collapse navigation**)
+shrinks it to a rail of icons; hover an icon for its name. The choice is
+remembered across reloads. Below 860px wide the nav is always the full
+drawer.
 
 ### Routes and deep links
 
@@ -229,7 +238,7 @@ token on every read and write (as run reporting and the judge evaluators do),
 so the screens also work against a daemon started with `--require-token`.
 Without it, such a daemon answers `401` to every `/api/` read and the screens
 show that error instead of data (`/health` still answers, so the collector
-item says running). The browser's own credentials (the Studio token, cookies,
+card says running). The browser's own credentials (the Studio token, cookies,
 `Authorization`) are never passed on. The proxy only forwards reads plus the
 writes the screens make (feedback scores, new prompt versions from the
 Playground, prompt label moves, hub entry edits, dataset and example writes,
@@ -237,9 +246,9 @@ annotation queue writes, evaluator rule writes); every other write, ingest
 above all, is refused with `405`. It always calls the daemon at
 `LOUSHO_OBSERVE_URL`, whatever host the request line names.
 
-The last nav item says whether the daemon answers: **Collector: checking…**
-until the first probe, **Collector: running at `<url>`**, or **Collector:
-not reachable**. The probe keeps polling. While the daemon is down, each
+The collector card at the bottom of the nav says whether the daemon answers:
+**Checking collector…** until the first probe, then **Collector running**
+or **Collector unreachable**, with the daemon URL underneath. The probe keeps polling. While the daemon is down, each
 daemon screen shows the command to start it instead of an error, keeps its
 URL, and swaps the data back in by itself once the daemon answers. The
 Agents screen and Playground runs do not need the daemon.
@@ -261,18 +270,23 @@ without editing an agent:
 
 ![The Playground, loaded from a trace's model call](/images/studio-playground.png)
 
-- **Messages**: system, user and assistant rows. Every `{name}` placeholder
-  in any row gets a **Variables** input, in the order the names first appear.
+- **Messages**: system, user and assistant message cards. Every `{name}`
+  placeholder in any message gets a **Variables** input in the left
+  settings card, in the order the names first appear.
 - **Model**: a provider (the ones with a key under Settings > Provider keys,
   plus `ollama` and `mock`; `mock` when nothing is configured) and a model
   name, sent as `provider/model`.
 - **Tools**: pick a saved agent to borrow its tools, then switch each one on
   or off.
-- **Run** streams the reply as it arrives; **Stop** aborts it. When the run
-  finishes, **Open trace** goes to its trace.
-- **Save as new prompt version** pushes the system message (and its
-  variables) to the prompt registry, under the loaded prompt's name or one
-  you type. It is disabled while there is no system message.
+- **Run** (or Ctrl/Cmd+Enter in the messages) streams the reply as it
+  arrives; **Stop** aborts it. Tool calls show as cards that open to their
+  arguments. When the run finishes, the output shows its tokens in and out,
+  latency and cost (when the model's price is known), and **Open trace**
+  goes to its trace.
+- **Save prompt** (in the page header) opens a card whose **Save as new
+  prompt version** pushes the system message (and its variables) to the
+  prompt registry, under the loaded prompt's name or one you type. It is
+  disabled while there is no system message.
 
 Two links pre-fill it. **Open in Playground** on a model call (generation)
 in a trace opens `#/playground?trace=<traceId>&fromObs=<obsId>`, which loads
@@ -288,26 +302,34 @@ says so and keeps an empty editor, and runs still work. Runs go through the
 
 ![The Traces list](/images/studio-traces.png)
 
+![The Traces list in the dark theme](/images/studio-traces-dark.png)
+
+The same list in the dark theme (Settings > Appearance, or **Toggle theme** in the command palette).
+
 `#/traces` lists the daemon's runs, newest first: status, name, agent,
 input and output previews, error message, model, start, duration, tokens
 and cost (narrow windows hide the less important columns). Filter with the
 search box (name, input or output), the **Agent**, **Status**, **Model** and
 **Project** facets, and a time range (15m, 1h, 24h, 7d, 30d or Custom;
 default the last 24 h). Click **Duration**, **Tokens** or **Cost** to sort
-by it. 50 rows a page. A `prompt` filter (set by the Prompts screen's
+by it. 50 rows a page. The page header's refresh icon (**Refresh**) re-fetches the list
+now, and **Live** (a toggle) refreshes it every 5 seconds until you switch
+it off or the daemon goes down. A `prompt` filter (set by the Prompts screen's
 "Runs using this version" link) shows as a removable chip.
 
 ### Trace
 
 `#/traces/<trace id>` is one run. The header has its name, status, agent
 (a link to the agent's traces), model, start, duration, tokens, cost and
-session (a link to its thread), plus **Copy link**, **Add to dataset** and
-**Add to queue**.
+session (a link to its thread), plus **Copy link**, **Add to dataset**,
+**Add to queue** and, when the run has a model call, **Open in Playground**.
+**All traces** in the page header goes back to the list.
 
 ![A failed run: the error banner on top of the inspector](/images/studio-trace.png)
 
 Below it is the trace viewer the builder's Trace tab and the queue review
-also use: the steps as a **Tree** or a **Waterfall**, and an inspector for
+also use: the steps as a **Tree** or a **Waterfall** (a two-way switch above
+the steps), and an inspector for
 the selected step (a failed step is selected by default, else the root).
 The selected step is `?obs=` in the URL. The inspector shows, in order:
 
@@ -448,17 +470,21 @@ not scored. When nothing is pending the screen says the queue is empty.
 ![A prompt: its labels, actions and a diff between two versions](/images/studio-prompts.png)
 
 `#/prompts` lists the registry, one row per prompt: latest version, labels,
-version count, runs that used it, and when it was updated. Open one
-(`#/prompts/<name>`, or `@<version>` / `@<label>` to select a version):
+version count, runs that used it, and when it was updated; the search box
+filters the list by name. Open one (`#/prompts/<name>`, or `@<version>` /
+`@<label>` to select a version):
 
-- The selected version's text, labels, **Runs using this version** (Traces
-  filtered by `prompt=<name>@<version>`) and **Open in Playground**.
-- **Move `<label>` here** for each of the prompt's labels that points
-  elsewhere: a label points at exactly one version, so this moves it (the
-  same as `lousho prompt label`, see [CLI](/cli#lousho-prompt)).
-- **Compare versions**: pick two versions for a side-by-side diff
-  (`?diff=a,b`).
-- The version history; open a row to select that version.
+- The header: the prompt's name with the selected version's labels,
+  **Runs using this version** (Traces filtered by
+  `prompt=<name>@<version>`) and **Open in Playground**.
+- The selected version's text, with line numbers, and **Move `<label>`
+  here** for each of the prompt's labels that points elsewhere: a label
+  points at exactly one version, so this moves it (the same as
+  `lousho prompt label`, see [CLI](/cli#lousho-prompt)).
+- **Compare versions**: pick two versions for a diff (`?diff=a,b`), shown
+  **Unified** or **Side by side**.
+- The version history, a timeline beside the text; pick a version to
+  select it (`j`/`k` move between versions).
 
 ### Context Hub
 
@@ -466,18 +492,26 @@ version count, runs that used it, and when it was updated. Open one
 namespaces. The daemon serves hub entries only on behalf of an agent, so
 pick who you are **Viewing as** (default the first agent by name) and,
 optionally, a scope (`private` or `fleet`). Open a namespace to see its
-keys, values (JSON as a tree), scope, writer and TTL; a fleet entry has an
-**Edit** button that republishes it (which restarts its TTL).
+entries as cards (key, scope, a value preview, writer, last update and
+TTL); open a card to see the full value (JSON as a tree) beside the list.
+A fleet entry has an **Edit** button that republishes it (which restarts
+its TTL).
 
 ### Settings
 
-`#/settings` shows the same settings as the builder drawer's **Settings**
-tab; see [Settings, secrets and deploy wiring](#settings-secrets-and-deploy-wiring).
+`#/settings` is one column of cards: **Appearance** (theme Light, Dark or
+System, and table density Compact or Comfortable, both remembered in this
+browser; until you pick a density each table keeps its screen's default),
+**Provider keys**, **Settings profile**, **Deploy target**, **Collector**
+(whether the observe daemon answers, its address, and `lousho observe start`
+when it is down) and **Keyboard shortcuts** (the same list as the `?` sheet).
+The builder drawer's **Settings** tab shows only the provider keys, profile
+and deploy cards; see [Settings, secrets and deploy wiring](#settings-secrets-and-deploy-wiring).
 
 ## First-agent walkthrough
 
 1. **Create an agent.** In the agent rail's **Agents** tab, click
-   **+ New agent**, give it a name, and pick a starting template - **Blank graph** (a single
+   **New agent**, give it a name, and pick a starting template - **Blank graph** (a single
    LLM node using the built-in `mock` provider) is the fastest way to try
    things out without any API keys. Agent Forge creates the agent under that
    name (`.lousho/agents/<name>.yaml`, with `name: <name>` in the spec) and
@@ -733,9 +767,11 @@ daemon bound beyond loopback. A daemon that is down does not slow or fail the ru
 ## Settings, secrets and deploy wiring
 
 The Settings screen (`#/settings`, the last screen in the nav) and the builder
-drawer's **Settings** tab show the same three parts: provider API keys
+drawer's **Settings** tab share three parts: provider API keys
 (OpenAI and Anthropic, stored encrypted under `.lousho/` and never shown
-again), named settings profiles (provider, deploy adapter, hook timeout,
+again; each key shows **Set** with its masked last characters, **From
+environment** when only `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` is set, or
+**Not set**), named settings profiles (provider, deploy adapter, hook timeout,
 OpenTelemetry toggle; kept in `.lousho/settings.json`, which holds no
 secrets), and a **Deploy** section that picks an adapter (`node-server`,
 `docker` or `cloudflare-worker`) and runs `lousho build` for the selected
@@ -827,4 +863,24 @@ LOUSHO_DOC_SHOTS=1 npx playwright test -c apps/agent-forge/playwright.config.ts 
 ```
 
 It writes `docs/images/studio-<screen>.png` (1280x800, light theme) from the
-same fake daemon. The images are not part of the npm package.
+same fake daemon. The images are not part of the npm package. The dark
+examples (`studio-{agents,traces,trace,monitoring}-dark.png`) come from the
+same command with the dark scheme:
+
+```bash
+LOUSHO_DOC_SHOTS=1 LOUSHO_DOC_SHOTS_SCHEME=dark npx playwright test -c apps/agent-forge/playwright.config.ts docShots
+```
+
+Into `docs/images` the spec skips its `x-` review shots, and a dark run
+writes only those four.
+
+Two optional variables help review a restyle before and after:
+`LOUSHO_DOC_SHOTS_OUT=<dir>` writes the PNGs to another directory (absolute,
+or relative to where you run the command), and `LOUSHO_DOC_SHOTS_SCHEME=dark`
+shoots the dark theme (`light` is the default; any other value fails the run).
+With an output directory every shot is written under its own name, `x-`
+review shots included.
+
+```bash
+LOUSHO_DOC_SHOTS=1 LOUSHO_DOC_SHOTS_OUT=/tmp/shots-dark LOUSHO_DOC_SHOTS_SCHEME=dark npx playwright test -c apps/agent-forge/playwright.config.ts docShots
+```
