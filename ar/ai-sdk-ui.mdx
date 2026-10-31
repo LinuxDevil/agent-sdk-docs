@@ -17,7 +17,7 @@ sidebarTitle: "AI SDK UI (useChat)"
 بادئة الـ model `vendor/` هي اللي تختار الـ provider؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثلا `openrouter/openai/gpt-4o-mini`).
 
 ```ts
-import { createAgent, fromUIMessages, memoryStore, toUIMessageStreamResponse, type UIMessageLike } from '@lousho/build-ai-agent';
+import { createAgent, fromUIMessages, memoryStore, toUIMessageStreamResponse, type UIMessageLike } from 'lousho';
 
 // The store must outlive the request: without one, every `agent.session({ id })`
 // gets a fresh in-memory transcript and the next turn would start empty.
@@ -120,4 +120,4 @@ export function Chat() {
 
 الرسائل تجي من الـ client، فما يُحتفظ إلا برسائل `user` و`assistant`: رسالة `system` (أو أي role ثاني، أو أي عنصر ما هو رسالة أصلًا) تُحذف، حتى ما يقدر المستدعي يضيف تعليمات إلى الـ prompt الخاص بالـ agent. حدّد التعليمات على الـ agent نفسه (`createAgent({ instructions })`)، مو في الطلب.
 
-ممكن ينضاف لاحقًا subpath مخصص `@lousho/build-ai-agent/ai-sdk-ui`؛ حاليًا الدوال تجي من جذر الحزمة.
+ممكن ينضاف لاحقًا subpath مخصص `lousho/ai-sdk-ui`؛ حاليًا الدوال تجي من جذر الحزمة.

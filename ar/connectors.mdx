@@ -9,7 +9,7 @@ connector هو **MCP server**: أضِفه إلى `mcpServers` فتنضم tools �
 registry الـ agent بأسماء ضمن namespace على شكل `<server>__<tool>`.
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const agent = createAgent({
   model: 'openrouter/openai/gpt-4o-mini',
@@ -50,8 +50,8 @@ const agent = createAgent({
 الموافقة، أما `docs.get_document` فلا. اضبطها لكل server:
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
-import { mockModel } from '@lousho/build-ai-agent/testing';
+import { createAgent } from 'lousho';
+import { mockModel } from 'lousho/testing';
 
 const provider = mockModel([{ text: 'ok' }]);
 

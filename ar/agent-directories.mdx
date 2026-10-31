@@ -8,7 +8,7 @@ title: "مجلدات agent"
 > **أمان:** تحميل مجلد agent **يشغّل الكود الذي فيه** (`agent.ts` وكل شيء في `tools/`). لا تحمّل إلا مجلدات تثق فيها. لا يوجد أي sandbox ضمني؛ الملفات تعمل بكامل صلاحيات العملية.
 
 ```ts
-import { loadAgentDir } from '@lousho/build-ai-agent';
+import { loadAgentDir } from 'lousho';
 
 const agent = await loadAgentDir('./my-agent');
 const { text } = await agent.send('Hello!');
@@ -90,7 +90,7 @@ export default {
 
 ```ts
 // hooks.ts — the default export is a hook or a list of them
-import type { AgentHook } from '@lousho/build-ai-agent';
+import type { AgentHook } from 'lousho';
 const audit: AgentHook = {
   name: 'audit',
   postToolCall(ctx) {
@@ -102,7 +102,7 @@ export default audit;
 
 ```ts
 // approve.ts — the default export decides every `ask`ed call
-import type { ApproveToolCall } from '@lousho/build-ai-agent';
+import type { ApproveToolCall } from 'lousho';
 const approve: ApproveToolCall = ({ args }) => !String(args.path ?? '').endsWith('.test.js');
 export default approve;
 ```
@@ -118,7 +118,7 @@ export default approve;
 ```ts
 // tools/send_email.ts
 import { z } from 'zod';
-import { defineTool } from '@lousho/build-ai-agent';
+import { defineTool } from 'lousho';
 
 export default defineTool({
   name: 'send_email',
@@ -167,7 +167,7 @@ export default defineTool({
 
 ```ts
 import { createServer } from 'node:http';
-import { createAgent, mountChannels, resolveAgentDir } from '@lousho/build-ai-agent';
+import { createAgent, mountChannels, resolveAgentDir } from 'lousho';
 
 // channels/support.ts: export default webhookChannel({ secret: process.env.HOOK_SECRET ?? '' })
 const { config, channels } = await resolveAgentDir('./my-agent');
@@ -182,7 +182,7 @@ createServer((req, res) => void handler(req, res).then((handled) => handled || r
 كل ملف في `memory/` يصدّر افتراضيًا [memory slot](/ar/memory): ناتج `defineMemory({ ... })`، أو نفس الخيارات بدون `name` وحينها يكون اسم الملف هو اسم الـ slot. بخلاف الـ schedules والـ channels، الـ slots جزء من الـ agent: `loadAgentDir()` تمرّرها إلى `createAgent({ memory })`، فتعمل الـ tools `remember_<name>` / `recall_<name>` والاسترجاع داخل الـ prompt بدون أي كود إضافي، و`manifest.memory` يسرد أسماءها. كل slot يستخدم `provider` الخاص فيه. ملف لا يصدّر slot يفشل بخطأ `LOUSHO_MEMORY_INVALID` مع ذكر الملف. وأي override لـ `memory` يُمرَّر إلى `loadAgentDir(dir, { overrides })` يُدمَج مع slots المجلد بالاسم: عند التعارض يفوز الـ override.
 
 ```ts
-import { defineMemory, fileMemory, resolveAgentDir } from '@lousho/build-ai-agent';
+import { defineMemory, fileMemory, resolveAgentDir } from 'lousho';
 
 // memory/notes.ts: export default { scope: 'global', provider: fileMemory({ dir: './.lousho/memory' }) }
 const { manifest } = await resolveAgentDir('./my-agent', {
@@ -196,7 +196,7 @@ console.log(manifest.memory); // names found in memory/
 ```ts
 // memory/notes.ts
 import { fileURLToPath } from 'node:url';
-import { fileMemory } from '@lousho/build-ai-agent';
+import { fileMemory } from 'lousho';
 
 export default {
   scope: 'global',
@@ -219,7 +219,7 @@ export default {
 `resolveAgentDir()` ترجع الخيارات المجمَّعة وmanifest، وهذا مفيد للاختبارات والأدوات:
 
 ```ts
-import { resolveAgentDir, createAgent } from '@lousho/build-ai-agent';
+import { resolveAgentDir, createAgent } from 'lousho';
 
 const { config, manifest } = await resolveAgentDir('./my-agent');
 console.log(manifest.tools, manifest.skills, manifest.subagents);
@@ -233,8 +233,8 @@ const agent = createAgent({ ...config, maxSteps: 3 });
 الوسيط الثاني يأخذ نفس خيارات `createAgent()` ويغلب على الملفات. كل خيار يُمرَّر إلى الـ agent، بما فيها الخيارات التي لا يعلنها أي ملف (`guardrails` و`onEvent` و`retry` و`reasoning` و`redactContent` و`output` وغيرها). استخدمه لتبديل الـ model في الاختبارات:
 
 ```ts
-import { loadAgentDir } from '@lousho/build-ai-agent';
-import { mockModel } from '@lousho/build-ai-agent/testing';
+import { loadAgentDir } from 'lousho';
+import { mockModel } from 'lousho/testing';
 
 const agent = await loadAgentDir('./my-agent', { provider: mockModel(['Hi there.']) });
 ```

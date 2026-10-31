@@ -10,7 +10,7 @@ sidebarTitle: "الـ models والتكلفة"
 دوال مساعدة بدون dependencies، لقرارات الميزانية والسياق.
 
 ```ts
-import { estimateTokens, estimateCost, getModelInfo, registerModel } from '@lousho/build-ai-agent';
+import { estimateTokens, estimateCost, getModelInfo, registerModel } from 'lousho';
 
 // A custom or self-hosted model: add it (or override a built-in) before use.
 registerModel({
@@ -40,7 +40,7 @@ const usd = estimateCost({ inputTokens: used, outputTokens: 500 }, 'my-llama'); 
 كل `ExecutionResult` (ونتيجة `agent.send()`) تحمل `usage`، وهو المجموع التراكمي للـ run كله:
 
 ```ts
-import { createAgent, formatUsage } from '@lousho/build-ai-agent';
+import { createAgent, formatUsage } from 'lousho';
 
 const result = await createAgent({ provider, instructions: 'You compare cities.' }).send('Compare 3 cities');
 
@@ -65,7 +65,7 @@ console.log(formatUsage(result.usage)); // 1,234 in / 567 out tokens · $0.0042 
 الأسعار تأتي من الـ model registry أعلاه، فإذا أردت تكلفة لـ model مخصص أو fine-tuned، سجّله بنفس الـ id الذي تمرّره كـ model:
 
 ```ts
-import { registerModel } from '@lousho/build-ai-agent';
+import { registerModel } from 'lousho';
 
 registerModel({
   id: 'ft:gpt-4o-mini:acme',
@@ -86,7 +86,7 @@ Anthropic لا تخزّن بادئة الطلب في الـ cache إلا حتى 
 
 ```ts
 import { readFileSync } from 'node:fs';
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const longPolicy = readFileSync('./policy.md', 'utf8'); // a long, stable system prompt
 const agent = createAgent({ model: 'openrouter/anthropic/claude-haiku-4.5', instructions: longPolicy }); // promptCaching: 'auto'

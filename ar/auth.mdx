@@ -3,12 +3,12 @@ title: "Route auth والـ principals"
 ---
 {/* Generated from docs/auth.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-أي agent يشتغل على HTTP يحتاج يعرف شغلتين عن كل request: هل مسموح له يمرّ أصلًا، ومين المتصل. `@lousho/build-ai-agent/auth` تجاوب على الاثنين. إنت تعطي الـ route قائمة مرتبة من مدخلات auth: `jwt()` أو `oidc()` أو `basic()` أو `apiToken()` أو `anonymous()`، أو function تكتبها بنفسك. أول entry يقبل الـ request يرجع **principal** (هوية المتصل بعد ما auth تحققت منه)، وهذا الـ principal يدخل الـ run، وهناك تقدر دوال `model` و`instructions` و`tools` ونطاقات الـ memory تقرأه.
+أي agent يشتغل على HTTP يحتاج يعرف شغلتين عن كل request: هل مسموح له يمرّ أصلًا، ومين المتصل. `lousho/auth` تجاوب على الاثنين. إنت تعطي الـ route قائمة مرتبة من مدخلات auth: `jwt()` أو `oidc()` أو `basic()` أو `apiToken()` أو `anonymous()`، أو function تكتبها بنفسك. أول entry يقبل الـ request يرجع **principal** (هوية المتصل بعد ما auth تحققت منه)، وهذا الـ principal يدخل الـ run، وهناك تقدر دوال `model` و`instructions` و`tools` ونطاقات الـ memory تقرأه.
 
 ```ts
-import { createAgent, createRouteHandler } from '@lousho/build-ai-agent';
-import { apiToken, jwt } from '@lousho/build-ai-agent/auth';
-import { mockModel } from '@lousho/build-ai-agent/testing';
+import { createAgent, createRouteHandler } from 'lousho';
+import { apiToken, jwt } from 'lousho/auth';
+import { mockModel } from 'lousho/testing';
 
 const agent = createAgent({
   provider: mockModel(['Hello!']),
@@ -64,7 +64,7 @@ interface Principal {
 | `jwksUrl` | JWKS endpoint (https، أو http على localhost) | `RS256` و`ES256` افتراضيًا؛ مفاتيح RSA وEC فقط |
 
 ```ts
-import { jwt } from '@lousho/build-ai-agent/auth';
+import { jwt } from 'lousho/auth';
 
 const fromOurAuthServer = jwt({
   jwksUrl: 'https://auth.example.com/.well-known/jwks.json',
@@ -91,7 +91,7 @@ const fromOurAuthServer = jwt({
 هي `jwt()` بس مفاتيحها تجي من OpenID Connect provider. تجلب `<issuer>/.well-known/openid-configuration` مرة واحدة (أو `discoveryUrl` لو مررته)، وتشترط إن `issuer` في الوثيقة يساوي قيمتك بالضبط، وتستخدم `jwks_uri` منها (https، أو http على `localhost` / `127.0.0.1` / `[::1]` — نفس قاعدة `jwksUrl` في `jwt()`). الخوارزميات الافتراضية `RS256` و`ES256`؛ وHMAC ممنوع.
 
 ```ts
-import { oidc } from '@lousho/build-ai-agent/auth';
+import { oidc } from 'lousho/auth';
 
 const google = oidc({ issuer: 'https://accounts.google.com', audience: process.env.GOOGLE_CLIENT_ID ?? 'client-id' });
 ```
@@ -103,7 +103,7 @@ const google = oidc({ issuer: 'https://accounts.google.com', audience: process.e
 credentials بتاع HTTP Basic. أسماء المستخدمين وكلمات المرور تتطبّع NFC وتتقارن في زمن ثابت، وكل user مضبوط يتقارن مع كل request، فالـ user المجهول ياخذ نفس وقت كلمة المرور الغلط. والـ `401` يحمل الهيدر `WWW-Authenticate: Basic realm="<realm>", charset="UTF-8"` عشان المتصفحات تعرض نافذة تسجيل الدخول.
 
 ```ts
-import { basic } from '@lousho/build-ai-agent/auth';
+import { basic } from 'lousho/auth';
 
 const operators = basic({ users: { ops: process.env.OPS_PASSWORD ?? 'change-me' }, realm: 'agent' });
 // Or check against your own store (compare in constant time there):
@@ -123,7 +123,7 @@ const fromDatabase = basic({ users: async (user, password) => user === 'svc' && 
 أي function تاخذ `Request` تشتغل كـ entry. صرّح بالـ challenges اللي ترد بها على `401`، وإلا تعلن `Bearer`:
 
 ```ts
-import { AuthError, type AuthFn } from '@lousho/build-ai-agent/auth';
+import { AuthError, type AuthFn } from 'lousho/auth';
 
 const tenantKey: AuthFn = async (request) => {
   const key = request.headers.get('x-tenant-key');
@@ -166,7 +166,7 @@ tenantKey.challenges = [{ scheme: 'Bearer', realm: 'tenants' }];
 
 ```ts
 // my-agent/auth.ts
-import { apiToken, oidc } from '@lousho/build-ai-agent/auth';
+import { apiToken, oidc } from 'lousho/auth';
 
 export default [
   oidc({ issuer: 'https://login.example.com', audience: 'agent-api' }),
@@ -183,8 +183,8 @@ export default [
 الـ principal موجود على سياق الـ run جنب `sessionId` و`metadata`. بادئة `vendor/` في الـ model هي اللي تختار الـ provider؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`).
 
 ```ts
-import { createAgent, defineMemory, inMemoryMemory, type Principal } from '@lousho/build-ai-agent';
-import { mockModel } from '@lousho/build-ai-agent/testing';
+import { createAgent, defineMemory, inMemoryMemory, type Principal } from 'lousho';
+import { mockModel } from 'lousho/testing';
 
 const notes = defineMemory({
   name: 'notes',
@@ -236,7 +236,7 @@ await agent.session({ id: 'chat-1' }).send('Hello again', { principal: caller })
 ### في tool
 
 ```ts
-import { defineTool } from '@lousho/build-ai-agent';
+import { defineTool } from 'lousho';
 import { z } from 'zod';
 
 export const myOrders = defineTool({
@@ -256,8 +256,8 @@ export const myOrders = defineTool({
 ### سياسات الـ approval وقواعد الـ permissions
 
 ```ts
-import { createAgent, defineTool } from '@lousho/build-ai-agent';
-import { mockModel } from '@lousho/build-ai-agent/testing';
+import { createAgent, defineTool } from 'lousho';
+import { mockModel } from 'lousho/testing';
 import { z } from 'zod';
 
 const deploy = defineTool({
@@ -284,8 +284,8 @@ await agent.send('Deploy the API', { principal: { id: 'ci', type: 'service', aut
 القرار يقدر يسمّي مين اتخذه. والـ tool الموافَق عليه يشوف صاحب القرار في `ctx.approval.by`، جنب `ctx.approval.note`:
 
 ```ts
-import { createAgent, defineTool, type Principal } from '@lousho/build-ai-agent';
-import { mockModel } from '@lousho/build-ai-agent/testing';
+import { createAgent, defineTool, type Principal } from 'lousho';
+import { mockModel } from 'lousho/testing';
 import { z } from 'zod';
 
 const sendEmail = defineTool({
@@ -321,8 +321,8 @@ await agent.approvals.resolve({ id: paused.approvalId!, approved: true }, { prin
 `createRouteHandler()` وسيرفر Node المولَّد ياخذون `authorizeSession`، وهو يستبدل هذا الافتراضي (في مجلد الـ agent، صدّره من `auth.ts`: شوف المثال تحت [من يقدر يحسم الـ approval](#من-يقدر-يحسم-الـ-approval)). ينسأل قبل ما المتصل يقرأ session (`action: 'read'`)، أو يرسل لها turn (`'chat'`، ويشمل `POST <basePath>` وendpoint `useChat`)، أو يحسم واحد من الـ approvals حقها (`'approve'`). رجّع `false` عشان `403` (`LOUSHO_SESSION_FORBIDDEN`). واشتقاق الـ id من المتصل يخلّي الفحص stateless:
 
 ```ts
-import { createAgent, createRouteHandler, memoryStore } from '@lousho/build-ai-agent';
-import { jwt } from '@lousho/build-ai-agent/auth';
+import { createAgent, createRouteHandler, memoryStore } from 'lousho';
+import { jwt } from 'lousho/auth';
 
 const agent = createAgent({ model: 'openai/gpt-4o-mini', store: memoryStore() });
 // The user id a session id starts with: everything before its last `-`. A prefix match would let
@@ -353,7 +353,7 @@ export const { GET, POST } = createRouteHandler(agent, {
 - `allowedHosts` يفحص بس هيدر `Host` اللي يوصل للسيرفر، وما يفحص الهيدرات المحوَّلة أبدًا (لأن الصفحة اللي تسوي DNS rebinding تقدر تضبطها). ورا proxy يعيد كتابة `Host`، حط الاسم الـ upstream اللي يرسله الـ proxy، مو الاسم العام.
 
 ```ts
-import { createAgent, createRouteHandler } from '@lousho/build-ai-agent';
+import { createAgent, createRouteHandler } from 'lousho';
 
 const agent = createAgent({ model: 'openai/gpt-4o-mini' });
 
@@ -372,8 +372,8 @@ export const { GET, POST } = createRouteHandler(agent, {
 لما `needsApproval` يعني إن شخص ثاني لازم يوافق، قل مين. هنا العميل ما عاد يقدر يوافق على استرداد مبلغه بنفسه، والمشرف يقدر يقرأ أي session (عشان يشوف على إيش يوافق) ويحسم فيها:
 
 ```ts
-import { createAgent, createRouteHandler, memoryStore } from '@lousho/build-ai-agent';
-import { jwt } from '@lousho/build-ai-agent/auth';
+import { createAgent, createRouteHandler, memoryStore } from 'lousho';
+import { jwt } from 'lousho/auth';
 
 const agent = createAgent({ model: 'openai/gpt-4o-mini', store: memoryStore() });
 const isSupervisor = (principal?: { claims?: Readonly<Record<string, unknown>> }) => principal?.claims?.role === 'supervisor';
@@ -393,8 +393,8 @@ export const { GET, POST } = createRouteHandler(agent, {
 
 ```ts
 // my-agent/auth.ts
-import { apiToken } from '@lousho/build-ai-agent/auth';
-import type { ApprovalAccessRequest, SessionAccessRequest } from '@lousho/build-ai-agent';
+import { apiToken } from 'lousho/auth';
+import type { ApprovalAccessRequest, SessionAccessRequest } from 'lousho';
 
 export default [
   apiToken(process.env.ALICE_TOKEN!, { id: 'alice' }),

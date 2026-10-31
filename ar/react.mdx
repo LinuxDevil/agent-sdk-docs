@@ -5,10 +5,10 @@ title: "React"
 
 `useLoushoAgent()` يحط agent وراء واجهة محادثة. يشغّل turn، يقرأ الـ [typed event stream](/ar/streaming) أول ما يوصل، ويحوّله إلى state جاهز للـ render: رسائل بنصها وtool calls، و`status` لحقل كتابة الرسالة، والـ tool call الواقف على approval إذا فيه واحد.
 
-موجود على الـ subpath `@lousho/build-ai-agent/react`. و`react` (18 أو 19) peer dependency اختيارية: ثبّتها في التطبيق اللي يستخدم الـ hook.
+موجود على الـ subpath `lousho/react`. و`react` (18 أو 19) peer dependency اختيارية: ثبّتها في التطبيق اللي يستخدم الـ hook.
 
 ```tsx
-import { useLoushoAgent } from '@lousho/build-ai-agent/react';
+import { useLoushoAgent } from 'lousho/react';
 
 export function Chat() {
   const agent = useLoushoAgent({ url: '/api/agent' });
@@ -95,8 +95,8 @@ export function Chat() {
 
 ```ts
 import { createServer, type IncomingMessage } from 'node:http';
-import { createAgent } from '@lousho/build-ai-agent';
-import type { ApprovalOutcome } from '@lousho/build-ai-agent/react';
+import { createAgent } from 'lousho';
+import type { ApprovalOutcome } from 'lousho/react';
 
 const agent = createAgent({ model: 'openai/gpt-4o-mini' });
 
@@ -138,8 +138,8 @@ createServer(async (req, res) => {
 الـ hook يستقبل الـ agent نفسه كمان. مثال على استدعائه من hook مخصّص:
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
-import { useLoushoAgent } from '@lousho/build-ai-agent/react';
+import { createAgent } from 'lousho';
+import { useLoushoAgent } from 'lousho/react';
 
 const agent = createAgent({ model: 'openai/gpt-4o-mini' });
 
@@ -155,7 +155,7 @@ export function useSupportChat() {
 الـ hook مجرد wrapper رقيق. منطق الـ state هو `reduceAgentEvents(state, event)`، reducer نقي يشتغل على `AgentEvent` وشوية actions محلية (`ui.send`، `ui.decide`، `ui.resumed`، `ui.stopped`، `ui.reset`، `ui.error`). و`parseEventStream(response)` يقرأ الأحداث من response تبع fetch. الاتنين مُصدَّرين من نفس الـ subpath، عشان binding مخصّص أو client بدون React:
 
 ```ts
-import { initialAgentUIState, parseEventStream, reduceAgentEvents } from '@lousho/build-ai-agent/react';
+import { initialAgentUIState, parseEventStream, reduceAgentEvents } from 'lousho/react';
 
 let state = reduceAgentEvents(initialAgentUIState, { type: 'ui.send', input: 'Weather in Paris?' });
 const response = await fetch('http://localhost:3000/api/agent', {
@@ -176,7 +176,7 @@ console.log(state.status, state.messages.at(-1)?.text, state.usage?.totalTokens)
 الـ agent اللي عنده [todo tools](/ar/tools#todo-tools) يطلق حدث `todo.updated` مع كل `todo_write`. الـ hook يخزن أحدث قائمة في `todos`، و`useTodos(agent)` يحوّلها إلى view فيه العدّادات والبند الجاري والتقدم. يستقبل ناتج الـ hook، فـ stream واحد يغذي المحادثة والخطة. القائمة تبقى عبر الـ turns وما يمسحها شيء غير hook جديد — ولا تُستعاد لما الصفحة ترجع تتصل بـ session موجودة.
 
 ```tsx
-import { useLoushoAgent, useTodos } from '@lousho/build-ai-agent/react';
+import { useLoushoAgent, useTodos } from 'lousho/react';
 
 export function Plan() {
   const agent = useLoushoAgent({ url: '/api/agent' });

@@ -91,7 +91,7 @@ run.done('stop')
 `AgentEvent` هو discriminated union: تعمل narrowing على `event.type` فتحصل على الـ payload. وكل event type مُصدَّر أيضًا (`TextDeltaEvent` و`ToolDoneEvent` و`RunDoneEvent` ...)، و`AgentEventOf<'tool.done'>` يختار واحد بالاسم.
 
 ```ts
-import { isAgentEvent, isToolEvent, type AgentEvent } from '@lousho/build-ai-agent';
+import { isAgentEvent, isToolEvent, type AgentEvent } from 'lousho';
 
 function render(event: AgentEvent): string {
   switch (event.type) {

@@ -3,7 +3,7 @@ title: "اختبار الـ agents"
 ---
 {/* Generated from docs/testing.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-`@lousho/build-ai-agent/testing` يوفّر `mockModel`: ‏`LLMProvider` يشتغل بسكربت deterministic للـ unit tests. تكتب ماذا يفترض أن يقول الـ model في كل turn، تشغّل الـ agent، وبعدين تتحقق بالضبط ماذا أرسل الـ agent للـ model. بلا network، بلا API keys، بلا flakiness.
+`lousho/testing` يوفّر `mockModel`: ‏`LLMProvider` يشتغل بسكربت deterministic للـ unit tests. تكتب ماذا يفترض أن يقول الـ model في كل turn، تشغّل الـ agent، وبعدين تتحقق بالضبط ماذا أرسل الـ agent للـ model. بلا network، بلا API keys، بلا flakiness.
 
 ```bash
 npm install --save-dev vitest
@@ -14,8 +14,8 @@ npm install --save-dev vitest
 لو كتبت string بس، فهو اختصار لـ `{ text }`.
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
-import { mockModel } from '@lousho/build-ai-agent/testing';
+import { createAgent } from 'lousho';
+import { mockModel } from 'lousho/testing';
 
 const model = mockModel(['Hello! How can I help?']);
 const agent = createAgent({ instructions: 'You are friendly.', provider: model });
@@ -34,8 +34,8 @@ model.assertExhausted();
 ```ts
 import { describe, it, expect, vi } from 'vitest';
 import { z } from 'zod';
-import { createAgent, defineTool } from '@lousho/build-ai-agent';
-import { mockModel } from '@lousho/build-ai-agent/testing';
+import { createAgent, defineTool } from 'lousho';
+import { mockModel } from 'lousho/testing';
 
 describe('weather agent', () => {
   it('calls get_weather and reports the result', async () => {
@@ -73,8 +73,8 @@ describe('weather agent', () => {
 
 ```ts
 import { it, expect } from 'vitest';
-import { createAgent } from '@lousho/build-ai-agent';
-import { mockModel } from '@lousho/build-ai-agent/testing';
+import { createAgent } from 'lousho';
+import { mockModel } from 'lousho/testing';
 
 it('surfaces a provider failure', async () => {
   const model = mockModel([{ error: new Error('upstream 503') }]);
@@ -102,7 +102,7 @@ expect(model.calls[0].temperature).toBe(0.2);
 مرّر function تحسب الـ turn من الـ request. يمكن تكون async، وترجع string أو أي turn object.
 
 ```ts
-import { mockModel } from '@lousho/build-ai-agent/testing';
+import { mockModel } from 'lousho/testing';
 
 const model = mockModel([(req) => `You said: ${req.messages.at(-1)?.content}`]);
 const result = await model.generate({ messages: [{ role: 'user', content: 'ping' }] });
@@ -126,7 +126,7 @@ console.log(result.text); // You said: ping
 إذا استدعى الـ agent الـ model أكثر مما كتبت في السكربت، يرمي `mockModel` خطأ يذكر رقم الاستدعاء غير المتوقع، ويعرض آخر message في الـ request، ويقول لك أضف turn. عشان تعيد آخر turn للأبد (مفيد في اختبارات الـ loop وحدود الخطوات)، مرّر `{ onExhausted: 'repeat-last' }`:
 
 ```ts
-import { mockModel } from '@lousho/build-ai-agent/testing';
+import { mockModel } from 'lousho/testing';
 
 const looping = mockModel([{ toolCalls: [{ name: 'again' }] }], { onExhausted: 'repeat-last' });
 ```
@@ -142,8 +142,8 @@ const looping = mockModel([{ toolCalls: [{ name: 'again' }] }], { onExhausted: '
 ‏`mockModel` تكتب الـ turns يدويًا. `recordReplay` هي الأداة المكمّلة: VCR لسلوك الـ model الحقيقي. شغّل اختبارك مرة واحدة مع الـ provider الحقيقي، وكل تبادل `generate()` / `stream()` ينكتب في ملف cassette. في الـ CI نفس الاختبار يسوّي replay للـ cassette بلا network، بلا API key، وبلا تثبيت الـ peer package الخاصة بالـ provider. بادئة `vendor/` في اسم الـ model تحدد الـ provider؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثال `openrouter/openai/gpt-4o-mini`).
 
 ```ts
-import { createAgent, resolveProvider } from '@lousho/build-ai-agent';
-import { recordReplay } from '@lousho/build-ai-agent/testing';
+import { createAgent, resolveProvider } from 'lousho';
+import { recordReplay } from 'lousho/testing';
 
 const provider = recordReplay(() => resolveProvider('openai/gpt-4o-mini'), {
   cassette: './__cassettes__/refund-flow.json',
@@ -184,7 +184,7 @@ If the change is intentional, re-record the cassette (run with LOUSHO_RECORD=1, 
 القيم المتقلّبة ما تكسر المطابقة. الـ timestamps والتواريخ (`2026-10-01` و`October 1, 2026`) والـ UUIDs والمعرّفات ذات البادئات (`call_...` و`toolu_...` و`chatcmpl_...`) تُستبدل بـ placeholders على الطرفين، ومعرّفات الـ tool calls تُتجاهل (تتطابق الـ tool calls بالاسم والـ arguments). الـ parameter schema حقّة الـ tool تتطابق بما كتبته فيها (أسماء الخصائص والأنواع و`optional` وقيم الـ enum والفحوص مثل `min` أو `int` والأوصاف)، مو بطريقة طباعة major version معيّن من zod. فالـ cassette المسجّلة بـ zod 3 تشتغل replay مع zod 4 والعكس؛ وتغيير الـ schema نفسها يفشّل المطابقة. لأي شيء ثاني، مرّر `normalize`:
 
 ```ts
-import { mockModel, recordReplay } from '@lousho/build-ai-agent/testing';
+import { mockModel, recordReplay } from 'lousho/testing';
 
 const provider = recordReplay(mockModel(['ok']), {
   cassette: './__cassettes__/users.json',
@@ -213,7 +213,7 @@ const provider = recordReplay(mockModel(['ok']), {
 الـ cassettes مفروض تدخل الـ repo، فالـ wrapper يكتب بس مجموعة ثابتة من حقول الـ request (أبدًا مو headers ولا option bags الخاصة بالـ provider)، وما يكتب `rawResponse` أبدًا، ويستبدل الـ strings اللي تشبه API keys ‏(`sk-...` و`sk-ant-...` ورموز `Bearer ...` وصيغ شائعة ثانية) بـ `[REDACTED]`. هذا safety net، مو ضمانة: الـ prompts وردود الـ model تُخزَّن حرفيًا، يعني البيانات الشخصية والـ URLs الداخلية ونصوص العملاء تنتهي في الملف. مرّر `redact` عشان تنقّيها (تشتغل على كل string مسجّلة، في الـ requests والـ responses مع بعض، والـ replay يطبّقها عند المطابقة):
 
 ```ts
-import { mockModel, recordReplay } from '@lousho/build-ai-agent/testing';
+import { mockModel, recordReplay } from 'lousho/testing';
 
 const provider = recordReplay(mockModel(['ok']), {
   cassette: './__cassettes__/support.json',

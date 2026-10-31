@@ -10,7 +10,7 @@ sidebarTitle: "Next.js وFetch frameworks"
 
 ```ts
 // app/api/agent/[[...path]]/route.ts
-import { createAgent, createRouteHandler, memoryStore } from '@lousho/build-ai-agent';
+import { createAgent, createRouteHandler, memoryStore } from 'lousho';
 
 // `store` is what lets a session survive across requests: without one every
 // `agent.session({ id })` the handler opens gets a fresh in-memory transcript,
@@ -31,7 +31,7 @@ export const { GET, POST } = createRouteHandler(agent, {
 **الـ route بدون `auth` عام (public)**: أي شخص يصل إليه يقدر يشغّل الـ agent ويصرف ميزانية الـ model عندك. مرّر bearer token، أو دالة تتحقق من الـ session أو الـ cookie الخاصة بتطبيقك:
 
 ```ts
-import { createAgent, createRouteHandler } from '@lousho/build-ai-agent';
+import { createAgent, createRouteHandler } from 'lousho';
 
 declare function isSignedIn(request: Request): Promise<boolean>;
 
@@ -62,8 +62,8 @@ export const { GET, POST } = createRouteHandler(createAgent({ model: 'openai/gpt
 **من يحق له الموافقة على استدعاء.** لا يوجد في `createRouteHandler` خيار `approvers`؛ الـ approvals تُحسم عبر `authorizeApproval({ principal, sessionId, approval })`. افتراضيًا (`callerOwnsApproval`) المستخدم الذي يشتغل الاستدعاء المحجوز (gated) لصالحه هو من يقدر يوافق عليه، ولا يقدر يحسم استدعاء مستخدم آخر، فالتطبيق ذو المستخدم الواحد الذي يسأل مستخدمه نفسه لا يحتاج أي شيء. وهذا يعني أيضًا أن المستخدم يقدر يوافق على استرداد مبلغ لنفسه. إذا لازم تأتي الموافقة من شخص آخر، مرّر `authorizeApproval`. هذه قاعدة الشخصين: المشرف هو من يحسم، وأبدًا ليس على استدعاء يشتغل لصالحه هو. ويحتاج المشرف أيضًا `authorizeSession` حتى يقرأ session العميل (`GET /chat/:id`، ليعرض ما يوافق عليه) ويحسم فيها؛ فافتراضيًا الـ session ملك العميل وحده:
 
 ```ts
-import { createAgent, createRouteHandler, memoryStore } from '@lousho/build-ai-agent';
-import { jwt } from '@lousho/build-ai-agent/auth';
+import { createAgent, createRouteHandler, memoryStore } from 'lousho';
+import { jwt } from 'lousho/auth';
 
 const agent = createAgent({ model: 'openai/gpt-4o-mini', store: memoryStore() });
 const isSupervisor = (principal?: { claims?: Readonly<Record<string, unknown>> }) => principal?.claims?.role === 'supervisor';
@@ -92,7 +92,7 @@ export const { GET, POST } = createRouteHandler(agent, {
 
 ```tsx
 'use client';
-import { useLoushoAgent } from '@lousho/build-ai-agent/react';
+import { useLoushoAgent } from 'lousho/react';
 
 export function Chat() {
   const agent = useLoushoAgent({ url: '/api/agent', headers: { Authorization: `Bearer ${token}` } }, { approvalsUrl: '/api/agent/approvals' });
@@ -117,7 +117,7 @@ const { messages, sendMessage } = useChat({ transport: new DefaultChatTransport(
 نفس الـ handler، مركّبًا في المكان الذي تتوقعه الـ framework:
 
 ```ts
-import { createAgent, createRouteHandler } from '@lousho/build-ai-agent';
+import { createAgent, createRouteHandler } from 'lousho';
 
 const { handler } = createRouteHandler(createAgent({ model: 'openai/gpt-4o-mini' }), { basePath: '/agent', auth: 'secret' });
 

@@ -5,7 +5,7 @@ description: "Lousho is a TypeScript SDK for building AI agents that run in your
 
 Most agent code starts as a loop around a model call, and then production asks for more: a human has to approve the refund before it is sent, the process restarts halfway through a run, the conversation has to continue tomorrow from another server, and somebody wants a test that fails when the agent stops calling the right tool.
 
-`@lousho/build-ai-agent` is that loop with those answers built in. It is a library, with no web framework and no hosted runtime: a typed tool-calling loop with approvals, sessions, streaming, sub-agents, skills, MCP and a CLI. The same agent runs in a script, a Node server, a Docker container or a Cloudflare Worker (a Worker supports a [subset](/cloudflare-workers#what-works-and-what-does-not) of the providers and tools).
+`lousho` is that loop with those answers built in. It is a library, with no web framework and no hosted runtime: a typed tool-calling loop with approvals, sessions, streaming, sub-agents, skills, MCP and a CLI. The same agent runs in a script, a Node server, a Docker container or a Cloudflare Worker (a Worker supports a [subset](/cloudflare-workers#what-works-and-what-does-not) of the providers and tools).
 
 ```mermaid
 flowchart LR
@@ -18,7 +18,7 @@ flowchart LR
 ```
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const agent = createAgent({ model: 'openai/gpt-4.1-mini', instructions: 'You are a helpful assistant.' });
 const { text } = await agent.send('Hello!');
@@ -79,7 +79,7 @@ The agent is the same object everywhere. What changes is the surface in front of
 
 ## Compared to other libraries
 
-`@lousho/build-ai-agent` sits one layer above a model call: like the AI SDK 7 agents, eve, Mastra, LangGraph, the OpenAI Agents SDK or the Claude Agent SDK, it runs a full agent loop. It builds on the Vercel AI SDK rather than replacing it: the built-in providers use `ai` and `@ai-sdk/*`, and `fromAiSdk()` wraps any other AI SDK model.
+`lousho` sits one layer above a model call: like the AI SDK 7 agents, eve, Mastra, LangGraph, the OpenAI Agents SDK or the Claude Agent SDK, it runs a full agent loop. It builds on the Vercel AI SDK rather than replacing it: the built-in providers use `ai` and `@ai-sdk/*`, and `fromAiSdk()` wraps any other AI SDK model.
 
 Durable approvals, evals, agent directories and coding-agent harnesses are no longer unique: AI SDK 7, eve and Mastra ship their own. What Lousho still does differently is record/replay with trajectory drift, durable approvals on Cloudflare Workers KV, serving the same agent over ACP and MCP, and running as one self-hosted package. It is weaker where it is young: it is in alpha, has no Postgres store, fewer native providers and no hosted dashboard. The [comparison](/comparison) has the per-project table, dated, with where each rival is ahead.
 

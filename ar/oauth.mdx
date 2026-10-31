@@ -18,7 +18,7 @@ title: "OAuth"
 الـtokens المخزَّنة لـprincipal بدون issuer موجودة تحت المفتاح القديم (`<provider>|user||<id>`). هذا المفتاح كان مشتركًا بين كل الـauthenticators، لذلك الـSDK لا يقرأه كبديل احتياطي: لو فعل لسلّم token الخاص بـauthenticator إلى authenticator آخر. والمستخدمون اللي ما يُعثر على الـtoken حقهم يسجّلون الدخول من جديد. وللاحتفاظ بالـtoken، المشغّل اللي يعرف لأي authenticator تنتمي الـtokens القديمة ينقلها مرة واحدة:
 
 ```ts
-import { fileStore } from '@lousho/build-ai-agent';
+import { fileStore } from 'lousho';
 
 const store = fileStore('./.lousho', { tokenKey: process.env.LOUSHO_TOKEN_KEY });
 const legacy = { owner: 'user', principalId: 'U04ABCDEF' } as const;
@@ -35,7 +35,7 @@ if (token) {
 `tokenStoreKey(provider, owner)` هو مفتاح سجل الـcredential: `<provider>|app`، أو `<provider>|user|<issuer>|<principalId>` مع percent-encoding للـissuer والمعرّف (الـissuer الغائب جزء فارغ). الترميز يجعل المفتاح واضحًا: معرّف principal فيه `|` ما يقدر يتصادم مع مالك آخر.
 
 ```ts
-import { tokenStoreKey } from '@lousho/build-ai-agent';
+import { tokenStoreKey } from 'lousho';
 
 tokenStoreKey('github', { owner: 'app' }); // 'github|app'
 tokenStoreKey('github', { owner: 'user', principalId: 'a|b', issuer: 'https://id.example.com' });
@@ -47,7 +47,7 @@ tokenStoreKey('github', { owner: 'user', principalId: 'a|b', issuer: 'https://id
 `AgentStore.tokens` هو `OAuthTokenStore`:
 
 ```ts
-import { memoryStore } from '@lousho/build-ai-agent';
+import { memoryStore } from 'lousho';
 
 const { tokens } = memoryStore();
 const alice = { owner: 'user', principalId: 'alice', issuer: 'https://id.example.com' } as const;
@@ -79,7 +79,7 @@ node -e "console.log(Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toS
 ```
 
 ```ts
-import { createAgent, fileStore, generateTokenKey } from '@lousho/build-ai-agent';
+import { createAgent, fileStore, generateTokenKey } from 'lousho';
 
 console.log(generateTokenKey()); // store it as a secret, e.g. LOUSHO_TOKEN_KEY
 
@@ -104,7 +104,7 @@ const agent = createAgent({ provider, store: fileStore('./.lousho', { tokenKey: 
 عرّف الـprovider مرة واحدة، على مستوى الـmodule بجانب الأدوات اللي تستخدمه، بـ`defineOAuthProvider()`. والأداة تطلب الـtoken بـ`ctx.getToken(provider)`:
 
 ```ts
-import { createAgent, defineOAuthProvider, defineTool, memoryStore } from '@lousho/build-ai-agent';
+import { createAgent, defineOAuthProvider, defineTool, memoryStore } from 'lousho';
 import { z } from 'zod';
 
 export const github = defineOAuthProvider({
@@ -144,7 +144,7 @@ const agent = createAgent({ provider, tools: [listRepos], store: memoryStore() }
 **credentials التطبيق.** الـprovider اللي له `credentialOwner: 'app'` يحمل token واحد للجميع (تثبيت bot، service account). ومستخدم الدردشة لا يُرسَل له رابط تسجيل الدخول أبدًا، لأن اللي يفتحه سيربط حسابه هو كـcredential للـagent لكل المستخدمين: وبدون الـtoken يفشل الاستدعاء بـ[`LOUSHO_OAUTH_APP_SIGNIN_REQUIRED`](/ar/errors#lousho_oauth_app_signin_required). والمشغّل يسجّل دخول التطبيق مرة واحدة بـ`agent.oauth.signInUrl(provider)`:
 
 ```ts
-import { createAgent, defineOAuthProvider, fileStore } from '@lousho/build-ai-agent';
+import { createAgent, defineOAuthProvider, fileStore } from 'lousho';
 
 const slackBot = defineOAuthProvider({
   name: 'slack_bot',
@@ -189,7 +189,7 @@ console.log('Open this to connect the app:', await agent.oauth.signInUrl(slackBo
 `agent.oauth.complete()` تخزّن الـtoken فقط: الـclient اللي عرض الرابط يكمل الـrun بالموافقة على الإيقاف. وإذا كنت تخدم مسارًا خاصًا بك، افعل الشيء نفسه:
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const agent = createAgent({ provider });
 
@@ -225,8 +225,8 @@ export async function GET(request: Request): Promise<Response> {
 خوادم MCP المستضافة مثل Linear وGitHub وAtlassian وNotion تتطلب OAuth 2.1 كما تعرّفه مواصفة تفويض MCP. أعطِ مدخل HTTP في `mcpServers` حقل `oauth` والـSDK يتولى البروتوكول: يقرأ metadata المورد المحمي للخادم (RFC 9728) ليجد authorization server الخاص به، ويقرأ metadata ذلك الخادم (RFC 8414)، ويسجّل client إذا ما كان عندك واحد (dynamic client registration، RFC 7591)، ويسجّل الدخول بـPKCE (S256) وresource indicator (RFC 8707). والـtokens تُحفظ في token store الـagent (مشفَّرة في الـstores الدائمة) تحت اسم provider `mcp-<server>`، ويجدّدها MCP SDK حين يرفض الخادم واحدًا منتهيًا.
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
-import { SqliteStore } from '@lousho/build-ai-agent/sqlite';
+import { createAgent } from 'lousho';
+import { SqliteStore } from 'lousho/sqlite';
 
 const agent = createAgent({
   provider,

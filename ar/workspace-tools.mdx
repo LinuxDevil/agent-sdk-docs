@@ -6,7 +6,7 @@ title: "Workspace tools"
 الـworkspace tools تعطي الـagent نظام ملفات وshell، فيقدر يشتغل كـcoding agent بأسلوب Claude Code. الأدوات نفسها لا تستخدم `node:fs` ولا `node:child_process`، بل تنادي واجهتين صغيرتين: `FsProvider` و`ShellProvider`. لذلك نفس الأدوات تشتغل على مجلد محلي، أو على شجرة ملفات في الذاكرة أثناء الاختبارات، أو على container في Docker، أو على sandbox بعيد مثل E2B أو Daytona أو Cloudflare. لشرح عملي كامل، راجع [ابنِ coding agent](/ar/build-a-coding-agent).
 
 ```ts
-import { createAgent, NodeWorkspace, createFsTools, createShellTool } from '@lousho/build-ai-agent';
+import { createAgent, NodeWorkspace, createFsTools, createShellTool } from 'lousho';
 
 const workspace = new NodeWorkspace({ root: './project' }); // every path is confined to this directory
 const agent = createAgent({
@@ -26,7 +26,7 @@ if (paused.finishReason === 'awaiting-approval') {
 `send()` ترجع بـ`finishReason: 'awaiting-approval'`، و`agent.approvals.resolve()` تنفّذ الأمر (أو ترفضه) ويكمل الـrun (راجع [Approvals](/ar/approvals)). إذا تبي بعض الأوامر تشتغل بدون سؤال، مرّر `needsApproval: false` مع قائمة `allow`، أو `needsApproval` كدالة ترجع `false` للأوامر اللي تثق فيها.
 
 ```ts
-import { createAgent, NodeWorkspace, createFsTools, createShellTool } from '@lousho/build-ai-agent';
+import { createAgent, NodeWorkspace, createFsTools, createShellTool } from 'lousho';
 
 const workspace = new NodeWorkspace({ root: './project' });
 const agent = createAgent({
@@ -48,8 +48,8 @@ const result = await agent.send('Fix the failing test in src/math.test.ts');
 `createAgent()` تشغّل `AgentExecutor` تحتها (راجع [executor API](/ar/executor-api)). إذا تبي تملك الربط بنفسك، سجّل الأدوات في `ToolRegistry` ونادِ الـexecutor. التوقف هو نفسه، و`resumeAfterApproval(...)` هي اللي تناديها `agent.approvals.resolve()` لما يوافق بشر:
 
 ```ts
-import { AgentExecutor, ToolRegistry } from '@lousho/build-ai-agent/executor';
-import { NodeWorkspace, createFsTools, createShellTool } from '@lousho/build-ai-agent';
+import { AgentExecutor, ToolRegistry } from 'lousho/executor';
+import { NodeWorkspace, createFsTools, createShellTool } from 'lousho';
 
 const workspace = new NodeWorkspace({ root: '.' }); // every path is confined to this directory
 const registry = new ToolRegistry();
@@ -100,7 +100,7 @@ const paused = await AgentExecutor.execute({ agent, input, provider, toolRegistr
 | `name`             | `'shell'` | اسم الأداة. |
 
 ```ts
-import { createShellTool, NodeWorkspace } from '@lousho/build-ai-agent';
+import { createShellTool, NodeWorkspace } from 'lousho';
 
 const shell = createShellTool(new NodeWorkspace({ root: '.' }), {
   needsApproval: (command) => !/^(ls|cat|git (status|diff|log))\b/.test(command), // read-only commands run without asking
@@ -114,8 +114,8 @@ const shell = createShellTool(new NodeWorkspace({ root: '.' }), {
 إذا تبي ترجّع اللي عمله الـagent بالملفات، مرّر `WorkspaceCheckpoints` إلى `createFsTools(fs, { checkpoints })`. قبل ما تغيّر `write_file` أو `edit_file` أي ملف، يُسجَّل محتواه القديم (وبتات صلاحياته إذا عند الـprovider `getMode` و`chmod`، مثل `NodeWorkspace`) تحت session الـrun ورقم الـturn. الـturn هو رقم رسالة المستخدم اللي يجاوب عليها الـtool call، ويبدأ من 0: أول `session.send()` هو turn 0، واللي بعده turn 1. `checkpoints.list({ sessionId })` ترجع الـturns اللي صار فيها تغيير والمسارات اللي تغيّرت في كل واحد. و`checkpoints.rewind(toTurn, { sessionId })` يرجّع كل ملف تغيّر في turn `toTurn` أو بعده لحالته قبل `toTurn`: الملف اللي أنشأه الـagent يُحذف، واللي عدّله أو كتب فوقه يسترجع محتواه. مع `dryRun: true` ما يتغيّر شيء ويرجع نفس التقرير.
 
 ```ts
-import { createAgent, createFsTools, MemoryWorkspace, WorkspaceCheckpoints } from '@lousho/build-ai-agent';
-import { mockModel } from '@lousho/build-ai-agent/testing';
+import { createAgent, createFsTools, MemoryWorkspace, WorkspaceCheckpoints } from 'lousho';
+import { mockModel } from 'lousho/testing';
 
 const workspace = new MemoryWorkspace({ files: { 'notes.md': '# Notes\n' } });
 const checkpoints = new WorkspaceCheckpoints(workspace); // backups in memory; FileWorkspaceCheckpointStore keeps them on disk
@@ -178,7 +178,7 @@ console.log(workspace.snapshot()); // { 'notes.md': '# Notes\n' }
 **أدوات الملفات تبتعد عن `.git`.** الـcheckout غالبًا فيه credentials في `.git/config`: `actions/checkout` يحفظ token الـjob هناك كـ`http.https://github.com/.extraheader = AUTHORIZATION: basic ...`، والـmodel اللي يقدر يقراه يقدر يسرّب الـtoken في جوابه. وفي git worktree، `.git` ملف فيه مسار الـhost للـrepository الرئيسي. لذلك `read_file` و`list_dir` و`glob` و`grep` و`write_file` و`edit_file` ترفض أي مسار فيه مقطع `.git`، على أي عمق (`.git/config` و`sub/.git`)، و`glob` و`grep` و`list_dir` تستبعد مدخلات `.git` من نتائجها، حتى مع `ignore: []`. الفحص يشتغل بعد الـnormalize، فـ`./.git` و`a/../.git` و`.git\config` و`.git/` تُرفض كمان. الأسماء تُقارن بدون حساسية لحالة الأحرف (`.GIT`)، والنقاط والمسافات في آخر الاسم تُتجاهل (Windows يفتح `.git.` كـ`.git`)، وفي Windows تُرفض الأسماء القصيرة بصيغة 8.3 مثل `GIT~1`. `.gitignore` و`.github/` ما يتأثرون. أضف أسماء بخيار `deny`، مثلًا `deny: ['.git', '.env', 'secrets']` (أسماء مدخلات، مو مسارات)، أو مرّر `deny: []` لإيقاف الفحص.
 
 ```ts
-import { createFsTools, NodeWorkspace } from '@lousho/build-ai-agent';
+import { createFsTools, NodeWorkspace } from 'lousho';
 
 const workspace = new NodeWorkspace({ root: '.' });
 const tools = createFsTools(workspace, { readOnly: true, deny: ['.git', '.env'] });
@@ -193,7 +193,7 @@ const tools = createFsTools(workspace, { readOnly: true, deny: ['.git', '.env'] 
 **الأوامر تشتغل ببيئة دنيا.** `NodeWorkspace` ينفّذ الأوامر مع `cwd` مضبوط على الـroot، ولا يورّثها بيئة العملية الأم. اللي يُنسخ فقط: `PATH` و`HOME` و`USERPROFILE` و`TEMP` و`TMP` و`TMPDIR` و`LANG` و`LC_*` و`TERM`، زائد `SystemRoot` و`SystemDrive` و`ComSpec` و`PATHEXT` و`WINDIR` في Windows، لأن الـshell يحتاجها حتى يشتغل. بالتالي `OPENAI_API_KEY` و`ANTHROPIC_API_KEY` وبيانات اعتماد السحابة وغيرها من الأسرار في بيئة السيرفر عندك غير مرئية للأوامر اللي يكتبها الـmodel، ولا يقدر `env` أو `printenv` يكشفها. إذا تبي تعطي الأوامر أكثر، إما مرّر قيمًا (`env: { GITHUB_TOKEN: scopedToken }`) أو سمِّ متغيرات من الـhost تُنسخ (`inheritEnv: ['CI']`). أي شيء تمرّره بهذه الطريقة مرئي للـmodel. `inheritEnv: true` يمرّر بيئة الـhost كاملة، زي ما كان الوضع قبل وجود هذا السلوك الافتراضي؛ استخدمه فقط مع أوامر تثق فيها. وفي Windows يضيف مشغّل العمليات في Node كمان متغيرات الـsession اللي كل عملية تحتاجها (`HOMEDRIVE` و`HOMEPATH` و`USERNAME` و`USERDOMAIN` و`LOGONSERVER`)؛ ولا واحد منها سرّي.
 
 ```ts
-import { NodeWorkspace } from '@lousho/build-ai-agent';
+import { NodeWorkspace } from 'lousho';
 
 const workspace = new NodeWorkspace({
   root: './project',
@@ -211,7 +211,7 @@ const workspace = new NodeWorkspace({
 - كائن `CommandRule` يثبّت المعاملات. `{ command: 'npm test' }` يطابق `npm test` ولا شيء غيره. و`{ command: 'node --test', args }` يطابق لما يبدأ الأمر بـ`node --test` وترجع `args(rest)` القيمة `true` لباقي السطر (`''` إذا ما فيه باقي):
 
   ```ts
-  import { createShellTool, NodeWorkspace } from '@lousho/build-ai-agent';
+  import { createShellTool, NodeWorkspace } from 'lousho';
 
   const workspace = new NodeWorkspace({ root: '.' });
   createShellTool(workspace, {
@@ -240,7 +240,7 @@ const workspace = new NodeWorkspace({
 `SandboxShell` يحوّل أي `SandboxAdapter`، مثل `SubprocessSandbox` المبني على Docker، إلى `ShellProvider`. كل أمر ينفَّذ كـ`sh -c "<command>"` في container جديد بلا شبكة. الـcontainer يشوف `cwd` فقط، وهو مربوط bind-mount على نفس المسار. وما ياخذ إلا الـ`env` اللي تمرّره، ولا شيء من الـhost. أدوات الملفات تقدر تكمل تستخدم `NodeWorkspace` على نفس المجلد:
 
 ```ts
-import { createFsTools, createShellTool, NodeWorkspace, SandboxShell, SubprocessSandbox } from '@lousho/build-ai-agent';
+import { createFsTools, createShellTool, NodeWorkspace, SandboxShell, SubprocessSandbox } from 'lousho';
 
 const workspace = new NodeWorkspace({ root: './project' });
 const shell = new SandboxShell(new SubprocessSandbox({ image: 'node:20-alpine' }), { cwd: workspace.root });
@@ -270,7 +270,7 @@ Docker ما يقدر لوحده يفلتر الـegress حسب اسم الـhost
 4. `sandbox.close()` يوقف الـlistener ويحذف الشبكة إذا كان هذا الـsandbox هو اللي أنشأها. الـrun الملغي أو منتهي الـtimeout يحذف الـcontainer مثل قبل؛ والشبكة تبقى للـrun التالي للـsandbox حتى تنادي `close()`.
 
 ```ts
-import { createCredentialBroker, createShellTool, SandboxShell, SubprocessSandbox } from '@lousho/build-ai-agent';
+import { createCredentialBroker, createShellTool, SandboxShell, SubprocessSandbox } from 'lousho';
 
 const token = 'ghp_example'; // read from your secret store; it never enters the container
 const broker = await createCredentialBroker({ rules: { 'api.github.com': { authorization: () => `Bearer ${token}` } } });
@@ -291,7 +291,7 @@ await broker.close();
 هذه الضمانات مبنية على السلوك الموثّق للشبكات الداخلية في Docker؛ واختبارات الـSDK تفحص الربط على client مزيّف لـDocker، مو على daemon حي.
 
 ```ts
-import { createShellTool, SandboxShell, SubprocessSandbox } from '@lousho/build-ai-agent';
+import { createShellTool, SandboxShell, SubprocessSandbox } from 'lousho';
 
 const sandbox = new SubprocessSandbox({ image: 'node:20-alpine', network: 'none' });
 const shell = new SandboxShell(sandbox, {
@@ -311,7 +311,7 @@ const tool = createShellTool(shell, { needsApproval: false });
 أحيانًا أمر يشغّله الـmodel (`git` أو `curl` أو سكربت) يحتاج ينادي API يتطلب auth، لكن أي token في بيئته يقدر الـmodel يقراه. `createCredentialBroker()` يخلي الـtoken على الـhost: يشغّل HTTP proxy محلي يضيف headers الـauth للطلبات الموجهة للـhosts اللي تسمّيها، فالأمر ما يشوف إلا عنوان الـproxy.
 
 ```ts
-import { createCredentialBroker, NodeWorkspace } from '@lousho/build-ai-agent';
+import { createCredentialBroker, NodeWorkspace } from 'lousho';
 
 const token = 'ghp_example'; // read from your secret store; never passed to the command
 const broker = await createCredentialBroker({
@@ -335,7 +335,7 @@ await broker.close();
 الواجهتان صغيرتان. المسارات نسبية للـworkspace وتستخدم `/`. `normalizeWorkspacePath()` يطبّق نفس الفحوص اللي تستخدمها الـproviders المدمجة. الـprovider المكشوف لـmodel لازم يحصر المسارات بنفسه، لأن أداة مخصصة ممكن تناديه مباشرة. عند الفشل ارمِ `WorkspaceError` برسالة مفهومة.
 
 ```ts
-import { normalizeWorkspacePath, WorkspaceError, type FsProvider, type ShellProvider } from '@lousho/build-ai-agent';
+import { normalizeWorkspacePath, WorkspaceError, type FsProvider, type ShellProvider } from 'lousho';
 
 // A stand-in for your remote sandbox SDK (E2B, Daytona, Cloudflare, ...).
 declare const remote: {
@@ -382,8 +382,8 @@ export const remoteShell: ShellProvider = {
 `MemoryWorkspace` يحتفظ بشجرة الملفات في الذاكرة ويفحص المسارات بنفس الطريقة. `exec` فيه stub تبرمجه إنت، وكل أمر يستلمه يُسجَّل. ادمجه مع `mockModel` لاختبارات deterministic:
 
 ```ts
-import { createAgent, createFsTools, createShellTool, MemoryWorkspace } from '@lousho/build-ai-agent';
-import { mockModel } from '@lousho/build-ai-agent/testing';
+import { createAgent, createFsTools, createShellTool, MemoryWorkspace } from 'lousho';
+import { mockModel } from 'lousho/testing';
 
 const workspace = new MemoryWorkspace({
   files: { 'src/math.ts': 'export const add = (a: number, b: number) => a - b;\n' },

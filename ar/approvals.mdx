@@ -11,7 +11,7 @@ title: "Approvals"
 > الأمثلة في هذه الصفحة تترك بعض الأسماء لك: `provider` هو أي `LLMProvider` (بدون اتصال: `createMockProvider()`)؛ `agent` هو نتيجة `createAgent()`؛ `input` هو نص المستخدم، من نوع `string`؛ `emailTool` هو tool مبني بـ `defineTool()`؛ `storage` هو `StorageService`؛ `toolRegistry` هو `ToolRegistry`.
 
 ```ts
-import { createAgent, defineTool } from '@lousho/build-ai-agent';
+import { createAgent, defineTool } from 'lousho';
 import { z } from 'zod';
 
 const sendEmail = defineTool({
@@ -37,7 +37,7 @@ if (paused.finishReason === 'awaiting-approval') {
 typed من `input` الـ zod تبع الـ tool:
 
 ```ts
-import { defineTool } from '@lousho/build-ai-agent';
+import { defineTool } from 'lousho';
 import { z } from 'zod';
 
 const sendEmail = defineTool({
@@ -89,7 +89,7 @@ sessionId, principal }` (`principal`: اللي الـ run يشتغل بالني�
 `allow(tools)` و`deny(tools, reason?)` و`ask(tools)` تبني القواعد الشائعة.
 
 ```ts
-import { allow, ask, createAgent, defineTool, deny, type PermissionRule } from '@lousho/build-ai-agent';
+import { allow, ask, createAgent, defineTool, deny, type PermissionRule } from 'lousho';
 import { z } from 'zod';
 
 const shell = defineTool({
@@ -168,7 +168,7 @@ session، كل `send()` هو transcript قائم بحاله. وإذا الـ com
 الرسالة هذي، الـ tool يرجع يسأل.
 
 ```ts
-import { createAgent, defineTool, once } from '@lousho/build-ai-agent';
+import { createAgent, defineTool, once } from 'lousho';
 import { z } from 'zod';
 
 const askOnce = once();
@@ -233,8 +233,8 @@ const chat = agent.session(); // the first staging deploy asks, later ones in th
 [اختيار المخزن](/ar/sessions#choosing-a-store)):
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
-import { SqliteStore } from '@lousho/build-ai-agent/sqlite';
+import { createAgent } from 'lousho';
+import { SqliteStore } from 'lousho/sqlite';
 
 const store = new SqliteStore('./.lousho/agent.db');
 const agent = createAgent({ provider, tools: [emailTool], store }); // or approvalStore: store.approvals
@@ -268,7 +268,7 @@ const agent = createAgent({ provider, tools: [emailTool], store }); // or approv
 الخطوة، قبل الوقفة.
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const agent = createAgent({ model: 'openai/gpt-4o-mini' /* , tools: [payInvoice, archiveThread] */ });
 const paused = await agent.send('Pay the invoice and archive the thread');
@@ -309,7 +309,7 @@ call اللي يأجّله ينتظر إنسان بينما الـ callback يح
   `approved: false`.
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const agent = createAgent({ model: 'openai/gpt-4o-mini', tools: [emailTool] });
 const support = agent.session({ id: 'support-42' });
@@ -336,7 +336,7 @@ await agent.approvals.resolve({ id: paused.approvalId!, approved: true, args: { 
   ويرد:
 
 ```ts
-import { createAgent, type AgentHook } from '@lousho/build-ai-agent';
+import { createAgent, type AgentHook } from 'lousho';
 
 const noRefile: AgentHook = {
   name: 'no-refile',
@@ -367,7 +367,7 @@ decided`، بدون حقل `reason` منفصل) والـ run يكمل، مثل �
 انحسمت بـ `approved: true` ما تشغّل الـ tool.
 
 ```ts
-import { createAgent, defineTool } from '@lousho/build-ai-agent';
+import { createAgent, defineTool } from 'lousho';
 import { z } from 'zod';
 
 const sendEmail = defineTool({
@@ -433,7 +433,7 @@ tool، `false` ترسل للـ model رفض، ونص يوافق مع النص ك
 `ctx.approval.by` للـ tool (شوف [auth](/ar/auth#من-وافق)).
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const trusted = createAgent({
   provider,
@@ -457,7 +457,7 @@ const trusted = createAgent({
 نفس الـ session، و`run.done` يجي بعد ما الـ transcript ينحفظ.
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const agent = createAgent({ provider, tools: [emailTool] });
 const paused = await agent.send('Email Sam the report');
@@ -494,7 +494,7 @@ sessions، وفي الـ durable stores، وعبر الـ restart.
   الاختبارات والـ agents اللي تشتغل بسكربت.
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const agent = createAgent({ instructions: 'Plan the trip with the user.', provider, askQuestion: true });
 
@@ -531,8 +531,8 @@ const scripted = createAgent({
 حقيقي إذا أردت، بـ `resumeAfterApproval()`:
 
 ```ts
-import { AgentExecutor, resumeAfterApproval } from '@lousho/build-ai-agent/executor';
-import { StorageServiceApprovalStore } from '@lousho/build-ai-agent/utils';
+import { AgentExecutor, resumeAfterApproval } from 'lousho/executor';
+import { StorageServiceApprovalStore } from 'lousho/utils';
 
 const approvalStore = new StorageServiceApprovalStore(storage);
 

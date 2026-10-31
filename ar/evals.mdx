@@ -31,8 +31,8 @@ flakiness. **هذه هي الطريقة الافتراضية لكتابة eval**
 ```ts
 // refund.eval.ts
 import { z } from 'zod';
-import { createAgent, defineEval, defineTool, includes } from '@lousho/build-ai-agent';
-import { mockModel } from '@lousho/build-ai-agent/testing';
+import { createAgent, defineEval, defineTool, includes } from 'lousho';
+import { mockModel } from 'lousho/testing';
 
 const lookupOrder = defineTool({
   name: 'lookup_order',
@@ -114,7 +114,7 @@ completed() failed: finishReason was 'max-steps' (the run hit maxSteps while sti
 sub-agents التي تحته):
 
 ```ts
-import { createAgent, defineEval } from '@lousho/build-ai-agent';
+import { createAgent, defineEval } from 'lousho';
 
 const researcher = createAgent({ model: 'openai/gpt-4o-mini', instructions: 'You research.', description: 'Finds sources' });
 const agent = createAgent({ model: 'openai/gpt-4o-mini', subagents: { researcher } });
@@ -144,7 +144,7 @@ case عدد `n` مرات؛ والـ case تنجح لما تنجح كل الـ `n
 `passAt: k` منها على الأقل:
 
 ```ts
-import { createAgent, defineEval } from '@lousho/build-ai-agent';
+import { createAgent, defineEval } from 'lousho';
 
 const agent = createAgent({ model: 'openai/gpt-4o-mini', instructions: 'You handle refunds.' });
 
@@ -170,8 +170,8 @@ cassette خاص. `timeoutMs` يغطي كل runs الـ case، فارفعه مع 
 
 ```ts
 import { z } from 'zod';
-import { createAgent, defineEval, defineTool } from '@lousho/build-ai-agent';
-import { mockModel } from '@lousho/build-ai-agent/testing';
+import { createAgent, defineEval, defineTool } from 'lousho';
+import { mockModel } from 'lousho/testing';
 
 const lookupOrder = defineTool({
   name: 'lookup_order',
@@ -213,8 +213,8 @@ defineEval({
 
 ```ts
 // tone.judge.eval.ts: run with `lousho eval --judge`
-import { createAgent, defineEval, atLeast } from '@lousho/build-ai-agent';
-import { mockModel } from '@lousho/build-ai-agent/testing';
+import { createAgent, defineEval, atLeast } from 'lousho';
+import { mockModel } from 'lousho/testing';
 
 defineEval({
   name: 'tone',
@@ -291,7 +291,7 @@ model. `--timeout ms` يضبط الحد لكل case (`0` يلغيه). ومع
 والـ eval الواحد يقدر يضبط حده الخاص، وهذا يغلب الاثنين:
 
 ```ts
-import { createAgent, defineEval } from '@lousho/build-ai-agent';
+import { createAgent, defineEval } from 'lousho';
 
 defineEval({
   name: 'research report',
@@ -428,7 +428,7 @@ refund flow  polite  args   lookup_order {"orderId":"42"}  lookup_order {"orderI
 كيف تشتغل: الـ run loop يمرّر كل model call (`generate` أو `stream`، سواء من
 run عادي، أو run مبثوث، أو sub-agent، أو استئناف بعد approval) عبر seam
 واحدة لاعتراض الـ provider: `setProviderInterceptor()` (مُصدَّرة من
-`@lousho/build-ai-agent/testing`؛ و`src/providers/interception.ts` في
+`lousho/testing`؛ و`src/providers/interception.ts` في
 المصدر). ما في شي مثبّت فيها افتراضيًا، فهي بلا كلفة. وطالما الـ case شغالة
 في أحد هذه الأوضاع، `lousho eval` يجاوبها بالـ provider مغلّف بـ
 `recordReplay()` لـ cassette تلك الـ case. وتقدر تستخدم الـ seam بنفسك لتحط
@@ -473,7 +473,7 @@ run داخل العملية: الـ tool calls، الرد النهائي، سب�
 في الكود، مرّر `target` (يغلّب `agent`؛ و`--url` يغلّب الاثنين):
 
 ```ts
-import { defineEval, remoteTarget } from '@lousho/build-ai-agent';
+import { defineEval, remoteTarget } from 'lousho';
 
 defineEval({
   name: 'deployed refund flow',

@@ -18,7 +18,7 @@ title: "Guardrails و sandboxing"
 **الـ input guardrails المتوازية.** فحص input بطيء (واحد يستدعي model، مثل `moderationGuardrail({ model })`) يضيف كل زمن الاستجابة حقّه قبل ما الـ agent يبدأ يرد. علّمه بـ `runInParallel: true` (على `IoGuardrail` تبعك، أو كخيار في `promptInjectionGuardrail` و`moderationGuardrail`) فيشتغل وأول model call شغّال: الـ input guardrails الحاجبة (الوضع الافتراضي) تشتغل أول، بما فيها الـ rewrites، بعدين الفحوص المتوازية تبدأ مع بعض على نفس الـ input والـ model call يبدأ فورًا. إلى ما تعدّي كل الفحوص المتوازية، ما يطلع أي شي أنتجه الـ call: أحداث `text.delta` و`reasoning.*` وأحداث الـ tools اللي ينفّذها الـ provider تنحجز بالترتيب (`step.start` ما ينحجز)، والـ tool calls ما تنفّذ؛ وردّ وصل بدري ينتظر الفحوص. لو عدّت، الأحداث المحجوزة تطلع والـ run يكمل تمامًا مثل وضع الـ guardrails الحاجبة. لو واحد منها حجب، يُلغى الـ model call، الأحداث المحجوزة تُرمى، ولا شي من الـ call يوصل لسجل المحادثة أو checkpoint أو `onLLMResponse`، والـ run ينتهي بـ `finishReason: 'guardrail'` و`guardrail.tripped` (أو `GuardrailError` مع `onTripped: 'throw'`) مثل أي حظر عادي. الفحص المتوازي ما يقدر يعمل rewrite، لأن الـ model وصله الـ input خلاص: نتيجة `rewrite` تحجب، والسبب يبدأ بـ `runInParallel guardrails cannot rewrite: `. الثمن هو التكلفة: call محجوب ممكن يكون صرف tokens قبل الحظر. تنحسب في `result.usage` لو الـ provider بلّغ عنها (call خلّص قبل الـ trip)؛ أما stream ملغي فعادة ما يبلّغ عنها، وما نقدّرها بأنفسنا. بس أول model call في الـ run هو اللي يتسابق، والـ run اللي يستأنف بعد approval (موافقة) ما يعيد فحص الـ input. وفي guardrails من نوع `output` و`tools`، `runInParallel` يتجاهَل. نص `model` في الـ guardrail هو spec بصيغة `provider/model`: بادئة `vendor/` تختار الـ provider؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثال `openrouter/openai/gpt-4o-mini`).
 
 ```ts
-import { createAgent, moderationGuardrail, piiGuardrail } from '@lousho/build-ai-agent';
+import { createAgent, moderationGuardrail, piiGuardrail } from 'lousho';
 
 const agent = createAgent({
   provider,
@@ -45,7 +45,7 @@ import {
   maxLengthGuardrail,
   regexGuardrail,
   type IoGuardrail,
-} from '@lousho/build-ai-agent';
+} from 'lousho';
 
 const noProdWrites: IoGuardrail = {
   name: 'no-prod-writes',
@@ -91,7 +91,7 @@ try {
 الأربعة الأخيرة starter set للفحوص اللي أغلب الـ agents في الإنتاج يحتاجونها:
 
 ```ts
-import { createAgent, piiGuardrail, promptInjectionGuardrail, secretsGuardrail } from '@lousho/build-ai-agent';
+import { createAgent, piiGuardrail, promptInjectionGuardrail, secretsGuardrail } from 'lousho';
 
 const agent = createAgent({
   provider,
@@ -115,7 +115,7 @@ if (result.guardrail?.info?.category === 'prompt-injection') console.warn(result
 `runPatchChecks(patch, checks)` يشغّل كل الفحوص بالتوازي على patch مقترح ويجمع النتائج في verdict واحد. [مثال ops-pipeline](https://github.com/LinuxDevil/agent-sdk/blob/main/examples/ops-pipeline) يستخدمه كبوابة على patch من agent إصلاح قبل ما ينفتح pull request:
 
 ```ts
-import { runPatchChecks, secretScanCheck, createDiffSizeCheck, createCommandCheck } from '@lousho/build-ai-agent';
+import { runPatchChecks, secretScanCheck, createDiffSizeCheck, createCommandCheck } from 'lousho';
 
 const verdict = await runPatchChecks(
   { diff: patch },
@@ -147,8 +147,8 @@ if (!verdict.pass) {
 #### متقدم: الـ executor API
 
 ```ts
-import { AgentExecutor } from '@lousho/build-ai-agent/executor';
-import { SubprocessSandbox } from '@lousho/build-ai-agent';
+import { AgentExecutor } from 'lousho/executor';
+import { SubprocessSandbox } from 'lousho';
 
 // Route a flagged tool (requiresSandbox + sandboxExecute) through a real,
 // Docker-backed sandbox instead of the in-process NoopSandbox default

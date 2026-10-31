@@ -32,9 +32,9 @@ node .lousho/build/node-server/dist/server.js
 
 الـ`server.ts` المولّد ينادي `resolveAgentDir()` على `dist/agent` وبعدين `createDeployedServer(agent, { schedules, channels })`. يعني العملية تشغّل [schedules](/ar/schedules) تبع المجلد لما تبلش تسمع، وتركّب [channels](/ar/channels) تحت `/channels` — الـchannels تتحقق من طلباتها بنفسها، ومسارات الشات تظل محمية بالـbearer token — وتطبع في اللوج `schedules: ...; channels: ...`.
 
-ملفات الكود في المجلد تتحزم مسبقًا في خطوة tsup وتطلع في `dist/agent/**.js`. البناء ESM واحد يشارك نسخة وحدة من الـSDK، فلو tool فيها `from '@lousho/build-ai-agent'` فهو نفس الـSDK اللي الخادم شغال عليه. وما ينتسخ من المجلد إلا الملفات اللي الخادم يقراها كبيانات: `instructions.md` و`instructions/` و`skills/` وconfig بصيغة JSON/YAML، ونفسها في كل `subagents/<name>/`. ولا شي ثاني من المجلد يوصل لـ`dist/`: لا ملفات `.env`، ولا الـsession store في `.lousho/` أو `store.dir` تبع الـconfig، ولا ملاحظات أو ملفات بيانات. و`dist/` يتفرّغ قبل كل build، فالـsessions اللي كتبها خادم build سابق تحته ما بتنتقل للجديد. ما في شي محتاج TypeScript loader وقت التشغيل. `dist/` يصير ESM (`dist/package.json` يصرّح بهذا). صورة Docker تنسخه زي قبل. الـsandbox الاختياري `dockerode` ما بينحزم (بينحمل lazily)، فالمجلد اللي يستخدم `SubprocessSandbox` لازم يثبّته وين ما يشتغل.
+ملفات الكود في المجلد تتحزم مسبقًا في خطوة tsup وتطلع في `dist/agent/**.js`. البناء ESM واحد يشارك نسخة وحدة من الـSDK، فلو tool فيها `from 'lousho'` فهو نفس الـSDK اللي الخادم شغال عليه. وما ينتسخ من المجلد إلا الملفات اللي الخادم يقراها كبيانات: `instructions.md` و`instructions/` و`skills/` وconfig بصيغة JSON/YAML، ونفسها في كل `subagents/<name>/`. ولا شي ثاني من المجلد يوصل لـ`dist/`: لا ملفات `.env`، ولا الـsession store في `.lousho/` أو `store.dir` تبع الـconfig، ولا ملاحظات أو ملفات بيانات. و`dist/` يتفرّغ قبل كل build، فالـsessions اللي كتبها خادم build سابق تحته ما بتنتقل للجديد. ما في شي محتاج TypeScript loader وقت التشغيل. `dist/` يصير ESM (`dist/package.json` يصرّح بهذا). صورة Docker تنسخه زي قبل. الـsandbox الاختياري `dockerode` ما بينحزم (بينحمل lazily)، فالمجلد اللي يستخدم `SubprocessSandbox` لازم يثبّته وين ما يشتغل.
 
-هدف Cloudflare Worker يبني config المجلد و`instructions.md` و`tools/` و`skills/` و`subagents/` و`schedules/` (كـcron triggers تبع الـWorker) و`channels/` و`memory/` و`projectInstructions`؛ ويرفض أي `model` الـprovider تبعه مش موجود في الـWorker، وباقي الميزات اللي عمود الـWorker في [ما يعمل وما لا يعمل](/ar/cloudflare-workers#ما-يعمل-وما-لا-يعمل) ما يشملها — ويذكر لك بالاسم اللي لازم تشيله. الـtools تشتغل جوّا الـWorker بصلاحياته، ومسموح لها تستورد بس الجزء الآمن للـWorker من `@lousho/build-ai-agent` (التفاصيل في [Cloudflare Workers](/ar/cloudflare-workers#build-and-deploy)):
+هدف Cloudflare Worker يبني config المجلد و`instructions.md` و`tools/` و`skills/` و`subagents/` و`schedules/` (كـcron triggers تبع الـWorker) و`channels/` و`memory/` و`projectInstructions`؛ ويرفض أي `model` الـprovider تبعه مش موجود في الـWorker، وباقي الميزات اللي عمود الـWorker في [ما يعمل وما لا يعمل](/ar/cloudflare-workers#ما-يعمل-وما-لا-يعمل) ما يشملها — ويذكر لك بالاسم اللي لازم تشيله. الـtools تشتغل جوّا الـWorker بصلاحياته، ومسموح لها تستورد بس الجزء الآمن للـWorker من `lousho` (التفاصيل في [Cloudflare Workers](/ar/cloudflare-workers#build-and-deploy)):
 
 ```bash
 npx lousho build ./my-agent --target=cloudflare-worker
@@ -135,7 +135,7 @@ node dist/server.js --port=8080 --host=0.0.0.0
 
 ```ts
 import { createServer } from 'node:http';
-import { createAgent, mountChannels } from '@lousho/build-ai-agent';
+import { createAgent, mountChannels } from 'lousho';
 
 const agent = createAgent({ model: 'openai/gpt-4o-mini' });
 const handler = mountChannels(agent, []);
@@ -172,7 +172,7 @@ docker run -p 3000:3000 -e OPENAI_API_KEY=... lousho-agent
 
 ### الـpeer dependencies الاختيارية في builds تبع node وdocker
 
-`dist/server.js` يحزم الـSDK بس يخلّي الـpeer dependencies الاختيارية برّا (مدخلات `peerDependenciesMeta` في الـpackage.json تبعها: حزم الـproviders، و`dockerode`، وMCP SDK، و`prompts`، ...)، فما في build يحتاج اعتمادية ما بتستخدمها. `package.json` المولّد أصلاً مدرج فيه اللي الـagent يحتاجه وين ما الخادم يشتغل: حزمة الـprovider اللي الـspec يسميها (بنطاق يوافق الـmajor تبع `ai` اللي انبنى عليه، مثل `@ai-sdk/openai` لـagent تبع OpenAI)، و`@modelcontextprotocol/sdk` لو الـspec فيه `mcpServers` — وبس: `@lousho/build-ai-agent` و`ai` و`zod` داخل الـbundle. يعني `npm install --omit=dev` في صورة docker، أو `npm install` جنب ناتج node-server، بتثبتهم. أي شي ثاني — استيرادات مجلد الـagent نفسه، أو `dockerode` للأدوات الـsandboxed — تضيفه إنت بنفسك. مسار كود يحتاج اعتمادية ناقصة يرمي خطأ الـSDK المرمّز تبع الـpeer المفقود. وcron triggers تبع الـspec تشتغل على node-server وdocker كمان، مش بس على Workers (راجع [Schedules](/ar/schedules#على-سيرفر-node)).
+`dist/server.js` يحزم الـSDK بس يخلّي الـpeer dependencies الاختيارية برّا (مدخلات `peerDependenciesMeta` في الـpackage.json تبعها: حزم الـproviders، و`dockerode`، وMCP SDK، و`prompts`، ...)، فما في build يحتاج اعتمادية ما بتستخدمها. `package.json` المولّد أصلاً مدرج فيه اللي الـagent يحتاجه وين ما الخادم يشتغل: حزمة الـprovider اللي الـspec يسميها (بنطاق يوافق الـmajor تبع `ai` اللي انبنى عليه، مثل `@ai-sdk/openai` لـagent تبع OpenAI)، و`@modelcontextprotocol/sdk` لو الـspec فيه `mcpServers` — وبس: `lousho` و`ai` و`zod` داخل الـbundle. يعني `npm install --omit=dev` في صورة docker، أو `npm install` جنب ناتج node-server، بتثبتهم. أي شي ثاني — استيرادات مجلد الـagent نفسه، أو `dockerode` للأدوات الـsandboxed — تضيفه إنت بنفسك. مسار كود يحتاج اعتمادية ناقصة يرمي خطأ الـSDK المرمّز تبع الـpeer المفقود. وcron triggers تبع الـspec تشتغل على node-server وdocker كمان، مش بس على Workers (راجع [Schedules](/ar/schedules#على-سيرفر-node)).
 
 ## الـtargets المخصصة
 

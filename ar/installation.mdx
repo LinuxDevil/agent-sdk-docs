@@ -11,11 +11,11 @@ title: "التثبيت"
 ## تثبيت الحزمة
 
 ```bash
-npm install @lousho/build-ai-agent ai zod
+npm install lousho ai zod
 # or
-pnpm add @lousho/build-ai-agent ai zod
+pnpm add lousho ai zod
 # or
-yarn add @lousho/build-ai-agent ai zod
+yarn add lousho ai zod
 ```
 
 `ai` (وهي Vercel AI SDK: `^4.3.19` أو `^6.0.0` أو `^7.0.0`) و`zod` (`^3.25.76 || ^4.0.0`) peer dependencies إجبارية. الإصدار `ai` 5 غير مدعوم.
@@ -35,21 +35,21 @@ yarn add @lousho/build-ai-agent ai zod
 على الإصدار الرئيسي الحالي من `ai` مثلًا:
 
 ```bash
-npm install @lousho/build-ai-agent ai@^7.0.0 zod @ai-sdk/openai@^4.0.0
+npm install lousho ai@^7.0.0 zod @ai-sdk/openai@^4.0.0
 ```
 
 **Ollama على `ai` 6/7 يحتاج zod 4.** الحزمة `ollama-ai-provider-v2` (حزمة Ollama لـ `ai` 6 و7) تعلن `zod ^4` كـ peer dependency. الـ SDK تقبل zod 4، فثبّتها مع zod 4، مثلًا `npm install ai@^7.0.0 ollama-ai-provider-v2@^4.0.0 zod@^4.0.0`. مع zod 3 استخدم `ai@^4.3.19` مع `ollama-ai-provider@^1.2.0`. و`lousho init --provider ollama` ينشئ المشروع بـ `ai@^7.0.0` و`ollama-ai-provider-v2@^4.0.0` وzod 4.
 
 **ما يختبره CI.** كل تركيبة تقبلها نطاقات الـ peers تُثبَّت فعلًا وتمر على فحص الأنواع والـ build ومجموعة الاختبارات كاملة، مع كل تغيير: `ai` 4 مع zod 3 (هو تثبيت التطوير) ومع zod 4، و`ai` 6 مع zod 3 ومع zod 4، و`ai` 7 مع zod 3 ومع zod 4. حالتا zod 4 على `ai` 6 و7 تثبّتان أيضًا `ollama-ai-provider-v2` (3.x و4.x) وتشغّلان provider الخاص بـ Ollama عليه، فدعم Ollama على `ai` 6/7 مُختبَر فعلًا وليس مفترَضًا.
 
-الـ peers تُحمَّل عند الطلب: استيراد `@lousho/build-ai-agent` (أو أي من مداخلها الفرعية) لا يحمّل أي حزمة provider، فثبّت فقط التي تستخدمها. حزمة كل provider تُحمَّل أول مرة يجري فيها ذلك الـ provider استدعاء. إذا كانت ناقصة، يفشل الاستدعاء بـ `MissingPeerDependencyError` يحمل الأمر الدقيق الذي عليك تشغيله، بما يناسب إصدار `ai` الرئيسي المثبت عندك. بادئة النموذج `vendor/` هي التي تحدد الـ provider؛ مع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`). مع `ai` 4:
+الـ peers تُحمَّل عند الطلب: استيراد `lousho` (أو أي من مداخلها الفرعية) لا يحمّل أي حزمة provider، فثبّت فقط التي تستخدمها. حزمة كل provider تُحمَّل أول مرة يجري فيها ذلك الـ provider استدعاء. إذا كانت ناقصة، يفشل الاستدعاء بـ `MissingPeerDependencyError` يحمل الأمر الدقيق الذي عليك تشغيله، بما يناسب إصدار `ai` الرئيسي المثبت عندك. بادئة النموذج `vendor/` هي التي تحدد الـ provider؛ مع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`). مع `ai` 4:
 
 ```bash
 npm install @ai-sdk/openai@^0.0.42
 ```
 
 ```ts
-import { MissingPeerDependencyError, resolveProvider } from '@lousho/build-ai-agent';
+import { MissingPeerDependencyError, resolveProvider } from 'lousho';
 
 const provider = resolveProvider('openai/gpt-4o-mini'); // needs OPENAI_API_KEY; does not load the peer
 try {
@@ -69,9 +69,9 @@ try {
 | --------------------------- | --------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------ |
 | `dockerode`                 | `^5.0.1`  | Docker sandboxing: `SubprocessSandbox` (وفحص `lousho doctor` للاتصال بـ Docker)                | `npm install dockerode@^5.0.1`                   |
 | `@modelcontextprotocol/sdk` | `^1.31.0` | MCP: `createAgent({ mcpServers })` / `connectMcp()`، و`serveMcp()`، و`lousho mcp`              | `npm install @modelcontextprotocol/sdk@^1.31.0`  |
-| `@opentelemetry/api`        | `^1.9.1`  | OpenTelemetry tracing: `createOtelTraceExporter()` من `@lousho/build-ai-agent/otel`            | `npm install @opentelemetry/api@^1.9.1`          |
-| `react`                     | `^18`، `^19` | React bindings (`@lousho/build-ai-agent/react`)                                             | `npm install react`                              |
-| `vue`                       | `^3`      | Vue bindings (`@lousho/build-ai-agent/vue`)                                                    | `npm install vue@^3`                             |
+| `@opentelemetry/api`        | `^1.9.1`  | OpenTelemetry tracing: `createOtelTraceExporter()` من `lousho/otel`            | `npm install @opentelemetry/api@^1.9.1`          |
+| `react`                     | `^18`، `^19` | React bindings (`lousho/react`)                                             | `npm install react`                              |
+| `vue`                       | `^3`      | Vue bindings (`lousho/vue`)                                                    | `npm install vue@^3`                             |
 | `tsup`                      | `^8.0.0`  | `lousho build`، الذي يجمّع الـ agent لكل target                                                 | `npm install --save-dev tsup@^8.0.0`             |
 | `prompts`                   | `^2.4.2`  | الأسئلة التفاعلية في `lousho init` (`lousho init --yes` والـ flags لا تحتاج شيئًا)             | `npm install prompts@^2.4.2`                     |
 | `quickjs-emscripten`        | `^0.32.0` | [Code mode](/ar/code-mode): `createAgent({ codeMode })` يشغّل سكربتات `run_code` داخل isolate من QuickJS | `npm install quickjs-emscripten@^0.32.0` |
@@ -82,7 +82,7 @@ try {
 The optional package 'dockerode' is not installed, but Docker sandboxing (SubprocessSandbox) needs it. Run: npm install dockerode@^5.0.1
 ```
 
-`npm create lousho-agent` يثبّت `prompts` بنفسه، فالـ scaffolding به لا يحتاج شيئًا إضافيًّا. و`lousho doctor` يسرد كل peer dependency اختيارية: ماذا تتيح وهل هي مثبتة (غياب `dockerode` خطأ فقط إذا كان ملف مواصفات الـ agent يستخدم أداة داخل sandbox).
+`npm create lousho` يثبّت `prompts` بنفسه، فالـ scaffolding به لا يحتاج شيئًا إضافيًّا. و`lousho doctor` يسرد كل peer dependency اختيارية: ماذا تتيح وهل هي مثبتة (غياب `dockerode` خطأ فقط إذا كان ملف مواصفات الـ agent يستخدم أداة داخل sandbox).
 
 `undici` و`yaml` تبقيان اعتماديتين عاديتين. `yaml` تحلّل ملفات مواصفات الـ agents وملفات `agent.yaml` والـ skills، وليس في Node parser مدمج لـ YAML. أما `undici` فتُحمَّل عند أول طلب تجريه `http_request` أو `web_fetch`: كلتاهما تتصل عبر `Agent` من undici يفحص العنوان في DNS lookup ويثبّت الاتصال عليه، و`http_request` تحصر أيضًا `validateSSL: false` في ذلك `Agent`. الـ `fetch` العامة لا توفّر أيًّا من هذين السلوكين.
 
@@ -98,25 +98,25 @@ The optional package 'dockerode' is not installed, but Docker sandboxing (Subpro
 
 | محدد الاستيراد | ماذا تحتوي |
 | ---------------- | ------------- |
-| `@lousho/build-ai-agent` | الجذر: `createAgent()` و`defineTool()` و`defineChannel()` والأنواع العامة للـ agents والـ events والـ stores (`memoryStore()` و`fileStore()`) والـ hooks والـ guardrails والـ sessions والـ skills والذاكرة والـ sub-agents والـ evals وملفات المواصفات وأنواع النشر |
-| `@lousho/build-ai-agent/executor` | الـ executor API (متقدم — فضّل `createAgent()`): `AgentExecutor` و`AgentBuilder` و`resumeAfterApproval()` و`streamResumeAfterApproval()` و`resumeRequest()` و`ToolRegistry` و`globalToolRegistry` |
-| `@lousho/build-ai-agent/tools` | سطح الـ tools: `defineTool()` و`ToolRegistry` والأدوات المدمجة وhelpers لـ MCP وOpenAPI |
-| `@lousho/build-ai-agent/flows` | `FlowBuilder` و`FlowExecutor` و`validateFlow()` وكل أنواع الـ flow (`AgentFlow` و`EditorStep` و`FlowExecutionEvent` وغيرها) |
-| `@lousho/build-ai-agent/integrations` | أدوات الطرف الثالث ذات بيانات الاعتماد: `createJiraTools()` و`createGitHubTools()` و`createSlackTool()` / `slackTool` و`postSlackAlert()` و`createEmailTool()` وأنواعها |
-| `@lousho/build-ai-agent/utils` | `EncryptionUtils` و`sha256()` و`generatePassword()` و`StorageService` و`StorageServiceApprovalStore` و`LocalStorageCheckpointStore` والـ validators (`validateWithSchema` و`isValidEmail` وغيرها) |
-| `@lousho/build-ai-agent/mcp` | helpers لعميل MCP وسيرفره: `connectMcp()` و`loadMcpTools()` و`serveMcp()` |
-| `@lousho/build-ai-agent/types` | الأنواع العامة بدون الـ runtime |
-| `@lousho/build-ai-agent/testing` | `mockModel()` و`recordReplay()` وhelpers الاختبار دون اتصال |
-| `@lousho/build-ai-agent/otel` | `createOtelTraceExporter()` (يحتاج الـ peer الاختيارية `@opentelemetry/api`) |
-| `@lousho/build-ai-agent/hooks` | سطح الـ hooks: `HookRegistry` وأنواع الـ hooks |
-| `@lousho/build-ai-agent/sqlite` | `SqliteStore` (sessions وcheckpoints وapprovals وtokens في ملف SQLite واحد؛ يحتاج `node:sqlite` في Node) |
-| `@lousho/build-ai-agent/auth` | مصادقة المسارات: `routeAuth()` و`jwt()` و`oidc()` و`basic()` و`apiToken()` و`anonymous()` |
-| `@lousho/build-ai-agent/kv` | `KVStore` و`KVCheckpointStore` لـ Cloudflare Worker مكتوب يدويًّا |
-| `@lousho/build-ai-agent/traces` | `fileTraceExporter()` و`listTraces()` و`readTrace()` (ما يقرأه `lousho traces`) |
-| `@lousho/build-ai-agent/triggers` | `TriggerAdapter` و`TriggerRegistry` و`verifySlackSignature` و`parseCronExpression` |
-| `@lousho/build-ai-agent/react` | `useLoushoAgent()` وhelpers لـ React (يحتاج `react`) |
-| `@lousho/build-ai-agent/vue` | `useLoushoAgent()` كـ composable لـ Vue (يحتاج `vue`) |
-| `@lousho/build-ai-agent/svelte` | `loushoAgent()` كـ store لـ Svelte |
+| `lousho` | الجذر: `createAgent()` و`defineTool()` و`defineChannel()` والأنواع العامة للـ agents والـ events والـ stores (`memoryStore()` و`fileStore()`) والـ hooks والـ guardrails والـ sessions والـ skills والذاكرة والـ sub-agents والـ evals وملفات المواصفات وأنواع النشر |
+| `lousho/executor` | الـ executor API (متقدم — فضّل `createAgent()`): `AgentExecutor` و`AgentBuilder` و`resumeAfterApproval()` و`streamResumeAfterApproval()` و`resumeRequest()` و`ToolRegistry` و`globalToolRegistry` |
+| `lousho/tools` | سطح الـ tools: `defineTool()` و`ToolRegistry` والأدوات المدمجة وhelpers لـ MCP وOpenAPI |
+| `lousho/flows` | `FlowBuilder` و`FlowExecutor` و`validateFlow()` وكل أنواع الـ flow (`AgentFlow` و`EditorStep` و`FlowExecutionEvent` وغيرها) |
+| `lousho/integrations` | أدوات الطرف الثالث ذات بيانات الاعتماد: `createJiraTools()` و`createGitHubTools()` و`createSlackTool()` / `slackTool` و`postSlackAlert()` و`createEmailTool()` وأنواعها |
+| `lousho/utils` | `EncryptionUtils` و`sha256()` و`generatePassword()` و`StorageService` و`StorageServiceApprovalStore` و`LocalStorageCheckpointStore` والـ validators (`validateWithSchema` و`isValidEmail` وغيرها) |
+| `lousho/mcp` | helpers لعميل MCP وسيرفره: `connectMcp()` و`loadMcpTools()` و`serveMcp()` |
+| `lousho/types` | الأنواع العامة بدون الـ runtime |
+| `lousho/testing` | `mockModel()` و`recordReplay()` وhelpers الاختبار دون اتصال |
+| `lousho/otel` | `createOtelTraceExporter()` (يحتاج الـ peer الاختيارية `@opentelemetry/api`) |
+| `lousho/hooks` | سطح الـ hooks: `HookRegistry` وأنواع الـ hooks |
+| `lousho/sqlite` | `SqliteStore` (sessions وcheckpoints وapprovals وtokens في ملف SQLite واحد؛ يحتاج `node:sqlite` في Node) |
+| `lousho/auth` | مصادقة المسارات: `routeAuth()` و`jwt()` و`oidc()` و`basic()` و`apiToken()` و`anonymous()` |
+| `lousho/kv` | `KVStore` و`KVCheckpointStore` لـ Cloudflare Worker مكتوب يدويًّا |
+| `lousho/traces` | `fileTraceExporter()` و`listTraces()` و`readTrace()` (ما يقرأه `lousho traces`) |
+| `lousho/triggers` | `TriggerAdapter` و`TriggerRegistry` و`verifySlackSignature` و`parseCronExpression` |
+| `lousho/react` | `useLoushoAgent()` وhelpers لـ React (يحتاج `react`) |
+| `lousho/vue` | `useLoushoAgent()` كـ composable لـ Vue (يحتاج `vue`) |
+| `lousho/svelte` | `loushoAgent()` كـ store لـ Svelte |
 
 ### إعدادات TypeScript
 
@@ -143,12 +143,12 @@ npm run build
 npm pack --pack-destination /path/to/your-project
 
 # in your project (peers come from the registry)
-npm install ./lousho-build-ai-agent-<version>.tgz ai zod
+npm install ./lousho-<version>.tgz ai zod
 ```
 
 ولعمل scaffold لمشروع جديد بالطريقة نفسها، من الـ checkout: `node bin/lousho.js init ../my-agent --sdk-path .`.
 
-على Windows، الأمر `npx C:\abs\path\create-lousho-agent-<version>.tgz` لا يفعل شيئًا بصمت (سلوك غريب في npm مع المسارات المطلقة التي تبدأ بحرف قرص). استخدم بدلًا منه مسارًا نسبيًّا (`npx ./create-lousho-agent-<version>.tgz my-agent`) أو صيغة `file:` (`npx file:C:/abs/path/create-lousho-agent-<version>.tgz my-agent`).
+على Windows، الأمر `npx C:\abs\path\create-lousho-<version>.tgz` لا يفعل شيئًا بصمت (سلوك غريب في npm مع المسارات المطلقة التي تبدأ بحرف قرص). استخدم بدلًا منه مسارًا نسبيًّا (`npx ./create-lousho-<version>.tgz my-agent`) أو صيغة `file:` (`npx file:C:/abs/path/create-lousho-<version>.tgz my-agent`).
 
 الأمر `npm install github:LinuxDevil/agent-sdk` **لا** يعمل: `dist/` غير موجود في git، وليس في المستودع خطوة `prepare` تعمل build، فينتهي التثبيت بلا نقاط دخول.
 
@@ -157,8 +157,8 @@ npm install ./lousho-build-ai-agent-<version>.tgz ai zod
 `lousho init` ينشئ مشروعًا جاهزًا للتشغيل: `package.json` (ESM، ويعتمد على هذه الـ SDK بنطاق إصدار)، و`tsconfig.json` strict، و`src/agent.ts` يستدعي `createAgent({ model, instructions })` مع أداة مثال معرَّفة بـ `defineTool()`، و`src/agent.test.ts` يشتغل offline باستخدام `mockModel`، و`.env.example` يذكر اسم متغير مفتاح الـ provider عندك، و`.gitignore`، وREADME. بعدها يثبّت الاعتماديات ويشغّل `git init`.
 
 ```bash
-npm create lousho-agent my-agent         # or: npx @lousho/build-ai-agent init my-agent
-npx @lousho/build-ai-agent init my-agent --yes --provider anthropic --template tools --no-install
+npm create lousho my-agent         # or: npx lousho init my-agent
+npx lousho init my-agent --yes --provider anthropic --template tools --no-install
 ```
 
 | الخيار | المعنى |
@@ -171,7 +171,7 @@ npx @lousho/build-ai-agent init my-agent --yes --provider anthropic --template t
 | `--force` | يكتب في مجلد غير فارغ (وإلا يرفض `init`). |
 | `--sdk-path <dir\|tarball>` | لتطوير الـ SDK: يعتمد على checkout (يُحزَّم بـ `npm pack`) أو على `.tgz` محزَّم بدل الإصدار المنشور. يُقرأ أيضًا من `LOUSHO_SDK_PATH`. |
 
-`create-lousho-agent` (`packages/create-lousho-agent`) مجرد غلاف بسيط يشغّل `lousho init` بنفس الوسائط.
+`create-lousho` (`packages/create-lousho`) مجرد غلاف بسيط يشغّل `lousho init` بنفس الوسائط.
 
 ## الـ CLI `lousho`
 

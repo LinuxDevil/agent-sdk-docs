@@ -2,7 +2,7 @@
   "name": "lousho-docs",
   "version": "0.0.0",
   "private": true,
-  "description": "Documentation site for @lousho/build-ai-agent (Mintlify)",
+  "description": "Documentation site for lousho (Mintlify)",
   "scripts": {
     "dev": "mint dev",
     "sync": "node scripts/sync-sdk-docs.mjs",

@@ -1,7 +1,7 @@
 ---
 title: "نظرة عامة على الـ API"
 sidebarTitle: "نظرة عامة على الـ API"
-description: "جذر الحزمة (@lousho/build-ai-agent) يصدّر كل شيء أدناه. للمرجع الكامل المولّد للـ API (كل export وكل signature وكل تعليق توثيقي)، ابنِ موقع TypeDoc:"
+description: "جذر الحزمة (lousho) يصدّر كل شيء أدناه. للمرجع الكامل المولّد للـ API (كل export وكل signature وكل تعليق توثيقي)، ابنِ موقع TypeDoc:"
 ---
 {/* Generated from docs/api-overview.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
@@ -20,7 +20,7 @@ npm run docs:build   # writes docs/api/index.html
 └──────────────┬──────────────────────┘
                │
 ┌──────────────▼──────────────────────┐
-│     @lousho/build-ai-agent          │
+│     lousho          │
 │  ┌────────────────────────────┐    │
 │  │ createAgent / Builder /     │    │
 │  │ Executor (approvals,        │    │
@@ -45,9 +45,9 @@ npm run docs:build   # writes docs/api/index.html
 | Export                        | الوصف                                                                 |
 | ----------------------------- | --------------------------------------------------------------------------- |
 | `createAgent(config)`         | agent بدون إعدادات بواجهة `{ send(message) }`، من string في `model` أو من provider (مع instructions وtools). |
-| `AgentBuilder` (من `@lousho/build-ai-agent/executor`) | builder بأسلوب fluent لـ `AgentConfig` (`AgentBuilder.create().setName(...)...build()`). متقدم: راجع [واجهة الـ executor](/ar/executor-api). |
-| `AgentExecutor.execute(opts)` (من `@lousho/build-ai-agent/executor`) | executor ساكن (static): يشغّل agent (LLM + حلقة tool calls) ويرجّع `ExecutionResult`. متقدم: راجع [واجهة الـ executor](/ar/executor-api). |
-| `resumeAfterApproval()` (من `@lousho/build-ai-agent/executor`) | استئناف execution متوقف على approval (موافقة) بشري. متقدم: راجع [واجهة الـ executor](/ar/executor-api). |
+| `AgentBuilder` (من `lousho/executor`) | builder بأسلوب fluent لـ `AgentConfig` (`AgentBuilder.create().setName(...)...build()`). متقدم: راجع [واجهة الـ executor](/ar/executor-api). |
+| `AgentExecutor.execute(opts)` (من `lousho/executor`) | executor ساكن (static): يشغّل agent (LLM + حلقة tool calls) ويرجّع `ExecutionResult`. متقدم: راجع [واجهة الـ executor](/ar/executor-api). |
+| `resumeAfterApproval()` (من `lousho/executor`) | استئناف execution متوقف على approval (موافقة) بشري. متقدم: راجع [واجهة الـ executor](/ar/executor-api). |
 | `InMemoryApprovalStore`       | `ApprovalStore` محلي داخل الـ process؛ هو الـ store الافتراضي للـ agents التي تُنشأ بـ `createAgent()`. |
 | `StorageServiceApprovalStore`, `LocalStorageCheckpointStore` (من `/utils`) | stores للـ approvals والـ checkpoints مبنية على ملفات فوق `StorageService` (راجع [Approvals](/ar/approvals) و[Durable execution](/ar/durable-execution)). |
 | `SqliteStore` (من `/sqlite`) | sessions وcheckpoints وapprovals في ملف SQLite واحد (راجع [Sessions](/ar/sessions#choosing-a-store)). |
@@ -74,8 +74,8 @@ sub-agent، الـ `input` يكون هو task prompt، ويأخذ `sessionId` و
 `principal` من run الـ agent الرئيسي.
 
 ```ts
-import { createAgent, defineTool } from '@lousho/build-ai-agent';
-import { mockModel } from '@lousho/build-ai-agent/testing';
+import { createAgent, defineTool } from 'lousho';
+import { mockModel } from 'lousho/testing';
 import { z } from 'zod';
 
 const refund = defineTool({ name: 'refund', description: 'Refunds an order', input: z.object({ orderId: z.string() }), execute: async () => 'ok' });
@@ -103,14 +103,14 @@ agent يتبنّى مرة وحدة لما تنشئه.
 
 ### UI bindings
 
-`@lousho/build-ai-agent/react` يصدّر `useLoushoAgent(source, options?)`، وهو
+`lousho/react` يصدّر `useLoushoAgent(source, options?)`، وهو
 React hook يشغّل agent داخل نفس الـ process (`{ agent, sessionId? }`) أو عبر HTTP
 (`{ url }`)، ويرجّع `messages` و`status` و`pendingApproval` و
 `send()` و`stop()` و`approve()` و`reject()`. أجزاؤه المحايدة عن الـ framework —
 `reduceAgentEvents()` و`parseEventStream()` — مُصدّرة أيضًا. راجع
-[React](/ar/react). `@lousho/build-ai-agent/vue` يصدّر نفس `useLoushoAgent()`
+[React](/ar/react). `lousho/vue` يصدّر نفس `useLoushoAgent()`
 كـ composable لـ Vue 3، والحالة فيه refs. راجع [Vue](/ar/vue). و
-`@lousho/build-ai-agent/svelte` يصدّر `loushoAgent()`، نفس الحالة والأفعال كـ
+`lousho/svelte` يصدّر `loushoAgent()`، نفس الحالة والأفعال كـ
 Svelte store (`$agent`). راجع [Svelte](/ar/svelte).
 
 ### Sub-agents
@@ -211,7 +211,7 @@ approval معلّق. الـ tools تنفّذ at-least-once عبر الـ crash،
 
 ## الاختبار
 
-مُصدَّرة من `@lousho/build-ai-agent/testing` (راجع [اختبار الـ agents](/ar/testing)).
+مُصدَّرة من `lousho/testing` (راجع [اختبار الـ agents](/ar/testing)).
 
 | Export                | الوصف                                                                              |
 | --------------------- | ---------------------------------------------------------------------------------------- |
@@ -224,18 +224,18 @@ approval معلّق. الـ tools تنفّذ at-least-once عبر الـ crash،
 | -------------------------------------------- | --------------------------------------------- |
 | `defineTool({ name, description, input, execute, ... })` | تعريف tool؛ وسائط `execute` و`needsApproval` تأخذ typesها من الـ `input` بـ zod. تقبلها `createAgent({ tools: [...] })` و`ToolRegistry.register(tool)` و`AgentBuilder.addTool(tool)`. |
 | `ToolInput<typeof t>`, `ToolOutput<typeof t>` | types الوسائط والنتيجة لـ tool معرّفة. |
-| `ToolRegistry` (من `@lousho/build-ai-agent/tools` أو `@lousho/build-ai-agent/executor`) | يمسك الـ tools اللي يشير لها config الـ agent (متقدم: `register(tool)` أو `register(name, descriptor)`). |
+| `ToolRegistry` (من `lousho/tools` أو `lousho/executor`) | يمسك الـ tools اللي يشير لها config الـ agent (متقدم: `register(tool)` أو `register(name, descriptor)`). |
 | `httpTool`, `currentDateTool`, `dayNameTool` | tools مدمجة. |
 | `createFsTools(fs, options?)`, `createShellTool(shell, options?)` | tools للـ workspace (`read_file`، `write_file`، `edit_file`، `list_dir`، `glob`، `grep`، `shell`) فوق `FsProvider` / `ShellProvider`. راجع [tools الـ workspace](/ar/workspace-tools). |
 | `NodeWorkspace`, `MemoryWorkspace`, `SandboxShell` | providers للـ workspace: مجلد حقيقي (المسارات محصورة داخل `root`، وبيئة shell فيها الحد الأدنى)، وشجرة في الذاكرة مع `exec` سكربتي للاختبارات، و`ShellProvider` فوق `SandboxAdapter` (Docker). |
 | `createTodoTools({ store?, onChange? })`     | tools باسم `todo_write` / `todo_read` (مع `getTodos()`) تخلّي الـ agents يخططون الشغل متعدد الخطوات ويتابعونه؛ راجع [tools الـ todo](/ar/tools#todo-tools). |
 | `connectMcp(servers, options?)`             | يتصل بسيرفرات MCP من الـ config (stdio أو HTTP) ويحمّل tools حقّهم؛ راجع [مشاركة السيرفرات عبر `connectMcp()`](/ar/mcp-integration#مشاركة-السيرفرات-عبر-connectmcp). |
-| `loadMcpTools(client, connectionName)`       | يحمّل tools سيرفر MCP متصل كـ `ToolDescriptor`. متاحة من جذر الحزمة ومن `@lousho/build-ai-agent/tools` و`@lousho/build-ai-agent/mcp`. |
+| `loadMcpTools(client, connectionName)`       | يحمّل tools سيرفر MCP متصل كـ `ToolDescriptor`. متاحة من جذر الحزمة ومن `lousho/tools` و`lousho/mcp`. |
 
 راجع [Tools](/ar/tools) لدليل تعريف الـ tools وتسجيلها.
 
 ```ts
-import { defineTool } from '@lousho/build-ai-agent';
+import { defineTool } from 'lousho';
 import { z } from 'zod';
 
 const sendEmail = defineTool({
@@ -261,7 +261,7 @@ const sendEmail = defineTool({
 تحدد `inputSchema` / `execute`.
 
 ```ts
-import { loadMcpTools } from '@lousho/build-ai-agent/mcp';
+import { loadMcpTools } from 'lousho/mcp';
 
 const tools = await loadMcpTools(mcpClient, 'my-server');
 ```
@@ -286,7 +286,7 @@ tools السيرفر تتحمّل. مرّر `logger` عشان يوصلك تحذ�
 والسبب، و`onSkip` عشان تجمع اللي انترك:
 
 ```ts
-import { loadMcpTools, type SkippedMcpTool } from '@lousho/build-ai-agent/mcp';
+import { loadMcpTools, type SkippedMcpTool } from 'lousho/mcp';
 
 const skipped: SkippedMcpTool[] = [];
 const tools = await loadMcpTools(mcpClient, 'my-server', {
@@ -316,13 +316,13 @@ tools الـ todo وأخطاء الـ tools: راجع [Tools](/ar/tools#todo-too
 
 ## Flows وevals وobservability والأمان
 
-- `FlowBuilder` / `FlowExecutor` (`@lousho/build-ai-agent/flows`) - graphs
+- `FlowBuilder` / `FlowExecutor` (`lousho/flows`) - graphs
   لمسارات شغل متعددة الخطوات؛ راجع [Flows](/ar/flows).
-- `TriggerAdapter` و`TriggerRegistry` (`@lousho/build-ai-agent/triggers`) -
+- `TriggerAdapter` و`TriggerRegistry` (`lousho/triggers`) -
   نقطة التوسعة لآلية إيقاظ خاصة بك، ومعها `verifySlackSignature()` و
   `parseCronExpression()` وأدوات `WebhookAuth` المساعدة؛ راجع [Triggers](/ar/triggers).
 - `jwt()` و`oidc()` و`basic()` و`apiToken()` و`anonymous()` و`routeAuth()`
-  (`@lousho/build-ai-agent/auth`) - auth على الـ routes كقائمة مرتبة؛ المتصل
+  (`lousho/auth`) - auth على الـ routes كقائمة مرتبة؛ المتصل
   اللي تقبله يوصل الـ run كـ `principal`؛ راجع
   [Route auth and principals](/ar/auth).
 - `defineEval()`، وscorers مثل `exactMatch` و`toolCallOrder` و`budget`، وفحوص
@@ -331,7 +331,7 @@ tools الـ todo وأخطاء الـ tools: راجع [Tools](/ar/tools#todo-too
 - `withSpan()` و`TraceExporter` - tracing لـ `AgentExecutor.execute()`.
   `TraceExporter` واجهة BYO: الحزمة ما تشحن مع أي exporter افتراضي. ولـ spans
   حقيقية في OpenTelemetry، استورد `createOtelTraceExporter()` من الـ subpath
-  `@lousho/build-ai-agent/otel` (يحتاج الـ peer dependency الاختيارية
+  `lousho/otel` (يحتاج الـ peer dependency الاختيارية
   `@opentelemetry/api`) بدل ما تكتب جسر OTel بنفسك - راجع
   `examples/tracing/run-otel.ts`. الـ spans تتبع الـ GenAI semantic conventions
   الخاصة بـ OpenTelemetry (والـ flows تتتبّع أيضًا)؛ راجع
@@ -344,7 +344,7 @@ tools الـ todo وأخطاء الـ tools: راجع [Tools](/ar/tools#todo-too
   `GenerateHookContext` - hooks تراقب الـ tool calls والـ model calls أو ترفضها
   أو تعيد كتابتها أو تحجب أجزاء منها. راجع [Hooks](/ar/hooks).
 - `EncryptionUtils` و`sha256` و`StorageService`
-  (`@lousho/build-ai-agent/utils`) - أدوات مساعدة داعمة؛ راجع
+  (`lousho/utils`) - أدوات مساعدة داعمة؛ راجع
   [Utilities](/ar/utilities).
 
 ## النشر

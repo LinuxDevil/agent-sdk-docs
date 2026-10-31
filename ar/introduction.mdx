@@ -5,7 +5,7 @@ description: "Lousho مكتبة TypeScript لبناء AI agents تشتغل دا�
 
 معظم كود الـ agents يبدأ كحلقة تلفّ حول استدعاء model. بعدها يأتي الإنتاج ويطلب أكثر: لازم إنسان يوافق على استرداد المبلغ قبل إرساله. العملية تُعاد تشغيلها والـ run في منتصفه. المحادثة لازم تكمل غدًا من سيرفر آخر. وشخص ما يريد اختبار يفشل لما الـ agent يوقف عن استدعاء الـ tool الصحيح.
 
-`@lousho/build-ai-agent` هي هذه الحلقة وهذه الإجابات مدمجة فيها. مكتبة، لا web framework ولا hosted runtime: حلقة استدعاء tools من نوع typed، مع approvals (موافقات) و sessions (جلسات) و streaming و sub-agents و skills و MCP و CLI. ونفس الـ agent يشتغل في سكربت، أو سيرفر Node، أو حاوية Docker، أو Cloudflare Worker (الـ Worker يدعم [جزءًا](/ar/cloudflare-workers#ما-يعمل-وما-لا-يعمل) فقط من الـ providers والـ tools).
+`lousho` هي هذه الحلقة وهذه الإجابات مدمجة فيها. مكتبة، لا web framework ولا hosted runtime: حلقة استدعاء tools من نوع typed، مع approvals (موافقات) و sessions (جلسات) و streaming و sub-agents و skills و MCP و CLI. ونفس الـ agent يشتغل في سكربت، أو سيرفر Node، أو حاوية Docker، أو Cloudflare Worker (الـ Worker يدعم [جزءًا](/ar/cloudflare-workers#ما-يعمل-وما-لا-يعمل) فقط من الـ providers والـ tools).
 
 ```mermaid
 flowchart LR
@@ -18,7 +18,7 @@ flowchart LR
 ```
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const agent = createAgent({ model: 'openai/gpt-4.1-mini', instructions: 'You are a helpful assistant.' });
 const { text } = await agent.send('Hello!');
@@ -79,7 +79,7 @@ console.log(text);
 
 ## مقارنة بمكتبات أخرى
 
-`@lousho/build-ai-agent` يقع في طبقة واحدة فوق استدعاء الـ model: مثل agents الخاصة بـ AI SDK 7، و eve، و Mastra، و LangGraph، و OpenAI Agents SDK، و Claude Agent SDK، يشغّل agent loop كامل. وهو مبني فوق Vercel AI SDK وليس بديلًا عنه: الـ providers المدمجة تستخدم `ai` و`@ai-sdk/*`، و`fromAiSdk()` يغلّف أي model آخر من AI SDK.
+`lousho` يقع في طبقة واحدة فوق استدعاء الـ model: مثل agents الخاصة بـ AI SDK 7، و eve، و Mastra، و LangGraph، و OpenAI Agents SDK، و Claude Agent SDK، يشغّل agent loop كامل. وهو مبني فوق Vercel AI SDK وليس بديلًا عنه: الـ providers المدمجة تستخدم `ai` و`@ai-sdk/*`، و`fromAiSdk()` يغلّف أي model آخر من AI SDK.
 
 الـ approvals المتينة والـ evals والـ agent directories و harnesses الـ coding agents لم تعد ميزات حصرية: AI SDK 7 و eve و Mastra تقدّم نسخها الخاصة. ما يميّز Lousho حتى الآن هو التسجيل وإعادة التشغيل مع اكتشاف انحراف المسار، والـ approvals المتينة على Cloudflare Workers KV، وتقديم نفس الـ agent عبر ACP و MCP، والعمل كحزمة واحدة مستضافة عندك. وهو أضعف حيث ما زال صغيرًا: في مرحلة alpha، بدون store لـ Postgres، وبـ providers مدمجة أقل، وبدون لوحة تحكم مستضافة. وفي [المقارنة](/ar/comparison) جدول لكل مشروع، مؤرّخ، مع ما يتفوّق فيه كل منافس.
 

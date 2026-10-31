@@ -16,7 +16,7 @@ title: "الذاكرة"
 البادئة `vendor/` في اسم الـ model هي اللي تختار الـ provider؛ مع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثال: `openrouter/openai/gpt-4o-mini`).
 
 ```ts
-import { createAgent, defineMemory, fileMemory } from '@lousho/build-ai-agent';
+import { createAgent, defineMemory, fileMemory } from 'lousho';
 
 const preferences = defineMemory({
   name: 'preferences',
@@ -57,8 +57,8 @@ const { text } = await agent.session({ id: 'user-42' }).send('What is the capita
 دالة الـ scope تشوف `sessionId` تبع الـ run والـ `metadata` اللي اتمرّرت لـ `send()` / `stream()`، فينفعك تحتفظ بذاكرة وحدة لكل مستخدم عبر كل الـ sessions تبعته:
 
 ```ts
-import { createAgent, defineMemory, inMemoryMemory } from '@lousho/build-ai-agent';
-import { mockModel } from '@lousho/build-ai-agent/testing';
+import { createAgent, defineMemory, inMemoryMemory } from 'lousho';
+import { mockModel } from 'lousho/testing';
 
 const userFacts = defineMemory({
   name: 'user_facts',
@@ -83,7 +83,7 @@ await agent.send('Hi again!', { metadata: { userId: 'u-42' } });
 لحد `1.0.0-alpha.19`، العناصر كانت تعيش تحت الـ scope key لحاله (`global`، `session:s1`، `user:u-42`)، ويتشاركها كل slot إله نفس الـ scope. هالعناصر لسّا موجودة في الـ provider بس ما فيه slot يقراها. `migrateMemoryKeys(slot)` تنسخها للمفتاح الحالي تبع الـ slot، الأقدم أول. وآمن تشغّلها مع كل بداية: `add()` يشيل التكرار حسب النص، فما ينسخ شي مرتين. كل نسخة تحتفظ بـ `text` و`metadata` وتاخذ `id` و`createdAt` جداد.
 
 ```ts
-import { defineMemory, fileMemory, migrateMemoryKeys } from '@lousho/build-ai-agent';
+import { defineMemory, fileMemory, migrateMemoryKeys } from 'lousho';
 
 const provider = fileMemory({ dir: './.lousho/memory' });
 const notes = defineMemory({ name: 'notes', scope: 'global', provider });
@@ -116,7 +116,7 @@ await migrateMemoryKeys(prefs, { contexts: ['s1', 's2'].map((sessionId) => ({ se
 
 ```ts
 import { z } from 'zod';
-import { defineMemory, inMemoryMemory } from '@lousho/build-ai-agent';
+import { defineMemory, inMemoryMemory } from 'lousho';
 
 const relationship = defineMemory({
   name: 'relationship',
@@ -137,7 +137,7 @@ const relationship = defineMemory({
 
 ```ts
 import { z } from 'zod';
-import { defineMemory, inMemoryMemory } from '@lousho/build-ai-agent';
+import { defineMemory, inMemoryMemory } from 'lousho';
 
 const settings = defineMemory({
   name: 'settings',
@@ -185,8 +185,8 @@ const settings = defineMemory({
 مرّر نفس الـ `SqliteStore` للـ agent وللـ provider، فتتشارك الـ sessions والـ checkpoints والذاكرة ملف قاعدة بيانات واحد. الملف الموجود يكسب الجدول لما ينفتح. خلّي الـ store مفتوح ما دام الـ agent شغّال. ولو تبي الاسترجاع بالمعنى بدل الكلمات المفتاحية، استخدم `sqliteVectorMemory()`: شوف [Semantic recall](#semantic-recall).
 
 ```ts
-import { createAgent, defineMemory } from '@lousho/build-ai-agent';
-import { SqliteStore, sqliteMemory } from '@lousho/build-ai-agent/sqlite';
+import { createAgent, defineMemory } from 'lousho';
+import { SqliteStore, sqliteMemory } from 'lousho/sqlite';
 
 const store = new SqliteStore('./.lousho/agent.db');
 const notes = defineMemory({ name: 'notes', scope: 'global', provider: sqliteMemory(store) });
@@ -196,7 +196,7 @@ const agent = createAgent({ model: 'openai/gpt-4o-mini', store, memory: [notes] 
 لو تبي store مستضاف أو ترتيب من عندك، نفّذ `MemoryProvider`:
 
 ```ts
-import type { MemoryItem, MemoryProvider } from '@lousho/build-ai-agent';
+import type { MemoryItem, MemoryProvider } from 'lousho';
 
 const items = new Map<string, MemoryItem[]>();
 const myProvider: MemoryProvider = {
@@ -222,8 +222,8 @@ const myProvider: MemoryProvider = {
 مع [`mockModel`](/ar/testing)، تحقّق من الـ system prompt تبع أول request، وحرّك الـ tools بـ tool calls مكتوبة في السكربت:
 
 ```ts
-import { createAgent, defineMemory, inMemoryMemory, memoryKey } from '@lousho/build-ai-agent';
-import { mockModel } from '@lousho/build-ai-agent/testing';
+import { createAgent, defineMemory, inMemoryMemory, memoryKey } from 'lousho';
+import { mockModel } from 'lousho/testing';
 
 const store = inMemoryMemory();
 const notes = defineMemory({ name: 'notes', scope: 'global', provider: store });
@@ -248,7 +248,7 @@ console.log((await store.list(memoryKey(notes)!)).map((item) => item.text)); // 
 الـ **embedder** (`EmbeddingProvider`) يحوّل النصوص إلى vectors. و`aiSdkEmbedder(model)` تغلّف أي embedding model في AI SDK، عن طريق `embedMany` من حزمة `ai` المثبّتة (4 أو 6 أو 7؛ ابنِ الـ model بحزمة الـ provider اللي تلائم الـ major version تبع `ai` عندك، نفس قاعدة نماذج اللغة). وما تضيف dependency: `ai` أصلًا peer dependency، وحزمة الـ provider من عندك.
 
 ```ts
-import { createAgent, defineMemory, aiSdkEmbedder, inMemoryVectorMemory } from '@lousho/build-ai-agent';
+import { createAgent, defineMemory, aiSdkEmbedder, inMemoryVectorMemory } from 'lousho';
 import { createOpenAI } from '@ai-sdk/openai';
 
 const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -268,7 +268,7 @@ const agent = createAgent({ model: 'openai/gpt-4o-mini', memory: [facts] });
 في اثنين من الـ providers يرتّبون بالمعنى، بنفس الخيارات:
 
 - `inMemoryVectorMemory({ embedder, maxItems?, minScore? })` يحتفظ بالعناصر في هالعملية.
-- `sqliteVectorMemory(store, { embedder, maxItems?, minScore? })` (من `@lousho/build-ai-agent/sqlite`) يحتفظ بها في ملف SQLite تبع الـ agent، في جدول `memory_vectors` ينضاف للملف الموجود لما ينفتح. والـ vectors تعيش بعد إعادة التشغيل.
+- `sqliteVectorMemory(store, { embedder, maxItems?, minScore? })` (من `lousho/sqlite`) يحتفظ بها في ملف SQLite تبع الـ agent، في جدول `memory_vectors` ينضاف للملف الموجود لما ينفتح. والـ vectors تعيش بعد إعادة التشغيل.
 
 مع query، `list()` تعمل لها embed، وتعطي عناصر ذلك الـ scope key درجات، وترمي اللي تحت `minScore` (cosine similarity، الافتراضي `0.2`)، وترتّب حسب الدرجة (الأحدث أول عند التعادل) وترجع `limit` منها. كل عنصر راجع إله درجته في `metadata.score`. وبدون query، أو مع query فاضية، تسرد الأحدث أول مثل أي provider. وقتها وصف tool الـ `recall_<name>` يصير "Search the "&lt;name>" memory by meaning, most relevant first."
 
@@ -277,11 +277,11 @@ const agent = createAgent({ model: 'openai/gpt-4o-mini', memory: [facts] });
 العناصر ما تنقارن إلا داخل الـ scope key تبعها، وبس إذا نفس الـ embedder (الـ `id` تبعه) هو اللي سوّاها. الـ id ينخزّن مع كل vector: بعد ما تغيّر الـ model أو الـ id، العناصر القديمة تتخطّى عند الترتيب (بس تظل تطلع في السرد بدون query) لحد ما تنادي `await provider.reindex()`، اللي يعيد لها الـ embed على دفعات ويرجع كم وحدة غيّر.
 و`reindex(providerKey)` تعالج مفتاح واحد بس — لمفتاح slot، مرّر `memoryKey(slot, ctx)`.
 
-`hashEmbedder()` من `@lousho/build-ai-agent/testing` هو embedder حتمي يشتغل offline للاختبارات: bag من جذوع الكلمات بعد hash، فالنصوص اللي تتشارك كلمات تطلع قريبة من بعض. هو مو نموذج دلالي وما يعرف إن "vegetarian" و"eat" لهم علاقة ببعض.
+`hashEmbedder()` من `lousho/testing` هو embedder حتمي يشتغل offline للاختبارات: bag من جذوع الكلمات بعد hash، فالنصوص اللي تتشارك كلمات تطلع قريبة من بعض. هو مو نموذج دلالي وما يعرف إن "vegetarian" و"eat" لهم علاقة ببعض.
 
 ```ts
-import { inMemoryVectorMemory } from '@lousho/build-ai-agent';
-import { hashEmbedder } from '@lousho/build-ai-agent/testing';
+import { inMemoryVectorMemory } from 'lousho';
+import { hashEmbedder } from 'lousho/testing';
 
 const memory = inMemoryVectorMemory({ embedder: hashEmbedder() });
 await memory.add('global', { text: 'Sam is vegetarian' });

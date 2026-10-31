@@ -9,7 +9,7 @@ A coding agent writes better Lousho code when it reads the current docs instead 
 
 | File | Where | What it is |
 | ---- | ----- | ---------- |
-| `llms.txt` | In the npm package: `node_modules/@lousho/build-ai-agent/llms.txt` | An [llmstxt.org](https://llmstxt.org) index: one line per docs page, with a summary and a link |
+| `llms.txt` | In the npm package: `node_modules/lousho/llms.txt` | An [llmstxt.org](https://llmstxt.org) index: one line per docs page, with a summary and a link |
 | `llms-full.txt` | In the [SDK repository](https://github.com/LinuxDevil/agent-sdk/blob/main/llms-full.txt), not in the npm package (it is about 1 MB) | The README and every docs page in one file, with absolute links |
 
 Both are generated from the same docs as this site and checked in the SDK's CI. The `llms.txt` in `node_modules` matches the version you have installed; the repository's `llms-full.txt` follows the SDK's `main` branch, which can be ahead of the release you installed. Tell your coding agent where they are, for example in your project's `AGENTS.md` or `CLAUDE.md`:
@@ -17,9 +17,9 @@ Both are generated from the same docs as this site and checked in the SDK's CI. 
 ```markdown
 ## Lousho SDK
 
-This project uses @lousho/build-ai-agent. Before writing or changing agent code,
-read node_modules/@lousho/build-ai-agent/llms.txt and open the pages it links to.
-Tests must run offline: use mockModel from @lousho/build-ai-agent/testing.
+This project uses lousho. Before writing or changing agent code,
+read node_modules/lousho/llms.txt and open the pages it links to.
+Tests must run offline: use mockModel from lousho/testing.
 ```
 
 ## The docs, from this site

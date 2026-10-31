@@ -8,7 +8,7 @@ title: "Decisions"
 نسخة beta عامة: `gpt-6-luna` هو الـ model الوحيد الذي يقدّمه الـ endpoint، والواجهة قد تتغيّر. الـ endpoint ليس جزءًا من chat completions، لذلك لا يمرّ عبر providers الخاصة بـ `createAgent()` ولا عبر OpenRouter؛ يحتاج `OPENAI_API_KEY` (أو `apiKey`/`baseURL` لـ endpoint متوافق).
 
 ```ts
-import { decide } from '@lousho/build-ai-agent';
+import { decide } from 'lousho';
 
 const { answers } = await decide({
   input: 'I was charged twice for my order.',
@@ -35,7 +35,7 @@ if (route.type === 'choice' && route.confidence >= 0.7) {
 ## أنواع الأسئلة
 
 ```ts
-import { decide, type DecisionQuestion } from '@lousho/build-ai-agent';
+import { decide, type DecisionQuestion } from 'lousho';
 
 const questions: DecisionQuestion[] = [
   // predicate: probability 0-1 that a condition holds
@@ -72,7 +72,7 @@ const questions: DecisionQuestion[] = [
 الأسئلة المستقلة تتشارك `input` واحدًا وطلبًا واحدًا:
 
 ```ts
-import { decide, type DecisionQuestion } from '@lousho/build-ai-agent';
+import { decide, type DecisionQuestion } from 'lousho';
 
 const questions: DecisionQuestion[] = [
   { type: 'predicate', name: 'is_spam', instructions: 'Is this spam?' },
@@ -94,7 +94,7 @@ const byName = Object.fromEntries(answers.map((a) => [a.name, a]));
 ## الخيارات
 
 ```ts
-import { decide } from '@lousho/build-ai-agent';
+import { decide } from 'lousho';
 
 const result = await decide({
   input: '...',

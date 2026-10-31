@@ -144,7 +144,7 @@ mcpServers:
 ```
 
 ```ts
-import { agentSpecSchema, specToAgent, type McpServerSpec } from '@lousho/build-ai-agent';
+import { agentSpecSchema, specToAgent, type McpServerSpec } from 'lousho';
 
 const filesystem: McpServerSpec = { command: 'npx', args: ['-y', '@modelcontextprotocol/server-filesystem'] };
 const spec = agentSpecSchema.parse({
@@ -188,7 +188,7 @@ console.log(Object.keys(agent.mcpServers)); // ['filesystem', 'docs']
 `openrouter/openai/gpt-4o-mini`).
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const agent = createAgent({
   model: 'openai/gpt-4o-mini',
@@ -231,7 +231,7 @@ for await (const event of agent.stream('Hello!')) {
 فيه provider:
 
 ```ts
-import { createAgent, resolveProvider, withFallback, withRetry } from '@lousho/build-ai-agent';
+import { createAgent, resolveProvider, withFallback, withRetry } from 'lousho';
 
 const provider = withFallback(
   [
@@ -302,7 +302,7 @@ const agent = createAgent({ instructions: 'You are helpful.', provider });
 استدعاءات model بلا حد. كل حد اختياري:
 
 ```ts
-import { withRateLimit, resolveProvider } from '@lousho/build-ai-agent';
+import { withRateLimit, resolveProvider } from 'lousho';
 
 const provider = withRateLimit(resolveProvider('openai/gpt-4o-mini'), {
   requestsPerMinute: 60, // calls started per rolling minute
@@ -332,7 +332,7 @@ lead، فيدخل الـ provider الخاص به الطابور أيضًا). أ
 `createRateLimiter()` ليتشاركوها.
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const researcher = createAgent({ model: 'openai/gpt-4o-mini', instructions: 'You research.', description: 'Finds sources' });
 createAgent({ model: 'openai/gpt-4o-mini', subagents: { researcher }, rateLimit: { maxConcurrent: 2 } });
@@ -404,7 +404,7 @@ createAgent({ model: 'openai/gpt-4o-mini', subagents: { researcher }, rateLimit:
 الـ agent مفتاحًا بمفتاح:
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const agent = createAgent({
   model: 'openai/gpt-4o-mini',
@@ -439,7 +439,7 @@ await agent.send('Summarize the log in one line.', { modelSettings: { maxTokens:
 الـ run:
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const agent = createAgent({ model: 'openai/gpt-4o-mini', instructions: 'You triage support tickets.' });
 await agent.send('Summarize the ticket.', { maxSteps: 2, instructions: 'Answer in French.' });
@@ -457,7 +457,7 @@ calls هدف الـ handoff) لكنها لا تُكتب في الـ transcript،
 TypeScript نشره بجانب literal يضبط أحدهما.
 
 ```ts
-import { createAgent, type CreateAgentBase } from '@lousho/build-ai-agent';
+import { createAgent, type CreateAgentBase } from 'lousho';
 
 const shared: CreateAgentBase = { maxSteps: 8, modelSettings: { temperature: 0 } };
 
@@ -515,7 +515,7 @@ tools. نفاد الخطوات وحده (`maxSteps` أو `limits.maxSteps`) يح
 (`LOUSHO_BUDGET_EXCEEDED`، مع نفس `budget`) بدلًا من ذلك.
 
 ```ts
-import { BudgetExceededError, createAgent } from '@lousho/build-ai-agent';
+import { BudgetExceededError, createAgent } from 'lousho';
 
 const agent = createAgent({
   provider,
@@ -544,7 +544,7 @@ try {
 يُبلَغ يوقف الـ turn. والـ turn الملغى لا يُحتسب.
 
 ```ts
-import { createAgent, memoryStore } from '@lousho/build-ai-agent';
+import { createAgent, memoryStore } from 'lousho';
 
 const agent = createAgent({ provider, store: memoryStore(), limits: { maxTokens: 20_000 } });
 const session = agent.session({ id: 'user-42', limits: { maxCostUsd: 1 } });
@@ -558,7 +558,7 @@ if (reply.budget?.scope === 'session') console.log('This conversation used up it
 `CLAUDE.md`). تستطيع `createAgent` إلحاقه بتعليمات الـ agent:
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const agent = createAgent({
   instructions: 'You review pull requests.',

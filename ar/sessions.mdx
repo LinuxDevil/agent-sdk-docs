@@ -10,7 +10,7 @@ title: "Sessions"
 > الأمثلة في الصفحة دي بتسيب لك تعريف بعض الأسماء: `provider` هو أي `LLMProvider` (من غير اتصال: `createMockProvider()`).
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const chat = createAgent({ instructions: 'Be brief.', provider });
 
@@ -73,7 +73,7 @@ calls `send()` اللي تجي مع بعض على نفس الـ session بتتص
 `openrouter/<vendor>/<model>` (مثال `openrouter/openai/gpt-4o-mini`).
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const agent = createAgent({ model: 'openai/gpt-4o-mini' });
 const session = agent.session({ id: 'user-42', turnPolicy: 'queue' });
@@ -125,7 +125,7 @@ console.log((await second) === (await first)); // true: one turn, one result
 وبتنضم له.
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const chat = createAgent({ instructions: 'Be brief.', provider });
 const session = chat.session();
@@ -194,8 +194,8 @@ crash، أو فشل في كتابة checkpoint، أو `PropagatingToolError`، �
 تتخلّص بعدين، في process تانية:
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
-import { SqliteStore } from '@lousho/build-ai-agent/sqlite';
+import { createAgent } from 'lousho';
+import { SqliteStore } from 'lousho/sqlite';
 
 const agent = createAgent({ provider, store: new SqliteStore('./.lousho/agent.db') });
 
@@ -288,7 +288,7 @@ console.log(finished?.text, await agent.session({ id: 'user-42' }).pending()); /
 `SessionStore` بيمسك سجلات المحادثات بين الـ calls:
 
 ```ts
-import type { Message } from '@lousho/build-ai-agent';
+import type { Message } from 'lousho';
 
 interface SessionStore {
   load(id: string): Promise<Message[] | undefined>;
@@ -319,7 +319,7 @@ writer في process تانية يدخل بينهم، فتضيع turn واحدة.
   مختلفة على Windows وmacOS كمان.
 
 ```ts
-import { createAgent, FileSessionStore } from '@lousho/build-ai-agent';
+import { createAgent, FileSessionStore } from 'lousho';
 
 const agent = createAgent({ provider });
 const store = new FileSessionStore('./.lousho/sessions');
@@ -352,7 +352,7 @@ ids بتاع الـ sessions لازم تطابق `^[A-Za-z0-9_-]{1,128}$` (بت�
 | In memory (`memoryStore()`) | `MemorySessionStore` | in memory | `InMemoryApprovalStore` | tests وscripts، process واحدة ما بيتعملها restart أبد |
 | Files (`fileStore(dir)`) | `<dir>/sessions/<id>.json` | `<dir>/checkpoints/` و`<dir>/checkpoint-history/` | `<dir>/approvals/<id>.json` | جهاز واحد، وتبي ملفات عادية تقدر تفحصها |
 | SQLite | `store.sessions` | `store.checkpoints` | `store.approvals` | سيرفر Node: ملف واحد durable بيدعم transactions، وعدة processes تتشاركه بأمان |
-| Cloudflare KV (`KVStore` من `@lousho/build-ai-agent/kv`) | `store.sessions` | `store.checkpoints` | `store.approvals` | deployments على Workers (شوف [النشر](/ar/deployment)) |
+| Cloudflare KV (`KVStore` من `lousho/kv`) | `store.sessions` | `store.checkpoints` | `store.approvals` | deployments على Workers (شوف [النشر](/ar/deployment)) |
 
 كل واحدة فيهم جزء من `AgentStore`: مرّرهم مع بعض كده
 `createAgent({ store: { sessions, checkpoints, approvals } })`. و`memoryStore()`
@@ -366,7 +366,7 @@ pending تحت `dir`، وكل واحد بيتكتب في ملف مؤقت، وب�
 الملف لسه بتنتهي بواحد منهم بس (آخر rename هو اللي بيكسب):
 
 ```ts
-import { createAgent, fileStore } from '@lousho/build-ai-agent';
+import { createAgent, fileStore } from 'lousho';
 
 const agent = createAgent({ provider, store: fileStore('./.lousho') });
 // ./.lousho/sessions/user-42.json, ./.lousho/checkpoints/..., ./.lousho/approvals/...
@@ -400,7 +400,7 @@ approval pending بيفضل، مهما كان قديم (الـ checkpoint بتا
 بالأعداد، `{ sessions, checkpoints, checkpointHistory, oauthPending }`:
 
 ```ts
-import { fileStore } from '@lousho/build-ai-agent';
+import { fileStore } from 'lousho';
 
 const store = fileStore('./.lousho');
 await store.prune({ olderThanMs: 30 * 24 * 60 * 60 * 1000 }); // a month
@@ -415,8 +415,8 @@ Worker المولّد بيستخدم `KVCheckpointStore`، شوف [النشر](/
 متعمله re-export من الـ root entry، فاستيراد الـ SDK ما بيحمّله أبد):
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
-import { SqliteStore } from '@lousho/build-ai-agent/sqlite';
+import { createAgent } from 'lousho';
+import { SqliteStore } from 'lousho/sqlite';
 
 const store = new SqliteStore('./.lousho/agent.db'); // or ':memory:'
 const agent = createAgent({ provider, store }); // transcripts, per-step checkpoints and approvals
@@ -458,8 +458,8 @@ store.close();
 من غير ما تضيّع المحادثة الأصلية:
 
 ```ts
-import { createAgent, defineTool } from '@lousho/build-ai-agent';
-import { mockModel } from '@lousho/build-ai-agent/testing';
+import { createAgent, defineTool } from 'lousho';
+import { mockModel } from 'lousho/testing';
 import { z } from 'zod';
 
 const searchFlights = defineTool({

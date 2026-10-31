@@ -9,12 +9,12 @@ composable: نفس المصادر، نفس الحالة، نفس الأوامر�
 حقل، ونوعي الـ source، وكيف تشتغل الـ approvals (الموافقات)، وجهة السيرفر.
 هذه الصفحة تغطي بس الفروقات.
 
-الـ composable موجود في الـ subpath `@lousho/build-ai-agent/vue`.
+الـ composable موجود في الـ subpath `lousho/vue`.
 و`vue` (3.x) هي peer dependency اختيارية: ثبّتها في التطبيق اللي يستخدم
 الـ composable.
 
 ```ts
-import { useLoushoAgent } from '@lousho/build-ai-agent/vue';
+import { useLoushoAgent } from 'lousho/vue';
 
 // In <script setup>:
 const { messages, status, pendingApproval, send, stop, approve, reject, reset } = useLoushoAgent(
@@ -65,7 +65,7 @@ export { messages, status, pendingApproval, stop, approve, reject, reset };
 
 تقدر تستورد الـ reducer والـ stream parser من نفس الـ subpath
 (`reduceAgentEvents` و`initialAgentUIState` و`parseEventStream`)، وهي نفس
-الموجودة في `@lousho/build-ai-agent/react`.
+الموجودة في `lousho/react`.
 
 ## Todos
 
@@ -77,7 +77,7 @@ export { messages, status, pendingApproval, stop, approve, reject, reset };
 المحادثة (شوف [React](/ar/react#todos)).
 
 ```ts
-import { useLoushoAgent, useTodos } from '@lousho/build-ai-agent/vue';
+import { useLoushoAgent, useTodos } from 'lousho/vue';
 
 // In <script setup>:
 const agent = useLoushoAgent({ url: '/api/agent' });

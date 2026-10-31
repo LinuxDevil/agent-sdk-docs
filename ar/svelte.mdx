@@ -9,12 +9,12 @@ title: "Svelte"
 صفحة [React](/ar/react) تشرح معنى كل حقل، ونوعَي المصدر، وكيف تعمل approvals
 (الموافقات)، وجانب السيرفر. هذه الصفحة تغطي الفروقات فقط.
 
-موجودة في الـsubpath `@lousho/build-ai-agent/svelte`. الـstore ينفّذ عقد الـstores
+موجودة في الـsubpath `lousho/svelte`. الـstore ينفّذ عقد الـstores
 في Svelte (`subscribe(run) => unsubscribe`) يدويًا، فيعمل مع `$agent` في Svelte 4
 و5، ولا يحتاج أي import لـ`svelte`: لا توجد peer dependency تثبّتها.
 
 ```ts
-import { loushoAgent } from '@lousho/build-ai-agent/svelte';
+import { loushoAgent } from 'lousho/svelte';
 
 // In a component's <script lang="ts">, or a module that several components share:
 export const agent = loushoAgent({ url: '/api/agent' }, { approvalsUrl: '/api/approvals' });
@@ -70,7 +70,7 @@ export async function submit(text: string): Promise<void> {
 
 الـreducer وparser الخاص بالـstream مُصدَّران من هذا الـsubpath أيضًا
 (`reduceAgentEvents` و`initialAgentUIState` و`parseEventStream`)، وهما نفسهما
-الموجودان في `@lousho/build-ai-agent/react`.
+الموجودان في `lousho/react`.
 
 ## Todos
 
@@ -83,7 +83,7 @@ export async function submit(text: string): Promise<void> {
 [React](/ar/react#todos)).
 
 ```ts
-import { loushoAgent, loushoTodos } from '@lousho/build-ai-agent/svelte';
+import { loushoAgent, loushoTodos } from 'lousho/svelte';
 
 export const agent = loushoAgent({ url: '/api/agent' });
 export const plan = loushoTodos(agent);

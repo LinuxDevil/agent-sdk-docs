@@ -6,8 +6,8 @@ title: "أوضاع الصلاحيات"
 وضع الصلاحيات يحط الـ agent في حالة لها اسم، بدل ما تكتب rules: ينظر بس ما يلمس (`plan`)، يعدّل الملفات بدون سؤال (`acceptEdits`)، أو ما يوقف أبدًا (`dontAsk`). بدّله في نص الـ session، نفس الطريقة اللي تشتغل فيها مع coding agent: خطّط أول، بعدين خلّيه يعدّل.
 
 ```ts
-import { createAgent, createFsTools, MemoryWorkspace } from '@lousho/build-ai-agent';
-import { mockModel } from '@lousho/build-ai-agent/testing';
+import { createAgent, createFsTools, MemoryWorkspace } from 'lousho';
+import { mockModel } from 'lousho/testing';
 
 const workspace = new MemoryWorkspace({ files: { 'notes.md': '# Notes\n' } });
 const agent = createAgent({
@@ -69,7 +69,7 @@ await session.send('Apply the plan.'); // write_file and edit_file run without a
 عرّف tool read-only خاصة بك هكذا:
 
 ```ts
-import { defineTool } from '@lousho/build-ai-agent';
+import { defineTool } from 'lousho';
 import { z } from 'zod';
 
 const lookUpOrder = defineTool({
@@ -88,7 +88,7 @@ const lookUpOrder = defineTool({
 `acceptEdits` يوافق بس على الـ tools المعلَّمة كتعديل ملفات: `write_file` و`edit_file` من `createFsTools()`، وأي tool معرَّفة بـ `editsFiles: true` (تُخزَّن كـ `metadata.editsFiles`). الـ tool ما تُحسب تعديل ملفات من اسمها بس، فلو سمّيت tool من صنعك `write_file` ما يُوافَق عليها بصمت.
 
 ```ts
-import { defineTool } from '@lousho/build-ai-agent';
+import { defineTool } from 'lousho';
 import { z } from 'zod';
 
 const appendLine = defineTool({
@@ -130,7 +130,7 @@ const appendLine = defineTool({
 التبديل دائمًا استدعاء صريح لـ `setPermissionMode()`. وكل تبديل يروح لـ `onPermissionModeChange` مع `{ sessionId, from, to, at }`:
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const agent = createAgent({
   provider,

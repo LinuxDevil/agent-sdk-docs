@@ -6,8 +6,8 @@ title: "Flows"
 الـflow هو سير عمل ثابت من عدة خطوات، يشغّله agent واحد. تكتب الخطوات وترتيبها مسبقاً، بدل ما تترك القرار للـmodel. صف الـgraph بـ`FlowBuilder`، وشغّله بالدالة static `FlowExecutor.execute(flow, context, onEvent?)`.
 
 ```ts
-import { FlowBuilder, FlowExecutor, type EditorStep } from '@lousho/build-ai-agent/flows';
-import { resolveProvider, type AgentConfig } from '@lousho/build-ai-agent';
+import { FlowBuilder, FlowExecutor, type EditorStep } from 'lousho/flows';
+import { resolveProvider, type AgentConfig } from 'lousho';
 
 // A flow calls an LLMProvider directly (reads OPENAI_API_KEY).
 const provider = resolveProvider('openai/gpt-4o-mini');
@@ -77,7 +77,7 @@ const result = await FlowExecutor.execute(flow, { agent, provider, variables: { 
 - الاستدعاء الذي يحتاج approval (عبر `needsApproval` الخاص بالـtool، أو قاعدة `ask`) يحسمه الـcallback `approve` في الـcontext، وله نفس شكل `createAgent({ approve })`. القيمة `true` (أو ملاحظة) تشغّل الـtool. و`false` ترفضها بـ`LOUSHO_FLOW_TOOL_DENIED`. لما يرجّع `approve` القيمة `'defer'`، أو لا يوجد callback `approve` أصلاً، يتوقف [الـrun المتين](#الـruns-المتينة) حتى يقرر شخص ما (راجع [الإيقاف بانتظار الموافقة](#الإيقاف-بانتظار-الموافقة)). أما الـrun غير المتين فيرفض الاستدعاء بـ`LOUSHO_FLOW_TOOL_DENIED`. الـtool لا تعمل أبداً دون approval.
 
 ```ts
-import { FlowExecutor, type AgentFlow } from '@lousho/build-ai-agent/flows';
+import { FlowExecutor, type AgentFlow } from 'lousho/flows';
 
 declare const flow: AgentFlow;
 
@@ -95,7 +95,7 @@ const result = await FlowExecutor.execute(flow, {
 الـargument الذي يكون string عبارة عن placeholder واحد بالضبط، `'{{name}}'` أو `'$name'`، يمرّر قيمة المتغير كما هي: الرقم يبقى رقماً، والكائن يبقى كائناً؛ و`'{{res.count}}'` يمرّر قيمة ذلك الحقل. فـ`arguments: { n: '{{n}}' }` مع `n = 5` يمرّر `5` إلى tool الـschema الخاص بها `z.number()`. وهذا ينطبق أيضاً داخل المصفوفات والكائنات المتداخلة. أي string آخر يُعوَّض كنص: `'n is {{n}}'` يصبح `'n is 5'`. والـplaceholder لمتغير غير مضبوط يبقى كما كان سابقاً: `'{{missing}}'` يصبح `''`، و`'$USD'` (لا يوجد متغير اسمه `USD`) يبقى الـstring الحرفي `'$USD'`.
 
 ```ts
-import type { EditorStep } from '@lousho/build-ai-agent/flows';
+import type { EditorStep } from 'lousho/flows';
 
 // With variables { count: 5, tags: ['a', 'b'] }, the tool gets { count: 5, tags: ['a', 'b'], note: 'count: 5' }.
 const step: EditorStep = {
@@ -112,7 +112,7 @@ const step: EditorStep = {
 مرّر `signal` في الـcontext لتلغي الـrun. يُفحص قبل كل خطوة: بمجرد أن يُلغى (aborted)، لا تبدأ أي خطوة أخرى ويفشل الـflow بالـ`reason` الخاص بالـsignal. والخطوة الجارية تستلم الـsignal أيضاً: `llmCall` يمرّره إلى طلب الـmodel، و`toolCall` يسلّمه للـtool كـ`ctx.abortSignal`.
 
 ```ts
-import { FlowExecutor, type AgentFlow } from '@lousho/build-ai-agent/flows';
+import { FlowExecutor, type AgentFlow } from 'lousho/flows';
 
 declare const flow: AgentFlow;
 
@@ -142,7 +142,7 @@ const result = await FlowExecutor.execute(flow, {
 القيم غير الصالحة (`maxAttempts` أقل من 1 أو ليس عدداً صحيحاً، أو `backoffMs` سالب، أو `timeoutMs` &lt;= 0) تفشّل الخطوة بـ`LOUSHO_FLOW_INVALID`.
 
 ```ts
-import type { EditorStep } from '@lousho/build-ai-agent/flows';
+import type { EditorStep } from 'lousho/flows';
 
 const fetchInvoice: EditorStep = {
   type: 'toolCall',
@@ -163,8 +163,8 @@ const fetchInvoice: EditorStep = {
 بعد crash، أو لما تفشل خطوة، أكمل الـrun بـ`FlowExecutor.resume(flow, context)`. مرّر نفس `checkpointStore` و`runId`. العُقد المكتملة لا تُشغَّل مرة أخرى: كل واحدة ترجّع نتيجتها المحفوظة، و`oneOf` يأخذ الفرع الذي أخذه سابقاً. كل ما عدا ذلك يعمل كالمعتاد، انطلاقاً من المتغيرات المحفوظة. `result.usage` و`result.steps` يشملان المحاولات السابقة.
 
 ```ts
-import { FlowExecutor, type AgentFlow } from '@lousho/build-ai-agent/flows';
-import { memoryStore } from '@lousho/build-ai-agent';
+import { FlowExecutor, type AgentFlow } from 'lousho/flows';
+import { memoryStore } from 'lousho';
 
 declare const flow: AgentFlow;
 const checkpointStore = memoryStore().checkpoints;
@@ -199,8 +199,8 @@ if (!first.success) {
 للمتابعة، مرّر القرار إلى `resume()`:
 
 ```ts
-import { FlowExecutor, type AgentFlow } from '@lousho/build-ai-agent/flows';
-import { memoryStore } from '@lousho/build-ai-agent';
+import { FlowExecutor, type AgentFlow } from 'lousho/flows';
+import { memoryStore } from 'lousho';
 
 declare const flow: AgentFlow;
 const checkpointStore = memoryStore().checkpoints;
@@ -237,9 +237,9 @@ if (paused.status === 'awaiting-approval') {
 
 ```ts
 import { z } from 'zod';
-import { createAgent } from '@lousho/build-ai-agent';
-import { FlowExecutor, type AgentFlow } from '@lousho/build-ai-agent/flows';
-import { ToolRegistry } from '@lousho/build-ai-agent/tools';
+import { createAgent } from 'lousho';
+import { FlowExecutor, type AgentFlow } from 'lousho/flows';
+import { ToolRegistry } from 'lousho/tools';
 
 const researcher = createAgent({ name: 'researcher', model: 'openai/gpt-4o-mini', instructions: 'Answer with three facts.' });
 

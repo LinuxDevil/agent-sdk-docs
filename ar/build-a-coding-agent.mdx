@@ -11,7 +11,7 @@ sidebarTitle: "ابنِ coding agent"
 الـ workspace مجلد يشتغل فيه الـ agent. `NodeWorkspace` هو نظام الملفات والـ shell لها، و`createFsTools()` و`createShellTool()` تحوّل الـ workspace إلى tools.
 
 ```ts
-import { NodeWorkspace, createFsTools, createShellTool } from '@lousho/build-ai-agent';
+import { NodeWorkspace, createFsTools, createShellTool } from 'lousho';
 
 const workspace = new NodeWorkspace({ root: process.cwd() });
 const tools = [...createFsTools(workspace), createShellTool(workspace)];
@@ -26,7 +26,7 @@ const tools = [...createFsTools(workspace), createShellTool(workspace)];
 أي tool عليها `needsApproval` توقف الـ run قبل التنفيذ، عشان إنسان يقرر. القراءة ما فيها ضرر، فاطلب approval (موافقة) على file tools اللي تغيّر شي فقط، بخريطة لكل tool. وللـ shell مرّر predicate (دالة ترجع true أو false) على نص الأمر، واطلب approval على الأوامر اللي تعتبرها خطرة فقط.
 
 ```ts
-import { NodeWorkspace, createFsTools, createShellTool } from '@lousho/build-ai-agent';
+import { NodeWorkspace, createFsTools, createShellTool } from 'lousho';
 
 const DESTRUCTIVE = /\b(rm|mv|chmod|chown|git\s+(push|reset|clean|checkout))\b|>/;
 
@@ -44,7 +44,7 @@ const tools = [
 أنشئ الـ agent بالـ tools، بعدين استدعِ `agent.stream()`. ترجع run تمرّ عليه بـ `for await` وتاخذ typed events: `text.delta` يحمل نص الـ model أول بأول وهو ينكتب، و`tool.start` يعلن عن كل tool call (راجع [Streaming](/ar/streaming)).
 
 ```ts
-import { NodeWorkspace, createAgent, createFsTools, createShellTool } from '@lousho/build-ai-agent';
+import { NodeWorkspace, createAgent, createFsTools, createShellTool } from 'lousho';
 
 const workspace = new NodeWorkspace({ root: process.cwd() });
 const agent = createAgent({
@@ -72,7 +72,7 @@ for await (const event of run) {
 
 ```ts
 import { createInterface } from 'node:readline/promises';
-import { createAgent, type AgentRun } from '@lousho/build-ai-agent';
+import { createAgent, type AgentRun } from 'lousho';
 
 const agent = createAgent({ model: 'openai/gpt-4o-mini', instructions: 'You are a coding agent.' });
 const rl = createInterface({ input: process.stdin, output: process.stdout });
@@ -110,7 +110,7 @@ try {
 // coding.ts
 // Run: OPENAI_API_KEY=... npx tsx coding.ts "Fix the failing test"
 import { createInterface } from 'node:readline/promises';
-import { NodeWorkspace, createAgent, createFsTools, createShellTool, type AgentRun } from '@lousho/build-ai-agent';
+import { NodeWorkspace, createAgent, createFsTools, createShellTool, type AgentRun } from 'lousho';
 
 const DESTRUCTIVE = /\b(rm|mv|chmod|chown|git\s+(push|reset|clean|checkout))\b|>/;
 
@@ -167,8 +167,8 @@ try {
 الـ agent ما يحتاج شبكة عشان تختبره. `MemoryWorkspace` يخلّي الملفات في الذاكرة وياخذ `exec` مكتوب مسبقًا للـ shell، و`mockModel` يلعب دور الـ model. تحقق من `workspace.snapshot()` و`workspace.commands`.
 
 ```ts
-import { createAgent, createFsTools, createShellTool, MemoryWorkspace } from '@lousho/build-ai-agent';
-import { mockModel } from '@lousho/build-ai-agent/testing';
+import { createAgent, createFsTools, createShellTool, MemoryWorkspace } from 'lousho';
+import { mockModel } from 'lousho/testing';
 
 const workspace = new MemoryWorkspace({
   files: { 'math.js': 'exports.add = (a, b) => a - b;\n' },
@@ -192,8 +192,8 @@ console.log(workspace.commands.map((c) => c.command)); // ['node --test']
 لاختبار مسار الـ approval، اطلب approval على `write_file` كما يفعل الـ agent الحقيقي. `send()` تنتهي بـ `finishReason: 'awaiting-approval'` و`approvalId`، والملف يبقى بدون تغيير، و`agent.approvals.resolve()` تنفّذ الكتابة وتنهي الـ turn.
 
 ```ts
-import { createAgent, createFsTools, MemoryWorkspace } from '@lousho/build-ai-agent';
-import { mockModel } from '@lousho/build-ai-agent/testing';
+import { createAgent, createFsTools, MemoryWorkspace } from 'lousho';
+import { mockModel } from 'lousho/testing';
 
 const workspace = new MemoryWorkspace({ files: { 'notes.txt': 'old\n' } });
 const agent = createAgent({

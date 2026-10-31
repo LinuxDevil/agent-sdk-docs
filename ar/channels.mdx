@@ -46,7 +46,7 @@ const channels = mountFetchChannels(agent, [slack], { waitUntil: (turn) => void 
 
 ```ts
 import * as http from 'node:http';
-import { createAgent, createMockProvider, httpChannel, mountChannels } from '@lousho/build-ai-agent';
+import { createAgent, createMockProvider, httpChannel, mountChannels } from 'lousho';
 
 const agent = createAgent({ instructions: 'You are helpful.', provider: createMockProvider() });
 const channels = mountChannels(agent, [httpChannel()]);
@@ -112,7 +112,7 @@ details.", "code"? }`، زي مسارات الـ session: الخطأ نفسه ي
 `onError` (المرحلة `'parse'`)، وأبدًا ما يوصل للمتصل.
 
 ```ts
-import { createAgent, defineChannel, mountChannels } from '@lousho/build-ai-agent';
+import { createAgent, defineChannel, mountChannels } from 'lousho';
 
 const agent = createAgent({ instructions: 'You answer text messages.', provider });
 
@@ -195,7 +195,7 @@ step ويوصّل المتابعة.
 لـ approval طلب ثاني قاعد يحسمه.
 
 ```ts
-import { createAgent, defineChannel, mountChannels } from '@lousho/build-ai-agent';
+import { createAgent, defineChannel, mountChannels } from 'lousho';
 
 const agent = createAgent({ instructions: 'You are helpful.', provider, askQuestion: true });
 
@@ -240,7 +240,7 @@ webhook. و`principal` هي
 بعد الـ parsing، أو `undefined` لو مش JSON.
 
 ```ts
-import { createAgent, httpChannel, mountChannels, webhookChannel } from '@lousho/build-ai-agent';
+import { createAgent, httpChannel, mountChannels, webhookChannel } from 'lousho';
 
 const agent = createAgent({ instructions: 'You are helpful.', provider });
 
@@ -332,7 +332,7 @@ thread (أو يكملها)، ومفتاحها الـ workspace والقناة و
 
 ```ts
 import * as http from 'node:http';
-import { createAgent, mountChannels, slackChannel } from '@lousho/build-ai-agent';
+import { createAgent, mountChannels, slackChannel } from 'lousho';
 
 const agent = createAgent({ instructions: 'You are a helpful Slack bot.', provider });
 
@@ -404,7 +404,7 @@ curl -X POST "https://discord.com/api/v10/applications/$APP_ID/guilds/$GUILD_ID/
 
 ```ts
 import * as http from 'node:http';
-import { createAgent, discordChannel, mountChannels } from '@lousho/build-ai-agent';
+import { createAgent, discordChannel, mountChannels } from 'lousho';
 
 const agent = createAgent({ instructions: 'You are a helpful Discord bot.', provider });
 
@@ -485,7 +485,7 @@ curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook" -H "Co
 
 ```ts
 import * as http from 'node:http';
-import { createAgent, mountChannels, telegramChannel } from '@lousho/build-ai-agent';
+import { createAgent, mountChannels, telegramChannel } from 'lousho';
 
 const agent = createAgent({ instructions: 'You are a helpful Telegram bot.', provider });
 
@@ -534,7 +534,7 @@ http.createServer((req, res) => {
   قبل) عشان تحفظها في مكان مشترك ودائم، مثلاً Redis `SET NX EX`:
 
   ```ts
-  import { githubChannel, type DeliveryStore } from '@lousho/build-ai-agent';
+  import { githubChannel, type DeliveryStore } from 'lousho';
 
   const seenIds = new Set<string>(); // stands in for Redis or a database table
   const deliveries: DeliveryStore = { seen: (id) => seenIds.has(id) || (seenIds.add(id), false) };
@@ -628,7 +628,7 @@ token، فمرّر كمان `botLogin` بـ login ذاك المستخدم. وب�
 
 ```ts
 import * as http from 'node:http';
-import { createAgent, githubChannel, mountChannels } from '@lousho/build-ai-agent';
+import { createAgent, githubChannel, mountChannels } from 'lousho';
 
 const agent = createAgent({ instructions: 'You answer questions about this repository.', provider });
 
@@ -722,7 +722,7 @@ thread ما تنتظره (انحسم خلاص، أو approval لـ thread ثان
 
 ```ts
 import * as http from 'node:http';
-import { createAgent, mountChannels, teamsChannel } from '@lousho/build-ai-agent';
+import { createAgent, mountChannels, teamsChannel } from 'lousho';
 
 const agent = createAgent({ instructions: 'You help the team with questions.', provider });
 

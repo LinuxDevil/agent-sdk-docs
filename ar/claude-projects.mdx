@@ -10,8 +10,8 @@ title: "مشاريع Claude Code"
 تسميته؛ Lousho تقرأ الملفات من مكانها.
 
 ```ts
-import { createAgent, claudeProject } from '@lousho/build-ai-agent';
-import { mockModel } from '@lousho/build-ai-agent/testing';
+import { createAgent, claudeProject } from 'lousho';
+import { mockModel } from 'lousho/testing';
 
 const provider = mockModel([{ text: 'ok' }]);
 
@@ -68,8 +68,8 @@ You review code ruthlessly. Report findings, never rewrite.
 ## الخيارات
 
 ```ts
-import { claudeProject } from '@lousho/build-ai-agent';
-import { mockModel } from '@lousho/build-ai-agent/testing';
+import { claudeProject } from 'lousho';
+import { mockModel } from 'lousho/testing';
 
 const provider = mockModel([{ text: 'ok' }]);
 
