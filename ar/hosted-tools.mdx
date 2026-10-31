@@ -6,7 +6,7 @@ title: "Hosted tools عند الـ provider"
 بعض الـ providers يشغّلون tools بنفسهم، داخل طلب الـ model نفسه. أشهرها عند OpenAI: web search وcode interpreter وfile search. ضعها في `tools` بجانب الـ tools التي تعرّفها أنت. الـ provider هو الذي يشغّلها، والـ run يبلّغ عن كل call في الـ events، ويحتفظ بها في الـ transcript (سجل الرسائل)، ويحسبها في الـ usage.
 
 ```ts
-import { createAgent, webSearch, defineTool } from '@lousho/build-ai-agent';
+import { createAgent, webSearch, defineTool } from 'lousho';
 import { z } from 'zod';
 
 const saveNote = defineTool({
@@ -65,7 +65,7 @@ console.log(result.text, result.usage.hostedToolCalls); // { web_search: 1 }
 `hostedTool(name, tool)` ترسل كائن الـ provider tool الذي بنيته بحزمة الـ provider كما هو، بدون تغيير، على `ai` 6 أو 7. تشتغل مع الـ providers المدمجين ومع أي model من AI SDK مغلَّف بـ [`fromAiSdk()`](/ar/providers#أي-model-من-ai-sdk-fromaisdk):
 
 ```ts
-import { createAgent, fromAiSdk, hostedTool } from '@lousho/build-ai-agent';
+import { createAgent, fromAiSdk, hostedTool } from 'lousho';
 import { openai } from '@ai-sdk/openai';
 
 const agent = createAgent({
@@ -81,7 +81,7 @@ const agent = createAgent({
 الـ hosted call يُبلَّغ عنها مثل tool call، مع `executedBy: 'provider'` في `tool.start` و`tool.done` و`tool.error`:
 
 ```ts
-import { createAgent, webSearch } from '@lousho/build-ai-agent';
+import { createAgent, webSearch } from 'lousho';
 
 const agent = createAgent({ model: 'openai/gpt-4o-mini', tools: [webSearch()] });
 
@@ -113,7 +113,7 @@ for await (const event of agent.stream('Latest TypeScript release?')) {
 الـ SDK لا يقدر يضبط شيئًا لا ينفّذه. الـ hosted tool تشتغل داخل طلب الـ provider، فلا تراها أي قاعدة صلاحيات، ولا guardrail للـ tools، ولا `needsApproval`، ولا hook مثل `preToolCall` / `postToolCall` أو `onToolCall`. **ولا يمكن إيقاف hosted tool لطلب approval (موافقة)**. لو كان الـ run ممنوعًا يبحث أو ينفّذ كودًا بدون إنسان، اترك الـ tool خارج `tools`، أو اختر الـ tools لكل run بدالة:
 
 ```ts
-import { createAgent, webSearch } from '@lousho/build-ai-agent';
+import { createAgent, webSearch } from 'lousho';
 
 const agent = createAgent({
   model: 'openai/gpt-4o-mini',
@@ -141,8 +141,8 @@ await agent.send('Summarize this page.', { metadata: { allowSearch: true } });
 `mockModel` يقبل hosted calls في الـ turn ويسجّل `hostedTools` في كل request، فيقدر agent عنده hosted tools يشتغل بدون اتصال:
 
 ```ts
-import { createAgent, webSearch } from '@lousho/build-ai-agent';
-import { mockModel } from '@lousho/build-ai-agent/testing';
+import { createAgent, webSearch } from 'lousho';
+import { mockModel } from 'lousho/testing';
 
 const model = mockModel([
   {

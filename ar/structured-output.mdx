@@ -7,7 +7,7 @@ title: "Structured output"
 
 ```ts
 import { z } from 'zod';
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const agent = createAgent({
   model: 'openai/gpt-4o-mini',
@@ -29,7 +29,7 @@ if (result.object) {
 
 ```ts
 import { z } from 'zod/v4';
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const agent = createAgent({ model: 'openai/gpt-4o-mini', output: z.object({ city: z.string() }) });
 const { object } = await agent.send('Where is the Eiffel Tower?');
@@ -42,7 +42,7 @@ console.log(object?.city); // typed: string
 
 ```ts
 import { z } from 'zod';
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 declare function postComment(comment: { file: string; body: string }): Promise<void>;
 
@@ -62,7 +62,7 @@ for (const comment of result.object?.comments ?? []) {
 
 ```ts
 import { z } from 'zod';
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 declare function askReviewer(claim: { claimId: string; amountCents: number }): Promise<boolean>;
 declare const claims: { file(claim: { claimId: string; amountCents: number }, opts: { idempotencyKey: string }): Promise<void> };
@@ -87,7 +87,7 @@ if (claim && (await askReviewer(claim))) {
 
 ```ts
 import { z } from 'zod';
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const agent = createAgent({ model: 'openai/gpt-4o-mini', output: z.object({ city: z.string(), tempC: z.number() }) });
 const session = agent.session();
@@ -103,7 +103,7 @@ console.log(object?.tempC); // typed: number
 
 ```ts
 import { z } from 'zod';
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const reporter = createAgent({
   model: 'openai/gpt-4o-mini',
@@ -121,7 +121,7 @@ console.log(result.text);
 
 ```ts
 import { z } from 'zod';
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const agent = createAgent({
   model: 'openrouter/openai/gpt-4o-mini',
@@ -150,7 +150,7 @@ console.log(object?.note); // typed: string | undefined
 
 ```ts
 import { z } from 'zod';
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const agent = createAgent({
   model: 'openai/gpt-4o',
@@ -174,7 +174,7 @@ const { object } = await agent.send('Weather in Paris?');
 
 ```ts
 import { z } from 'zod';
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const Invoice = z.object({ subtotal: z.number(), tax: z.number(), total: z.number() });
 const agent = createAgent({ model: 'openai/gpt-4o-mini', output: Invoice });
@@ -208,7 +208,7 @@ if (invoice && Math.abs(invoice.subtotal + invoice.tax - invoice.total) > 0.005)
 أثناء بث الرد، كل `text.delta` يغيّر الرد المحلَّل يتبعه حدث `object.delta`، و`object` فيه هو الـ object الجزئي حتى الآن: قيمة النص غير المكتملة تُقطع عند آخر النص، والمفتاح أو الرقم غير المكتمل يُترك، والـ objects والمصفوفات المفتوحة تُغلق. لا يصير عليه validation حسب الـ schema (ممكن يكون حقل ما زال ناقصًا)؛ استخدمه لعرض التقدّم، و`result.object` للإجابة. والـ UI bindings تحتفظ به باسم `partialObject`.
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 import { z } from 'zod';
 
 const planner = createAgent({ model: 'openai/gpt-4o-mini', output: z.object({ days: z.array(z.string()) }) });
@@ -223,8 +223,8 @@ for await (const event of planner.stream('Plan a 3-day trip to Lisbon.')) {
 
 ```ts
 import { z } from 'zod';
-import { AgentBuilder, AgentExecutor } from '@lousho/build-ai-agent/executor';
-import { createMockProvider } from '@lousho/build-ai-agent';
+import { AgentBuilder, AgentExecutor } from 'lousho/executor';
+import { createMockProvider } from 'lousho';
 
 const Ticket = z.object({ title: z.string(), priority: z.enum(['low', 'high']) });
 const agent = AgentBuilder.create().setName('triage').setPrompt('You triage bug reports.').build();
@@ -238,8 +238,8 @@ const ticket = result.object === undefined ? undefined : Ticket.parse(result.obj
 
 ```ts
 import { z } from 'zod';
-import { createAgent } from '@lousho/build-ai-agent';
-import { mockModel } from '@lousho/build-ai-agent/testing';
+import { createAgent } from 'lousho';
+import { mockModel } from 'lousho/testing';
 
 const agent = createAgent({ provider: mockModel(['{"city":"Paris","tempC":21}']), output: z.object({ city: z.string(), tempC: z.number() }) });
 const { object } = await agent.send('Weather in Paris?');

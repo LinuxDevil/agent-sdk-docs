@@ -9,15 +9,15 @@ title: "OpenAPI tools"
 الـ [`http` tool](/ar/tools#tools-مدمجة) الخام. والعمليات التي تغيّر
 البيانات تطلب [approval](/ar/approvals) (موافقة) افتراضيًا.
 
-`openApiTools` مُصدَّرة من `@lousho/build-ai-agent` ومن
-`@lousho/build-ai-agent/tools`. ما تحتاج أي حزمة إضافية. بادئة الموديل
+`openApiTools` مُصدَّرة من `lousho` ومن
+`lousho/tools`. ما تحتاج أي حزمة إضافية. بادئة الموديل
 `vendor/` هي التي تحدد الـ provider؛ ومع OpenRouter استخدم
 `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`).
 
 ## بداية سريعة
 
 ```ts
-import { createAgent, openApiTools } from '@lousho/build-ai-agent';
+import { createAgent, openApiTools } from 'lousho';
 
 const tools = await openApiTools('https://api.example.com/openapi.json', {
   include: ['getOrder', 'refundOrder'],
@@ -80,7 +80,7 @@ JSON أو YAML، أو https URL (string أو `URL`). `openApiTools()` تحلّل
 وأي شيء يقرأ الـ annotations يعامل هذه الـ tools كما يعامل tools الـ MCP.
 
 ```ts
-import { openApiTools } from '@lousho/build-ai-agent';
+import { openApiTools } from 'lousho';
 
 declare const spec: object;
 
@@ -98,7 +98,7 @@ const tools = await openApiTools(spec, {
 تُستدعى لكل طلب مع العملية ومعرّف الـ tool call.
 
 ```ts
-import { openApiTools } from '@lousho/build-ai-agent';
+import { openApiTools } from 'lousho';
 
 declare const spec: object;
 declare const currentTenant: () => string;
@@ -169,7 +169,7 @@ parameter قد أخذ `body` من قبل). والمفتاح الذي لا تمت
 بـ `include` أو `exclude`، أو بـ predicate على `op.tags`:
 
 ```ts
-import { openApiTools } from '@lousho/build-ai-agent';
+import { openApiTools } from 'lousho';
 
 declare const spec: object;
 

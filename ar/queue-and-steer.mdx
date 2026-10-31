@@ -11,7 +11,7 @@ sidebarTitle: "Queued input and steering"
 `run.enqueue(input)` تضيف input من المستخدم (string، أو content parts، أو `Message[]`) إلى run ما زال شغال — مثل متابعة يكتبها المستخدم والـ agent يشتغل. الـ run ما يوقف: الـ input ينضم للـ transcript في أول نقطة آمنة — بعد نتائج tools الخطوة الحالية، وما يدخل أبدًا بين turn فيها tool calls ونتائجها — والـ model call التالية تشوفه كأن المستخدم كتبه بنفسه. والـ input اللي ينضاف للـ queue بينما الـ model يكتب رده الأخير ياخذ خطوة زيادة، فيرد عليه الـ model في نفس الـ run. بادئة `vendor/` في اسم الـ model تحدد الـ provider؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`).
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const agent = createAgent({ model: 'openai/gpt-4o-mini' });
 const run = agent.stream('Plan a weekend in Rome.');
@@ -39,8 +39,8 @@ if (queued.applied === false || !(await queued.applied)) {
 بدون stream: مرّر `InputQueue` إلى `AgentExecutor.execute()` (شوف [executor API](/ar/executor-api)):
 
 ```ts
-import { AgentExecutor } from '@lousho/build-ai-agent/executor';
-import { InputQueue } from '@lousho/build-ai-agent';
+import { AgentExecutor } from 'lousho/executor';
+import { InputQueue } from 'lousho';
 
 const inputQueue = new InputQueue();
 const pending = AgentExecutor.execute({ agent, provider, input: 'Plan my trip.', inputQueue });
@@ -58,7 +58,7 @@ const result = await pending;
 - `applied` تصير `false` بعد ما الـ run يخلص: أرسل الـ input كـ turn جديد.
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const agent = createAgent({ model: 'openai/gpt-4o-mini' });
 const run = agent.stream('Plan a weekend in Rome.');

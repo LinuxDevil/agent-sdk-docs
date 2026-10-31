@@ -20,7 +20,7 @@ patch checks. `createAgent()` وخياراتها لم تتغير — الـ agen
 بعده.
 
 ```bash
-npm install @lousho/build-ai-agent@^1.0.0-alpha.19
+npm install lousho@^1.0.0-alpha.19
 ```
 
 ## مسارات الـ import اللي انتقلت
@@ -31,23 +31,23 @@ npm install @lousho/build-ai-agent@^1.0.0-alpha.19
 
 | الاسم (الأسماء) | الـ import القديم | الـ import الجديد |
 | ------- | ---------- | ---------- |
-| `AgentExecutor`, `AgentBuilder`, `ExecuteOptions`, `ResumeExecuteOptions`, `ResumeRequest`, `resumeAfterApproval()`, `streamResumeAfterApproval()`, `resumeRequest()` | `@lousho/build-ai-agent` أو `@lousho/build-ai-agent/core` | `@lousho/build-ai-agent/executor` |
-| `ToolRegistry`, `globalToolRegistry` | `@lousho/build-ai-agent` أو `@lousho/build-ai-agent/core` | `@lousho/build-ai-agent/executor` (وما زال موجود في `@lousho/build-ai-agent/tools`) |
-| `ExecutionResult`, `ExecutionFinishReason` (أنواع الـ executor) | `@lousho/build-ai-agent/core` | `@lousho/build-ai-agent/executor` (و`ExecutionResult` ما زال في الجذر، مكان نوع نتيجة `createAgent()`) |
-| `FlowBuilder`, `FlowExecutor`, `validateFlow` وكل أنواع الـ flow (`AgentFlow`, `EditorStep`, `FlowExecutionEvent`, ...) | `@lousho/build-ai-agent` أو `@lousho/build-ai-agent/types` | `@lousho/build-ai-agent/flows` |
-| `createJiraTools`, `createGitHubTools`, `createSlackTool`, `slackTool`, `postSlackAlert`, `createEmailTool` وأنواعها | `@lousho/build-ai-agent` أو `@lousho/build-ai-agent/tools` | `@lousho/build-ai-agent/integrations` |
-| `EncryptionUtils`, `DTOEncryptionFilter`, `DecryptionError`, `sha256`, `generatePassword` | `@lousho/build-ai-agent` | `@lousho/build-ai-agent/utils` |
-| `StorageService`, `StorageServiceApprovalStore`, `LocalStorageCheckpointStore` | `@lousho/build-ai-agent` | `@lousho/build-ai-agent/utils` (مع الـ stores الخاصة بـ`createAgent()`، الأفضل `fileStore(dir)` من الجذر) |
-| `validateWithSchema`, `safeValidate`, `isValidEmail` وبقية الـ validators | `@lousho/build-ai-agent` | `@lousho/build-ai-agent/utils` |
+| `AgentExecutor`, `AgentBuilder`, `ExecuteOptions`, `ResumeExecuteOptions`, `ResumeRequest`, `resumeAfterApproval()`, `streamResumeAfterApproval()`, `resumeRequest()` | `lousho` أو `lousho/core` | `lousho/executor` |
+| `ToolRegistry`, `globalToolRegistry` | `lousho` أو `lousho/core` | `lousho/executor` (وما زال موجود في `lousho/tools`) |
+| `ExecutionResult`, `ExecutionFinishReason` (أنواع الـ executor) | `lousho/core` | `lousho/executor` (و`ExecutionResult` ما زال في الجذر، مكان نوع نتيجة `createAgent()`) |
+| `FlowBuilder`, `FlowExecutor`, `validateFlow` وكل أنواع الـ flow (`AgentFlow`, `EditorStep`, `FlowExecutionEvent`, ...) | `lousho` أو `lousho/types` | `lousho/flows` |
+| `createJiraTools`, `createGitHubTools`, `createSlackTool`, `slackTool`, `postSlackAlert`, `createEmailTool` وأنواعها | `lousho` أو `lousho/tools` | `lousho/integrations` |
+| `EncryptionUtils`, `DTOEncryptionFilter`, `DecryptionError`, `sha256`, `generatePassword` | `lousho` | `lousho/utils` |
+| `StorageService`, `StorageServiceApprovalStore`, `LocalStorageCheckpointStore` | `lousho` | `lousho/utils` (مع الـ stores الخاصة بـ`createAgent()`، الأفضل `fileStore(dir)` من الجذر) |
+| `validateWithSchema`, `safeValidate`, `isValidEmail` وبقية الـ validators | `lousho` | `lousho/utils` |
 
-الـ subpath `@lousho/build-ai-agent/core` لم يعد موجود؛ كل اللي كان
+الـ subpath `lousho/core` لم يعد موجود؛ كل اللي كان
 يصدّره صار تحت `/executor`.
 
 ```ts
-import { AgentExecutor, AgentBuilder, ToolRegistry } from '@lousho/build-ai-agent/executor';
-import { FlowBuilder, validateFlow } from '@lousho/build-ai-agent/flows';
-import { createSlackTool } from '@lousho/build-ai-agent/integrations';
-import { EncryptionUtils, validateWithSchema } from '@lousho/build-ai-agent/utils';
+import { AgentExecutor, AgentBuilder, ToolRegistry } from 'lousho/executor';
+import { FlowBuilder, validateFlow } from 'lousho/flows';
+import { createSlackTool } from 'lousho/integrations';
+import { EncryptionUtils, validateWithSchema } from 'lousho/utils';
 ```
 
 ## APIs محذوفة وبدائلها
@@ -81,13 +81,13 @@ import { EncryptionUtils, validateWithSchema } from '@lousho/build-ai-agent/util
 
 ```ts
 // Before (alpha):
-import { createDelegateTool } from '@lousho/build-ai-agent';
+import { createDelegateTool } from 'lousho';
 const delegate = createDelegateTool({ agent: billing, name: 'billing' });
 ```
 
 ```ts
 // After (1.0): the lead gets a `task` tool per sub-agent.
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const billing = createAgent({ model: 'openai/gpt-4o-mini', instructions: 'You answer billing questions.' });
 const lead = createAgent({
@@ -121,7 +121,7 @@ const lead = createAgent({
 
 ## الانتقال من الـ triggers
 
-حذفنا `WebhookTriggerAdapter` و`SlackTriggerAdapter` و`CronTriggerAdapter` وأنواع الخيارات والـ handle الخاصة بها من `@lousho/build-ai-agent/triggers`. أما `TriggerAdapter` و`TriggerRegistry` وhelpers الخاصة بـ`WebhookAuth` و`verifySlackSignature()` و`parseCronExpression()` فباقية. شوف [Triggers](/ar/triggers).
+حذفنا `WebhookTriggerAdapter` و`SlackTriggerAdapter` و`CronTriggerAdapter` وأنواع الخيارات والـ handle الخاصة بها من `lousho/triggers`. أما `TriggerAdapter` و`TriggerRegistry` وhelpers الخاصة بـ`WebhookAuth` و`verifySlackSignature()` و`parseCronExpression()` فباقية. شوف [Triggers](/ar/triggers).
 
 | المحذوف | البديل |
 | ------- | ----------- |
@@ -300,7 +300,7 @@ const lead = createAgent({
 | حزمة npm ما عادت تشحن `llms-full.txt` (يبقى في المستودع؛ و`llms.txt` يُشحن). | جيب `llms-full.txt` من المستودع |
 | `lousho eval` يخرج بـ1 لما ما تشتغل أي حالة (كل الحالات تخطّاها `--tag`، أو ما فيه `defineEval()` في الملفات). | مرّر الـ tags أو الـ globs اللي تختار الحالات |
 | `lousho mcp --port N` أو `--host H` بدون `--http` خطأ استخدام (exit 2)؛ الـ stdio ما له port. | احذف الـ flags، أو أضف `--http` |
-| الـ `package.json` في build من نوع node-server أو docker ما عاد يذكر `@lousho/build-ai-agent` (الـ bundle يحتويه). | أضفه بنفسك لو فيه كود ثاني بجانب الـ build يستورد الـ SDK |
+| الـ `package.json` في build من نوع node-server أو docker ما عاد يذكر `lousho` (الـ bundle يحتويه). | أضفه بنفسك لو فيه كود ثاني بجانب الـ build يستورد الـ SDK |
 | حزمة npm ما عادت تشحن `dist/cli/*.js` (نسخة CommonJS من الـ CLI) ولا `dist/cli/*.d.ts`؛ و`bin/lousho.js` ما كان يحمّلها أصلًا. | شغّل الـ CLI عبر `bin/lousho.js` (`npx lousho`) |
 
 ## ما تعد به 1.0
@@ -308,7 +308,7 @@ const lead = createAgent({
 من إصدار 1.0، الحزمة تتبع semver على سطحها العام:
 
 - **عام (public)**: كل entry point يعلنه `exports` - الجذر
-  `@lousho/build-ai-agent` والـ subpaths `/executor` و`/tools` و`/flows`
+  `lousho` والـ subpaths `/executor` و`/tools` و`/flows`
   و`/integrations` و`/utils` و`/mcp` و`/types` و`/testing` و`/otel` و`/hooks`
   و`/sqlite` و`/auth` و`/kv` و`/worker` و`/traces` و`/triggers` و`/react`
   و`/vue` و`/svelte` - وكل اسم في تقارير الـ API المودعة في المستودع

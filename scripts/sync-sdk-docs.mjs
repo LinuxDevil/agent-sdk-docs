@@ -277,7 +277,7 @@ function convert(file, slug) {
   let description;
   if (slug === 'changelog') {
     title = 'Changelog';
-    description = 'Every notable change to @lousho/build-ai-agent, newest first.';
+    description = 'Every notable change to lousho, newest first.';
     body = body.slice(body.indexOf('## '));
   } else {
     // A short, link-free opening paragraph becomes the page's subtitle.

@@ -10,7 +10,7 @@ title: "Schedules"
 أعطِ تعبير cron وواحدًا فقط من اثنين: `prompt` (نص يُرسَل للـ agent كـ turn جديد) أو `run` (دالة تكتبها أنت).
 
 ```ts
-import { createAgent, createMockProvider, defineSchedule, startSchedules } from '@lousho/build-ai-agent';
+import { createAgent, createMockProvider, defineSchedule, startSchedules } from 'lousho';
 
 const agent = createAgent({ instructions: 'You write reports.', provider: createMockProvider() });
 
@@ -38,7 +38,7 @@ await running.stop();
 المؤقّتات unref'd: لا تُبقي العملية حيّة بمفردها أبدًا، فالسيرفر أو الاختبار ينتهي بشكل طبيعي. لذلك السكربت الذي لا يفعل شيئًا غير تشغيل الـ schedules سينتهي فورًا؛ مرّر `keepAlive: true` لهذه الحالة:
 
 ```ts
-import { createAgent, createMockProvider, defineSchedule, startSchedules } from '@lousho/build-ai-agent';
+import { createAgent, createMockProvider, defineSchedule, startSchedules } from 'lousho';
 
 const agent = createAgent({ instructions: 'You write reports.', provider: createMockProvider() });
 const running = startSchedules(agent, [defineSchedule({ cron: '@hourly', prompt: 'Check the queue.' })], { keepAlive: true });
@@ -52,7 +52,7 @@ process.once('SIGTERM', () => void running.stop().then(() => agent.close()));
 مع `store` للـ agent (ملف، SQLite، KV أو `memoryStore()`)، كل firing يحجز أولًا اسم الـ schedule ووقت الإطلاق (بدقة الثانية) في `store.checkpoints`، فعدة نسخ (replicas) تشغّل `startSchedules()` على store واحد تطلق كل tick مرة واحدة فقط: النسخ التي تخسر الحجز تُحسَم بدون تشغيل أي شيء. وإطلاقان يدويان لنفس الـ schedule في نفس الثانية يُحسَبان tick واحدة أيضًا. على KV الحجز best effort عبر مواقع الـ edge (راجع [التنفيذ المتين](/ar/durable-execution#run-leases)).
 
 ```ts
-import { createAgent, createMockProvider, defineSchedule, fireSchedule } from '@lousho/build-ai-agent';
+import { createAgent, createMockProvider, defineSchedule, fireSchedule } from 'lousho';
 
 const agent = createAgent({ instructions: 'You write reports.', provider: createMockProvider() });
 const report = defineSchedule({ name: 'report', cron: '0 9 * * *', prompt: 'Run the daily report.' });
@@ -64,7 +64,7 @@ await fireSchedule(agent, report);
 إطلاق الـ prompt schedule هو run من نوع `agent.send(prompt, { sessionId })`، وليس turn من نوع `agent.session({ id })` (راجع [نوعان من معرّف المحادثة](/ar/sessions#two-kinds-of-conversation-id)). الـ id الخاص به `schedule-<name>-<fire time>` (و`schedule-<name>` مع `sharedSession: true`)، ومحادثته تُحفَظ في `store.checkpoints` الخاص بالـ agent، كـ checkpoint منتهية، إذا كان للـ agent واحد؛ وبدون checkpoint store يعمل الإطلاق بلا id ولا يحفظ شيئًا. `GET /chat/<id>` و`agent.session({ id }).load()` يقرآن من الـ session store، فيعرضان transcript فارغًا لـ id خاص بـ schedule. اقرأ تقرير الإطلاق من الـ checkpoint store بدلًا من ذلك، أو أكمله بـ `agent.fork(id)`:
 
 ```ts
-import { createAgent, createMockProvider, defineSchedule, fireSchedule, memoryStore } from '@lousho/build-ai-agent';
+import { createAgent, createMockProvider, defineSchedule, fireSchedule, memoryStore } from 'lousho';
 
 const store = memoryStore();
 const agent = createAgent({ instructions: 'You write reports.', provider: createMockProvider(), store });
@@ -88,7 +88,7 @@ my-agent/
 `resolveAgentDir()` يرجعها في `schedules` (وأسماءها في `manifest.schedules`)؛ أما `loadAgentDir()` فلا يشغّلها. والمجلد الذي لا يحتوي `schedules/` يُحمَّل كما كان تمامًا.
 
 ```ts
-import { createAgent, resolveAgentDir, startSchedules } from '@lousho/build-ai-agent';
+import { createAgent, resolveAgentDir, startSchedules } from 'lousho';
 
 const { config, schedules } = await resolveAgentDir('./my-agent');
 const agent = createAgent(config);

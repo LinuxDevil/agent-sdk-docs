@@ -13,8 +13,8 @@ sidebarTitle: "Tracing"
 مرّر `exporter` إلى `createAgent()`. بعدها كل run للـ agent يتسجّل له trace: `send()` و`stream()` وturns الـ session (الجلسة) و`resume()` والـ runs التي يكملها `agent.approvals.resolve()` — حتى الـ sub-agents. إذا تريد تحفظ الـ traces على القرص وتتصفحها بـ `npx lousho traces`، استخدم `fileTraceExporter()` (شوف [Local traces](#local-traces)). بادئة `vendor/` في اسم الـ model تختار الـ provider؛ مع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثلا `openrouter/openai/gpt-4o-mini`).
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
-import { fileTraceExporter } from '@lousho/build-ai-agent/traces';
+import { createAgent } from 'lousho';
+import { fileTraceExporter } from 'lousho/traces';
 
 const agent = createAgent({
   model: 'openai/gpt-4o-mini',
@@ -30,8 +30,8 @@ const agent = createAgent({
 مع الـ executor، مرّر الـ exporter إلى `AgentExecutor.execute()`:
 
 ```ts
-import { AgentExecutor } from '@lousho/build-ai-agent/executor';
-import { type TraceExporter } from '@lousho/build-ai-agent';
+import { AgentExecutor } from 'lousho/executor';
+import { type TraceExporter } from 'lousho';
 
 const exporter: TraceExporter = {
   onSpanStart: (span) => console.log('[start]', span.kind, span.name),
@@ -41,7 +41,7 @@ const exporter: TraceExporter = {
 await AgentExecutor.execute({ agent, input, provider, toolRegistry, exporter });
 ```
 
-إذا تريد spans حقيقية من OpenTelemetry، استورد `createOtelTraceExporter()` من `@lousho/build-ai-agent/otel`. تحتاج الـ peer dependency الاختيارية `@opentelemetry/api` و`TracerProvider` مسجّل. تنقل نوع الـ span وحالة الخطأ إلى OpenTelemetry. شوف `examples/tracing` (`npm run example:tracing:console`، و`npm run example:tracing:otel` الذي يطبع metrics أيضا).
+إذا تريد spans حقيقية من OpenTelemetry، استورد `createOtelTraceExporter()` من `lousho/otel`. تحتاج الـ peer dependency الاختيارية `@opentelemetry/api` و`TracerProvider` مسجّل. تنقل نوع الـ span وحالة الخطأ إلى OpenTelemetry. شوف `examples/tracing` (`npm run example:tracing:console`، و`npm run example:tracing:otel` الذي يطبع metrics أيضا).
 
 ## شجرة الـ spans
 
@@ -54,7 +54,7 @@ invoke_agent {agent name}          INTERNAL
 كل استدعاء لـ `send()` / `stream()` هو trace مستقل بذاته إلا إذا حدّدت له parent. إذا تريد تجمع عدة runs في trace واحد، مرّر id لـ span من عندك في `parentSpanId`؛ الـ span `invoke_agent` للـ run يصير child له، وتكلفته تتجمّع فيه:
 
 ```ts
-import { withSpan, type SimpleAgent, type TraceExporter } from '@lousho/build-ai-agent';
+import { withSpan, type SimpleAgent, type TraceExporter } from 'lousho';
 
 declare const exporter: TraceExporter;
 declare const planner: SimpleAgent;
@@ -167,7 +167,7 @@ invoke_workflow {flow name}        INTERNAL
 ```ts
 import { metrics } from '@opentelemetry/api';
 import { ConsoleMetricExporter, MeterProvider, PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
-import { createOtelTraceExporter } from '@lousho/build-ai-agent/otel';
+import { createOtelTraceExporter } from 'lousho/otel';
 
 // Swap ConsoleMetricExporter for an OTLP exporter to reach any backend.
 metrics.setGlobalMeterProvider(
@@ -190,8 +190,8 @@ const exporter = createOtelTraceExporter(); // metrics on by default
 مع الـ executor، فعّلها لكل run على حدة:
 
 ```ts
-import { AgentExecutor } from '@lousho/build-ai-agent/executor';
-import { type TraceExporter } from '@lousho/build-ai-agent';
+import { AgentExecutor } from 'lousho/executor';
+import { type TraceExporter } from 'lousho';
 
 declare const exporter: TraceExporter;
 
@@ -234,11 +234,11 @@ await AgentExecutor.execute({ agent, input, provider, exporter, captureContent: 
 
 ## Local traces
 
-`fileTraceExporter()` من `@lousho/build-ai-agent/traces` تكتب كل run في ملف، و`lousho traces` يعرض الملفات في الـ terminal. لا backend لـ OpenTelemetry ولا حزمة إضافية.
+`fileTraceExporter()` من `lousho/traces` تكتب كل run في ملف، و`lousho traces` يعرض الملفات في الـ terminal. لا backend لـ OpenTelemetry ولا حزمة إضافية.
 
 ```ts
-import { createAgent, defineTool } from '@lousho/build-ai-agent';
-import { fileTraceExporter } from '@lousho/build-ai-agent/traces';
+import { createAgent, defineTool } from 'lousho';
+import { fileTraceExporter } from 'lousho/traces';
 import { z } from 'zod';
 
 const getWeather = defineTool({

@@ -10,21 +10,21 @@ description: "هذه الصفحة توصلك من agent بسطر واحد إلى
 أسرع طريقة أمر واحد. ينشئ مشروع جاهز للتشغيل (agent، وtool كمثال، واختبار offline، وملف `.env.example` للـ provider)، ويثبّت الـ dependencies، ويشغّل `git init`:
 
 ```bash
-npm create lousho-agent my-agent
+npm create lousho my-agent
 cd my-agent
 # copy .env.example to .env (cp on macOS/Linux, copy on Windows), then put your API key in it
 npm run dev              # chat with your agent in the terminal
 npm test                 # offline tests: no API key needed
 ```
 
-لتجرّب نسخة `create-lousho-agent` محزومة محليًا (`npm pack`)، مرّر المسار المطلق لملف الـ tarball مع `--package`: `npx --package=/abs/path/create-lousho-agent-x.y.z.tgz create-lousho-agent my-agent`. أما `npx ../x.tgz` لوحده فيفشل على Windows.
+لتجرّب نسخة `create-lousho` محزومة محليًا (`npm pack`)، مرّر المسار المطلق لملف الـ tarball مع `--package`: `npx --package=/abs/path/create-lousho-x.y.z.tgz create-lousho my-agent`. أما `npx ../x.tgz` لوحده فيفشل على Windows.
 
-`npx @lousho/build-ai-agent init my-agent` يعمل نفس الشيء (مرّر `--provider` و`--template`، لأنه يشتغل بدون الأسئلة التفاعلية). وداخل مشروع مثبّت فيه الـ SDK أصلًا، يشتغل `npx lousho init` أيضًا: أمر `lousho` يأتي من حزمة الـ SDK، لذلك `npx lousho` لوحده خارج مشروع كهذا لا يجد شيئًا يشغّله. بدون arguments، يسألك `init` عن المجلد والـ provider والقالب. و`npx @lousho/build-ai-agent init --help` يعرض كل الـ flags.
+`npx lousho init my-agent` يعمل نفس الشيء (مرّر `--provider` و`--template`، لأنه يشتغل بدون الأسئلة التفاعلية). وداخل مشروع مثبّت فيه الـ SDK أصلًا، يشتغل `npx lousho init` أيضًا: أمر `lousho` يأتي من حزمة الـ SDK، لذلك `npx lousho` لوحده خارج مشروع كهذا لا يجد شيئًا يشغّله. بدون arguments، يسألك `init` عن المجلد والـ provider والقالب. و`npx lousho init --help` يعرض كل الـ flags.
 
 تفضّل تضيف الـ SDK إلى مشروع موجود؟ ثبّته يدويًا (راجع [التثبيت](/ar/installation)):
 
 ```bash
-npm install @lousho/build-ai-agent ai@^7.0.0 zod
+npm install lousho ai@^7.0.0 zod
 npm install @ai-sdk/openai@^4.0.0 @ai-sdk/anthropic@^4.0.0
 ```
 
@@ -35,7 +35,7 @@ npm install @ai-sdk/openai@^4.0.0 @ai-sdk/anthropic@^4.0.0
 `createAgent()` هي نقطة الدخول بدون أي إعداد. تعطيها string بصيغة `provider/model` وتعليمات، وترجع لك agent فيه `{ send }`. مفتاح الـ API يُقرأ من متغير البيئة المعتاد للـ provider (`OPENAI_API_KEY` هنا، و`ANTHROPIC_API_KEY` أو `OPENROUTER_API_KEY` أو `OLLAMA_BASE_URL` للـ providers الباقين). الـ prefix `vendor/` في الـ model هو الذي يحدد الـ provider. ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4.1-mini`).
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const agent = createAgent({ model: 'openai/gpt-4.1-mini', instructions: 'You are a helpful assistant.' });
 const { text } = await agent.send('Hello!');
@@ -49,7 +49,7 @@ console.log(text);
 عرّف الـ tool بـ `defineTool()`. وسائط `execute` و`needsApproval` تكون typed من الـ zod `input`، والـ tool يدخل مباشرة في `createAgent({ tools: [...] })`. الـ mock provider يحاكي tool call كلما ذكرت رسالة المستخدم اسم tool، فهذا المثال يمر بـ tool call حقيقي كامل بدون LLM.
 
 ```ts
-import { createAgent, createMockProvider, defineTool } from '@lousho/build-ai-agent';
+import { createAgent, createMockProvider, defineTool } from 'lousho';
 import { z } from 'zod';
 
 const currentDate = defineTool({
@@ -79,7 +79,7 @@ console.log(result.text);
 `agent.stream()` يشغّل الـ agent مثل `send()` ويرجع `AgentRun`. مرّ عليه بـ loop لتحصل على events typed (نص الـ model أول ما يصل، tool calls، حدود الـ steps). و`await run.result` يعطيك نفس النتيجة التي ترجعها `send()`.
 
 ```ts
-import { createAgent, createMockProvider } from '@lousho/build-ai-agent';
+import { createAgent, createMockProvider } from 'lousho';
 
 const agent = createAgent({
   instructions: 'You are a helpful assistant.',
@@ -103,7 +103,7 @@ console.log(result.finishReason); // "stop"
 `agent.send()` تبدأ من history فارغ في كل استدعاء. أما `agent.session()` فتحتفظ بالمحادثة وتمررها للـ model مع كل `send()`.
 
 ```ts
-import { createAgent, createMockProvider } from '@lousho/build-ai-agent';
+import { createAgent, createMockProvider } from 'lousho';
 
 const agent = createAgent({
   instructions: 'You are a helpful assistant.',
@@ -122,11 +122,11 @@ console.log(session.messages.length); // 4: two user messages and two replies
 
 ## 5. اسأل قبل خطوة فيها مخاطرة
 
-علّم الـ tool بـ `needsApproval` ويتوقف الـ run قبل استدعائها. `send()` تنتهي بـ `finishReason: 'awaiting-approval'` و`approvalId`. بعدها يوافق كودك (أو إنسان) على الـ call أو يرفضه، ويكمل الـ run. هنا `mockModel` من `@lousho/build-ai-agent/testing` يحدد turns الـ model بدقة، فالـ tool call مضمون.
+علّم الـ tool بـ `needsApproval` ويتوقف الـ run قبل استدعائها. `send()` تنتهي بـ `finishReason: 'awaiting-approval'` و`approvalId`. بعدها يوافق كودك (أو إنسان) على الـ call أو يرفضه، ويكمل الـ run. هنا `mockModel` من `lousho/testing` يحدد turns الـ model بدقة، فالـ tool call مضمون.
 
 ```ts
-import { createAgent, defineTool } from '@lousho/build-ai-agent';
-import { mockModel } from '@lousho/build-ai-agent/testing';
+import { createAgent, defineTool } from 'lousho';
+import { mockModel } from 'lousho/testing';
 import { z } from 'zod';
 
 const sendEmail = defineTool({
@@ -160,8 +160,8 @@ console.log(result.text); // "Sent."
 الـ agent من الخطوة السابقة جاهز للاختبار أصلًا. `mockModel` يسجّل كل طلب أرسله الـ agent، فتقدر تتحقق مما أُرسل للـ model وكذلك من النتيجة. بدون شبكة وبدون مفتاح.
 
 ```ts
-import { createAgent, defineTool } from '@lousho/build-ai-agent';
-import { mockModel } from '@lousho/build-ai-agent/testing';
+import { createAgent, defineTool } from 'lousho';
+import { mockModel } from 'lousho/testing';
 import { z } from 'zod';
 
 let sent: string | undefined;
@@ -202,7 +202,7 @@ console.log('ok');
 `model: 'provider/model'` هو الطريق المختصر. مرّر `provider` بدلًا منه إذا كان عندك `LLMProvider` خاص بك أو تريد الـ mock للاختبارات. `resolveProvider('<provider>/<model>')` هي الدالة التي يستخدمها `model` من الداخل. هذا المثال يستخدم OpenAI إذا كان `OPENAI_API_KEY` موجودًا، ويرجع إلى الـ mock provider في غير ذلك. وهو نفس النمط الذي تستخدمه [الأمثلة](https://github.com/LinuxDevil/agent-sdk/blob/main/examples/README.md) الجاهزة للتشغيل.
 
 ```ts
-import { createAgent, createMockProvider, resolveProvider } from '@lousho/build-ai-agent';
+import { createAgent, createMockProvider, resolveProvider } from 'lousho';
 
 const provider = process.env.OPENAI_API_KEY
   ? resolveProvider('openai/gpt-4.1-mini')
@@ -223,7 +223,7 @@ console.log(result.text);
 تقدر توصف الـ agent كبيانات عادية، أي `AgentSpec`، وتحوّله إلى agent شغّال بـ `specToAgent()`. ونفس الشكل يُكتب كملف YAML أو JSON ويُحمّل بـ `loadSpec()`.
 
 ```ts
-import { specToAgent, agentSpecSchema } from '@lousho/build-ai-agent';
+import { specToAgent, agentSpecSchema } from 'lousho';
 
 const spec = agentSpecSchema.parse({
   name: 'support-bot',

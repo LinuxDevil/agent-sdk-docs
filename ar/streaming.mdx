@@ -14,7 +14,7 @@ title: "Streaming"
 > المقتطفات في هذه الصفحة تترك لك بعض الأسماء: `provider` هو أي `LLMProvider` (بدون اتصال: `createMockProvider()`)؛ و`agent` هو ناتج `createAgent()`؛ و`input` هو نص المستخدم، من نوع `string`؛ و`approvalStore` هو `ApprovalStore`؛ و`toolRegistry` هو `ToolRegistry`.
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const agent = createAgent({ model: 'openai/gpt-4o-mini' });
 
@@ -76,7 +76,7 @@ interface AgentRun extends AsyncIterable<AgentEvent> {
   `toolConcurrency` غلط — تجعل `stream()` يرمي الخطأ بشكل متزامن.
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const agent = createAgent({ model: 'openai/gpt-4o-mini' });
 
@@ -103,7 +103,7 @@ listener، حتى `send()` و`execute()` يعملون stream لكل model call،
 الوضع بدون listener. وأحداث الـ sub-agents توصل موسومة بـ `subagent`.
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const agent = createAgent({
   model: 'openai/gpt-4o-mini',
@@ -155,7 +155,7 @@ retries الـ provider، الـ agent drift، والـ handoffs (شوف
 تقرأه مبكرًا، فلا يُحفظ.
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const agent = createAgent({ model: 'openai/gpt-4o-mini' });
 const session = agent.session({ id: 'user-42' });
@@ -183,7 +183,7 @@ run الموقوف كان قد أبلغ عن بداية تلك الـ call)، ث
 (`model` دالة)، فالذي يُستخدم هو نفس الذي استخدمه الـ run الموقوف.
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const agent = createAgent({ provider /* , a tool with needsApproval */ });
 const paused = await agent.send('Delete the old reports.');
@@ -202,7 +202,7 @@ for await (const event of run) {
 وترجع نفس `AgentRun`.
 
 ```ts
-import { AgentExecutor, streamResumeAfterApproval } from '@lousho/build-ai-agent/executor';
+import { AgentExecutor, streamResumeAfterApproval } from 'lousho/executor';
 
 const paused = await AgentExecutor.execute({ agent, input, provider, toolRegistry, approvalStore });
 const run = streamResumeAfterApproval({ id: paused.approvalId!, approved: true }, approvalStore, toolRegistry, provider);
@@ -238,7 +238,7 @@ sub-agents يعملون بالتوازي تتداخل أحداثهم). `run.star
 المستوى الأعلى (وهي تحمل الـ call الخاصة بالـ sub-agent).
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const researcher = createAgent({ provider, instructions: 'You research.', description: 'Finds sources' });
 const lead = createAgent({ provider, instructions: 'You coordinate.', subagents: { researcher } });
@@ -278,7 +278,7 @@ model call وكل tool call، ويوصل للـ provider وللـ tools. الـ 
 (`'aborted'`)، و`result` يرجع `finishReason: 'aborted'`.
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const agent = createAgent({ model: 'openai/gpt-4o-mini' });
 const run = agent.stream('Write a long story');
@@ -298,7 +298,7 @@ console.log((await run.result).finishReason); // 'aborted'
 ## مثال: terminal
 
 ```ts
-import { createAgent, defineTool } from '@lousho/build-ai-agent';
+import { createAgent, defineTool } from 'lousho';
 import { z } from 'zod';
 
 const getWeather = defineTool({
@@ -337,7 +337,7 @@ for await (const event of agent.stream('Weather in Paris?')) {
 
 ```ts
 import { createServer } from 'node:http';
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const agent = createAgent({ model: 'openai/gpt-4o-mini' });
 
@@ -380,7 +380,7 @@ source.onmessage = (message) => {
 stream بـ `approval.requested`:
 
 ```ts
-import { AgentExecutor } from '@lousho/build-ai-agent/executor';
+import { AgentExecutor } from 'lousho/executor';
 
 const run = AgentExecutor.stream({ agent, input, provider, toolRegistry, approvalStore });
 for await (const event of run) {

@@ -19,7 +19,7 @@ ConfigurationError: createAgent: no model configured. Do one of the following: (
 الـ run اللي ينرفض (`send()`، أو `result` تبع `stream()`، أو دورة session، أو `AgentExecutor.execute()`) يحط اللي صرفه على الخطأ في `error.usage`، وهو `RunUsage` مثل `result.usage` (ومعه الـ sub-agents تبعه)، فما تضيع tokens وتكلفة الـ run اللي فشل. ينضبط على أي خطأ ينرفض فيه الـ run — `SDKError` أو `PropagatingToolError` أو خطأ من عندك — إلا إذا كان للخطأ خاصية `usage` خاصة فيه، وهو غير enumerable (تسجيل الخطأ أو تحويله لـ JSON ما يتغيّر). وما يكون موجود إذا الـ run فشل قبل ما يبدأ.
 
 ```ts
-import { createAgent, type RunUsage } from '@lousho/build-ai-agent';
+import { createAgent, type RunUsage } from 'lousho';
 
 try {
   await createAgent({ provider }).send('Go');
@@ -32,12 +32,12 @@ try {
 
 `error.detail` هو الرسالة بدون هالسطر. أخطاء الـ tools والـ providers (`ToolExecutionError` و`LLMProviderError` و`TimeoutError` و`RateLimitError`) تخلي رسالتها مثل ما هي، لأن الـ model يشوفها كنتيجة tool أو خطأ provider مضغوط؛ بس `toString()` لسّا تضيف السطر.
 
-الاستثناءات شوية subclasses مسماة من `Error` بدون `code`، مبقاة عادية عن قصد: `PropagatingToolError` والـ subclasses تبعتها (الـ tool يرميها عشان يوقف الـ run)، و`WorkspaceError` (عملية على الـ workspace رُفضت أو فشلت — الـ model يشوفها كخطأ tool)، و`McpToolError` (أداة MCP محمّلة والسيرفر تبعها رجّع `isError`؛ برضه خطأ tool)، و`AuthError` (مدخل من `@lousho/build-ai-agent/auth` يرفض الطلب بـ 401 أو 403 تبعه)، و`CronExpressionError` (`parseCronExpression()` اللي `defineSchedule()` تغلّفها كـ `LOUSHO_SCHEDULE_INVALID`)، و`DecryptionError` (`EncryptionUtils` و`DTOEncryptionFilter`).
+الاستثناءات شوية subclasses مسماة من `Error` بدون `code`، مبقاة عادية عن قصد: `PropagatingToolError` والـ subclasses تبعتها (الـ tool يرميها عشان يوقف الـ run)، و`WorkspaceError` (عملية على الـ workspace رُفضت أو فشلت — الـ model يشوفها كخطأ tool)، و`McpToolError` (أداة MCP محمّلة والسيرفر تبعها رجّع `isError`؛ برضه خطأ tool)، و`AuthError` (مدخل من `lousho/auth` يرفض الطلب بـ 401 أو 403 تبعه)، و`CronExpressionError` (`parseCronExpression()` اللي `defineSchedule()` تغلّفها كـ `LOUSHO_SCHEDULE_INVALID`)، و`DecryptionError` (`EncryptionUtils` و`DTOEncryptionFilter`).
 
 أما `CassetteMismatchError` (replay في `recordReplay`؛ راجع [الاختبار](/ar/testing#ماذا-يفحص-الـ-replay)) فليست منها: هي `SDKError` بكود [`LOUSHO_CASSETTE_INVALID`](#lousho_cassette_invalid) وحقلين `.cassette` / `.callNumber`.
 
 ```ts
-import { createAgent, SDKError } from '@lousho/build-ai-agent';
+import { createAgent, SDKError } from 'lousho';
 
 try {
   await createAgent({ provider, instructions: 'Be brief.' }).send('hi');
@@ -254,7 +254,7 @@ loadSpec: 'agent.yaml' failed validation - 'prompt': missing required field 'pro
 
 **المعنى:** الـ spec يسمّي tool (`github` أو `jira`) تحتاج credentials وملف الـ spec ما فيه حقل لها.
 
-**الحل:** ابنِ الـ agent بـ `createAgent()` ومرّر الأداة مهيّأة، مثلاً `createGitHubTools(config)` من `@lousho/build-ai-agent/integrations`.
+**الحل:** ابنِ الـ agent بـ `createAgent()` ومرّر الأداة مهيّأة، مثلاً `createGitHubTools(config)` من `lousho/integrations`.
 
 **مثال:** `tools: [github]` في spec.
 
@@ -743,7 +743,7 @@ application/json'`)، أو مرّر `requireJsonBody: false`.
 
 ### LOUSHO_CASSETTE_INVALID
 
-**المعنى:** cassette للـ record/replay مفقود، أو ليس JSON صالح، أو ما يطابق الطلب المسجّل. الرسالة تسمّي الملف. وعدم التطابق داخل run يوصل `send()` كـ `CassetteMismatchError` نفسه (من `@lousho/build-ai-agent/testing`، مع `.cassette` و`.callNumber`) — هو فشل في تجهيزات الاختبار، فما ينضغط أبدًا في `CompactedLLMProviderError`.
+**المعنى:** cassette للـ record/replay مفقود، أو ليس JSON صالح، أو ما يطابق الطلب المسجّل. الرسالة تسمّي الملف. وعدم التطابق داخل run يوصل `send()` كـ `CassetteMismatchError` نفسه (من `lousho/testing`، مع `.cassette` و`.callNumber`) — هو فشل في تجهيزات الاختبار، فما ينضغط أبدًا في `CompactedLLMProviderError`.
 
 **الحل:** سجّله من جديد (`lousho eval --record <file>`، أو `recordReplay()` مع `mode: 'record'`). راجع [الاختبار](/ar/testing).
 
@@ -819,7 +819,7 @@ application/json'`)، أو مرّر `requireJsonBody: false`.
 
 ### LOUSHO_AUTH_CONFIG_INVALID
 
-**المعنى:** مساعد route auth من `@lousho/build-ai-agent/auth` (`jwt()` أو `oidc()` أو `basic()` أو `apiToken()`) أخذ خيارات ما يقدر يتحقق فيها، ورفضها وقت إنشائه، مو عند أول طلب. الرسالة تسمّي الخيار: لا مصدر مفاتيح أو مصدرين، أو `secret` HMAC أقصر من 32 بايت، أو خوارزمية ما تناسب المفتاح (`secret` مع `RS256`، أو مفتاح عام مع `HS256`)، أو لا `audience` (ولا `allowAnyAudience: true`)، أو `clockToleranceSec` فوق 300، أو URL مجموعة مفاتيح أو issuer ليس https، أو قائمة مستخدمين أو token فاضي (ومنه `createRouteHandler({ auth: '' })` و`serveFetch(request, ctx, '')`).
+**المعنى:** مساعد route auth من `lousho/auth` (`jwt()` أو `oidc()` أو `basic()` أو `apiToken()`) أخذ خيارات ما يقدر يتحقق فيها، ورفضها وقت إنشائه، مو عند أول طلب. الرسالة تسمّي الخيار: لا مصدر مفاتيح أو مصدرين، أو `secret` HMAC أقصر من 32 بايت، أو خوارزمية ما تناسب المفتاح (`secret` مع `RS256`، أو مفتاح عام مع `HS256`)، أو لا `audience` (ولا `allowAnyAudience: true`)، أو `clockToleranceSec` فوق 300، أو URL مجموعة مفاتيح أو issuer ليس https، أو قائمة مستخدمين أو token فاضي (ومنه `createRouteHandler({ auth: '' })` و`serveFetch(request, ctx, '')`).
 
 **الحل:** غيّر الخيار اللي تسمّيه الرسالة. راجع [Route auth والـ principals](/ar/auth).
 

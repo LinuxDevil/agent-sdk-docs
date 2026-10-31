@@ -8,7 +8,7 @@ title: "Tools"
 > الأمثلة في هذي الصفحة تترك لك بعض الأسماء: `provider` هو أي `LLMProvider` (بدون إنترنت: `createMockProvider()`).
 
 ```ts
-import { defineTool, createAgent, type ToolInput, type ToolOutput } from '@lousho/build-ai-agent';
+import { defineTool, createAgent, type ToolInput, type ToolOutput } from 'lousho';
 import { z } from 'zod';
 
 const weather = defineTool({
@@ -132,7 +132,7 @@ const agent = createAgent({ instructions: '...', provider, tools: [weather] });
 الـ model يشوف كل call فاشل وممكن برضو يجاوب كأنه نجح، وينهي الـ run بـ `finishReason: 'stop'`. `result.toolErrors` يعدّ tool calls الـ run اللي نتيجتها خطأ (أي `kind` من فوق ما عدا `not-run`)؛ ويغيب لما ما فشل شي. يعدّ بس calls الـ run نفسه: الـ calls اللي فشلت داخل الـ [sub-agents](/ar/sub-agents) حقه تنعد في `result.usage.delegated.toolErrors`. افحصه قبل ما تثق في `text`، أو حط له حد بـ `limits.maxToolErrors`: أول ما يفشل هالعدد من الـ calls، الـ run يوقف قبل model call الجاي بـ `finishReason: 'budget-exceeded'` و`result.budget.limit` قيمته `'maxToolErrors'` (أو يرفض بـ `BudgetExceededError` مع `onExceeded: 'throw'`، شوف [الميزانيات](/ar/configuration#الميزانيات)).
 
 ```ts
-import { createAgent, defineTool } from '@lousho/build-ai-agent';
+import { createAgent, defineTool } from 'lousho';
 import { z } from 'zod';
 
 const stats = defineTool({ name: 'stats', description: 'Weekly stats', input: z.object({}), execute: async () => (await fetch('https://stats.example.com/week')).json() });
@@ -152,7 +152,7 @@ if (result.toolErrors) console.warn(`${result.toolErrors} tool call(s) failed; t
 | `createTodoTools()` | `todo_write` / `todo_read` عشان الـ agent يخطط شغل متعدد الخطوات؛ شوف [Todo tools](#todo-tools). |
 | `askQuestionTool()`, `createAgent({ askQuestion: true })` | `ask_question`: الـ agent يسأل المستخدم شي والـ run يوقف لحد `agent.approvals.answer()`؛ شوف [سؤال المستخدم](/ar/approvals#سؤال-المستخدم). |
 | `createFsTools()`, `createShellTool()` | tools لنظام الملفات والـ shell للـ coding agents؛ شوف [Workspace tools](/ar/workspace-tools). |
-| `createEmailTool()`, `createSlackTool()`, `createGitHubTools()`, `createJiraTools()` (من `@lousho/build-ai-agent/integrations`) | تكاملات تحتاج credentials، فتتبنى بخيارات. `createSlackTool()` تقرأ رابط الـ webhook من `SLACK_WEBHOOK_URL` إلا لو مرّرت `webhookUrl`؛ `createJiraTools()` تاخذ `baseUrl` و`email` و`apiToken` صريحة (عادةً من `JIRA_BASE_URL` و`JIRA_EMAIL` و`JIRA_API_TOKEN`). |
+| `createEmailTool()`, `createSlackTool()`, `createGitHubTools()`, `createJiraTools()` (من `lousho/integrations`) | تكاملات تحتاج credentials، فتتبنى بخيارات. `createSlackTool()` تقرأ رابط الـ webhook من `SLACK_WEBHOOK_URL` إلا لو مرّرت `webhookUrl`؛ `createJiraTools()` تاخذ `baseUrl` و`email` و`apiToken` صريحة (عادةً من `JIRA_BASE_URL` و`JIRA_EMAIL` و`JIRA_API_TOKEN`). |
 | `createAgent({ mcpServers })`, `connectMcp(servers)` | كل tools سيرفرات MCP المعطاة في الإعداد (`command` لـ stdio أو `url` لـ HTTP)، بأسماء `<server>__<tool>`؛ شوف [استخدام سيرفرات MCP في agent](/ar/mcp-integration#استخدام-سيرفرات-mcp-داخل-agent). |
 | `openApiTools(document, options)` | tool لكل operation في مستند OpenAPI 3.0 / 3.1؛ العمليات اللي تغيّر بيانات تطلب approval. شوف [OpenAPI tools](/ar/openapi-tools). |
 | `loadMcpTools(client, name)` | كل tools سيرفر MCP متصل؛ شوف [MCP tools](/ar/mcp-integration#tools-من-client-اتصلت-به-بنفسك). |
@@ -164,7 +164,7 @@ if (result.toolErrors) console.warn(`${result.toolErrors} tool call(s) failed; t
 `web_fetch` تاخذ `{ url }` (`http:` أو `https:`، بدون `user:password@`) وترجع `{ url, finalUrl, status, contentType, content, truncated }`. ترسل `GET` بس، بدون body ولا cookies ولا headers يختارها المستدعي. الـ HTML يتحول لنص عادي (الـ scripts والـ styles وشبهها تتشال، عناصر الـ block كل وحدة في سطر، روابط الـ URL بين قوسين، والـ entities تتفك)؛ JSON و`text/*` يرجعوا زي ما انبعثوا؛ الأنواع الثانية (صور، PDF، binaries) ترجع ملاحظة بدل المحتوى. رد 4xx أو 5xx يرجع مع bodyه وما ينرمي كخطأ، عشان الـ model يقرأ صفحة الخطأ. الرفض والـ timeouts وكثرة الـ redirects والـ URLs الخاطئة هي tool errors تسمّي الـ host. الصفحة input غير موثوق: وصف الـ tool يقول هذا للـ model، و`readOnlyHint` و`openWorldHint` مضبوطين. خيارات `createWebFetchTool()` (بادئة `vendor/` في الـ model هي اللي تختار الـ provider؛ مع OpenRouter استخدم `openrouter/<vendor>/<model>` زي `openrouter/openai/gpt-4o-mini`):
 
 ```ts
-import { createAgent, createWebFetchTool } from '@lousho/build-ai-agent';
+import { createAgent, createWebFetchTool } from 'lousho';
 
 const webFetch = createWebFetchTool({
   timeoutMs: 30_000, // whole request: redirects and body included
@@ -187,7 +187,7 @@ const agent = createAgent({ model: 'openai/gpt-4o-mini', tools: [webFetch] });
 `createTodoTools(options?)` تعطي الـ agents طويلة الشغل plan يتبعوه: `todo_write` تستبدل القائمة كلها (عناصر `{ id?, content, status }`، الحالة `pending` | `in_progress` | `completed`، بحد أقصى `in_progress` وحدة) وترجع القائمة مع الأعداد؛ `todo_read` ترجعها. الـ ids تتعين تلقائي وتظل ثابتة لما كتابة بعدها تكرر محتوى عنصر. القوائم الغلط (زي `in_progress` مرتين) توصل الـ model كـ tool error منظّم عشان يسوّي retry. القائمة تعيش في الذاكرة لكل call؛ مرّر `store` (`{ get, set }`) عشان تدّخرها، و`onChange` عشان تحدّث UI. كل `todo_write` ناجحة تصدر كمان حدث stream `todo.updated` بالقائمة الجديدة وأعدادها (شوف [Stream events](/ar/stream-events))، وروابط [React](/ar/react#todos) و[Vue](/ar/vue#todos) و[Svelte](/ar/svelte#todos) تحوله لـ `useTodos()` / `loushoTodos()`، فالـ UI يعرض الخطة مباشرة بدون `onChange`.
 
 ```ts
-import { createAgent, createTodoTools, type TodoStore } from '@lousho/build-ai-agent';
+import { createAgent, createTodoTools, type TodoStore } from 'lousho';
 
 const todos = createTodoTools({ onChange: (list) => console.log(list.length, 'todos') });
 const planner = createAgent({ instructions: 'Plan multi-step work, then do it.', provider, tools: todos.tools });
@@ -205,8 +205,8 @@ createTodoTools({ store: { get: () => saved, set: (next) => void (saved = next) 
 `createAgent()` تبني registry لك؛ عبّي واحد بنفسك بس مع `AgentExecutor.execute()` (شوف [executor API](/ar/executor-api)) أو عشان تشارك tools بين agents: `register(tool)` لناتج `defineTool()`، و`register(name, descriptor)` لـ `ToolDescriptor` خام (tool مدمجة، tool من MCP، أو `tool()` جاهزة من `ai` SDK)، و`registerMany()` لـ record من descriptors أو مصفوفة من tools معرفة.
 
 ```ts
-import { ToolRegistry } from '@lousho/build-ai-agent/tools';
-import { currentDateTool, defineTool } from '@lousho/build-ai-agent';
+import { ToolRegistry } from 'lousho/tools';
+import { currentDateTool, defineTool } from 'lousho';
 import { z } from 'zod';
 
 const lookupOrder = defineTool({
@@ -228,7 +228,7 @@ tools.register('current_date', currentDateTool);
 الـ tool الطويلة (تبني تقرير، بحث على مصادر كثيرة) تقدر تورّي التقدم وهي شغالة: اكتب `execute` كـ `async function*`. كل `yield` هو snapshot كامل للمخرجات لحد هذيك اللحظة، يحل محل اللي قبله، ويوصل أحداث الـ run كـ `tool.partial` (شوف [Stream events](/ar/stream-events)). آخر قيمة تتمرر بـ `yield` هي نتيجة الـ tool: الـ model يستلمها، وهي `result` حق الـ call في `tool.done`، فالـ snapshot الأخير يظهر مرتين (آخر `tool.partial` وفي `tool.done`). قيمة `return` تتجاهل؛ والـ generator اللي ما يمرر شي نتيجته `null`، وكذلك أي tool يرجع `undefined`: الـ transcript والـ model و`tool.done` كلهم يشوفوا `null`.
 
 ```ts
-import { createAgent, defineTool, type ToolOutput } from '@lousho/build-ai-agent';
+import { createAgent, defineTool, type ToolOutput } from 'lousho';
 import { z } from 'zod';
 
 const buildReport = defineTool({

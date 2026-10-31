@@ -62,8 +62,8 @@ Lousho يعطيك الطبقتين الثانية والثالثة كآليات 
 | **العزل (Isolate)** | تشغيل العمل في سياق نظيف حتى لا تُغرق التفاصيل الـ agent الرئيسي | الـ sub-agents (استدعاءات `task` لا ترى إلا الـ prompt الخاص بها)، و code mode (`run_code` يرجع قيمة واحدة)، وحد `inputFilter` |
 
 ```ts
-import { createAgent, loadSkills } from '@lousho/build-ai-agent';
-import { mockModel } from '@lousho/build-ai-agent/testing';
+import { createAgent, loadSkills } from 'lousho';
+import { mockModel } from 'lousho/testing';
 
 const provider = mockModel([{ text: 'done' }]);
 const researchAgent = createAgent({ provider, instructions: 'You research one slice.' });

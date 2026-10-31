@@ -12,8 +12,8 @@ title: "Hooks"
 مرّر الـ hooks إلى `createAgent({ hooks })`. هذا الـ hook يسجّل كل tool call والنتيجة اللي رجّعت:
 
 ```ts
-import { createAgent, defineTool, type AgentHook } from '@lousho/build-ai-agent';
-import { mockModel } from '@lousho/build-ai-agent/testing';
+import { createAgent, defineTool, type AgentHook } from 'lousho';
+import { mockModel } from 'lousho/testing';
 import { z } from 'zod';
 
 const auditHook: AgentHook = {
@@ -83,8 +83,8 @@ await agent.send('Look up hooks');
 الـ agent الرئيسي ونتائجها.
 
 ```ts
-import { createAgent, type AgentHook } from '@lousho/build-ai-agent';
-import { mockModel } from '@lousho/build-ai-agent/testing';
+import { createAgent, type AgentHook } from 'lousho';
+import { mockModel } from 'lousho/testing';
 
 const provider = mockModel(['Done.']);
 
@@ -110,8 +110,8 @@ const agent = createAgent({ provider, instructions: 'You research things.', hook
 ### امنع tool بالاسم
 
 ```ts
-import { createAgent, defineTool, type AgentHook } from '@lousho/build-ai-agent';
-import { mockModel } from '@lousho/build-ai-agent/testing';
+import { createAgent, defineTool, type AgentHook } from 'lousho';
+import { mockModel } from 'lousho/testing';
 import { z } from 'zod';
 
 const shell = defineTool({
@@ -143,8 +143,8 @@ console.log(result.text);
 ارجع `{ input }` عشان تشغّل الـ tool بـ arguments مختلفة. ينعمل عليها validation مرة ثانية ضد الـ schema الخاصة بالـ tool.
 
 ```ts
-import { createAgent, defineTool, type AgentHook } from '@lousho/build-ai-agent';
-import { mockModel } from '@lousho/build-ai-agent/testing';
+import { createAgent, defineTool, type AgentHook } from 'lousho';
+import { mockModel } from 'lousho/testing';
 import { z } from 'zod';
 
 const search = defineTool({
@@ -177,8 +177,8 @@ await agent.send('Search for hooks');
 الـ `postToolCall` يستلم النتيجة المستقرة، ويقدر يرجع `{ result }` عشان يستبدل اللي يشوفه الـ model. الـ tool نفسه اشتغل بدون تغيير.
 
 ```ts
-import { createAgent, defineTool, type AgentHook } from '@lousho/build-ai-agent';
-import { mockModel } from '@lousho/build-ai-agent/testing';
+import { createAgent, defineTool, type AgentHook } from 'lousho';
+import { mockModel } from 'lousho/testing';
 import { z } from 'zod';
 
 const readLog = defineTool({
@@ -212,8 +212,8 @@ console.log(toolMessage?.role); // 'tool': its content is the redacted text
 الـ `preGenerate` يشوف `ctx.messages` و`ctx.request` الـ live. اعمل `push` لرسالة عشان تضيف context، أو غيّر حقل في الـ request.
 
 ```ts
-import { createAgent, type AgentHook } from '@lousho/build-ai-agent';
-import { mockModel } from '@lousho/build-ai-agent/testing';
+import { createAgent, type AgentHook } from 'lousho';
+import { mockModel } from 'lousho/testing';
 
 const addDate: AgentHook = {
   name: 'add-date',
@@ -251,7 +251,7 @@ call موافَق عليه، تشتغل الـ pre-hooks مرة ثانية: تظ
 `createAgent({ hooks })` يقبل array عادي. الكود اللي يستخدم الـ executor API ([executor API](/ar/executor-api)) يمرّر `HookRegistry`: مجموعة مرتّبة فيها `register` و`registerMany` و`get` و`has` و`list` و`unregister` و`clear` و`size()` — انتبه، `size` method (`hooks.size()`)، مش property بنمط `Map`. تسجيل hook ثاني بنفس الـ `name` يستبدل الأول ويطبع warning.
 
 ```ts
-import { HookRegistry, type AgentHook } from '@lousho/build-ai-agent/hooks';
+import { HookRegistry, type AgentHook } from 'lousho/hooks';
 
 const redactPii: AgentHook = {
   name: 'redact-pii',
@@ -265,4 +265,4 @@ hooks.register(redactPii);
 console.log(hooks.list().map((hook) => hook.name)); // [ 'redact-pii' ]
 ```
 
-`HookRegistry` و`AgentHook` وأنواع الـ context موجودة في جذر الـ package وفي الـ subpath `@lousho/build-ai-agent/hooks`. الـ hooks اللي تتكتب في محرر الـ canvas الخاص بـ Agent Forge تُترجَم إلى `HookRegistry` وتشتغل داخل sandbox بدل الـ host process: انظر [Agent Forge](/ar/agent-forge#hooks).
+`HookRegistry` و`AgentHook` وأنواع الـ context موجودة في جذر الـ package وفي الـ subpath `lousho/hooks`. الـ hooks اللي تتكتب في محرر الـ canvas الخاص بـ Agent Forge تُترجَم إلى `HookRegistry` وتشتغل داخل sandbox بدل الـ host process: انظر [Agent Forge](/ar/agent-forge#hooks).

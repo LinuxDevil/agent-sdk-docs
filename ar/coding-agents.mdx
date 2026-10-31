@@ -9,7 +9,7 @@ description: "أعطِ Claude Code أو Cursor أو أي coding agent آخر ت�
 
 | الملف | أين يوجد | ما هو |
 | ---- | ----- | ---------- |
-| `llms.txt` | في حزمة npm: `node_modules/@lousho/build-ai-agent/llms.txt` | فهرس [llmstxt.org](https://llmstxt.org): سطر واحد لكل صفحة توثيق، مع ملخص ورابط |
+| `llms.txt` | في حزمة npm: `node_modules/lousho/llms.txt` | فهرس [llmstxt.org](https://llmstxt.org): سطر واحد لكل صفحة توثيق، مع ملخص ورابط |
 | `llms-full.txt` | في [مستودع الـ SDK](https://github.com/LinuxDevil/agent-sdk/blob/main/llms-full.txt)، وليس في حزمة npm (حجمه حوالي 1 MB) | الـ README وكل صفحات التوثيق في ملف واحد، بروابط مطلقة |
 
 الملفان مولّدان من نفس توثيق هذا الموقع، والـ CI الخاص بالـ SDK يتحقق منهما. ملف `llms.txt` الموجود في `node_modules` يطابق النسخة المثبتة عندك؛ أما `llms-full.txt` في المستودع فيتبع فرع `main` في الـ SDK، وقد يكون أحدث من الإصدار الذي ثبّتّه. أخبر الـ coding agent بمكانهما، مثلًا في `AGENTS.md` أو `CLAUDE.md` في مشروعك:
@@ -17,9 +17,9 @@ description: "أعطِ Claude Code أو Cursor أو أي coding agent آخر ت�
 ```markdown
 ## Lousho SDK
 
-This project uses @lousho/build-ai-agent. Before writing or changing agent code,
-read node_modules/@lousho/build-ai-agent/llms.txt and open the pages it links to.
-Tests must run offline: use mockModel from @lousho/build-ai-agent/testing.
+This project uses lousho. Before writing or changing agent code,
+read node_modules/lousho/llms.txt and open the pages it links to.
+Tests must run offline: use mockModel from lousho/testing.
 ```
 
 ## التوثيق من هذا الموقع

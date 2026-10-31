@@ -15,7 +15,7 @@ title: "Cloudflare Workers"
 | [مجلدات agent](/ar/agent-directories) | نعم: config و`instructions.md` و`tools/` و`skills/` و`subagents/` و`schedules/` (قواعد cron في Worker) و`channels/` (تُركَّب تحت `/channels`) و`memory/` (`kvMemory()`، أو `inMemoryMemory()` لكل isolate) و`projectInstructions` (تُضمَّن وقت الـ build) | نعم، كلها |
 | Providers | `mock` و`openai` و`anthropic` و`openrouter` | `mock` و`openai` و`anthropic` و`ollama` و`openrouter` |
 | Tools مدمجة | `current-date` و`day-name` و`http` (أسماء الـ hosts المدرجة فقط، من الـ binding `LOUSHO_HTTP_ALLOW`) | كلها، بما فيها `http` و`web-fetch` |
-| Tools مكتوبة بـ TypeScript | نعم، داخل agent directory: بلا Node builtins، ومن `@lousho/build-ai-agent` فقط الأسماء المذكورة تحت [مجلدات agent على Worker](#build-and-deploy) | نعم، داخل agent directory |
+| Tools مكتوبة بـ TypeScript | نعم، داخل agent directory: بلا Node builtins، ومن `lousho` فقط الأسماء المذكورة تحت [مجلدات agent على Worker](#build-and-deploy) | نعم، داخل agent directory |
 | تشغيل tools داخل sandbox | لا (الـ build يستبدل الـ sandbox بـ shim يفشل عند استخدامه) | نعم |
 | خوادم MCP عبر stdio | لا (الـ child process لا يقدر يبدأ؛ والـ shim يفشل عند استخدامه) | نعم |
 | [Code mode](/ar/code-mode) (`codeMode`) | لا (الـ build يستبدل QuickJS بـ shim يُفشل الـ run من بدايته) | نعم |
@@ -95,7 +95,7 @@ npx wrangler deploy    # requires a Cloudflare account (`wrangler login`)
 `wrangler secret put OPENAI_API_KEY` أو `wrangler secret put ANTHROPIC_API_KEY` أو
 `wrangler secret put OPENROUTER_API_KEY`). والـ peer packages (`@ai-sdk/openai` لكل من
 `openai` و`openrouter`، و`@ai-sdk/anthropic` لـ `anthropic`، و`ai`) يجب أن تكون
-مثبتة بجانب `@lousho/build-ai-agent` كي يجمّعها `lousho build`.
+مثبتة بجانب `lousho` كي يجمّعها `lousho build`.
 
 **مجلدات agent على Worker.** الـ Worker لا يملك file system ولا يقدر يستورد
 ملفًا بمساره وقت التشغيل، لذلك الـ build يقرأ
@@ -150,7 +150,7 @@ cd .lousho/build/cloudflare-worker && npx wrangler deploy
 - ملفات الـ tools تُجمَّع من مكانها، فتنحلّ استيراداتها النسبية و
   `node_modules` الخاصة بها كما في التطوير. والـ tool التي تستورد Node builtin تُفشل
   الـ leak check في الـ build، الذي يسمّي الملف.
-- داخل tool أو `agent.ts`، تكون `@lousho/build-ai-agent` subset آمنًا للـ Worker من الحزمة:
+- داخل tool أو `agent.ts`، تكون `lousho` subset آمنًا للـ Worker من الحزمة:
   `defineTool` و`isDefinedTool` و`always` و`never` و`once` و`defineSkill` و`defineSchedule` و
   `isDefinedSchedule` و`defineChannel` و`httpChannel` و`slackChannel` و`discordChannel` و
   `telegramChannel` و`githubChannel` و`teamsChannel` و`defineMemory` و`inMemoryMemory` و
@@ -216,8 +216,8 @@ curl -N https://<your-worker>.workers.dev/chat \
 من الـ subpath `/worker` — راجع [كتابة Worker بنفسك](#كتابة-worker-بنفسك):
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent/worker';
-import { KVStore, type KVBinding } from '@lousho/build-ai-agent/kv';
+import { createAgent } from 'lousho/worker';
+import { KVStore, type KVBinding } from 'lousho/kv';
 
 interface Env {
   AGENT_KV: KVBinding;
@@ -279,7 +279,7 @@ idempotency key. هو نفسه في كل محاولة لتشغيل استدعا�
 فاتورة تحتاج أيضًا مفتاحًا من وسائطها هي (رقم الفاتورة هنا):
 
 ```ts
-import { defineTool } from '@lousho/build-ai-agent';
+import { defineTool } from 'lousho';
 import { z } from 'zod';
 
 // `payments` stands in for your payment client.
@@ -321,8 +321,8 @@ directory تعمل بنفس الطريقة: الـ build يقيّمها لاست
 
 وفي Worker تكتبه بنفسك، اربط agent معرَّفًا في الكود عبر
 `handleScheduled(agent, schedules, controller, ctx)` (مُصدَّرة من
-`@lousho/build-ai-agent/worker` —
-فالمحدِّد `@lousho/build-ai-agent/deploy-runtime-worker` في الكود المولَّد
+`lousho/worker` —
+فالمحدِّد `lousho/deploy-runtime-worker` في الكود المولَّد
 محدِّد virtual لا يحلّه إلا الـ bundler تبع `lousho build`؛ لا تستورده بنفسك). تشغّل الـ schedules التي
 يساوي `cron` فيها `controller.cron` داخل `ctx.waitUntil()` ولا ترمي أي شيء؛
 وعليك أنت إدراج التعابير نفسها تحت `[triggers] crons`. أعطِ الـ agent store —
@@ -330,9 +330,9 @@ directory تعمل بنفس الطريقة: الـ build يقيّمها لاست
 وتختفي عند إعادة تدويره:
 
 ```ts
-import { createAgent, createMockProvider, defineSchedule, handleScheduled } from '@lousho/build-ai-agent/worker';
-import type { ScheduledContext, ScheduledController } from '@lousho/build-ai-agent/worker';
-import { KVStore, type KVBinding } from '@lousho/build-ai-agent/kv';
+import { createAgent, createMockProvider, defineSchedule, handleScheduled } from 'lousho/worker';
+import type { ScheduledContext, ScheduledController } from 'lousho/worker';
+import { KVStore, type KVBinding } from 'lousho/kv';
 
 interface Env {
   AGENT_CHECKPOINTS: KVBinding;
@@ -354,7 +354,7 @@ export default {
 
 ## كتابة Worker بنفسك
 
-استورد من `@lousho/build-ai-agent/worker`، لا من جذر الحزمة. المدخل الجذر
+استورد من `lousho/worker`، لا من جذر الحزمة. المدخل الجذر
 يصدّر أيضًا file stores ومحمّل agent directory وMCP عبر stdio وsandboxes
 ووحدات ثانية خاصة بـ Node، فتجميعه لـ `platform: 'browser'` يفشل بـ
 `Could not resolve "async_hooks"` وأمثاله. أما `/worker` فهو `createAgent`
@@ -366,8 +366,8 @@ import {
   createAgent, createMockProvider, defineSchedule, defineTool, handleScheduled,
   memoryStore, serveFetch, OpenAIProvider, AnthropicProvider, OpenRouterProvider,
   LLMProviderRegistry, SDKError, /* ... */
-} from '@lousho/build-ai-agent/worker';
-import { KVStore } from '@lousho/build-ai-agent/kv'; // also re-exported from /worker
+} from 'lousho/worker';
+import { KVStore } from 'lousho/kv'; // also re-exported from /worker
 ```
 
 الصادرات: `createAgent` (وأنواع إعداداته)، و`memoryStore`، ومخازن KV
@@ -441,8 +441,8 @@ read-modify-write في KV ليست atomic.
 ## حجم الـ bundle ووحدات Node المدمجة
 
 مخازن KV (`KVStore` و`KVCheckpointStore` و`CHECKPOINT_KV_BINDING`،
-المُصدَّرة من `@lousho/build-ai-agent/kv`) لا تحتوي أي إشارة `node:*` في
-أي موضع من dependency graph تبعها، وكذلك مدخل `@lousho/build-ai-agent/worker` الذي
+المُصدَّرة من `lousho/kv`) لا تحتوي أي إشارة `node:*` في
+أي موضع من dependency graph تبعها، وكذلك مدخل `lousho/worker` الذي
 يجمّعه Worker مكتوب باليد (بناؤه يُفحص بنفس الطريقة؛ راجع [كتابة Worker
 بنفسك](#كتابة-worker-بنفسك)). الـ Worker يشغّل الـ spec كـ agent من `createAgent()`،
 والـ build يوجّه استيراداتها الخاصة بـ Node فقط (project instructions، وfile session

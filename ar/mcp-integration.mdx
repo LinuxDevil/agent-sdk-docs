@@ -6,7 +6,7 @@ sidebarTitle: "MCP"
 
 MCP يشتغل في الاتجاهين. الـ agent يستطيع مناداة tools موجودة في سيرفرات MCP،
 أو يكون هو نفسه سيرفر MCP يناديه Claude Code وCursor وغيرهما من MCP clients.
-الاتجاهان موجودان في الـ subpath `@lousho/build-ai-agent/mcp`، وحزمة
+الاتجاهان موجودان في الـ subpath `lousho/mcp`، وحزمة
 `@modelcontextprotocol/sdk` هي peer dependency اختيارية: ثبّتها لاستخدام أي اتجاه منهما.
 
 ```sh
@@ -14,7 +14,7 @@ npm install @modelcontextprotocol/sdk
 ```
 
 `connectMcp` و`loadMcpTools` و`serveMcp` مُصدَّرة من
-`@lousho/build-ai-agent/mcp`؛ وجذر الحزمة و`@lousho/build-ai-agent/tools`
+`lousho/mcp`؛ وجذر الحزمة و`lousho/tools`
 يصدّرانها أيضًا. أما `createAgent({ mcpServers })` فلا يحتاج أي import من الـ subpath.
 
 ## استخدام سيرفرات MCP داخل agent
@@ -29,7 +29,7 @@ tools كل سيرفر تنضاف باسم `<server>__<tool>` (مثل `docs__sear
 `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`).
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const agent = createAgent({
   model: 'openai/gpt-4o-mini',
@@ -125,8 +125,8 @@ tools الخاصة به من جديد: `tools` يتحدّث في مكانه (ت�
 يشتغل أيضًا.)
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
-import { connectMcp } from '@lousho/build-ai-agent/mcp';
+import { createAgent } from 'lousho';
+import { connectMcp } from 'lousho/mcp';
 
 const mcp = await connectMcp(
   { files: { command: 'npx', args: ['-y', '@modelcontextprotocol/server-filesystem', '.'] } },
@@ -203,7 +203,7 @@ spec MCP أنه destructive)، يوقف الـ run حتى يوافق إنسان�
 `allow` أو `deny` أو `ask`.
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const agent = createAgent({
   model: 'openai/gpt-4o-mini',
@@ -227,15 +227,15 @@ tools بـ`loadMcpTools()`، ثم مرّر النتيجة إلى `createAgent()`
 سجّلها في `ToolRegistry`):
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
-import { loadMcpTools } from '@lousho/build-ai-agent/mcp';
+import { createAgent } from 'lousho';
+import { loadMcpTools } from 'lousho/mcp';
 
 const tools = await loadMcpTools(mcpClient, 'my-server');
 const agent = createAgent({ instructions: '...', provider, tools });
 ```
 
 `loadMcpTools` متوفرة أيضًا من جذر الحزمة ومن
-`@lousho/build-ai-agent/tools`.
+`lousho/tools`.
 
 ## تشغيل agent كسيرفر MCP
 
@@ -244,8 +244,8 @@ tools) كسيرفر MCP، فيستطيع Claude Code وCursor وغيرهما م�
 مناداته.
 
 ```ts
-import { createAgent, defineTool } from '@lousho/build-ai-agent';
-import { serveMcp } from '@lousho/build-ai-agent/mcp';
+import { createAgent, defineTool } from 'lousho';
+import { serveMcp } from 'lousho/mcp';
 import { z } from 'zod';
 
 const searchDocs = defineTool({
@@ -311,7 +311,7 @@ await server.close();
 `day_name` كلها read-only.
 
 ```ts
-import { defineTool } from '@lousho/build-ai-agent';
+import { defineTool } from 'lousho';
 import { z } from 'zod';
 
 const lookupOrder = defineTool({

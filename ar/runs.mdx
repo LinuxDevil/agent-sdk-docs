@@ -14,7 +14,7 @@ description: "كيف ينتهي الـrun، كيف توقفه، وكيف تعم�
 `'max-steps'` تعني أن ميزانية `maxSteps` (الافتراضية 10) انتهت والـmodel كان ما زال يريد يكمل، فقد يكون الرد فارغًا أو جزئيًا. الـrun الذي ينتهي طبيعيًا ضمن الميزانية يحتفظ بـ`'stop'`. الخطوات التي تأتي من `initialSteps` أو من استئناف بعد approval تُحسب ضمن الميزانية، و`result.steps` هو عدد الخطوات التي تمت. السبب نفسه موجود في `run.done` ضمن [streaming](/ar/streaming)، وفي `finish` اللي هو مقابلها في `onEvent` الـdeprecated.
 
 ```ts
-import { createAgent, createMockProvider } from '@lousho/build-ai-agent';
+import { createAgent, createMockProvider } from 'lousho';
 const agent = createAgent({ instructions: 'You are helpful.', provider: createMockProvider(), maxSteps: 3 });
 const result = await agent.send('Research this thoroughly');
 if (result.finishReason === 'max-steps') console.warn(`Gave up after ${result.steps} steps`);
@@ -25,7 +25,7 @@ if (result.finishReason === 'max-steps') console.warn(`Gave up after ${result.st
 مرّر `AbortSignal` لإيقاف الـrun: `agent.send(input, { signal })`، أو `AgentExecutor.execute({ ..., signal })`، أو `resumeAfterApproval(..., { signal })`.
 
 ```ts
-import { createAgent, createMockProvider } from '@lousho/build-ai-agent';
+import { createAgent, createMockProvider } from 'lousho';
 const agent = createAgent({ instructions: 'You are helpful.', provider: createMockProvider() });
 const controller = new AbortController();
 setTimeout(() => controller.abort(), 5_000); // e.g. from a Stop button
@@ -36,7 +36,7 @@ console.log(result.finishReason); // 'aborted' if it was cancelled, else 'stop'
 لمهلة زمنية استخدم `AbortSignal.timeout(ms)`:
 
 ```ts
-import { createAgent, createMockProvider } from '@lousho/build-ai-agent';
+import { createAgent, createMockProvider } from 'lousho';
 const agent = createAgent({ instructions: 'You are helpful.', provider: createMockProvider() });
 const result = await agent.send('Summarize this', { signal: AbortSignal.timeout(30_000) });
 ```
@@ -56,7 +56,7 @@ const result = await agent.send('Summarize this', { signal: AbortSignal.timeout(
 عندما يطلب الـmodel عدة tools في دورة واحدة تعمل بالتوازي. `toolConcurrency` (في `createAgent()` و`AgentExecutor.execute()`) تحدد أكبر عدد يعمل في نفس الوقت: عدد صحيح موجب، أو `'unbounded'` (الافتراضي). استخدم `1` لتنفيذ متسلسل صارم، مثلًا عندما تتشارك الـtools حالة لا يُؤمَن لمسها بالتوازي.
 
 ```ts
-import { createAgent, createMockProvider, defineTool } from '@lousho/build-ai-agent';
+import { createAgent, createMockProvider, defineTool } from 'lousho';
 import { z } from 'zod';
 
 const getWeather = defineTool({

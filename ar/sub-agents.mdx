@@ -24,7 +24,7 @@ title: "Sub-agents"
 وبعدين مرّرهم للـlead تحت `subagents`:
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const researcher = createAgent({
   provider,
@@ -112,8 +112,8 @@ budget، أو انقطع — الـlead ياخذ نتيجة خطأ (`isError: tr
 store وsession (جلسة):
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
-import { SqliteStore } from '@lousho/build-ai-agent/sqlite';
+import { createAgent } from 'lousho';
+import { SqliteStore } from 'lousho/sqlite';
 
 const store = new SqliteStore('./.lousho/agent.db');
 const researcher = createAgent({ provider, instructions: 'You research.', description: 'Finds and summarizes sources' });
@@ -162,7 +162,7 @@ tool errors منظمة: `taskId` مجهول، أو تابع لـsession لـlead
 يشيل الاحتمال.
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const analyst = createAgent({ provider, instructions: 'You analyze.', description: 'Analyzes data' });
 const lead = createAgent({ provider, subagents: { analyst }, subagentOptions: { continuation: false } });
@@ -200,7 +200,7 @@ const lead = createAgent({ provider, subagents: { analyst }, subagentOptions: { 
 في `createAgent()`:
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const researcher = createAgent({ provider, instructions: 'You research.', description: 'Finds and summarizes sources' });
 
@@ -241,7 +241,7 @@ const lead = createAgent({
 النتيجة تعدّد كل مهمة خلفية في الـrun مع حالتها النهائية:
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const researcher = createAgent({ provider, instructions: 'You research.', description: 'Finds and summarizes sources' });
 const lead = createAgent({ provider, instructions: 'You coordinate research.', subagents: { researcher } });
@@ -291,7 +291,7 @@ prompt يطلب منه هذا) حتى توصل إجاباتهم للمحادثة
   الـmodel اختار ما ينتظرها.
 
 ```ts
-import { createAgent, defineTool } from '@lousho/build-ai-agent';
+import { createAgent, defineTool } from 'lousho';
 import { z } from 'zod';
 
 const shell = defineTool({
@@ -322,7 +322,7 @@ if (paused.finishReason === 'awaiting-approval' && paused.approvalId) {
 `undefined` للاسم المجهول).
 
 ```ts
-import { createAgent, type SubagentCatalog } from '@lousho/build-ai-agent';
+import { createAgent, type SubagentCatalog } from 'lousho';
 
 const experts = new Map([
   ['researcher', createAgent({ provider, instructions: 'You research.' })],
@@ -344,7 +344,7 @@ const lead = createAgent({ provider, instructions: 'You coordinate.', subagents:
 `task`، بما فيها `background: true`.
 
 ```ts
-import { createAgent, remoteAgent } from '@lousho/build-ai-agent';
+import { createAgent, remoteAgent } from 'lousho';
 
 const lead = createAgent({
   provider,
@@ -408,7 +408,7 @@ sub-agent محلي: `result.finishReason` تكون `'awaiting-approval'`،
 النهائي يصير نتيجة `task`؛ وتكملة توقف مرة ثانية توقف الـlead مرة ثانية.
 
 ```ts
-import type { SimpleAgent } from '@lousho/build-ai-agent';
+import type { SimpleAgent } from 'lousho';
 declare const lead: SimpleAgent; // the lead agent above
 
 const paused = await lead.send('Deploy the docs site');
@@ -444,7 +444,7 @@ Node بس: tools الخاصة بـPi (`read` و`bash` و`edit` و`write` و...) 
 على مجلد محلي.
 
 ```ts
-import { createAgent, piAgent, ask, allow } from '@lousho/build-ai-agent';
+import { createAgent, piAgent, ask, allow } from 'lousho';
 import { ModelRuntime } from '@earendil-works/pi-coding-agent';
 
 const runtime = await ModelRuntime.create(); // reads ~/.pi/agent auth, env keys
@@ -536,7 +536,7 @@ hooks الأب تنطبق على الـsub-agents الخاصة فيه افترا
 اللي لازم يشوف بس الـrun الأعلى يرجع مبكرًا:
 
 ```ts
-import { HookRegistry } from '@lousho/build-ai-agent';
+import { HookRegistry } from 'lousho';
 
 const hooks = new HookRegistry();
 hooks.register({
@@ -572,7 +572,7 @@ listener على الـlead (`createAgent({ onEvent })` أو `onAgentEvent`) يا
 تحتاج `approvalStore`):
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const lead = createAgent({
   provider,
@@ -628,8 +628,8 @@ if (paused.finishReason === 'awaiting-approval' && paused.approvalId) {
 اللي استخدمه الـrun الموقوف:
 
 ```ts
-import { AgentExecutor, resumeAfterApproval, ToolRegistry } from '@lousho/build-ai-agent/executor';
-import { createAgent } from '@lousho/build-ai-agent';
+import { AgentExecutor, resumeAfterApproval, ToolRegistry } from 'lousho/executor';
+import { createAgent } from 'lousho';
 
 const subagents = { researcher: createAgent({ provider, instructions: 'You research.', description: 'Researches' }) };
 

@@ -10,7 +10,7 @@ run طويل لـagent يملأ الـcontext window غالبًا بنتائج �
 مع `createAgent()`، فعّل الـcompaction بخيار `compaction`. القيمة `true` تثبّت الـhook بإعداداته الافتراضية: تقليم نتائج الـtools القديمة فوق 90% من window الـmodel. ولو مررت object تضبطه بنفسك، وفيه `summarizer` يختار `twoPhaseStrategy()` مع الـmodel اللي تعطيه — سلسلة `"provider/model"` أو `LLMProvider`. بادئة `vendor/` في اسم الـmodel هي اللي تحدد الـprovider. مع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثلاً `openrouter/openai/gpt-4o-mini`).
 
 ```ts
-import { createAgent } from '@lousho/build-ai-agent';
+import { createAgent } from 'lousho';
 
 const simple = createAgent({ model: 'openai/gpt-4o', compaction: true });
 
@@ -46,7 +46,7 @@ for await (const event of agent.stream('Audit the repository.')) {
 `createCompactionHook()` يرجع `AgentHook` اسمه `compaction`. مرّره في `createAgent({ hooks })`. الإعداد الموصى به: استراتيجية المرحلتين مع model تلخيص رخيص:
 
 ```ts
-import { createAgent, createCompactionHook, twoPhaseStrategy } from '@lousho/build-ai-agent';
+import { createAgent, createCompactionHook, twoPhaseStrategy } from 'lousho';
 
 const agent = createAgent({
   provider,
@@ -87,7 +87,7 @@ const agent = createAgent({
 العتبة نسبة من الـcontext window الخاص بالـmodel، فالـcompaction يحتاج الـwindow الحقيقي. لأي model ما يعرفه [سجل الـmodels](/ar/models-and-cost#الـ-models-وجدول-الأسعار) (أغلب الـmodels المحلية)، الـhook يفترض `128_000` token ويطبع `console.warn` مرة واحدة فيه اسم الـmodel. السيرفر المحلي عادة يشتغل بـwindow أصغر بكثير، ووقتها الـcompaction ما يشتغل أبدًا قبل ما السيرفر يرفض الطلب. اضبط الـwindow اللي حمّلت فيه الـmodel: في LM Studio هو طول السياق المحمّل للـmodel (`loaded_context_length` من `GET /api/v0/models/<id>`)، وفي Ollama هو خيار `num_ctx` (`ollama show <model>` يطبع القيمة الافتراضية للـmodel).
 
 ```ts
-import { createAgent, registerModel } from '@lousho/build-ai-agent';
+import { createAgent, registerModel } from 'lousho';
 
 // Either on the agent...
 const agent = createAgent({
@@ -108,8 +108,8 @@ registerModel({ id: 'qwen3:8b', provider: 'ollama', contextWindow: 8_192 });
 تسجيل الـhook في `HookRegistry` للكود اللي يستدعي الـexecutor مباشرة (شوف [executor API](/ar/executor-api)):
 
 ```ts
-import { AgentExecutor } from '@lousho/build-ai-agent/executor';
-import { HookRegistry, createCompactionHook, twoPhaseStrategy } from '@lousho/build-ai-agent';
+import { AgentExecutor } from 'lousho/executor';
+import { HookRegistry, createCompactionHook, twoPhaseStrategy } from 'lousho';
 
 const hooks = new HookRegistry();
 hooks.register(
@@ -172,7 +172,7 @@ const result = await AgentExecutor.execute({ agent, input, provider, toolRegistr
 `pinMessage(message)` ترجع نسخة من الرسالة موسومة بأنها مثبتة (تضبط `metadata.pinned: true`؛ و`Message.metadata` بيانات للتطبيق ما تنرسل للـmodel أبدًا). الاستراتيجيات المدمجة ما تقلّم ولا تلخّص رسالة مثبتة أبدًا؛ ونتيجة tool مثبتة تحفظ دورة الـassistant التابعة لها كاملة. ثبّت اللي لازم الـagent يشوفه كامل دائمًا، مثل نص المهمة أو مستند أساسي:
 
 ```ts
-import { pinMessage, isPinned, type Message } from '@lousho/build-ai-agent';
+import { pinMessage, isPinned, type Message } from 'lousho';
 
 const messages: Message[] = [
   { role: 'system', content: 'You are a research assistant.' },
@@ -188,7 +188,7 @@ console.log(isPinned(messages[1])); // true
 `compactMessages(messages, options)` تشغّل استراتيجية مرة واحدة، مهما كان حجم المحادثة، وترجع promise نتيجته مصفوفة جديدة (المدخل ما يتعدل). استخدمها لتصغير transcript مخزّن قبل ما تكمله:
 
 ```ts
-import { compactMessages, summarizeStrategy, type Message } from '@lousho/build-ai-agent';
+import { compactMessages, summarizeStrategy, type Message } from 'lousho';
 
 declare const history: Message[];
 
@@ -210,8 +210,8 @@ console.log(summarized.summary ?? summarized.error?.message);
 `session.compact(options?)` تعمل compaction لسجل [session](/ar/sessions) فورًا، مهما كان حجمه، وتحفظه في الـstore الخاص بالـsession (الذاكرة أو ملف أو SQLite أو KV) وترجع `{ messagesBefore, messagesAfter, tokensBefore, tokensAfter, strategy, error? }`. تشغّل `options.strategy` إن وُجدت، وإلا استراتيجية `agent.session({ compaction })` — وهي نفس القيمة اللي ياخذها `createAgent({ compaction })`، و`compaction` الخاص بالـagent إذا الـsession ما ضبطت واحدة — وإلا تقلّم نتائج الـtools القديمة. الرسائل المثبتة تبقى. والـsession اللي ما فيها رسائل تنتهي بدون ما تعمل شيء. الاستدعاء يرفض بـ `LOUSHO_SESSION_BUSY` إذا في turn شغالة، وبـ `LOUSHO_SESSION_TURN_PENDING` / `LOUSHO_SESSION_AWAITING_APPROVAL` إذا في durable turn ما خلصت. الـlisteners اللي اتضافت بـ `session.on()` تستلم `compaction.start` و`compaction.done` مع `trigger: 'manual'`. أما `session.clear()` فتفرّغ الـtranscript، وتحذف الـcheckpoint الخاص بكل turn وسجل الـcheckpoints، وتطلق `context.cleared`.
 
 ```ts
-import { createAgent, twoPhaseStrategy } from '@lousho/build-ai-agent';
-import { mockModel } from '@lousho/build-ai-agent/testing';
+import { createAgent, twoPhaseStrategy } from 'lousho';
+import { mockModel } from 'lousho/testing';
 
 const agent = createAgent({ provider: mockModel(['ok']) });
 const session = agent.session({ compaction: { strategy: twoPhaseStrategy({ model: 'openai/gpt-4o-mini' }) } });
@@ -230,7 +230,7 @@ console.log(session.messages.length); // 0
 الاستراتيجية اسم ودالة `compact()`، وممكن تكون async. تستلم الرسائل، وعدّاد tokens لـmodel الطلب، والـcontext window، و`protectedTokens`، و`thresholdTokens` (الحجم اللي لازم تنزل تحته)، و`signal` الإلغاء الخاصة بالـrun، وترجع الرسائل الجديدة مع عدد الـtokens قبل وبعد (واختياريًا `summary` أو `error`). رجّع مصفوفة الإدخال بدون تغيير لما ما يكون في شيء تفعله: الـhook وقتها يترك الـrun على حاله وما يستدعي `onCompaction`.
 
 ```ts
-import { createCompactionHook, isPinned, type CompactionStrategy } from '@lousho/build-ai-agent';
+import { createCompactionHook, isPinned, type CompactionStrategy } from 'lousho';
 
 // Keep the system prompt, pinned messages and the last 20 messages.
 const keepRecent: CompactionStrategy = {
