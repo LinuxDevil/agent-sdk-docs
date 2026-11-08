@@ -20,7 +20,7 @@ yarn add lousho ai zod
 
 `ai` (وهي Vercel AI SDK: `^4.3.19` أو `^6.0.0` أو `^7.0.0`) و`zod` (`^3.25.76 || ^4.0.0`) peer dependencies إجبارية. الإصدار `ai` 5 غير مدعوم.
 
-أي schema من الإصدارين الرئيسيين لـ zod تشتغل في كل مكان تقبل فيه الـ SDK schema: `defineTool({ input })`، و`output` منظَّم، وأدوات MCP. يشمل هذا schemas من zod 4 عبر `zod/v4` مع zod 3.25 مثبت، وschemas من zod 3 عبر `zod/v3` على zod 4. حقل `input` في `defineTool` يمكن أن يكون أيضًا schema من مكتبة [Standard Schema](https://standardschema.dev) أخرى، إذا كانت تكشف الـ JSON Schema الخاصة بها (`~standard.jsonSchema`). الـ model يحتاج JSON Schema، فأي Standard Schema بلا واحدة تُرفض — استخدم zod لتلك الأدوات. حزم الـ providers الخاصة بـ `ai` 4 تعلن zod 3 كـ peer dependency، فاقرن zod 4 مع `ai` 6 أو 7.
+أي schema من الإصدارين الرئيسيين لـ zod تعمل في كل مكان تقبل فيه الـ SDK schema: `defineTool({ input })`، و`output` منظَّم، وأدوات MCP. يشمل هذا schemas من zod 4 عبر `zod/v4` مع zod 3.25 مثبت، وschemas من zod 3 عبر `zod/v3` على zod 4. حقل `input` في `defineTool` يمكن أن يكون أيضًا schema من مكتبة [Standard Schema](https://standardschema.dev) أخرى، إذا كانت تكشف الـ JSON Schema الخاصة بها (`~standard.jsonSchema`). الـ model يحتاج JSON Schema، فأي Standard Schema بلا واحدة تُرفض — استخدم zod لتلك الأدوات. حزم الـ providers الخاصة بـ `ai` 4 تعلن zod 3 كـ peer dependency، فاقرن zod 4 مع `ai` 6 أو 7.
 
 ### حزم الـ providers
 
@@ -154,7 +154,7 @@ npm install ./lousho-<version>.tgz ai zod
 
 ## إنشاء مشروع جديد
 
-`lousho init` ينشئ مشروعًا جاهزًا للتشغيل: `package.json` (ESM، ويعتمد على هذه الـ SDK بنطاق إصدار)، و`tsconfig.json` strict، و`src/agent.ts` يستدعي `createAgent({ model, instructions })` مع أداة مثال معرَّفة بـ `defineTool()`، و`src/agent.test.ts` يشتغل offline باستخدام `mockModel`، و`.env.example` يذكر اسم متغير مفتاح الـ provider عندك، و`.gitignore`، وREADME، وملف `AGENTS.md` (ومعه ملف `CLAUDE.md` من سطر واحد يستورده) يعرّف coding agents بملفات المشروع وسكربتاته وأعرافه. بعدها يثبّت الاعتماديات ويشغّل `git init`.
+`lousho init` ينشئ مشروعًا جاهزًا للتشغيل: `package.json` (ESM، ويعتمد على هذه الـ SDK بنطاق إصدار)، و`tsconfig.json` strict، و`src/agent.ts` يستدعي `createAgent({ model, instructions })` مع أداة مثال معرَّفة بـ `defineTool()`، و`src/agent.test.ts` يعمل offline باستخدام `mockModel`، و`.env.example` يذكر اسم متغير مفتاح الـ provider عندك، و`.gitignore`، وREADME، وملف `AGENTS.md` (ومعه ملف `CLAUDE.md` من سطر واحد يستورده) يعرّف coding agents بملفات المشروع وسكربتاته وأعرافه. بعدها يثبّت الاعتماديات ويشغّل `git init`.
 
 ```bash
 npm create lousho my-agent   # or: npx lousho init my-agent

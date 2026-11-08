@@ -1,11 +1,11 @@
 ---
 title: "مقدمة"
-description: "Lousho مكتبة TypeScript لبناء AI agents تشتغل داخل كودك وعلى host عندك. أعطِها model و typed tools؛ والنتيجة run تقدر توقفه مؤقتًا وتستأنفه وتبثّه وتختبره."
+description: "Lousho مكتبة TypeScript لبناء AI agents تعمل داخل كودك وعلى host لديك. أعطِها model و typed tools؛ والنتيجة run يمكنك إيقافه مؤقتًا وتستأنفه وتبثّه وتختبره."
 ---
 
-معظم كود الـ agents يبدأ كحلقة تلفّ حول استدعاء model. بعدها يأتي الإنتاج ويطلب أكثر: لازم إنسان يوافق على استرداد المبلغ قبل إرساله. العملية تُعاد تشغيلها والـ run في منتصفه. المحادثة لازم تكمل غدًا من سيرفر آخر. وشخص ما يريد اختبار يفشل لما الـ agent يوقف عن استدعاء الـ tool الصحيح.
+معظم كود الـ agents يبدأ كحلقة تلفّ حول استدعاء model. ثم يأتي الإنتاج ويطلب أكثر: يجب أن يوافق إنسان على استرداد المبلغ قبل إرساله. تُعاد تشغيل العملية والـ run في منتصفه. يجب أن تكتمل المحادثة غدًا من سيرفر آخر. وشخص ما يريد اختبارًا يفشل عندما يتوقف الـ agent عن استدعاء الـ tool الصحيح.
 
-`lousho` هي هذه الحلقة وهذه الإجابات مدمجة فيها. مكتبة، لا web framework ولا hosted runtime: حلقة استدعاء tools من نوع typed، مع approvals (موافقات) و sessions (جلسات) و streaming و sub-agents و skills و MCP و CLI. ونفس الـ agent يشتغل في سكربت، أو سيرفر Node، أو حاوية Docker، أو Cloudflare Worker (الـ Worker يدعم [جزءًا](/ar/cloudflare-workers#ما-يعمل-وما-لا-يعمل) فقط من الـ providers والـ tools).
+`lousho` هي هذه الحلقة وهذه الإجابات مدمجة فيها. مكتبة، لا web framework ولا hosted runtime: حلقة استدعاء tools من نوع typed، مع approvals (موافقات) و sessions (جلسات) و streaming و sub-agents و skills و MCP و CLI. والـ agent نفسه يعمل في سكربت، أو سيرفر Node، أو حاوية Docker، أو Cloudflare Worker (الـ Worker يدعم [جزءًا](/ar/cloudflare-workers#ما-يعمل-وما-لا-يعمل) فقط من الـ providers والـ tools).
 
 ```mermaid
 flowchart LR
@@ -38,7 +38,7 @@ console.log(text);
     `lousho build` ينشر الـ agent على سيرفر Node أو Docker أو Worker؛ و`lousho acp` يقدّمه للمحررات، و`serveMcp` لعملاء MCP. وكل run يصدر spans وفق OpenTelemetry GenAI مع استهلاك الـ tokens والتكلفة بالدولار الأمريكي.
   </Card>
   <Card title="مستضاف عندك، مع كل إصدارات AI SDK" icon="computer" href="/ar/installation">
-    حزمة واحدة، بدون حساب على منصة ولا control plane مستضاف. الـ peer `ai` يقبل v4 و v6 و v7، و`fromAiSdk()` / `fromAiSdkTools()` يعيدان استخدام الـ models والـ tools اللي عندك من AI SDK.
+    حزمة واحدة، بدون حساب على منصة ولا control plane مستضاف. الـ peer `ai` يقبل v4 و v6 و v7، و`fromAiSdk()` / `fromAiSdkTools()` يعيدان استخدام الـ models والـ tools التي لديك من AI SDK.
   </Card>
 </CardGroup>
 
@@ -48,19 +48,19 @@ console.log(text);
 
 | المكوّن | ما تكتبه | ما تحصل عليه |
 | ----- | -------------- | ------------ |
-| [Tools](/ar/tools) | `defineTool()` مع `input` من zod | معاملات typed مع validation، والاستدعاءات تشتغل بالتوازي |
+| [Tools](/ar/tools) | `defineTool()` مع `input` من zod | معاملات typed مع validation، والاستدعاءات تعمل بالتوازي |
 | [Approvals](/ar/approvals) | `needsApproval`، أو قواعد `permissions` | run يتوقف مؤقتًا بانتظار إنسان، ثم يكمل عبر `agent.approvals.resolve()` |
 | [Sessions](/ar/sessions) | `agent.session({ id })` | محادثة متعددة الدورات تُحفظ في الذاكرة أو الملفات أو SQLite |
 | [الذاكرة](/ar/memory) | خانات `defineMemory()` | حقائق تدخل الـ prompt عبر الـ sessions، لكل مستخدم أو على مستوى عام |
 | [المخرجات المنظمة](/ar/structured-output) | `output: zodSchema` | `result.object` typed مع validation، وخطوة إصلاح واحدة |
 | [Streaming](/ar/streaming) | `agent.stream()` | أحداث JSON typed وذات إصدارات، جاهزة لـ SSE |
-| [Sub-agents](/ar/sub-agents) | `subagents: { researcher, writer }` | أداة `task` واحدة للـ agent الرئيسي؛ والـ sub-agents تشتغل بالتوازي، محليًا أو عن بُعد |
-| [Skills](/ar/skills) | `loadSkills()` | تعليمات ما يحمّلها الـ agent إلا لما تحتاجها المهمة |
+| [Sub-agents](/ar/sub-agents) | `subagents: { researcher, writer }` | أداة `task` واحدة للـ agent الرئيسي؛ والـ sub-agents تعمل بالتوازي، محليًا أو عن بُعد |
+| [Skills](/ar/skills) | `loadSkills()` | تعليمات لا يحمّلها الـ agent إلا عندما تحتاجها المهمة |
 | [Providers](/ar/providers) | سلسلة بصيغة `provider/model` | OpenAI أو Anthropic أو Google أو OpenRouter أو Ollama أو mock، مع retry و fallback؛ وأي model من AI SDK عبر `fromAiSdk()` |
 
 ## أين يعيش الـ agent
 
-الـ agent هو نفس الكائن في كل مكان. اللي يتغير هو الواجهة اللي تقف أمامه.
+الـ agent هو الكائن نفسه في كل مكان. ما يتغير هو الواجهة التي تقف أمامه.
 
 <CardGroup cols={2}>
   <Card title="في تطبيق ويب" icon="browser" href="/ar/react">
@@ -83,11 +83,11 @@ console.log(text);
 
 الـ approvals المتينة والـ evals والـ agent directories و harnesses الـ coding agents لم تعد ميزات حصرية: AI SDK 7 و eve و Mastra تقدّم نسخها الخاصة. ما يميّز Lousho حتى الآن هو التسجيل وإعادة التشغيل مع اكتشاف انحراف المسار، والـ approvals المتينة على Cloudflare Workers KV، وتقديم نفس الـ agent عبر ACP و MCP، والعمل كحزمة واحدة مستضافة عندك. وهو أضعف حيث ما زال صغيرًا: في مرحلة alpha، بدون store لـ Postgres، وبـ providers مدمجة أقل، وبدون لوحة تحكم مستضافة.
 
-متى يكون خيار آخر أنسب: إذا كان كل اللي تحتاجه هو بثّ نص الـ model في route من Next.js، فـ AI SDK وحده أخفّ وأقل سطحًا. وإذا تنشر على Vercel وتريد الـ runtime الخاص بها، فـ eve يناسبها مباشرة. وإذا تريد harness الخاص بـ Claude Code كما هو، فـ Claude Agent SDK يعطيك ذلك بالضبط. وإذا فريقك يعمل بـ Python أو يشغّل LangGraph Platform أصلًا، فالبقاء هناك يوفّر عليك stack ثاني. قادم من AI SDK؟ اقرأ [الانتقال من AI SDK](/ar/migrating-from-ai-sdk).
+متى يكون خيار آخر أنسب: إذا كان كل ما تحتاجه هو بثّ نص الـ model في route من Next.js، فـ AI SDK وحده أخفّ وأقل سطحًا. وإذا كنت تنشر على Vercel وتريد الـ runtime الخاص بها، فـ eve يناسبها مباشرة. وإذا أردت الـ harness الخاص بـ Claude Code كما هو، فـ Claude Agent SDK يعطيك ذلك بالضبط. وإذا كان فريقك يعمل بـ Python أو يشغّل LangGraph Platform أصلًا، فالبقاء هناك يوفّر عليك stack إضافيًا. قادم من AI SDK؟ اقرأ [الانتقال من AI SDK](/ar/migrating-from-ai-sdk).
 
 ## الخطوات التالية
 
-- [البدء السريع](/ar/quickstart): جهّز مشروعًا بقالب جاهز، أو شغّل الـ agent المكوّن من خمسة أسطر. المقتطفات تشتغل دون اتصال بفضل الـ mock provider المدمج.
+- [البدء السريع](/ar/quickstart): جهّز مشروعًا بقالب جاهز، أو شغّل الـ agent المكوّن من خمسة أسطر. المقتطفات تعمل دون اتصال بفضل الـ mock provider المدمج.
 - [التثبيت](/ar/installation): المتطلبات، وpeer dependencies، وأي حزمة provider تلائم أي إصدار رئيسي من `ai`.
 - [Tools](/ar/tools): عرّف أول tool لك وانظر كيف يتم الـ validation للمعاملات.
 - [Approvals](/ar/approvals): أوقف run مؤقتًا بانتظار قرار إنسان ثم استأنفه.

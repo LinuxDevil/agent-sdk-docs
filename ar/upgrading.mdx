@@ -8,10 +8,10 @@ sidebarTitle: "الترقية إلى 1.0"
 
 أي شخص عنده كود مكتوب على `1.0.0-alpha.8` أو إصدار `1.0.0-alpha.*`
 أقدم. بين هذه الإصدارات وخط 1.0 (التغييرات المذكورة تحت
-`1.0.0-alpha.19` في الـ changelog، واللي نُشرت أول مرة في `1.0.0-alpha.15`)
+`1.0.0-alpha.19` في الـ changelog، والتي نُشرت أول مرة في `1.0.0-alpha.15`)
 أعدنا تنظيم السطح العام للحزمة. الـ imports انتقلت إلى subpaths. حذفنا
-الـ APIs الميتة أو اللي صار لها بديل. والـ patch guardrails صار اسمها
-patch checks. `createAgent()` وخياراتها لم تتغير — الـ agent اللي ما يعمل إلا
+الـ APIs الميتة أو التي أصبح لها بديل. وأصبح اسم الـ patch guardrails
+patch checks. `createAgent()` وخياراتها لم تتغير — الـ agent الذي لا يستخدم إلا
 `createAgent({ model, instructions, tools })` و`agent.send()` يترقّى
 بتغيير رقم الإصدار فقط.
 
@@ -23,16 +23,16 @@ patch checks. `createAgent()` وخياراتها لم تتغير — الـ agen
 npm install lousho@^1.0.0-alpha.19
 ```
 
-## مسارات الـ import اللي انتقلت
+## مسارات الـ import التي انتقلت
 
-جذر الحزمة الآن فيه `createAgent()` والأسماء اللي تستخدمها إعداداتها
-ونتائجها. كل اللي تحت انتقل إلى subpath خاص فيه. التعريفات نفسها لم
-تتغير، بس مكانها تغيّر.
+جذر الحزمة الآن فيه `createAgent()` والأسماء التي تستخدمها إعداداتها
+ونتائجها. كل ما في الجدول أدناه انتقل إلى subpath خاص به. التعريفات نفسها لم
+تتغير، لكن مكانها تغيّر.
 
 | الاسم (الأسماء) | الـ import القديم | الـ import الجديد |
 | ------- | ---------- | ---------- |
 | `AgentExecutor`, `AgentBuilder`, `ExecuteOptions`, `ResumeExecuteOptions`, `ResumeRequest`, `resumeAfterApproval()`, `streamResumeAfterApproval()`, `resumeRequest()` | `lousho` أو `lousho/core` | `lousho/executor` |
-| `ToolRegistry`, `globalToolRegistry` | `lousho` أو `lousho/core` | `lousho/executor` (وما زال موجود في `lousho/tools`) |
+| `ToolRegistry`, `globalToolRegistry` | `lousho` أو `lousho/core` | `lousho/executor` (وما زال موجودًا في `lousho/tools`) |
 | `ExecutionResult`, `ExecutionFinishReason` (أنواع الـ executor) | `lousho/core` | `lousho/executor` (و`ExecutionResult` ما زال في الجذر، مكان نوع نتيجة `createAgent()`) |
 | `FlowBuilder`, `FlowExecutor`, `validateFlow` وكل أنواع الـ flow (`AgentFlow`, `EditorStep`, `FlowExecutionEvent`, ...) | `lousho` أو `lousho/types` | `lousho/flows` |
 | `createJiraTools`, `createGitHubTools`, `createSlackTool`, `slackTool`, `postSlackAlert`, `createEmailTool` وأنواعها | `lousho` أو `lousho/tools` | `lousho/integrations` |
@@ -40,8 +40,8 @@ npm install lousho@^1.0.0-alpha.19
 | `StorageService`, `StorageServiceApprovalStore`, `LocalStorageCheckpointStore` | `lousho` | `lousho/utils` (مع الـ stores الخاصة بـ`createAgent()`، الأفضل `fileStore(dir)` من الجذر) |
 | `validateWithSchema`, `safeValidate`, `isValidEmail` وبقية الـ validators | `lousho` | `lousho/utils` |
 
-الـ subpath `lousho/core` لم يعد موجود؛ كل اللي كان
-يصدّره صار تحت `/executor`.
+الـ subpath `lousho/core` لم يعد موجودًا؛ كل ما كان
+يصدّره أصبح تحت `/executor`.
 
 ```ts
 import { AgentExecutor, AgentBuilder, ToolRegistry } from 'lousho/executor';
@@ -55,14 +55,14 @@ import { EncryptionUtils, validateWithSchema } from 'lousho/utils';
 - **`AgentType` و`AgentTypeDescriptor` و`AgentConfig.agentType`
   و`AgentBuilder.setType()` والـ agent-type registry**
   (`agentTypesRegistry`, `getAgentTypeDescriptor`, `getAllAgentTypeDescriptors`,
-  `isValidAgentType`, `validateAgentConfig`, `validateAgentTools`). ما
-  كان لها أي أثر في الـ runtime: احذف استدعاء `setType(...)` وحقل
+  `isValidAgentType`, `validateAgentConfig`, `validateAgentTools`). لم
+  يكن لها أي أثر في الـ runtime: احذف استدعاء `setType(...)` وحقل
   `agentType`. الـ checkpoint (نقطة الحفظ) المحفوظ مع `agentType`
-  ينفتح عادي؛ الحقل يُتجاهَل.
+  يُفتح بشكل عادي؛ الحقل يُتجاهَل.
 - **`ExecuteOptions.onEvent`** ونوعا `ExecutionEvent` /
   `ExecutionEventType`. مرّر `onAgentEvent` لـ
   `AgentExecutor.execute()` / `stream()` / `resumeAfterApproval()`
-  بدلها؛ الأحداث اللي توصلك الآن هي `AgentEvent`. جدول مقابلة أسماء
+  بدلها؛ الأحداث التي تصلك الآن هي `AgentEvent`. جدول مقابلة أسماء
   الأحداث في
   [Streaming](/ar/streaming#الانتقال-من-onevent-/-executionevent). ومع `createAgent()`، الـ `onEvent`
   أصلاً يستقبل `AgentEvent` ولم يتغير.
@@ -70,9 +70,9 @@ import { EncryptionUtils, validateWithSchema } from 'lousho/utils';
   و`DelegationDepthExceededError`. استخدم خيار `subagents` في
   `createAgent()` أو `AgentExecutor.execute()`: الـ model يحصل على
   tool باسم `task` لكل sub-agent (وكيل فرعي)، مع حد للعمق
-  (`maxSubagentDepth`، الافتراضي `1`) بدل الخطأ اللي كان يُرمى. شوف
+  (`maxSubagentDepth`، الافتراضي `1`) بدل الخطأ الذي كان يُرمى. انظر
   [Sub-agents](/ar/sub-agents).
-- **أنواع ما نفّذها ولا استخدمها أي كود**: واجهات الـ repository
+- **أنواع لم ينفّذها ولم يستخدمها أي كود**: واجهات الـ repository
   (`IRepository`, `IAgentRepository`, `ISessionRepository`, `IResultRepository`,
   `SessionData`, `ResultData`, `SDKRepositories`)، و`DataLoadingStatus`،
   و`PaginationParams`، و`PaginatedResponse`، و`DeepPartial`، و`Timestamped`،
@@ -99,10 +99,10 @@ const lead = createAgent({
 
 ## APIs بأسماء جديدة
 
-الـ patch guardrails صار اسمها patch checks، عشان كلمة guardrail
-ما تعني إلا الـ guardrails الخاصة بالمدخلات والمخرجات والأدوات في
+أصبح اسم الـ patch guardrails هو patch checks، لكي لا تعني كلمة guardrail
+إلا الـ guardrails الخاصة بالمدخلات والمخرجات والأدوات في
 `createAgent({ guardrails })`. المعاملات والنتائج والسلوك نفسها لم
-تتغير. و`SECRET_PATTERNS` احتفظ باسمه. شوف
+تتغير. و`SECRET_PATTERNS` احتفظ باسمه. انظر
 [Guardrails والـ sandbox](/ar/guardrails).
 
 | الاسم القديم | الاسم الجديد |
@@ -121,17 +121,17 @@ const lead = createAgent({
 
 ## الانتقال من الـ triggers
 
-حذفنا `WebhookTriggerAdapter` و`SlackTriggerAdapter` و`CronTriggerAdapter` وأنواع الخيارات والـ handle الخاصة بها من `lousho/triggers`. أما `TriggerAdapter` و`TriggerRegistry` وhelpers الخاصة بـ`WebhookAuth` و`verifySlackSignature()` و`parseCronExpression()` فباقية. شوف [Triggers](/ar/triggers).
+حذفنا `WebhookTriggerAdapter` و`SlackTriggerAdapter` و`CronTriggerAdapter` وأنواع الخيارات والـ handle الخاصة بها من `lousho/triggers`. أما `TriggerAdapter` و`TriggerRegistry` وhelpers الخاصة بـ`WebhookAuth` و`verifySlackSignature()` و`parseCronExpression()` فباقية. انظر [Triggers](/ar/triggers).
 
 | المحذوف | البديل |
 | ------- | ----------- |
-| `WebhookTriggerAdapter`, `WebhookTriggerAdapterOptions`, `WebhookTriggerHandle` | `webhookChannel()`، تُركَّب بـ`mountChannels()`؛ وتأخذ نفس خيار `auth`. شوف [Channels](/ar/channels) |
-| `SlackTriggerAdapter`, `SlackTriggerAdapterOptions` | `slackChannel()`، تُركَّب بـ`mountChannels()` - sessions (جلسات) لكل thread، وأزرار approval (موافقة). شوف [Channels](/ar/channels#slack) |
-| `CronTriggerAdapter`, `CronTriggerAdapterOptions`, `CronIntervalOptions`, `CronExpressionOptions` | `defineSchedule()` مع `startSchedules()`، أو `schedules/` في مجلد الـ agent، أو cron triggers في ملف spec. ما فيه `intervalMs`: اكتب تعبير الـ cron (`*/5 * * * *`). شوف [Schedules](/ar/schedules) |
+| `WebhookTriggerAdapter`, `WebhookTriggerAdapterOptions`, `WebhookTriggerHandle` | `webhookChannel()`، تُركَّب بـ`mountChannels()`؛ وتأخذ نفس خيار `auth`. انظر [Channels](/ar/channels) |
+| `SlackTriggerAdapter`, `SlackTriggerAdapterOptions` | `slackChannel()`، تُركَّب بـ`mountChannels()` - sessions (جلسات) لكل thread، وأزرار approval (موافقة). انظر [Channels](/ar/channels#slack) |
+| `CronTriggerAdapter`, `CronTriggerAdapterOptions`, `CronIntervalOptions`, `CronExpressionOptions` | `defineSchedule()` مع `startSchedules()`، أو `schedules/` في مجلد الـ agent، أو cron triggers في ملف spec. لا يوجد `intervalMs`: اكتب تعبير الـ cron (`*/5 * * * *`). انظر [Schedules](/ar/schedules) |
 
-## Deprecated لكنها ما زالت تشتغل في 1.x
+## Deprecated لكنها ما زالت تعمل في 1.x
 
-هذه الأسماء تشتغل في 1.x وتنحذف في 2.0. انتقل عنها أول ما تعدّل
+هذه الأسماء تعمل في 1.x وتُحذف في 2.0. انتقل عنها بمجرد أن تعدّل
 الكود؛ ولن ينكسر شيء لو لم تفعل.
 
 | Deprecated | البديل |
@@ -139,181 +139,181 @@ const lead = createAgent({
 | `ToolRunContext` | `ToolExecutionContext`، النوع العام الوحيد لسياق التنفيذ |
 | `RunUsage.promptTokens` | `RunUsage.inputTokens` |
 | `RunUsage.completionTokens` | `RunUsage.outputTokens` |
-| `AiSdkProvider.convertMessages()` (hook محمي بشكل `ai` v4) | لا تعمل له override في كود جديد؛ يبقى للـ providers المدمجين حتى 2.0. شوف [Providers](/ar/providers) |
+| `AiSdkProvider.convertMessages()` (hook محمي بشكل `ai` v4) | لا تعمل له override في كود جديد؛ يبقى للـ providers المدمجين حتى 2.0. انظر [Providers](/ar/providers) |
 
 ## تغييرات أخرى في السلوك منذ alpha.8
 
-القائمة الكاملة في [CHANGELOG](/changelog). هذه البنود اللي تغيّر
-سلوك الـ runtime أو أنواع ممكن كودك يعتمد عليها، سطر لكل بند:
+القائمة الكاملة في [CHANGELOG](/changelog). هذه هي البنود التي تغيّر
+سلوك الـ runtime أو أنواعًا قد يعتمد عليها كودك، سطر لكل بند:
 
-- النقل والحذف وإعادة التسمية اللي فوق هي قسم `### Breaking`.
-  والملاحظات اللي تحت هي بنود `### Changed` اللي تغيّر السلوك.
-- لو `execute` في tool يرجّع async generator، صار يُستهلك بالتكرار -
-  آخر قيمة يطلّعها هي النتيجة - و`AgentEvent` صار فيه `tool.partial`
-  (`ToolPartialEvent`). لو قصدك ترجّع generator كقيمة، غلّفه:
-  `{ items: generator }`. شوف [Tools](/ar/tools)
+- النقل والحذف وإعادة التسمية الواردة أعلاه هي قسم `### Breaking`.
+  والملاحظات الواردة أدناه هي بنود `### Changed` التي تغيّر السلوك.
+- إذا كانت `execute` في tool تُرجع async generator، فأصبح يُستهلك بالتكرار -
+  آخر قيمة يُخرجها هي النتيجة - وأصبح `AgentEvent` يحتوي `tool.partial`
+  (`ToolPartialEvent`). إذا كنت تقصد إرجاع generator كقيمة، فغلّفه:
+  `{ items: generator }`. انظر [Tools](/ar/tools)
   و[Stream events](/ar/stream-events).
-- `AgentEvent` صار فيه حدث `handoff`، و`ExecutionResult` صار فيه
-  الحقل الاختياري `agentName`: لو عندك `switch` شامل على `event.type`
-  لازم تضيف case لـ`handoff`. شوف [Handoffs](/ar/handoffs).
-- `McpServerStatus` صار فيه `'needs-auth'`، و`AgentOAuth` صار فيه
+- أصبح `AgentEvent` يحتوي حدث `handoff`، وأصبح `ExecutionResult` يحتوي
+  الحقل الاختياري `agentName`: إذا كان لديك `switch` شامل على `event.type`
+  فيجب أن تضيف case لـ`handoff`. انظر [Handoffs](/ar/handoffs).
+- أصبح `McpServerStatus` يحتوي `'needs-auth'`، وأصبح `AgentOAuth` يحتوي
   `mcpSignInUrl(server)`: الـ `switch` الشامل على
-  `connectMcp().status()` يحتاج الـ case الجديدة. شوف
+  `connectMcp().status()` يحتاج الـ case الجديدة. انظر
   [MCP](/ar/mcp-integration) و[OAuth](/ar/oauth).
-- `ToolExecutionContext` صار فيه `getToken(provider)`
-  و`requireAuth(provider)`، و`ApprovalKind` صار فيه `'sign-in'`:
-  لو تبني tool context بنفسك في test، لازم تضيف الدالتين (أو تعمل
-  cast). شوف [OAuth](/ar/oauth).
-- مع listener (`createAgent({ onEvent })`, `onAgentEvent`)، صار
-  `send()` و`execute()` يبثّون استدعاءات الـ model: نص الخطوة يوصلك
+- أصبح `ToolExecutionContext` يحتوي `getToken(provider)`
+  و`requireAuth(provider)`، وأصبح `ApprovalKind` يحتوي `'sign-in'`:
+  إذا كنت تبني tool context بنفسك في test، فيجب أن تضيف الدالتين (أو تُجري
+  cast). انظر [OAuth](/ar/oauth).
+- مع listener (`createAgent({ onEvent })`, `onAgentEvent`)، أصبحت
+  `send()` و`execute()` تبثّان استدعاءات الـ model: يصلك نص الخطوة
   على عدة أحداث `text.delta` بدل حدث واحد.
-  `execute({ streamModelCalls: false })` يرجّع الشكل القديم. شوف
+  `execute({ streamModelCalls: false })` يُعيد الشكل القديم. انظر
   [Stream events](/ar/stream-events).
-- `MockLLMProvider` / `createMockProvider()`: `stream()` صار يبث
-  نفس الخطوة اللي يرجعها `generate()` - نفس الـ tool calls والـ
+- `MockLLMProvider` / `createMockProvider()`: أصبحت `stream()` تبث
+  الخطوة نفسها التي تُرجعها `generate()` - نفس الـ tool calls والـ
   finish reason والـ usage - فالـ run المبثوث بـmock يستدعي الـ
-  tools مثل `send()`. شوف [Testing](/ar/testing).
-- الـ runs في Agent Forge تبث استدعاءات نماذجها؛ عروض الشات والسجلات
-  والـ trace ما تغيّرت. شوف [Agent Forge](/ar/agent-forge).
-- `lousho init --provider ollama` صار يجهّز `ai@^7` مع
+  tools مثل `send()`. انظر [Testing](/ar/testing).
+- الـ runs في Agent Forge تبث استدعاءات نماذجها؛ عروض المحادثة والسجلات
+  والـ trace لم تتغيّر. انظر [Agent Forge](/ar/agent-forge).
+- `lousho init --provider ollama` أصبح يجهّز `ai@^7` مع
   `ollama-ai-provider-v2@^4` و`zod@^4` (كان `ai@^4` مع
-  `ollama-ai-provider@^1` وzod 3). المشاريع القائمة ما تتأثر. شوف
+  `ollama-ai-provider@^1` وzod 3). لا تتأثر المشاريع القائمة. انظر
   [Installation](/ar/installation#حزم-الـ-providers).
-- لما run يتوقف داخل sub-agent، عند الاستئناف يقارن الـ sub-agent
-  بتعريفه الحالي، حسب `onAgentDrift` عند الـ lead - ومع `'error'`
-  صار الـ sub-agent المتغيّر يرفض `agent.approvals.resolve()` كمان.
-  شوف
-  [Durable execution](/ar/durable-execution#استئناف-run-بعد-ما-يتغير-الـ-agent).
+- عندما يتوقف run داخل sub-agent، يُقارَن الـ sub-agent عند الاستئناف
+  بتعريفه الحالي، حسب `onAgentDrift` لدى الـ lead - ومع `'error'`
+  أصبح الـ sub-agent المتغيّر يرفض `agent.approvals.resolve()` أيضًا.
+  انظر
+  [Durable execution](/ar/durable-execution#استئناف-run-بعد-تغيّر-الـ-agent).
 - `lousho add` يفرض الـ permission manifest الخاص بالـ registry وقت
   التثبيت، ومجلد الـ agent المحمَّل يشغّل tools كل عنصر داخل الـ
-  manifest المقبول الخاص فيه (الـ approval شغال دائمًا لعناصر
+  manifest المقبول الخاص به (الـ approval مفعّل دائمًا لعناصر
   `exec`/`needsApproval`/غير الموثقة، و`fetch` و`process.env`
   محصورين بنطاق التصريح المعلن)؛ الكود غير المطابق يُرفض بـ
   `LOUSHO_REGISTRY_MANIFEST_MISMATCH`، و`--yes` يحتاج `--allow`
-  للصلاحيات المرتفعة. شوف [Registry](/ar/registry#بيان-الصلاحيات).
+  للصلاحيات المرتفعة. انظر [Registry](/ar/registry#بيان-الصلاحيات).
 - متابعة run محفوظ بـcheckpoint وغير مكتمل بـ`principal` مختلف عن
-  اللي انحفظ معه صارت ترمي `LOUSHO_CONFIG_INVALID`؛ الـ checkpoints
+  الذي حُفظ معه أصبحت ترمي `LOUSHO_CONFIG_INVALID`؛ الـ checkpoints
   وsnapshots الخاصة بالـ approval تخزّن الـ principal الخاص بالـ run.
-  شوف [Route auth and principals](/ar/auth).
-- الـ memory slots صارت تخزّن عناصرها تحت `<slot name>#<scope key>`
-  (`notes#global`) بدل مفتاح النطاق وحده (`global`)، فما عاد slotان لهما
-  نفس النطاق يتشاركان العناصر. العناصر اللي كتبها `1.0.0-alpha.19` أو أقدم
-  ما عادت تُقرأ؛ شغّل `migrateMemoryKeys(slot)` مرة واحدة لكل slot
-  لتنسخها. شوف
+  انظر [Route auth and principals](/ar/auth).
+- أصبحت الـ memory slots تخزّن عناصرها تحت `<slot name>#<scope key>`
+  (`notes#global`) بدل مفتاح النطاق وحده (`global`)، فلم يعد slotان لهما
+  النطاق نفسه يتشاركان العناصر. العناصر التي كتبها `1.0.0-alpha.19` أو أقدم
+  لم تعد تُقرأ؛ شغّل `migrateMemoryKeys(slot)` مرة واحدة لكل slot
+  لتنسخها. انظر
   [Memory](/ar/memory#عناصر-من-قبل-مفاتيح-اسم-الـ-slot).
-- الحزمة المنشورة صارت أصغر: ملفات الاختبار لم تعد تُشحن، والـ
-  source maps لم تعد تضمّن `sourcesContent` (بس `sources` فيها ما
-  زالت تحل على `src/` المشحون). ما فيه تغيير في الـ API.
+- أصبحت الحزمة المنشورة أصغر: ملفات الاختبار لم تعد تُشحن، والـ
+  source maps لم تعد تضمّن `sourcesContent` (لكن `sources` فيها ما
+  زالت تشير إلى `src/` المشحون). لا يوجد تغيير في الـ API.
 
 ## الترقية من alpha.19
 
 `1.0.0-alpha.19` هو آخر إصدار على npm. التغييرات على `main` من بعده
 (قسم `[Unreleased]` في [CHANGELOG](/changelog)) أغلبها إصلاحات
-وإضافات، لكن بعضها يغيّر قيمة افتراضية أو سلوكًا ممكن كودك يعتمد عليه.
-كل واحد منها مذكور تحت مع طريقة الرجوع للسلوك القديم، لو كانت موجودة.
+وإضافات، لكن بعضها يغيّر قيمة افتراضية أو سلوكًا قد يعتمد عليه كودك.
+كلٌّ منها مذكور أدناه مع طريقة الرجوع إلى السلوك القديم، إن وُجدت.
 التغيير المعلَّم بـ"لا يمكن تعطيله" سدّ ثغرة أمنية أو خللًا يضيّع البيانات.
 
 ### الـ HTTP routes والسيرفرات والـ channels
 
 | التغيير | طريقة التعطيل |
 | ------ | ------- |
-| مع route auth وبدون `authorizeSession`، الـ session تصير ملك أول principal يرسل لها دورة (القراءة ما تُثبت ملكية)؛ وأي principal ثاني يحصل على `403 LOUSHO_SESSION_FORBIDDEN`. المالك يُحفظ في الذاكرة لكل agent (آخر 100,000 session مستخدمة)؛ والـ session المخزّنة اللي مالكها غير مسجّل (بعد إعادة تشغيل، أو بعد تجاوز هذا الحد) تُرفض للجميع، فمرّر `authorizeSession` لو عندك أكثر من instance أو store يعيش أطول من العملية. الـ bearer token الواحد يمثّل متصلًا واحدًا وما يتحقق من أي مالك. شوف [من يحق له استخدام الـ session](/ar/auth#من-يقدر-يستخدم-الـ-session). | `authorizeSession: () => true` |
-| الـ session routes (`createRouteHandler()` و`createDeployedServer()` والـ Worker و`lousho dev`) ترفض الـ POST القادم من موقع آخر (`403 LOUSHO_REQUEST_FORBIDDEN`) وجسم POST اللي ما هو `Content-Type: application/json` (`415 LOUSHO_UNSUPPORTED_MEDIA_TYPE`). والخيار الجديد `allowedHosts` (مطفأ افتراضيًا) يرفض ترويسات `Host` غير المدرجة. شوف [الطلبات من مواقع أخرى](/ar/auth#الطلبات-بين-المواقع). | `allowedOrigins: ['*']`، `requireJsonBody: false` (أو أضف origin الواجهة الأمامية في `allowedOrigins`) |
-| `POST /chat/:sessionId/approvals/:id` يرد بـ`404` إلا لو الـ approval تابعة لهذه الـ session، وما يقرّر فيها إلا المتصل اللي يعمل الـ run المتوقف نيابة عنه. | `authorizeApproval` لتسمح لغيره (مشرف مثلًا) بالقرار |
+| مع route auth وبدون `authorizeSession`، تصبح الـ session ملكًا لأول principal يرسل لها دورة (القراءة لا تُثبت ملكية)؛ وأي principal آخر يحصل على `403 LOUSHO_SESSION_FORBIDDEN`. المالك يُحفظ في الذاكرة لكل agent (آخر 100,000 session مستخدمة)؛ والـ session المخزّنة التي مالكها غير مسجّل (بعد إعادة تشغيل، أو بعد تجاوز هذا الحد) تُرفض للجميع، فمرّر `authorizeSession` إذا كان لديك أكثر من instance أو store يعيش أطول من العملية. الـ bearer token الواحد يمثّل متصلًا واحدًا ولا يتحقق من أي مالك. انظر [من يحق له استخدام الـ session](/ar/auth#من-يستطيع-استخدام-الـ-session). | `authorizeSession: () => true` |
+| الـ session routes (`createRouteHandler()` و`createDeployedServer()` والـ Worker و`lousho dev`) ترفض الـ POST القادم من موقع آخر (`403 LOUSHO_REQUEST_FORBIDDEN`) وجسم POST الذي ليس `Content-Type: application/json` (`415 LOUSHO_UNSUPPORTED_MEDIA_TYPE`). والخيار الجديد `allowedHosts` (مطفأ افتراضيًا) يرفض ترويسات `Host` غير المدرجة. انظر [الطلبات من مواقع أخرى](/ar/auth#الطلبات-بين-المواقع). | `allowedOrigins: ['*']`، `requireJsonBody: false` (أو أضف origin الواجهة الأمامية في `allowedOrigins`) |
+| `POST /chat/:sessionId/approvals/:id` يرد بـ`404` إلا إذا كانت الـ approval تابعة لهذه الـ session، ولا يقرّر فيها إلا المتصل الذي يعمل الـ run المتوقف نيابةً عنه. | `authorizeApproval` لتسمح لغيره (مشرف مثلًا) بالقرار |
 | `POST /chat` إلى session متوقفة على approval يرد بـ`409` JSON (`LOUSHO_SESSION_AWAITING_APPROVAL`، مع `approvalId` و`approvalIds`) بدل stream بحالة `200` ينتهي بحدث `error`. | لا يمكن تعطيله (قرّر في الـ approval أولًا) |
-| الـ routes ترسل `name` و`code` الخاصين بالخطأ مع رسالة عامة بدل نصه الخام (في أحداث `error`، وأجسام `500`، وأحداث `provider.retry` / `provider.fallback`)؛ والخطأ الكامل يروح إلى `console.error`. | `exposeErrors: true` (`lousho dev` يضبطه) |
-| العميل اللي ينقطع في منتصف الدورة ما عاد يُلغي الدورة: تكمل إلى نهايتها وتنحفظ. شوف [Next.js routes](/ar/nextjs#المسارات). | `onDisconnect: 'abort'` |
+| الـ routes ترسل `name` و`code` الخاصين بالخطأ مع رسالة عامة بدل نصه الخام (في أحداث `error`، وأجسام `500`، وأحداث `provider.retry` / `provider.fallback`)؛ ويذهب الخطأ الكامل إلى `console.error`. | `exposeErrors: true` (`lousho dev` يضبطه) |
+| العميل الذي ينقطع في منتصف الدورة لم يعد يُلغي الدورة: تكمل إلى نهايتها وتُحفظ. انظر [Next.js routes](/ar/nextjs#المسارات). | `onDisconnect: 'abort'` |
 | `lousho dev` يرد بـ`403` على أي طلب `Host` فيه ليس اسم loopback (أو، خارج الـ loopback، عنوان IP أو اسم `--host`)، للحماية من DNS rebinding؛ وهذا يشمل `/channels/<name>` لأي channel بدون `verify`. | `--allowed-hosts a,b` (تُضاف إلى القيم الافتراضية) |
-| الـ channel بدون `verify` يرفض طلب المتصفح القادم من موقع آخر (`403 LOUSHO_REQUEST_FORBIDDEN`)، و`httpChannel()` بدون `verify` يرفض الجسم اللي ما هو `Content-Type: application/json` (`415 LOUSHO_UNSUPPORTED_MEDIA_TYPE`). شوف [Channels](/ar/channels). | أعطِ الـ channel دالة `verify` (وأرسل نوع محتوى JSON من السكربتات: `curl -H 'Content-Type: application/json'`) |
-| الـ Cloudflare Worker يرفض كل routes `/chat` (الدورة، والـ transcript، وقرار الـ approval؛ `403`) لما ما يكون فيه secret اسمه `LOUSHO_API_TOKEN`. أما `/health` والـ OAuth callback والـ channels فتبقى مفتوحة. شوف [Cloudflare Workers](/ar/cloudflare-workers). | المتغيّر `LOUSHO_ALLOW_OPEN_SESSIONS` (أو `LOUSHO_ALLOW_OPEN_TRANSCRIPTS` الأقدم) بقيمة `"true"` |
-| `serveMcp()` عبر HTTP يتحقق من `Host` و`Origin` للحماية من DNS rebinding؛ والـ loopback هو بالضبط `localhost` أو عنوان `127.x.x.x` أو `::1` (ونفس الشي لـ`webhookChannel()`). | `allowedHosts` / `allowedOrigins` على الـ HTTP transport الخاص بـ`serveMcp()` (`['*']` يطفئ الفحص) |
-| Agent Forge (`lousho studio`) ما يرسل ترويسات CORS، ويرفض أي `Origin` أجنبي أو `Host` ليس loopback، ويحتاج الـ token اللي يطبعه عند كل تشغيل. شوف [Access token](/ar/agent-forge#رمز-الوصول). | لا يمكن تعطيله |
+| الـ channel بدون `verify` يرفض طلب المتصفح القادم من موقع آخر (`403 LOUSHO_REQUEST_FORBIDDEN`)، و`httpChannel()` بدون `verify` يرفض الجسم الذي ليس `Content-Type: application/json` (`415 LOUSHO_UNSUPPORTED_MEDIA_TYPE`). انظر [Channels](/ar/channels). | أعطِ الـ channel دالة `verify` (وأرسل نوع محتوى JSON من السكربتات: `curl -H 'Content-Type: application/json'`) |
+| الـ Cloudflare Worker يرفض كل routes `/chat` (الدورة، والـ transcript، وقرار الـ approval؛ `403`) عندما لا يوجد secret اسمه `LOUSHO_API_TOKEN`. أما `/health` والـ OAuth callback والـ channels فتبقى مفتوحة. انظر [Cloudflare Workers](/ar/cloudflare-workers). | المتغيّر `LOUSHO_ALLOW_OPEN_SESSIONS` (أو `LOUSHO_ALLOW_OPEN_TRANSCRIPTS` الأقدم) بقيمة `"true"` |
+| `serveMcp()` عبر HTTP يتحقق من `Host` و`Origin` للحماية من DNS rebinding؛ والـ loopback هو بالضبط `localhost` أو عنوان `127.x.x.x` أو `::1` (والأمر نفسه لـ`webhookChannel()`). | `allowedHosts` / `allowedOrigins` على الـ HTTP transport الخاص بـ`serveMcp()` (`['*']` يطفئ الفحص) |
+| Agent Forge (`lousho studio`) لا يرسل ترويسات CORS، ويرفض أي `Origin` أجنبي أو `Host` ليس loopback، ويحتاج الـ token الذي يطبعه عند كل تشغيل. انظر [Access token](/ar/agent-forge#رمز-الوصول). | لا يمكن تعطيله |
 | `fromUIMessages()` (وبالتالي `POST <base>/ui`) يتجاهل رسائل `system` المرسلة من العميل وأي role غير `user` / `assistant`. | لا يمكن تعطيله |
 | فحوص توقيع Slack وDiscord تقبل timestamp متقدمًا بدقيقة كحد أقصى (كانت خمس دقائق في الاتجاهين)، ويُقرأ بالثواني. | لا يمكن تعطيله |
-| `telegramChannel` و`teamsChannel` ما عادا ينشران رابط تسجيل دخول OAuth في محادثة جماعية. | لا يمكن تعطيله |
-| الـ channels بدون `store` تحفظ الـ transcripts في `createAgent({ store })` الخاص بالـ agent لما يكون فيه `sessions`. | مرّر للـ channel الـ `store` الخاص به |
-| الـ node-server المبني (وصورة Docker) يشترط `LOUSHO_API_TOKEN` / `auth.ts` على `/channels/<name>` للـ channel اللي ما عنده `verify` لما يكون token أو `auth.ts` مضبوطًا؛ والـ channels اللي تتحقق من نفسها ما تغيّرت. | أعطِ الـ channel دالة `verify` |
+| `telegramChannel` و`teamsChannel` لم يعودا ينشران رابط تسجيل دخول OAuth في محادثة جماعية. | لا يمكن تعطيله |
+| الـ channels بدون `store` تحفظ الـ transcripts في `createAgent({ store })` الخاص بالـ agent عندما يحتوي على `sessions`. | مرّر للـ channel الـ `store` الخاص به |
+| الـ node-server المبني (وصورة Docker) يشترط `LOUSHO_API_TOKEN` / `auth.ts` على `/channels/<name>` للـ channel الذي لا يملك `verify` عندما يكون token أو `auth.ts` مضبوطًا؛ والـ channels التي تتحقق من نفسها لم تتغيّر. | أعطِ الـ channel دالة `verify` |
 | `webhookChannel` يرد بـ`{ sessionId, text, finishReason, approval? }` بدل الـ `ExecutionResult` الكامل. | `webhookChannel({ fullResult: true })` |
-| دورة channel على session تشغّلها عملية ثانية ترد بـ`409` (`LOUSHO_SESSION_BUSY`، `Retry-After: 2`) بدل `500`. | لا يمكن تعطيله (أعد المحاولة بعد المهلة) |
-| `POST /chat` على session تشغّلها عملية ثانية يرد بـ`409` (`LOUSHO_SESSION_BUSY`، `Retry-After: 2`) بدل stream بحالة `200` ما فيه إلا الخطأ. | لا يمكن تعطيله (أعد المحاولة بعد المهلة) |
-| السيرفر المبني يستأنف الـ runs اللي خلّاها crash قيد التنفيذ لما يبدأ، وكل 30 ثانية. | `LOUSHO_RECOVER_ON_START=0` |
-| الـ node-server المبني (وبالتالي صورة Docker، اللي تضبط `HOST=0.0.0.0`) يرفض يبدأ على host ليس loopback بدون auth (لا `LOUSHO_API_TOKEN` ولا token مبني ولا `auth.ts`): يخرج بـ`LOUSHO_SERVER_UNPROTECTED` بدل ما يقدّم agent مفتوحًا مع تحذير. الـ hosts من نوع loopback ما تغيّرت. شوف [المصادقة](/ar/deployment#المصادقة). | اضبط `LOUSHO_API_TOKEN` (أو أضف `auth.ts`)، أو `LOUSHO_ALLOW_PUBLIC=1` لتقديم الـ agent المفتوح عن قصد |
+| دورة channel على session تشغّلها عملية أخرى ترد بـ`409` (`LOUSHO_SESSION_BUSY`، `Retry-After: 2`) بدل `500`. | لا يمكن تعطيله (أعد المحاولة بعد المهلة) |
+| `POST /chat` على session تشغّلها عملية أخرى يرد بـ`409` (`LOUSHO_SESSION_BUSY`، `Retry-After: 2`) بدل stream بحالة `200` لا يحتوي إلا الخطأ. | لا يمكن تعطيله (أعد المحاولة بعد المهلة) |
+| السيرفر المبني يستأنف الـ runs التي تركها crash قيد التنفيذ عندما يبدأ، وكل 30 ثانية. | `LOUSHO_RECOVER_ON_START=0` |
+| الـ node-server المبني (وبالتالي صورة Docker، التي تضبط `HOST=0.0.0.0`) يرفض أن يبدأ على host ليس loopback بدون auth (لا `LOUSHO_API_TOKEN` ولا token مبني ولا `auth.ts`): يخرج بـ`LOUSHO_SERVER_UNPROTECTED` بدلًا من أن يقدّم agent مفتوحًا مع تحذير. الـ hosts من نوع loopback لم تتغيّر. انظر [المصادقة](/ar/deployment#المصادقة). | اضبط `LOUSHO_API_TOKEN` (أو أضف `auth.ts`)، أو `LOUSHO_ALLOW_PUBLIC=1` لتقديم الـ agent المفتوح عن قصد |
 
 ### الـ sessions والـ approvals والمتانة
 
 | التغيير | طريقة التعطيل |
 | ------ | ------- |
-| `agent.recover()` يتراجع (back off) بعد آخر فشل للـ run ويوقف استئنافه بعد 10 إخفاقات متتالية، وينادي `onQuarantined(run)` مرة واحدة، بدل ما يستأنفه في كل sweep للأبد. شوف [الاستعادة التلقائية](/ar/durable-execution#الاستعادة-التلقائية). | قيمة أكبر لـ`maxAttempts` |
-| الـ run المحفوظ بـcheckpoint يمسك run lease أثناء تنفيذه: أي عملية ثانية أو replica أو store object يرسل لنفس الـ session، أو يستأنفها، أو يحسم واحدة من الـ approvals الخاصة بها، يفشل بـ`LOUSHO_SESSION_BUSY` بدل ما ينفّذ الـ tool calls مرة ثانية. شوف [Run leases](/ar/durable-execution#run-leases). | لا يمكن تعطيله (الـ `CheckpointStore` المخصص بدون `acquireLease()` ما يحصل على lease) |
-| الـ approvals تشتغل مرة واحدة على الأكثر: الحسم فيها يعيد حفظ الدورة كـ`'in-progress'` مع الاستدعاء في `Checkpoint.startedToolCallIds`؛ وبعد crash في منتصف الاستدعاء، الاستئناف يعطي هذا الاستدعاء خطأ tool من نوع `kind: 'interrupted'` بدل ما يشغّله من جديد. شوف [الضمانات](/ar/durable-execution#الضمانات). | لا يمكن تعطيله |
+| `agent.recover()` يتراجع (back off) بعد آخر فشل للـ run ويوقف استئنافه بعد 10 إخفاقات متتالية، وينادي `onQuarantined(run)` مرة واحدة، بدلًا من أن يستأنفه في كل sweep إلى الأبد. انظر [الاستعادة التلقائية](/ar/durable-execution#الاستعادة-التلقائية). | قيمة أكبر لـ`maxAttempts` |
+| الـ run المحفوظ بـcheckpoint يمسك run lease أثناء تنفيذه: أي عملية أخرى أو replica أو store object يرسل لنفس الـ session، أو يستأنفها، أو يحسم واحدة من الـ approvals الخاصة بها، يفشل بـ`LOUSHO_SESSION_BUSY` بدلًا من أن ينفّذ الـ tool calls مرة ثانية. انظر [Run leases](/ar/durable-execution#run-leases). | لا يمكن تعطيله (الـ `CheckpointStore` المخصص بدون `acquireLease()` لا يحصل على lease) |
+| الـ approvals تعمل مرة واحدة على الأكثر: الحسم فيها يعيد حفظ الدورة كـ`'in-progress'` مع الاستدعاء في `Checkpoint.startedToolCallIds`؛ وبعد crash في منتصف الاستدعاء، الاستئناف يعطي هذا الاستدعاء خطأ tool من نوع `kind: 'interrupted'` بدلًا من أن يشغّله من جديد. انظر [الضمانات](/ar/durable-execution#الضمانات). | لا يمكن تعطيله |
 | حسم approval انحذف الـ run الخاص بها أو استُبدل يفشل بـ`LOUSHO_APPROVAL_ORPHANED` ويسحبها (كان يكتب فوق المحادثة الأحدث). | لا يمكن تعطيله |
 | دورة الـ session المتوقفة بانتظار approval تقفل معرّف الـ session: أي دورة جديدة عليها ترمي `SessionAwaitingApprovalError` (`LOUSHO_SESSION_AWAITING_APPROVAL`). | احسم الـ approval، أو `session.discardPending()` |
-| دورات الـ session تحتفظ بتاريخ الـ checkpoints لآخر 10 دورات مكتملة. شوف [Durable sessions](/ar/sessions#durable-sessions). | `agent.session({ id, turnHistoryLimit })` بعدد صحيح أكبر |
-| معرّف الـ run (`sessionId` في `agent.send()` / `agent.stream()`، و`newSessionId` في الـ fork) لازم يكون من 1 إلى 200 حرف من `A-Za-z0-9_.-`، ما يبدأ ولا ينتهي بـ`.`، على كل الـ stores، وما ينتهي بـ`.turn-<n>` أو `.paused` أو `.fire` (حجز إطلاق الـ schedule)؛ و`''` مرفوض. وهذه ليست قاعدة معرّف الـ session: معرّف الـ session (`agent.session({ id })`، و`sessionId` في الـ routes وفي `lousho dev`، و`lousho chat --session`) ما زال من 1 إلى 128 حرفًا من `A-Za-z0-9_-`، بدون `.`. والاثنان يفشلان بـ`LOUSHO_SESSION_ID_INVALID`. | لا يمكن تعطيله |
-| الـ lease اللي تركته عملية ماتت على جهاز آخر (أو في container آخر بنفس الـ hostname) يُستولى عليه بعد 30 إلى 60 ثانية من آخر heartbeat (مهلة لفرق الساعات)، لا عند 30 ثانية. شوف [Run leases](/ar/durable-execution#run-leases). | لا يمكن تعطيله |
-| أثناء الـ rolling upgrade، الـ replicas اللي ما زالت على إصدار أقدم لا تأخذ run leases ولا تحترمها، فممكن الدورة تشتغل مرتين لين تترقى كل الـ replicas. وقاعدة بيانات SQLite اللي يفتحها هذا الإصدار تُرحَّل ثم ترفضها الإصدارات الأقدم. | رقِّ كل الـ replicas مع بعض؛ واحتفظ بنسخة من قاعدة البيانات للرجوع |
-| `approvalTtlMs` (و`ttlMs` في قاعدة `ask`) فوق 100 سنة يرمي `LOUSHO_CONFIG_INVALID` بدل ما يعني "لا تنتهي أبدًا". | اتركه فارغًا للتوقفات اللي ما تنتهي |
+| دورات الـ session تحتفظ بتاريخ الـ checkpoints لآخر 10 دورات مكتملة. انظر [Durable sessions](/ar/sessions#durable-sessions). | `agent.session({ id, turnHistoryLimit })` بعدد صحيح أكبر |
+| معرّف الـ run (`sessionId` في `agent.send()` / `agent.stream()`، و`newSessionId` في الـ fork) يجب أن يكون من 1 إلى 200 حرف من `A-Za-z0-9_.-`، لا يبدأ ولا ينتهي بـ`.`، على كل الـ stores، ولا ينتهي بـ`.turn-<n>` أو `.paused` أو `.fire` (حجز إطلاق الـ schedule)؛ و`''` مرفوض. وهذه ليست قاعدة معرّف الـ session: معرّف الـ session (`agent.session({ id })`، و`sessionId` في الـ routes وفي `lousho dev`، و`lousho chat --session`) ما زال من 1 إلى 128 حرفًا من `A-Za-z0-9_-`، بدون `.`. والاثنان يفشلان بـ`LOUSHO_SESSION_ID_INVALID`. | لا يمكن تعطيله |
+| الـ lease الذي تركته عملية ماتت على جهاز آخر (أو في container آخر بنفس الـ hostname) يُستولى عليه بعد 30 إلى 60 ثانية من آخر heartbeat (مهلة لفرق الساعات)، لا عند 30 ثانية. انظر [Run leases](/ar/durable-execution#run-leases). | لا يمكن تعطيله |
+| أثناء الـ rolling upgrade، الـ replicas التي ما زالت على إصدار أقدم لا تأخذ run leases ولا تحترمها، فقد تعمل الدورة مرتين حتى تترقى كل الـ replicas. وقاعدة بيانات SQLite التي يفتحها هذا الإصدار تُرحَّل ثم ترفضها الإصدارات الأقدم. | رقِّ كل الـ replicas معًا؛ واحتفظ بنسخة من قاعدة البيانات للرجوع |
+| `approvalTtlMs` (و`ttlMs` في قاعدة `ask`) فوق 100 سنة يرمي `LOUSHO_CONFIG_INVALID` بدلًا من أن يعني "لا تنتهي أبدًا". | اتركه فارغًا للتوقفات التي لا تنتهي |
 | خطأ provider حتمي يسجّل `lastError` على checkpoint الدورة، والاستدعاءات اللاحقة على تلك الـ session تفشل فورًا بـ`LOUSHO_SESSION_TURN_FAILED`. | `session.discardPending()`، أو أصلح السبب ثم `session.resume()` |
 | مع store، الـ tools و`needsApproval` وقواعد الصلاحيات والـ hooks تحصل على معرّف الـ session في `ctx.sessionId`، لا على مفتاح checkpoint الدورة `<id>.turn-<n>`. | لا يمكن تعطيله |
-| عدة استدعاءات في خطوة واحدة تحتاج approval تتوقف مرة واحدة على كلها (`result.approvalIds`)؛ والاستدعاءات اللي ما تحتاج approval تشتغل قبل التوقف. شوف [عدة استدعاءات في خطوة واحدة](/ar/approvals#عدة-calls-في-خطوة-واحدة). | لا يمكن تعطيله |
-| `once()` ما عاد يتذكر الموافقة اللي جاءت من callback `createAgent({ approve })`، والـ approval اللي ملاحظتها بالضبط `'defer'` تؤجَّل. | لا يمكن تعطيله |
+| عدة استدعاءات في خطوة واحدة تحتاج approval تتوقف مرة واحدة على كلها (`result.approvalIds`)؛ والاستدعاءات التي لا تحتاج approval تعمل قبل التوقف. انظر [عدة استدعاءات في خطوة واحدة](/ar/approvals#عدة-calls-في-خطوة-واحدة). | لا يمكن تعطيله |
+| `once()` لم يعد يتذكر الموافقة التي جاءت من callback `createAgent({ approve })`، والـ approval التي ملاحظتها بالضبط `'defer'` تؤجَّل. | لا يمكن تعطيله |
 | الـ checkpoint التالف يفشل بـ`LOUSHO_CHECKPOINT_CORRUPT` (كان يرمي `SyntaxError` خام). | لا يمكن تعطيله |
-| الـ memory slots تخزّن العناصر تحت `<slot name>#<scope key>`؛ والعناصر اللي كتبها alpha.19 ما تُقرأ. | شغّل `migrateMemoryKeys(slot)` مرة واحدة لكل slot ([Memory](/ar/memory#عناصر-من-قبل-مفاتيح-اسم-الـ-slot)) |
+| الـ memory slots تخزّن العناصر تحت `<slot name>#<scope key>`؛ والعناصر التي كتبها alpha.19 لا تُقرأ. | شغّل `migrateMemoryKeys(slot)` مرة واحدة لكل slot ([Memory](/ar/memory#عناصر-من-قبل-مفاتيح-اسم-الـ-slot)) |
 | الاسترجاع بالكلمات المفتاحية (`inMemoryMemory` و`fileMemory` و`sqliteMemory` وذاكرة الـ worker) يطابق كلمات كاملة بدل أجزاء من النص. | لا يمكن تعطيله |
-| الـ prompt schedule يشغّل كل إطلاق في session خاصة به، `schedule-<name>-<fire time>`. شوف [Prompt schedules والـ sessions](/ar/schedules#الـ-prompt-schedules-والـ-sessions). | `defineSchedule({ sharedSession: true })` |
-| `FlowExecutor.resume()` يرفض الـ flow اللي تغيّرت خطواته من وقت ما انحفظ الـ run (`LOUSHO_FLOW_CHANGED`). | لا يمكن تعطيله |
+| الـ prompt schedule يشغّل كل إطلاق في session خاصة به، `schedule-<name>-<fire time>`. انظر [Prompt schedules والـ sessions](/ar/schedules#الـ-prompt-schedules-والـ-sessions). | `defineSchedule({ sharedSession: true })` |
+| `FlowExecutor.resume()` يرفض الـ flow الذي تغيّرت خطواته منذ أن حُفظ الـ run (`LOUSHO_FLOW_CHANGED`). | لا يمكن تعطيله |
 
 ### الـ providers واستدعاءات الـ model
 
 | التغيير | طريقة التعطيل |
 | ------ | ------- |
-| `createAgent({ provider })` مع instance من provider مدمج أو provider من `fromAiSdk()` وبدون `retry` يغلّفه بـ`withRetry()` بقيمة `maxRetries` الخاصة بالـ provider (الافتراضي 2): إعادات المحاولة تصدر `provider.retry`، و`fromAiSdk()` صار يعيد المحاولة (ما كان يعيدها). شوف [Provider retries and fallback](/ar/configuration#الـ-retry-والـ-fallback-عند-الـ-provider). | `retry: false` |
-| الاستدعاء المحدود بالمعدل (429) صار كوده `LOUSHO_PROVIDER_RATE_LIMITED` بدل `LOUSHO_PROVIDER_REQUEST_FAILED`. والحساب اللي خلص رصيده (`insufficient_quota`، أو 402) يقع في الفئة غير القابلة لإعادة المحاولة `quota-exceeded`. | لا يمكن تعطيله: طابق الكودين |
-| الـ `timeout` في الـ providers المدمجة صار مطبّقًا: 10 دقائق افتراضيًا، لانتظار بداية الرد وبين أي chunkين. شوف [Request timeout](/ar/providers#مهلة-الـ-request). | `timeout: 0` (أو `Infinity`) |
-| `OpenAIProvider` يرسل `store: false` على Responses API. شوف [OpenAI response storage](/ar/providers#تخزين-ردود-openai-store). | `store: true` |
-| جزء ملف من المستخدم ما يقدر الـ provider يرسله يرفض الاستدعاء بـ`LOUSHO_UNSUPPORTED_CONTENT` بدل ملاحظة `[file ... not sent]`. شوف [Multimodal input](/ar/providers#إدخال-multimodal). | `unsupportedFiles: 'text-note'` |
-| `LLMProviderConfig` ما عاد فيه index signature: الخيار المكتوب غلط صار type error. | وسّع الـ interface بحقول الـ provider المخصص الخاصة به |
-| رد 200 يحمل فشلًا (`finish_reason: "error"`، أو chunk من نوع `error`) يُفشل الاستدعاء بخطأ قابل لإعادة المحاولة بدل ما ينجح بنص مقطوع؛ والـ finish reason غير المعروف صار `'other'`، و`ExecutionFinishReason` صار union مغلق. | لا يمكن تعطيله |
-| الـ run الملغى ينتهي بـ`finishReason: 'aborted'` فورًا، حتى لو الـ provider تجاهل الإشارة. شوف [الإلغاء](/ar/runs#الإلغاء). | لا يمكن تعطيله |
+| `createAgent({ provider })` مع instance من provider مدمج أو provider من `fromAiSdk()` وبدون `retry` يغلّفه بـ`withRetry()` بقيمة `maxRetries` الخاصة بالـ provider (الافتراضي 2): إعادات المحاولة تصدر `provider.retry`، و`fromAiSdk()` أصبح يعيد المحاولة (لم يكن يعيدها). انظر [Provider retries and fallback](/ar/configuration#الـ-retry-والـ-fallback-عند-الـ-provider). | `retry: false` |
+| الاستدعاء المحدود بالمعدل (429) أصبح كوده `LOUSHO_PROVIDER_RATE_LIMITED` بدل `LOUSHO_PROVIDER_REQUEST_FAILED`. والحساب الذي نفد رصيده (`insufficient_quota`، أو 402) يقع في الفئة غير القابلة لإعادة المحاولة `quota-exceeded`. | لا يمكن تعطيله: طابق الكودين |
+| الـ `timeout` في الـ providers المدمجة أصبح مطبّقًا: 10 دقائق افتراضيًا، لانتظار بداية الرد وبين أي chunkين. انظر [Request timeout](/ar/providers#مهلة-الـ-request). | `timeout: 0` (أو `Infinity`) |
+| `OpenAIProvider` يرسل `store: false` على Responses API. انظر [OpenAI response storage](/ar/providers#تخزين-ردود-openai-store). | `store: true` |
+| جزء ملف من المستخدم لا يستطيع الـ provider إرساله يرفض الاستدعاء بـ`LOUSHO_UNSUPPORTED_CONTENT` بدل ملاحظة `[file ... not sent]`. انظر [Multimodal input](/ar/providers#إدخال-multimodal). | `unsupportedFiles: 'text-note'` |
+| لم يعد `LLMProviderConfig` يحتوي index signature: أصبح الخيار المكتوب خطأً type error. | وسّع الـ interface بحقول الـ provider المخصص الخاصة به |
+| رد 200 يحمل فشلًا (`finish_reason: "error"`، أو chunk من نوع `error`) يُفشل الاستدعاء بخطأ قابل لإعادة المحاولة بدلًا من أن ينجح بنص مقطوع؛ والـ finish reason غير المعروف أصبح `'other'`، وأصبح `ExecutionFinishReason` union مغلقًا. | لا يمكن تعطيله |
+| الـ run الملغى ينتهي بـ`finishReason: 'aborted'` فورًا، حتى لو الـ provider تجاهل الإشارة. انظر [الإلغاء](/ar/runs#الإلغاء). | لا يمكن تعطيله |
 | الـ provider `openrouter` المنشأ بدون `apiKey` يقرأ `OPENROUTER_API_KEY` (كان يرسل `OPENAI_API_KEY`). | مرّر `apiKey` |
-| نطاق الـ peer `@modelcontextprotocol/sdk` صار `^1.31.0`. | لا يمكن تعطيله |
-| مع `output`، الـ `responseFormat` يُرسل فقط في استدعاءات الـ model اللي ما تعرض tools (agent بدون tools، واستدعاء "أجب الآن" عند `maxSteps`، وخطوة الإصلاح)؛ والاستدعاء اللي يعرض tools يعتمد على الـ schema الموجودة في الـ prompt. الـ `json_schema` الصارم بجانب الـ tools كان يخلّي `openai/gpt-4o-mini` عبر OpenRouter يستدعي الـ tools لين `maxSteps`. شوف [كيف يعمل](/ar/structured-output#كيف-يشتغل). | `output: { schema, responseFormat: 'always' }` (وهو أصلًا الافتراضي مع `promptSchema: false`) |
+| نطاق الـ peer `@modelcontextprotocol/sdk` أصبح `^1.31.0`. | لا يمكن تعطيله |
+| مع `output`، الـ `responseFormat` يُرسل فقط في استدعاءات الـ model التي لا تعرض tools (agent بدون tools، واستدعاء "أجب الآن" عند `maxSteps`، وخطوة الإصلاح)؛ والاستدعاء الذي يعرض tools يعتمد على الـ schema الموجودة في الـ prompt. الـ `json_schema` الصارم بجانب الـ tools كان يجعل `openai/gpt-4o-mini` عبر OpenRouter يستدعي الـ tools حتى `maxSteps`. انظر [كيف يعمل](/ar/structured-output#كيف-يعمل). | `output: { schema, responseFormat: 'always' }` (وهو أصلًا الافتراضي مع `promptSchema: false`) |
 
 ### الـ tools والـ MCP والتتبّع
 
 | التغيير | طريقة التعطيل |
 | ------ | ------- |
-| الـ MCP tools تطلب approval افتراضيًا (`approval: 'always'`)؛ والـ MCP tool اللي اسمها نفس اسم tool محلية تُرفض. شوف [Approval لأدوات MCP](/ar/mcp-integration#الـ-approval-على-tools-mcp). | `approval: 'annotations'` على السيرفرات اللي تثق فيها |
+| الـ MCP tools تطلب approval افتراضيًا (`approval: 'always'`)؛ والـ MCP tool التي يطابق اسمها اسم tool محلية تُرفض. انظر [Approval لأدوات MCP](/ar/mcp-integration#الـ-approval-على-tools-mcp). | `approval: 'annotations'` على السيرفرات التي تثق بها |
 | نتائج الـ tools محدودة بـ50,000 حرف (يُحفظ أولها وآخرها). | `maxToolResultChars: Infinity` |
-| `createAgent()` و`defineTool()` يرميان `LOUSHO_CONFIG_INVALID` لأي مفتاح خيار ما يعرفانه، مع اقتراح. | لا يمكن تعطيله (احذف المفتاح أو غيّر اسمه) |
+| `createAgent()` و`defineTool()` يرميان `LOUSHO_CONFIG_INVALID` لأي مفتاح خيار لا يعرفانه، مع اقتراح. | لا يمكن تعطيله (احذف المفتاح أو غيّر اسمه) |
 | أدوات الملفات في الـ workspace ترفض `.env` و`.env.*` افتراضيًا (لكن ليس `.env.example` و`.env.sample` و`.env.template`). | مرّر قائمة `deny` خاصة بك (تحل محل الافتراضيات) |
-| `defineTool()` يرمي `LOUSHO_CONFIG_INVALID` لو جذر `input` ليس object أو فيه حقل `z.date()` / `z.bigint()`؛ ومعاملات الـ tool call اللي ما هي JSON صالح توصل للـ model كـ`LOUSHO_TOOL_ARGS_INVALID` بدل تشغيل الـ tool بـ`{}`. | لا يمكن تعطيله |
-| خطوة `toolCall` في الـ flow تمر عبر بوابة الـ agent (`permissions` و`permissionMode` والـ approval) وتتحقق من معاملاتها؛ والاستدعاء اللي يحتاج approval يفشل بـ`LOUSHO_FLOW_TOOL_DENIED` بدون `approve`. شوف [Flows](/ar/flows#استدعاءات-الـtool). | مرّر `approve` في سياق الـ flow |
-| أنماط `allow` النصية في `createShellTool` ترفض المعاملات اللي تطلع برا الـ workspace (`..` و`~` والمسارات المطلقة)، حتى عبر علامات الاقتباس. | `CommandRule` في `allow` مع فحص `args` |
-| أدوات `createFsTools` ترفض المسارات اللي تمر عبر `.git` وتستثني `.git` من نتائج `glob` و`grep` و`list_dir`. شوف [نموذج الأمان](/ar/workspace-tools#نموذج-الأمان). | `deny: []` |
-| `SubprocessSandbox` يكتب فقط تحت `root` ويشغّل الـ containers كـ`1000:1000` مع إسقاط كل الـ capabilities. شوف [Sandboxed tools](/ar/guardrails#sandboxed-tools). | `root`، `user: 'root'` |
-| نتيجة MCP المكوّنة من نص فقط توصل للـ model كـ`{ "text": ... }`. | لا يمكن تعطيله |
-| `redactContent` افتراضيًا `true`: خصائص الـ span الـ deprecated `input` / `prompt` / `args` / `result` تُستثنى، فملفات `fileTraceExporter()` ما فيها أي محتوى. شوف [Observability](/ar/observability#محتوى-الرسائل-والـ-arguments-هو-opt-in). | `redactContent: false` (أو `captureContent: true` لمحتوى `gen_ai.*`) |
-| محتوى `gen_ai.*` المسجَّل (نص الرسائل، وتعليمات النظام، ومعاملات الـ tool calls ونتائجها) يمر افتراضيًا على منقّح مدمج: أشكال مفاتيح الـ API (مفاتيح OpenAI وOpenRouter وAnthropic، وtokens الخاصة بـ LangSmith وGitHub وAWS، وtokens من نوع `Bearer`) تُسجَّل كـ`[redacted]`. ما يُلمس إلا المحتوى اللي تسجّله أنت (`captureContent: true`، أو الافتراضي في observe على loopback). شوف [الأسرار في المحتوى المسجَّل](/ar/observability#الأسرار-في-المحتوى-المسجَّل). | `redactContent: false` يسجّل المحتوى كما هو؛ ودالة `(text) => string` تستبدل المنقّح بمنقّحك |
-| `agent.stream()` يعيد رمي خطأ الـ run بعد حدثي `error` و`run.done`. شوف [Streaming](/ar/streaming). | `stream(input, { throwOnError: false })` |
+| `defineTool()` يرمي `LOUSHO_CONFIG_INVALID` لو جذر `input` ليس object أو فيه حقل `z.date()` / `z.bigint()`؛ ومعاملات الـ tool call التي ليست JSON صالحًا تصل إلى الـ model كـ`LOUSHO_TOOL_ARGS_INVALID` بدل تشغيل الـ tool بـ`{}`. | لا يمكن تعطيله |
+| خطوة `toolCall` في الـ flow تمر عبر بوابة الـ agent (`permissions` و`permissionMode` والـ approval) وتتحقق من معاملاتها؛ والاستدعاء الذي يحتاج approval يفشل بـ`LOUSHO_FLOW_TOOL_DENIED` بدون `approve`. انظر [Flows](/ar/flows#استدعاءات-الـtool). | مرّر `approve` في سياق الـ flow |
+| أنماط `allow` النصية في `createShellTool` ترفض المعاملات التي تخرج عن الـ workspace (`..` و`~` والمسارات المطلقة)، حتى عبر علامات الاقتباس. | `CommandRule` في `allow` مع فحص `args` |
+| أدوات `createFsTools` ترفض المسارات التي تمر عبر `.git` وتستثني `.git` من نتائج `glob` و`grep` و`list_dir`. انظر [نموذج الأمان](/ar/workspace-tools#نموذج-الأمان). | `deny: []` |
+| `SubprocessSandbox` يكتب فقط تحت `root` ويشغّل الـ containers كـ`1000:1000` مع إسقاط كل الـ capabilities. انظر [Sandboxed tools](/ar/guardrails#sandboxed-tools). | `root`، `user: 'root'` |
+| نتيجة MCP المكوّنة من نص فقط تصل إلى الـ model كـ`{ "text": ... }`. | لا يمكن تعطيله |
+| `redactContent` افتراضيًا `true`: خصائص الـ span الـ deprecated `input` / `prompt` / `args` / `result` تُستثنى، فلا تحتوي ملفات `fileTraceExporter()` أي محتوى. انظر [Observability](/ar/observability#محتوى-الرسائل-والـ-arguments-هو-opt-in). | `redactContent: false` (أو `captureContent: true` لمحتوى `gen_ai.*`) |
+| محتوى `gen_ai.*` المسجَّل (نص الرسائل، وتعليمات النظام، ومعاملات الـ tool calls ونتائجها) يمر افتراضيًا على منقّح مدمج: أشكال مفاتيح الـ API (مفاتيح OpenAI وOpenRouter وAnthropic، وtokens الخاصة بـ LangSmith وGitHub وAWS، وtokens من نوع `Bearer`) تُسجَّل كـ`[redacted]`. لا يُمس إلا المحتوى الذي تسجّله أنت (`captureContent: true`، أو الافتراضي في observe على loopback). انظر [الأسرار في المحتوى المسجَّل](/ar/observability#الأسرار-في-المحتوى-المسجَّل). | `redactContent: false` يسجّل المحتوى كما هو؛ ودالة `(text) => string` تستبدل المنقّح بمنقّحك |
+| `agent.stream()` يعيد رمي خطأ الـ run بعد حدثي `error` و`run.done`. انظر [Streaming](/ar/streaming). | `stream(input, { throwOnError: false })` |
 | `send([])` يرمي `LOUSHO_CONFIG_INVALID`. | لا يمكن تعطيله |
 
 ### الـ CLI والـ evals وAgent Forge
 
 | التغيير | طريقة التعطيل |
 | ------ | ------- |
-| `lousho dev` و`chat` و`acp` و`mcp` و`doctor` و`eval` و`build` تحمّل `./.env` لو كان موجودًا؛ والمتغيرات المضبوطة مسبقًا لها الأولوية. شوف [CLI](/ar/cli). | احذف `.env` أو غيّر اسمه |
-| كل خطأ استخدام في `lousho` (أمر أو flag غير معروف، قيمة غلط، معامل زائد) يخرج بـ2؛ و1 يعني أن الأمر اشتغل وفشل. شوف [CLI](/ar/cli). | افحص أي exit غير صفري بدل 1 بالضبط |
-| `t.maxCostUsd(n)` يفشل لما الـ run ما يبلّغ عن تكلفة (الـ model ما له سعر معروف). شوف [Evals](/ar/evals). | `t.maxCostUsd(n, { unknownCost: 'skip' })` |
-| `lousho eval` يعطي كل حالة live و`--record` و`--drift` 10 دقائق بدل 5 ثوانٍ الخاصة بـ vitest. شوف [الحدود الزمنية](/ar/evals#حدود-الوقت). | `--timeout <ms>` أو `defineEval({ timeoutMs })` |
-| Agent Forge يُفشل الـ run على provider حقيقي بدون API key (`LOUSHO_PROVIDER_MISSING_API_KEY`) بدل ما يستخدم الـ mock provider بصمت. | غيّر provider الـ agent إلى `mock` |
-| حزمة npm ما عادت تشحن `llms-full.txt` (يبقى في المستودع؛ و`llms.txt` يُشحن). | جيب `llms-full.txt` من المستودع |
-| `lousho eval` يخرج بـ1 لما ما تشتغل أي حالة (كل الحالات تخطّاها `--tag`، أو ما فيه `defineEval()` في الملفات). | مرّر الـ tags أو الـ globs اللي تختار الحالات |
-| الـ observe daemon ينهي الـ sessions الخاملة: لما ما يكون فيه أي run مفتوح في الـ session وما بدأ أو انتهى فيها شي لمدة 30 دقيقة، تصير حالتها `ended` (مع `ended_at` = آخر نشاط فيها) بدل ما تبقى `active`؛ وأي run جديد فيها يرجّعها `active`. شوف [الـ sessions الخاملة](/ar/observability#الجلسات-الخاملة). | `lousho observe start --session-idle-minutes N` (`0` يبقي الـ sessions `active` لين يتوقف الـ agent الخاص بها) |
-| الـ observe daemon يحذف البيانات القديمة افتراضيًا: في أول sweep ثم مرة يوميًا يحذف كل trace انتهت كل observations فيه قبل أكثر من 30 يومًا، مع scores الـ trace وروابط استخدام الـ prompts، والـ sessions اللي ما عادت `active` وانتهت قبل النافذة وما عاد يشير لها شي. أما الـ trace اللي فيه run ما زال مفتوحًا، والـ sessions النشطة، وتجميعات Insights، والـ prompts، وعناصر الـ hub، وسجل الـ agents، والـ tokens، والـ datasets، وقواعد الـ evaluators، وطوابير الـ annotation فما تُحذف أبدًا. شوف [الاحتفاظ بالبيانات](/ar/observability#الاحتفاظ-بالبيانات-retention). | `lousho observe start --retention-days 0` يحتفظ بكل شي (أو `N` لنافذة أخرى) |
-| `lousho mcp --port N` أو `--host H` بدون `--http` خطأ استخدام (exit 2)؛ الـ stdio ما له port. | احذف الـ flags، أو أضف `--http` |
-| الـ `package.json` في build من نوع node-server أو docker ما عاد يذكر `lousho` (الـ bundle يحتويه). | أضفه بنفسك لو فيه كود ثاني بجانب الـ build يستورد الـ SDK |
-| حزمة npm ما عادت تشحن `dist/cli/*.js` (نسخة CommonJS من الـ CLI) ولا `dist/cli/*.d.ts`؛ و`bin/lousho.js` ما كان يحمّلها أصلًا. | شغّل الـ CLI عبر `bin/lousho.js` (`npx lousho`) |
+| `lousho dev` و`chat` و`acp` و`mcp` و`doctor` و`eval` و`build` تحمّل `./.env` لو كان موجودًا؛ والمتغيرات المضبوطة مسبقًا لها الأولوية. انظر [CLI](/ar/cli). | احذف `.env` أو غيّر اسمه |
+| كل خطأ استخدام في `lousho` (أمر أو flag غير معروف، قيمة خاطئة، معامل زائد) يخرج بـ2؛ و1 يعني أن الأمر عمل وفشل. انظر [CLI](/ar/cli). | افحص أي exit غير صفري بدل 1 بالضبط |
+| `t.maxCostUsd(n)` يفشل عندما لا يبلّغ الـ run عن تكلفة (ليس للـ model سعر معروف). انظر [Evals](/ar/evals). | `t.maxCostUsd(n, { unknownCost: 'skip' })` |
+| `lousho eval` يعطي كل حالة live و`--record` و`--drift` 10 دقائق بدل 5 ثوانٍ الخاصة بـ vitest. انظر [الحدود الزمنية](/ar/evals#حدود-الوقت). | `--timeout <ms>` أو `defineEval({ timeoutMs })` |
+| Agent Forge يُفشل الـ run على provider حقيقي بدون API key (`LOUSHO_PROVIDER_MISSING_API_KEY`) بدلًا من أن يستخدم الـ mock provider بصمت. | غيّر provider الـ agent إلى `mock` |
+| لم تعد حزمة npm تشحن `llms-full.txt` (يبقى في المستودع؛ و`llms.txt` يُشحن). | احصل على `llms-full.txt` من المستودع |
+| `lousho eval` يخرج بـ1 عندما لا تعمل أي حالة (كل الحالات تخطّاها `--tag`، أو لا يوجد `defineEval()` في الملفات). | مرّر الـ tags أو الـ globs التي تختار الحالات |
+| الـ observe daemon ينهي الـ sessions الخاملة: عندما لا يوجد أي run مفتوح في الـ session ولم يبدأ أو ينتهِ فيها شيء لمدة 30 دقيقة، تصبح حالتها `ended` (مع `ended_at` = آخر نشاط فيها) بدلًا من أن تبقى `active`؛ وأي run جديد فيها يرجّعها `active`. انظر [الـ sessions الخاملة](/ar/observability#الجلسات-الخاملة). | `lousho observe start --session-idle-minutes N` (`0` يبقي الـ sessions `active` حتى يتوقف الـ agent الخاص بها) |
+| الـ observe daemon يحذف البيانات القديمة افتراضيًا: في أول sweep ثم مرة يوميًا يحذف كل trace انتهت كل observations فيه قبل أكثر من 30 يومًا، مع scores الـ trace وروابط استخدام الـ prompts، والـ sessions التي لم تعد `active` وانتهت قبل النافذة ولم يعد يشير إليها شيء. أما الـ trace الذي فيه run ما زال مفتوحًا، والـ sessions النشطة، وتجميعات Insights، والـ prompts، وعناصر الـ hub، وسجل الـ agents، والـ tokens، والـ datasets، وقواعد الـ evaluators، وطوابير الـ annotation فلا تُحذف أبدًا. انظر [الاحتفاظ بالبيانات](/ar/observability#الاحتفاظ-بالبيانات-retention). | `lousho observe start --retention-days 0` يحتفظ بكل شيء (أو `N` لنافذة أخرى) |
+| `lousho mcp --port N` أو `--host H` بدون `--http` خطأ استخدام (exit 2)؛ ليس للـ stdio port. | احذف الـ flags، أو أضف `--http` |
+| الـ `package.json` في build من نوع node-server أو docker لم يعد يذكر `lousho` (الـ bundle يحتويه). | أضفه بنفسك إذا كان هناك كود آخر بجانب الـ build يستورد الـ SDK |
+| حزمة npm لم تعد تشحن `dist/cli/*.js` (نسخة CommonJS من الـ CLI) ولا `dist/cli/*.d.ts`؛ و`bin/lousho.js` لم يكن يحمّلها أصلًا. | شغّل الـ CLI عبر `bin/lousho.js` (`npx lousho`) |
 
 ## ما تعد به 1.0
 
@@ -326,12 +326,12 @@ const lead = createAgent({
   و`/vue` و`/svelte` - وكل اسم في تقارير الـ API المودعة في المستودع
   (`api/index.api.md`, `api/executor.api.md`, ... في المستودع).
   حذف واحد منها أو إعادة تسميته أو تغيير توقيعه يحتاج major version.
-- **داخلي (internal)**: كل شي ثاني، بما فيه الـ deep imports داخل
-  `dist/` أو `src/` (أي مسار ما يذكره `exports`) والأسماء اللي
-  يستخدمها توقيع عام بس ما يصدّرها (بنود `ae-forgotten-export` في
-  التقارير). هذه ممكن تتغير في أي إصدار.
-- **Deprecated**: الأسماء المعلّمة بـ`@deprecated` تبقى تشتغل طوال
-  1.x وتنحذف في 2.0.
+- **داخلي (internal)**: كل شيء آخر، بما فيه الـ deep imports داخل
+  `dist/` أو `src/` (أي مسار لا يذكره `exports`) والأسماء التي
+  يستخدمها توقيع عام لكن لا يصدّرها (بنود `ae-forgotten-export` في
+  التقارير). هذه قد تتغير في أي إصدار.
+- **Deprecated**: الأسماء المعلّمة بـ`@deprecated` تظل تعمل طوال
+  1.x وتُحذف في 2.0.
 
 الـ CI يقارن التقارير في كل pull request، فأي تغيير في السطح العام
 يكون دائمًا diff مقصود ومُراجَع.

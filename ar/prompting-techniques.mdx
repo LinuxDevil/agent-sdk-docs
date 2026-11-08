@@ -30,7 +30,7 @@ Lousho يعطيك الطبقتين الثانية والثالثة كآليات 
 | ReAct | تبادل بين الاستدلال والتنفيذ | حلقة الـ agent نفسها: كل حلقة tools في Lousho هي ReAct |
 | Reflexion | تنتقد المحاولة السابقة، ثم تعيد المحاولة مع هذا النقد | [evaluator-loop](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/evaluator-loop): ملاحظات `llmCritique` تُنقل إلى المسودة التالية |
 | Least-to-most | تحل المسألة الفرعية الأسهل أولًا، ثم تتدرج إلى الأصعب | تعليمات تقسّم المهمة إلى خطوات مرتبة، أو تسلسل `flows` |
-| Plan-and-solve / plan-and-execute | تكتب خطة، ثم تنفذها | `permissionMode: 'plan'`: الـ agent لازم يقدّم خطة قبل تشغيل أي tool كتابة؛ راجع [plan-mode](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/plan-mode) |
+| Plan-and-solve / plan-and-execute | تكتب خطة، ثم تنفذها | `permissionMode: 'plan'`: يجب أن يقدّم الـ agent خطة قبل تشغيل أي tool كتابة؛ راجع [plan-mode](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/plan-mode) |
 | Skeleton-of-thought | مخطط أولًا، ثم توسيع كل نقطة (بالتوازي) | توزيع `task` على نقاط المخطط: شكل deep-research |
 | Self-ask | الـ model يسأل أسئلته اللاحقة ويجيب عنها بنفسه | تعليمات، أو flow صريح بـ `oneOf` يكرر sub-agent للتوضيح |
 | Generated knowledge | تطلب من الـ model ذكر الحقائق المتعلقة، ثم يجيب | `llmCall` أول يكتب في متغير، والـ prompt الثاني يُبنى من قالب يستخدمه |
@@ -39,11 +39,11 @@ Lousho يعطيك الطبقتين الثانية والثالثة كآليات 
 | Negative / constrained prompting | "لا تفعل X أبدًا"، وقيود على المخرجات | تعليمات للأسلوب؛ أما الفرض فمكانه [guardrails](/ar/guardrails) وقواعد الصلاحيات، لا الـ prompt |
 | Delimiters & instruction hierarchy | تمييز البيانات غير الموثوقة عن التعليمات | ضع نتائج الـ tools والبيانات بين علامات اقتباس في التعليمات؛ لكن حدّ الثقة الحقيقي هو قواعد الصلاحيات و `principal`: نتيجة tool عدائية لا تستطيع تجاوز قاعدة `deny` |
 | Scratchpad | تعطي الـ model مكانًا يكتب فيه ملاحظات العمل | خانة ذاكرة (tools `remember_*`/`recall_*`)، أو ملف في مجلد tools مساحة العمل، أو `.claude/scratchpad/` عبر `claudeProject()` |
-| Structured / constrained output | الإجابة لازم تطابق schema | `createAgent({ output: schema })`: مع validation، و typed، وإعادة محاولة عند فشل التحليل. راجع [المخرجات المنظمة](/ar/structured-output) |
+| Structured / constrained output | يجب أن تطابق الإجابة schema | `createAgent({ output: schema })`: مع validation، و typed، وإعادة محاولة عند فشل التحليل. راجع [المخرجات المنظمة](/ar/structured-output) |
 
 قاعدتان عمليتان:
 
-- التعليمات توجّه، والآليات تفرض. أي شيء لازم *ألا* يحدث أبدًا
+- التعليمات توجّه، والآليات تفرض. أي شيء يجب *ألا* يحدث أبدًا
   (لا حذف، لا كتابة على الإنتاج) مكانه `permissions` و guardrails و tools،
   لا الـ prompt.
 - التقنيات التي تستهلك tokens أكثر (self-consistency، والأشجار، والنقد) تستحق
@@ -79,7 +79,7 @@ const agent = createAgent({
 ```
 
 الترتيب العملي: اكتب الحقائق الدائمة في الذاكرة، واختر الـ skills والـ tools
-عند الحاجة، واضغط النص المتراكم للمحادثة لما يكبر، واعزل كل شيء يستهلك
+عند الحاجة، واضغط النص المتراكم للمحادثة عندما يكبر، واعزل كل شيء يستهلك
 tokens كثيرة (نتائج البحث الكاملة، وقراءة الملفات، ومخرجات العمليات الفرعية)
 خلف sub-agent أو tool يرجع خلاصة.
 

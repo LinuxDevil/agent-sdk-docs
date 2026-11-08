@@ -3,19 +3,19 @@ title: "Guardrails و sandboxing"
 ---
 {/* Generated from docs/guardrails.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-أدوات تشغّل الـ agents بأمان: **input و output guardrails** تفحص اللي يدخل أي run واللي يطلع منه (ومعاملات الـ tool calls)، و**patch checks** فحوص fail-closed على تغيير مقترح قبل ما تتصرّف عليه، و**sandboxed tools** تشتغل داخل container معزولة بدل عملية الـ host. للقرارات البشرية على كل call شوف [Approvals](/ar/approvals)؛ وللـ hooks اللي تفحص أو ترفض كل tool call شوف [Hooks](/ar/hooks).
+أدوات تشغّل الـ agents بأمان: **input و output guardrails** تفحص ما يدخل أي run وما يخرج منه (ومعاملات الـ tool calls)، و**patch checks** فحوص fail-closed على تغيير مقترح قبل أن تتصرّف بناءً عليه، و**sandboxed tools** تعمل داخل container معزولة بدلًا من عملية الـ host. للقرارات البشرية على كل call انظر [Approvals](/ar/approvals)؛ وللـ hooks التي تفحص كل tool call أو ترفضه انظر [Hooks](/ar/hooks).
 
 ## Input و output guardrails
 
-`createAgent({ guardrails })` (أو `ExecuteOptions.guardrails`) يفحص الـ run في ثلاث نقاط، وكل قائمة تشتغل بالترتيب:
+`createAgent({ guardrails })` (أو `ExecuteOptions.guardrails`) يفحص الـ run في ثلاث نقاط، وكل قائمة تعمل بالترتيب:
 
 | القائمة | تفحص | متى |
 | ---- | ------- | ---- |
-| `input` | كل رسالة مستخدم جديدة (رسائل المستخدم اللي تنهي سجل المحادثة) | قبل أول model call. لو انحجب، ما يصير model call أصلاً. أما input guardrail عليه `runInParallel` فيشتغل وأول model call شغّال (شوف تحت). |
-| `output` | نص الـ assistant النهائي؛ وفي run من نوع `stream()` (اللي تلفّ عليه بـ loop)، نص كل step. `send()` مع listener يفحص النص النهائي فقط. | قبل ما يطلع: قبل `text.done` حقّه، وقبل `run.done`. |
-| `tools` | معاملات الـ tool call (`text` هي المعاملات بصيغة JSON، و`args` الكائن) | بعد [قواعد الصلاحيات](/ar/approvals#سياسات-الصلاحيات) (يتخطّى الفحص لو قاعدة رفضت الـ call) وقبل `needsApproval`. |
+| `input` | كل رسالة مستخدم جديدة (رسائل المستخدم التي تنهي سجل المحادثة) | قبل أول model call. إذا حُجب، لا يحدث model call أصلاً. أما input guardrail الذي عليه `runInParallel` فيعمل بينما أول model call قيد التشغيل (انظر أدناه). |
+| `output` | نص الـ assistant النهائي؛ وفي run من نوع `stream()` (الذي تمرّ عليه بـ loop)، نص كل step. `send()` مع listener يفحص النص النهائي فقط. | قبل أن يخرج: قبل `text.done` الخاص به، وقبل `run.done`. |
+| `tools` | معاملات الـ tool call (`text` هي المعاملات بصيغة JSON، و`args` الكائن) | بعد [قواعد الصلاحيات](/ar/approvals#سياسات-الصلاحيات) (يُتخطّى الفحص إذا رفضت قاعدة الـ call) وقبل `needsApproval`. |
 
-**الـ input guardrails المتوازية.** فحص input بطيء (واحد يستدعي model، مثل `moderationGuardrail({ model })`) يضيف كل زمن الاستجابة حقّه قبل ما الـ agent يبدأ يرد. علّمه بـ `runInParallel: true` (على `IoGuardrail` تبعك، أو كخيار في `promptInjectionGuardrail` و`moderationGuardrail`) فيشتغل وأول model call شغّال: الـ input guardrails الحاجبة (الوضع الافتراضي) تشتغل أول، بما فيها الـ rewrites، بعدين الفحوص المتوازية تبدأ مع بعض على نفس الـ input والـ model call يبدأ فورًا. إلى ما تعدّي كل الفحوص المتوازية، ما يطلع أي شي أنتجه الـ call: أحداث `text.delta` و`reasoning.*` وأحداث الـ tools اللي ينفّذها الـ provider تنحجز بالترتيب (`step.start` ما ينحجز)، والـ tool calls ما تنفّذ؛ وردّ وصل بدري ينتظر الفحوص. لو عدّت، الأحداث المحجوزة تطلع والـ run يكمل تمامًا مثل وضع الـ guardrails الحاجبة. لو واحد منها حجب، يُلغى الـ model call، الأحداث المحجوزة تُرمى، ولا شي من الـ call يوصل لسجل المحادثة أو checkpoint أو `onLLMResponse`، والـ run ينتهي بـ `finishReason: 'guardrail'` و`guardrail.tripped` (أو `GuardrailError` مع `onTripped: 'throw'`) مثل أي حظر عادي. الفحص المتوازي ما يقدر يعمل rewrite، لأن الـ model وصله الـ input خلاص: نتيجة `rewrite` تحجب، والسبب يبدأ بـ `runInParallel guardrails cannot rewrite: `. الثمن هو التكلفة: call محجوب ممكن يكون صرف tokens قبل الحظر. تنحسب في `result.usage` لو الـ provider بلّغ عنها (call خلّص قبل الـ trip)؛ أما stream ملغي فعادة ما يبلّغ عنها، وما نقدّرها بأنفسنا. بس أول model call في الـ run هو اللي يتسابق، والـ run اللي يستأنف بعد approval (موافقة) ما يعيد فحص الـ input. وفي guardrails من نوع `output` و`tools`، `runInParallel` يتجاهَل. نص `model` في الـ guardrail هو spec بصيغة `provider/model`: بادئة `vendor/` تختار الـ provider؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثال `openrouter/openai/gpt-4o-mini`).
+**الـ input guardrails المتوازية.** فحص input بطيء (فحص يستدعي model، مثل `moderationGuardrail({ model })`) يضيف زمن الاستجابة الخاص به كاملًا قبل أن يبدأ الـ agent بالرد. علّمه بـ `runInParallel: true` (على `IoGuardrail` الخاص بك، أو كخيار في `promptInjectionGuardrail` و`moderationGuardrail`) فيعمل بينما أول model call قيد التشغيل: الـ input guardrails الحاجبة (الوضع الافتراضي) تعمل أولًا، بما فيها الـ rewrites، ثم تبدأ الفحوص المتوازية معًا على الـ input نفسه ويبدأ الـ model call فورًا. إلى أن تجتاز كل الفحوص المتوازية، لا يخرج أي شيء أنتجه الـ call: أحداث `text.delta` و`reasoning.*` وأحداث الـ tools التي ينفّذها الـ provider تُحتجز بالترتيب (`step.start` لا يُحتجز)، ولا تُنفَّذ الـ tool calls؛ والرد الذي يصل مبكرًا ينتظر الفحوص. إذا اجتازت، تخرج الأحداث المحتجزة ويستمر الـ run تمامًا كما في وضع الـ guardrails الحاجبة. وإذا حجب أحدها، يُلغى الـ model call، وتُرمى الأحداث المحتجزة، ولا يصل شيء من الـ call إلى سجل المحادثة أو checkpoint أو `onLLMResponse`، وينتهي الـ run بـ `finishReason: 'guardrail'` و`guardrail.tripped` (أو `GuardrailError` مع `onTripped: 'throw'`) مثل أي حظر عادي. الفحص المتوازي لا يستطيع إجراء rewrite، لأن الـ input وصل إلى الـ model بالفعل: نتيجة `rewrite` تحجب، ويبدأ السبب بـ `runInParallel guardrails cannot rewrite: `. الثمن هو التكلفة: قد يكون الـ call المحجوب قد استهلك tokens قبل الحظر. تُحسب في `result.usage` إذا أبلغ عنها الـ provider (call انتهى قبل الـ trip)؛ أما الـ stream الملغى فلا يُبلغ عنها عادةً، ولا نقدّرها بأنفسنا. أول model call في الـ run فقط هو الذي يتسابق، والـ run الذي يُستأنف بعد approval (موافقة) لا يعيد فحص الـ input. وفي guardrails من نوع `output` و`tools`، يُتجاهَل `runInParallel`. نص `model` في الـ guardrail هو spec بصيغة `provider/model`: بادئة `vendor/` تختار الـ provider؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثال `openrouter/openai/gpt-4o-mini`).
 
 ```ts
 import { createAgent, moderationGuardrail, piiGuardrail } from 'lousho';
@@ -29,12 +29,12 @@ const agent = createAgent({
 });
 ```
 
-الـ guardrail هو `{ name, check(ctx) }`. في `ctx`: `kind` (`'input'` أو `'output'` أو `'tool'`)، و`text`، و`messages` حق الـ run، و`toolName` و`args` لما يكون tool call، و`signal` حق الـ run. ترجع `check` (مباشرة أو عبر promise) `{ ok: true }` أو `{ ok: false, reason, action?, replacement?, info? }`:
+الـ guardrail هو `{ name, check(ctx) }`. في `ctx`: `kind` (`'input'` أو `'output'` أو `'tool'`)، و`text`، و`messages` الخاصة بالـ run، و`toolName` و`args` عندما يكون tool call، و`signal` الخاصة بالـ run. تعيد `check` (مباشرة أو عبر promise) `{ ok: true }` أو `{ ok: false, reason, action?, replacement?, info? }`:
 
-- `action: 'block'` (الافتراضي) ينهي الـ run بـ `finishReason: 'guardrail'` و`result.guardrail` (`{ name, kind, reason, toolName?, info? }`). `result.text` تكون `''` والرد المحجوب ما ينضاف لسجل المحادثة؛ والـ tool call المحجوب ما ينفّذ (ولا اللي بعده في نفس الدورة) وياخد نتيجة "cancelled"، عشان سجل المحادثة يبقى صالح. `stream()` يطلق `guardrail.tripped` قبل `run.done`.
-- `action: 'rewrite'` يحط `replacement` مكان النص (وفي معاملات tool call: `replacement` هي المعاملات الجديدة بصيغة JSON)، والـ guardrail اللي بعده يشوف النص الجديد، و`stream()` يطلق `guardrail.rewrote`.
+- `action: 'block'` (الافتراضي) ينهي الـ run بـ `finishReason: 'guardrail'` و`result.guardrail` (`{ name, kind, reason, toolName?, info? }`). تكون `result.text` هي `''` ولا يُضاف الرد المحجوب إلى سجل المحادثة؛ ولا يُنفَّذ الـ tool call المحجوب (ولا الذي يليه في الدورة نفسها) ويأخذ نتيجة "cancelled"، لكي يبقى سجل المحادثة صالحًا. `stream()` يطلق `guardrail.tripped` قبل `run.done`.
+- `action: 'rewrite'` يضع `replacement` مكان النص (وفي معاملات tool call: `replacement` هي المعاملات الجديدة بصيغة JSON)، ويرى الـ guardrail التالي النص الجديد، و`stream()` يطلق `guardrail.rewrote`.
 
-مع `onTripped: 'throw'` الحظر يرفض بـ `GuardrailError` (`LOUSHO_GUARDRAIL_TRIPPED`، ومعه نفس الـ `guardrail`) بدل ما ينتهي عادي. ولو `check` رمت، الـ run يفشل. الـ sub-agents تشغّل guardrails الأب أول، بعدين guardrails هم. ملفات spec حق الـ agent تسمّي الـ guardrails المدمجة في `policy.guardrails` (شوف [الإعداد](/ar/configuration#السياسة-policy)).
+مع `onTripped: 'throw'` يُرفض الحظر بـ `GuardrailError` (`LOUSHO_GUARDRAIL_TRIPPED`، ومعه الـ `guardrail` نفسه) بدلًا من أن ينتهي بشكل عادي. وإذا رمت `check` خطأً، يفشل الـ run. الـ sub-agents تشغّل guardrails الأب أولًا، ثم guardrails الخاصة بها. ملفات spec الخاصة بالـ agent تسمّي الـ guardrails المدمجة في `policy.guardrails` (انظر [الإعداد](/ar/configuration#السياسة-policy)).
 
 ```ts
 import {
@@ -77,18 +77,18 @@ try {
 }
 ```
 
-| المدمج | يفشل لما |
+| المدمج | يفشل عندما |
 | -------- | ---------- |
-| `maxLengthGuardrail({ maxChars })` | النص أطول من `maxChars` حرف. |
-| `regexGuardrail({ name, pattern?, action?, replacement? })` | النص يطابق `pattern` (`RegExp` أو قائمة؛ الافتراضي: أنماط `secretScanCheck`). مع `action: 'rewrite'` كل تطابق يصير `replacement` (الافتراضي `'[redacted]'`). |
-| `denyTopicsGuardrail({ topics })` | النص فيه واحد من `topics` (كلمات مفتاحية، ما يهم حالة الأحرف). |
-| `llmJudgeGuardrail({ model, instruction, name? })` | `model` (`LLMProvider` أو `"provider/model"`)، يُسأل مرة لكل فحص إذا النص يلتزم بـ `instruction`، وما يرد `PASS`؛ ردّه `FAIL: <reason>` هو السبب. |
-| `piiGuardrail({ types?, action?, name? })` | النص فيه بيانات شخصية من أحد `types` (الافتراضي الكل): `email`، `phone` (من 9 إلى 15 رقم، رمز دولة `+` وفواصل اختيارية)، `credit-card` (لازم يعدّي فحص Luhn)، `iban` (لازم يعدّي فحص mod-97)، `us-ssn` (صيغة `123-45-6789`)، `ip-address` (IPv4). يحجب افتراضي؛ `action: 'rewrite'` يستبدل كل تطابق بـ `[<type>]`، مثل `[email]`. فحص heuristic، بدون model call. |
-| `secretsGuardrail({ action?, extraPatterns?, name? })` | النص فيه private key، أو مفتاح Anthropic (`sk-ant-`) أو OpenRouter (`sk-or-v1-`) أو OpenAI (`sk-proj-`، `sk-`) أو AWS (`AKIA`) أو GitHub (`ghp_` وباقي بادئات `gh?_`، و`github_pat_`) أو Slack (`xoxb-` ونحوه) أو Google (`AIza`) أو مفتاح Stripe live (`sk_live_`، `rk_live_`)، أو JWT، أو `Authorization: Bearer` token، أو تطابق مع `extraPatterns`. يستبدل كل تطابق بـ `[secret]` افتراضي؛ `action: 'block'` يحجب. heuristic، بدون model call. |
-| `promptInjectionGuardrail({ model?, name?, runInParallel? })` | في النص إشارة prompt injection: "ignore (all) previous instructions" ونحوها، أو "you are now"، أو طلب الـ system prompt، أو علامة دور من chat template (`<\|im_start\|>`، `### System:`، `[INST]`)، أو عبارة jailbreak معروفة، أو أحرف Unicode tag الخفية (من U+E0000 إلى U+E007F). مع `model`، النص اللي يعدّي الأنماط يروح بعد للـ model، ولازم يرد `SAFE` أو `INJECTION: <reason>`. يحجب فقط. |
-| `moderationGuardrail({ model, categories?, name?, runInParallel? })` | `model`، يُسأل مرة لكل فحص بـ prompt ثابت، يعدّ واحدة من `categories` منطبقة (الافتراضي الكل: `hate`، `harassment`، `self-harm`، `sexual`، `sexual-minors`، `violence`، `illicit`)؛ يرد `NONE` أو الفئات. prompt عادي مو moderation endpoint تبع vendor، فبيشتغل مع أي provider. يحجب فقط. ومع `runInParallel: true` (موجودة كمان في `promptInjectionGuardrail`) فحص الـ input يشتغل جنب أول model call. |
+| `maxLengthGuardrail({ maxChars })` | يكون النص أطول من `maxChars` حرفًا. |
+| `regexGuardrail({ name, pattern?, action?, replacement? })` | يطابق النص `pattern` (`RegExp` أو قائمة؛ الافتراضي: أنماط `secretScanCheck`). مع `action: 'rewrite'` يصبح كل تطابق `replacement` (الافتراضي `'[redacted]'`). |
+| `denyTopicsGuardrail({ topics })` | يحتوي النص أحد `topics` (كلمات مفتاحية، دون اعتبار لحالة الأحرف). |
+| `llmJudgeGuardrail({ model, instruction, name? })` | `model` (`LLMProvider` أو `"provider/model"`)، يُسأل مرة لكل فحص هل يلتزم النص بـ `instruction`، ولا يرد بـ `PASS`؛ ردّه `FAIL: <reason>` هو السبب. |
+| `piiGuardrail({ types?, action?, name? })` | يحتوي النص بيانات شخصية من أحد `types` (الافتراضي الكل): `email`، `phone` (من 9 إلى 15 رقمًا، مع رمز دولة `+` وفواصل اختيارية)، `credit-card` (يجب أن يجتاز فحص Luhn)، `iban` (يجب أن يجتاز فحص mod-97)، `us-ssn` (صيغة `123-45-6789`)، `ip-address` (IPv4). يحجب افتراضيًا؛ `action: 'rewrite'` يستبدل بكل تطابق `[<type>]`، مثل `[email]`. فحص heuristic، دون model call. |
+| `secretsGuardrail({ action?, extraPatterns?, name? })` | يحتوي النص private key، أو مفتاح Anthropic (`sk-ant-`) أو OpenRouter (`sk-or-v1-`) أو OpenAI (`sk-proj-`، `sk-`) أو AWS (`AKIA`) أو GitHub (`ghp_` وباقي بادئات `gh?_`، و`github_pat_`) أو Slack (`xoxb-` ونحوه) أو Google (`AIza`) أو مفتاح Stripe live (`sk_live_`، `rk_live_`)، أو JWT، أو `Authorization: Bearer` token، أو تطابق مع `extraPatterns`. يستبدل بكل تطابق `[secret]` افتراضيًا؛ `action: 'block'` يحجب. heuristic، دون model call. |
+| `promptInjectionGuardrail({ model?, name?, runInParallel? })` | يحتوي النص إشارة prompt injection: "ignore (all) previous instructions" ونحوها، أو "you are now"، أو طلب الـ system prompt، أو علامة دور من chat template (`<\|im_start\|>`، `### System:`، `[INST]`)، أو عبارة jailbreak معروفة، أو أحرف Unicode tag الخفية (من U+E0000 إلى U+E007F). مع `model`، يُرسل النص الذي يجتاز الأنماط بعد ذلك إلى الـ model، ويجب أن يرد بـ `SAFE` أو `INJECTION: <reason>`. يحجب فقط. |
+| `moderationGuardrail({ model, categories?, name?, runInParallel? })` | `model`، يُسأل مرة لكل فحص بـ prompt ثابت، يعدّ إحدى `categories` منطبقة (الافتراضي الكل: `hate`، `harassment`، `self-harm`، `sexual`، `sexual-minors`، `violence`، `illicit`)؛ يرد بـ `NONE` أو بالفئات. prompt عادي وليس moderation endpoint خاصًا بـ vendor، لذا يعمل مع أي provider. يحجب فقط. ومع `runInParallel: true` (موجودة أيضًا في `promptInjectionGuardrail`) يعمل فحص الـ input بجانب أول model call. |
 
-الأربعة الأخيرة starter set للفحوص اللي أغلب الـ agents في الإنتاج يحتاجونها:
+الأربعة الأخيرة starter set للفحوص التي تحتاجها أغلب الـ agents في الإنتاج:
 
 ```ts
 import { createAgent, piiGuardrail, promptInjectionGuardrail, secretsGuardrail } from 'lousho';
@@ -106,13 +106,13 @@ const result = await agent.send('My card is 4111 1111 1111 1111, can you check m
 if (result.guardrail?.info?.category === 'prompt-injection') console.warn(result.guardrail.info.signals);
 ```
 
-**أي guardrail تفعّل، بدون النص.** أي حظر (`result.guardrail`، `guardrail.tripped`، `guardrail.rewrote`، `GuardrailError.guardrail`) يحمل `info` — `GuardrailTripInfo` لو الـ guardrail وفّره، والـ starter set توفّره دائمًا: `{ category: 'pii', matches: [{ type, start, end }] }` أو `{ category: 'secret', matches: [{ label, start, end }] }` أو `{ category: 'prompt-injection', source: 'heuristic' | 'model', signals }` أو `{ category: 'moderation', categories }`. الإزاحات تشير لمواضع في النص المفحوص (`ctx.text`). `info` ما يحوي النص المطابق أبد، ولا `reason` في فحصَي PII والأسرار (أنواع وتسميات فقط)، فالأحداث والـ traces والـ logs ما تنسخ البيانات الشخصية ولا السر. والـ guardrail تبعك يقدر يرجّع `info: { category: 'custom', ...anything }`.
+**أي guardrail تفعّل، دون النص.** أي حظر (`result.guardrail`، `guardrail.tripped`، `guardrail.rewrote`، `GuardrailError.guardrail`) يحمل `info` — `GuardrailTripInfo` إذا وفّره الـ guardrail، والـ starter set توفّره دائمًا: `{ category: 'pii', matches: [{ type, start, end }] }` أو `{ category: 'secret', matches: [{ label, start, end }] }` أو `{ category: 'prompt-injection', source: 'heuristic' | 'model', signals }` أو `{ category: 'moderation', categories }`. تشير الإزاحات إلى مواضع في النص المفحوص (`ctx.text`). لا يحتوي `info` النص المطابق أبدًا، ولا `reason` في فحصَي PII والأسرار (أنواع وتسميات فقط)، فلا تنسخ الأحداث والـ traces والـ logs البيانات الشخصية ولا السر. ويستطيع الـ guardrail الخاص بك أن يعيد `info: { category: 'custom', ...anything }`.
 
-**الحدود.** فحوص PII والأسرار وprompt injection فحوص أنماط heuristic: تلقط الصيغ الشائعة اللي فوق وتفوّت غيرها (بيانات شخصية بصيغ أو لغات ثانية، سر ببادئة غير معروفة، injection معاد صياغته أو مترجم أو مرمّز)، وتعلّم بعض النصوص البريئة كمان (رقم طلب شكله رقم هاتف، نسخة شكلها IP address، مستخدم يسأل عن "system prompts"). عاملها filter أول، مو حد أمني؛ خلّي صلاحيات الـ tools والـ approvals شغّالة لأي شي يهمك. الفحوص اللي تعتمد على model موثوقيتها بقدر موثوقية الـ model، وتكلّف call واحد لكل نص مفحوص، وتفشل fail-closed: رد ما هو بأي صيغة من الصيغتين ينحجب، مع سبب يقول إن الرد ما انقرأ. نتائج الـ tools (مثل صفحة ويب منجلبة فيها injection غير مباشر) ما يفحصها أي guardrail لحد الآن.
+**الحدود.** فحوص PII والأسرار وprompt injection فحوص أنماط heuristic: تلتقط الصيغ الشائعة المذكورة أعلاه وتفوّت غيرها (بيانات شخصية بصيغ أو لغات أخرى، سر ببادئة غير معروفة، injection أُعيدت صياغته أو تُرجم أو رُمّز)، وتعلّم أيضًا بعض النصوص البريئة (رقم طلب يشبه رقم هاتف، نسخة تشبه IP address، مستخدم يسأل عن "system prompts"). عاملها كـ filter أول، لا كحد أمني؛ وأبقِ صلاحيات الـ tools والـ approvals مفعّلة لأي شيء يهمك. الفحوص التي تعتمد على model موثوقيتها بقدر موثوقية الـ model، وتكلّف call واحدًا لكل نص مفحوص، وتفشل fail-closed: الرد الذي لا يأتي بأي من الصيغتين يُحجب، مع سبب يذكر أن الرد لم يُقرأ. نتائج الـ tools (مثل صفحة ويب مجلوبة فيها injection غير مباشر) لا يفحصها أي guardrail حتى الآن.
 
 ## Patch checks
 
-`runPatchChecks(patch, checks)` يشغّل كل الفحوص بالتوازي على patch مقترح ويجمع النتائج في verdict واحد. [مثال ops-pipeline](https://github.com/LinuxDevil/agent-sdk/blob/main/examples/ops-pipeline) يستخدمه كبوابة على patch من agent إصلاح قبل ما ينفتح pull request:
+`runPatchChecks(patch, checks)` يشغّل كل الفحوص بالتوازي على patch مقترح ويجمع النتائج في verdict واحد. [مثال ops-pipeline](https://github.com/LinuxDevil/agent-sdk/blob/main/examples/ops-pipeline) يستخدمه كبوابة على patch من agent إصلاح قبل أن يُفتح pull request:
 
 ```ts
 import { runPatchChecks, secretScanCheck, createDiffSizeCheck, createCommandCheck } from 'lousho';
@@ -131,18 +131,18 @@ if (!verdict.pass) {
 }
 ```
 
-| فحص الـ patch | يفشل لما |
+| فحص الـ patch | يفشل عندما |
 | --------- | ---------- |
-| `secretScanCheck` | الـ diff فيه header لمفتاح خاص، أو مفتاح API بأسلوب OpenAI، أو AWS access key. |
-| `createDiffSizeCheck(maxLines)` | الـ diff فيه أكثر من `maxLines` سطر. |
-| `createCommandCheck(name, cwd, command, args, { timeoutMs? })` | الأمر يطلع بكود خروج غير صفري. لو الـ diff غير فارغ يتطبّق أول (`git apply`) على نسخة مؤقتة من `cwd`، والفحص يفشل لو ما انطبق بشكل سليم. |
-| `createTestRunCheck(repoPath)`، `createLintCheck(repoPath)` | `npm test` / `npm run lint` يفشل (اختصارات لفحص الأمر). |
+| `secretScanCheck` | يحتوي الـ diff على header لمفتاح خاص، أو مفتاح API بأسلوب OpenAI، أو AWS access key. |
+| `createDiffSizeCheck(maxLines)` | يحتوي الـ diff على أكثر من `maxLines` سطرًا. |
+| `createCommandCheck(name, cwd, command, args, { timeoutMs? })` | يخرج الأمر بكود خروج غير صفري. إذا لم يكن الـ diff فارغًا يُطبَّق أولًا (`git apply`) على نسخة مؤقتة من `cwd`، ويفشل الفحص إذا لم يُطبَّق بشكل سليم. |
+| `createTestRunCheck(repoPath)`، `createLintCheck(repoPath)` | يفشل `npm test` / `npm run lint` (اختصارات لفحص الأمر). |
 
-**Fail-closed.** فحص يرمي، أو ينرفض، أو ما يخلّص خلال مهلة الـ timeout (30 ثانية افتراضي)، أو يرجّع أي شي غير `pass: true` يُحسب فاشل: `runPatchCheckSafely(check, patch)` تغلّف كل واحد فيهم. فحص الأمر يقتل العملية لما تنطلق المهلة (على Windows، شجرة العمليات كلها). اكتب فحصك بشكل `{ name, check(patch) }` يرجّع `{ pass, reason? }`.
+**Fail-closed.** الفحص الذي يرمي خطأً، أو يُرفض، أو لا ينتهي خلال مهلة الـ timeout (30 ثانية افتراضيًا)، أو يعيد أي شيء غير `pass: true` يُحسب فاشلًا: `runPatchCheckSafely(check, patch)` تغلّف كل واحد منها. فحص الأمر يقتل العملية عندما تنقضي المهلة (على Windows، شجرة العمليات كلها). اكتب فحصك بالشكل `{ name, check(patch) }` الذي يعيد `{ pass, reason? }`.
 
 ## Sandboxed tools
 
-الـ tool تدخل بـ `requiresSandbox: true` ودالة `sandboxExecute(args, sandbox)`. بعدها الـ executor يستدعي `sandboxExecute` مع `SandboxAdapter` حق الـ run بدل ما يستدعي `execute`. `createAgent()` ما تاخذ `sandbox` لحد الآن، فالموضوع يمر عن طريق الـ executor.
+الـ tool تشترك بـ `requiresSandbox: true` ودالة `sandboxExecute(args, sandbox)`. بعد ذلك يستدعي الـ executor `sandboxExecute` مع `SandboxAdapter` الخاص بالـ run بدلًا من أن يستدعي `execute`. `createAgent()` لا تأخذ `sandbox` حتى الآن، لذا يمر ذلك عبر الـ executor.
 
 #### متقدم: الـ executor API
 
@@ -155,8 +155,8 @@ import { SubprocessSandbox } from 'lousho';
 await AgentExecutor.execute({ agent, input, provider, toolRegistry, sandbox: new SubprocessSandbox() });
 ```
 
-- `NoopSandbox` (الافتراضي) يشتغل على الـ host. مجرد بديل شكلي، ما فيه عزل.
-- `SubprocessSandbox` ينفّذ كل أمر في Docker container جديدة، معزولة عن الشبكة وتنحذف تلقائي، وما يوصل فيها أي مجلد من الـ host إلا `cwd` اللي تمرّره. يحتاج Docker daemon شغّال والـ peer dependency الاختيارية `dockerode` (`npm install dockerode@^5.0.1`؛ تتحمّل أول استخدام). ولو الـ run انلغى (الـ `signal` حقّه انلغى) أو الأمر خلصت مهلته، الـ container تُقتل وتنحذف. كل container تشتغل بمستخدم غير root (`user`، الافتراضي `'1000:1000'`؛ وعلى host لينكس لازم يقدر يكتب في الـ `cwd` الموصول)، مع إسقاط كل Linux capabilities، و`no-new-privileges`، و`limits` افتراضيًا 512 MiB ذاكرة و256 عملية و1 CPU. `writeFile(path)` يكتب على الـ host بس تحت `root` (الافتراضي: مجلد العمل الحالي)؛ وأي مسار برّاه، حتى لو عن طريق symlink، يُرفض بـ `LOUSHO_SANDBOX_PATH_DENIED`.
-- نفّذ `SandboxAdapter` (`name`، `run(cmd, args, opts)`، `writeFile(path, content)`) لـ backend ثاني.
+- `NoopSandbox` (الافتراضي) يعمل على الـ host. مجرد بديل شكلي، لا عزل فيه.
+- `SubprocessSandbox` ينفّذ كل أمر في Docker container جديدة، معزولة عن الشبكة وتُحذف تلقائيًا، ولا يُوصَل بها أي مجلد من الـ host إلا `cwd` الذي تمرّره. يحتاج Docker daemon قيد التشغيل والـ peer dependency الاختيارية `dockerode` (`npm install dockerode@^5.0.1`؛ تُحمَّل عند أول استخدام). وإذا أُلغي الـ run (أُلغيت الـ `signal` الخاصة به) أو انتهت مهلة الأمر، تُقتل الـ container وتُحذف. كل container تعمل بمستخدم غير root (`user`، الافتراضي `'1000:1000'`؛ وعلى host لينكس يجب أن يستطيع الكتابة في الـ `cwd` الموصول)، مع إسقاط كل Linux capabilities، و`no-new-privileges`، و`limits` افتراضيًا 512 MiB ذاكرة و256 عملية و1 CPU. `writeFile(path)` يكتب على الـ host فقط تحت `root` (الافتراضي: مجلد العمل الحالي)؛ وأي مسار خارجه، حتى لو كان عبر symlink، يُرفض بـ `LOUSHO_SANDBOX_PATH_DENIED`.
+- نفّذ `SandboxAdapter` (`name`، `run(cmd, args, opts)`، `writeFile(path, content)`) لـ backend آخر.
 
-لو بتبني coding agent، `SandboxShell` يحط أداة الـ shell حق الـ workspace ورا نفس الـ adapter؛ شوف [أدوات مساحة العمل](/ar/workspace-tools#sandboxed-shell-sandboxshell).
+إذا كنت تبني coding agent، فإن `SandboxShell` يضع أداة الـ shell الخاصة بالـ workspace خلف الـ adapter نفسه؛ انظر [أدوات مساحة العمل](/ar/workspace-tools#sandboxed-shell-sandboxshell).

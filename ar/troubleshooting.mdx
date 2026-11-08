@@ -61,11 +61,11 @@ title: "حل المشاكل"
   - `'guardrail'`: guardrail على المدخلات أو المخرجات أو الأدوات حجب الـ run؛ `result.guardrail` يقول أي واحد. [Guardrails](/ar/guardrails#input-و-output-guardrails).
   - `'output-invalid'`: الرد لم يطابق الـ schema المعرف في `output` حتى بعد خطوة الـ repair. [Structured output](/ar/structured-output).
 
-- **الحل:** افحص `result.finishReason` قبل ما تقرأ `result.text`.
+- **الحل:** افحص `result.finishReason` قبل أن تقرأ `result.text`.
 
 ### الـ run يبدو واقف عند tool
 
-- **السبب:** في approval معلّق. الـ `send()` الموقوف يرجّع `finishReason: 'awaiting-approval'` مع `approvalId`؛ ولا شيء يعمل حتى يقرر أحد.
+- **السبب:** هناك approval معلّق. الـ `send()` الموقوف يُرجع `finishReason: 'awaiting-approval'` مع `approvalId`؛ ولا شيء يعمل حتى يقرر أحد.
 - **الحل:** اعرض الـ calls المعلقة بـ `agent.approvals.list()`، ثم `agent.approvals.resolve({ id, approved })`.
 - **للمزيد:** [`createAgent()` agents](/ar/approvals#وكلاء-createagent).
 
@@ -77,7 +77,7 @@ title: "حل المشاكل"
 
 ## Tools
 
-### الـ model ما يستدعي الـ tool أبدًا
+### الـ model لا يستدعي الـ tool أبدًا
 
 - **السبب:** الـ model يقرر من `description` الخاص بالـ tool ومن الـ input schema، فالوصف الغامض أو الحقول غير الواضحة لا تعطيه شيئًا يمشي عليه. الـ `name` يجب أن يطابق `^[a-zA-Z0-9_-]{1,64}$` (من 1 إلى 64 حرف: حروف وأرقام و`_` و`-`).
 - **الحل:** اكتب في الـ `description` ما تفعله الـ tool ومتى تُستخدم، واستخدم `.describe()` على كل حقل إدخال.
@@ -85,8 +85,8 @@ title: "حل المشاكل"
 
 ### الـ tool ترمي خطأ والـ run يكمل
 
-- **السبب:** هذا مقصود. الـ tool التي ترمي تعطي الـ model نتيجة خطأ (`{ error, toolName, message, kind }`) والـ run يكمل، حتى يقدر الـ model يتعامل معها.
-- **الحل:** إذا الخطأ لازم يوقف الـ run، ارمِ error يمتد من `PropagatingToolError`؛ هذا يرفض الـ run بدل ما يكمله.
+- **السبب:** هذا مقصود. الـ tool التي ترمي تعطي الـ model نتيجة خطأ (`{ error, toolName, message, kind }`) والـ run يكمل، كي يستطيع الـ model التعامل معها.
+- **الحل:** إذا كان يجب أن يوقف الخطأ الـ run، فارمِ error يمتد من `PropagatingToolError`؛ فهذا يرفض الـ run بدلًا من أن يكمله.
 - **للمزيد:** [أخطاء الـ tools](/ar/tools#الأخطاء).
 
 ### `LOUSHO_TOOL_ARGS_INVALID`
@@ -105,7 +105,7 @@ title: "حل المشاكل"
 
 ### الـ model لا يقرأ ملفاتي
 
-- **السبب:** الـ provider المدمج يرسل الـ file part فقط لأنواع media التي يدعمها على إصدار `ai` الرئيسي عندك: على `ai` 6/7 يوصل `application/pdf` إلى `openai` و`anthropic` (الذي يرسل `text/plain` أيضًا) و`openrouter`. كل media type آخر — وكل ملف على `ai` 4 أو `ollama` — يرفض الاستدعاء بالخطأ `LOUSHO_UNSUPPORTED_CONTENT` (أو، إذا ضبطت `unsupportedFiles: 'text-note'` في الـ provider، يُرسَل كملاحظة نصية، `[file report.pdf (application/pdf) not sent]`). الصور تُرسَل.
+- **السبب:** الـ provider المدمج يرسل الـ file part فقط لأنواع media التي يدعمها على إصدار `ai` الرئيسي لديك: على `ai` 6/7 يصل `application/pdf` إلى `openai` و`anthropic` (الذي يرسل `text/plain` أيضًا) و`openrouter`. كل media type آخر — وكل ملف على `ai` 4 أو `ollama` — يرفض الاستدعاء بالخطأ `LOUSHO_UNSUPPORTED_CONTENT` (أو، إذا ضبطت `unsupportedFiles: 'text-note'` في الـ provider، يُرسَل كملاحظة نصية، `[file report.pdf (application/pdf) not sent]`). الصور تُرسَل.
 - **الحل:** استخدم `ai` 6 أو 7 مع media type يرسله الـ provider (راجع الجدول)، أو ضع نص الملف في الرسالة، أو أضف إلى `fallbackModels` إدخالًا يقبل الملف، أو استخدم subclass من الـ provider يستطيع الـ model فيه استقبال ملفات.
 - **للمزيد:** [Multimodal input](/ar/providers#إدخال-multimodal).
 
@@ -119,11 +119,11 @@ title: "حل المشاكل"
 
 ### Docker sandbox: "egress is unsupported"
 
-- **السبب:** `SubprocessSandbox` مع `network: { allow }` و`broker` يحتاج الـ broker يكون المخرج الوحيد للحاوية. Docker Desktop وrootless Docker وdaemon على جهاز آخر وEngine أقدم من 25.0.5 كلها ما تقدر تعطيك هذا، فلا تبدأ أي حاوية (`LOUSHO_SANDBOX_EGRESS_UNSUPPORTED`). الرفض مقصود، بدل فتح egress مفتوح.
+- **السبب:** `SubprocessSandbox` مع `network: { allow }` و`broker` يحتاج أن يكون الـ broker المخرج الوحيد للحاوية. Docker Desktop وrootless Docker وdaemon على جهاز آخر وEngine أقدم من 25.0.5 كلها لا تستطيع أن تعطيك هذا، فلا تبدأ أي حاوية (`LOUSHO_SANDBOX_EGRESS_UNSUPPORTED`). الرفض مقصود، بدل فتح egress مفتوح.
 - **الحل:** شغّل الـ agent على Linux host عليه Docker Engine 25.0.5 أو أحدث، أو استخدم `network: 'none'`.
 - **للمزيد:** [Sandboxed shell](/ar/workspace-tools#sandboxed-shell-sandboxshell)، [الخطأ](/ar/errors#lousho_sandbox_egress_unsupported).
 
-### أدوات سيرفر MCP ما تظهر
+### أدوات سيرفر MCP لا تظهر
 
 - **السبب:** السيرفرات تتصل عند `await agent.ready()` أو عند أول `send()` / `stream()`، والسيرفر الذي يفشل اتصاله يُفشِل ذلك الاستدعاء. كل tool اسمه `<server>__<tool>` (مثال `docs__search`)، فابحث عن هذا الاسم لا اسم السيرفر نفسه.
 - **الحل:** `await agent.ready()` لترى خطأ الاتصال. مع `connectMcp()` افحص `status()` التي تعطي كل سيرفر `'idle'` أو `'connected'` أو `'failed'` أو `'needs-auth'` (سيرفر `oauth` تطبيقه لا يزال يحتاج تسجيل دخول — راجع `agent.oauth.mcpSignInUrl()`)؛ و`onError: 'skip'` يستبعد السيرفر الفاشل ويحذّر عبر `logger`. MCP يحتاج الـ peer dependency الاختيارية `@modelcontextprotocol/sdk`.
@@ -131,7 +131,7 @@ title: "حل المشاكل"
 
 ### بناء الـ Worker يرفض الـ provider أو الـ tool
 
-- **السبب:** هدف `cloudflare-worker` يدعم الـ providers `mock` و`openai` و`anthropic` و`openrouter`، والـ tools `current-date` و`day-name` و`http` (`http` توصل فقط للـ hosts المدرجة في binding `LOUSHO_HTTP_ALLOW`). أما `ollama` والـ tool `web-fetch` فغير مدعومين هناك، و`lousho build` يفشل بخطأ يسمي الذي رفضه.
+- **السبب:** هدف `cloudflare-worker` يدعم الـ providers `mock` و`openai` و`anthropic` و`openrouter`، والـ tools `current-date` و`day-name` و`http` (`http` تصل فقط إلى الـ hosts المدرجة في binding `LOUSHO_HTTP_ALLOW`). أما `ollama` والـ tool `web-fetch` فغير مدعومين هناك، و`lousho build` يفشل بخطأ يسمي الذي رفضه.
 - **الحل:** استخدم provider أو tool آخر، أو ابنِ لهدف `node-server` أو `docker`.
 - **للمزيد:** [Cloudflare Workers](/ar/cloudflare-workers#providers-and-tools).
 

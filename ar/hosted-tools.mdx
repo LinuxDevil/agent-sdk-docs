@@ -37,7 +37,7 @@ console.log(result.text, result.usage.hostedToolCalls); // { web_search: 1 }
 | `fileSearch({ vectorStoreIds, maxResults? })` | `file_search` | `vectorStoreIds` (واحد على الأقل؛ vector stores أنشأتها عند الـ provider)، `maxResults` |
 | `hostedTool(name, aiSdkTool)` | `name` | أي tool object من حزمة الـ provider في AI SDK، يُمرَّر كما هو |
 
-`isHostedTool(value)` تفرّق بين الـ hosted tool والـ tool المحلية. اسم كل helper هو نفس الاسم الذي يستخدمه الـ model والـ events و`usage.hostedToolCalls`. لو كتبت `tools` على شكل record، لازم مفتاح الـ hosted tool يكون اسمها (`tools: { web_search: webSearch(), lookup }`). hosted tool باسم tool أخرى يرمي الخطأ `LOUSHO_CONFIG_INVALID` عند إنشاء الـ agent.
+`isHostedTool(value)` تفرّق بين الـ hosted tool والـ tool المحلية. اسم كل helper هو نفس الاسم الذي يستخدمه الـ model والـ events و`usage.hostedToolCalls`. إذا كتبت `tools` على شكل record، فيجب أن يكون مفتاح الـ hosted tool هو اسمها (`tools: { web_search: webSearch(), lookup }`). hosted tool باسم tool أخرى يرمي الخطأ `LOUSHO_CONFIG_INVALID` عند إنشاء الـ agent.
 
 كل provider يستخدم الخيارات التي يدعمها ويتجاهل الباقي مع `console.warn` واحدة. OpenAI يأخذ `searchContextSize` و`userLocation` و`allowedDomains` (بدون `maxUses` وبدون `blockedDomains`). Anthropic يأخذ `maxUses` و`allowedDomains` و`blockedDomains` و`userLocation` (بدون `searchContextSize`؛ والـ code execution عنده بلا `container`). OpenRouter يأخذ `maxUses` و`allowedDomains` و`blockedDomains` (يُرسلها باسم `excluded_domains` عنده) و`searchContextSize` (بدون `userLocation`).
 
@@ -47,22 +47,22 @@ console.log(result.text, result.usage.hostedToolCalls); // { web_search: 1 }
 | --- | --- | --- | --- | --- | --- |
 | `webSearch()` | ✅ `ai` 6 + `@ai-sdk/openai` 3، `ai` 7 + `@ai-sdk/openai` 4 | ✅ `ai` 6 + `@ai-sdk/anthropic` 3، `ai` 7 + `@ai-sdk/anthropic` 4 | ✅ كل models بصيغة `openrouter/...`، مع أي `ai` | ❌ | ❌ (استخدم `hostedTool()`) |
 | `codeInterpreter()` | ✅ نفس التوليفات | ✅ نفس التوليفات (code execution في Anthropic) | ❌ | ❌ | ❌ (استخدم `hostedTool()`) |
-| `fileSearch()` | ✅ نفس التوليفات | ❌ (Anthropic ما يوفّر hosted file search) | ❌ | ❌ | ❌ (استخدم `hostedTool()`) |
+| `fileSearch()` | ✅ نفس التوليفات | ❌ (Anthropic لا يوفّر hosted file search) | ❌ | ❌ | ❌ (استخدم `hostedTool()`) |
 | `hostedTool()` | ✅ `ai` 6 أو 7 | ✅ `ai` 6 أو 7 | ✅ `ai` 6 أو 7 | ✅ `ai` 6 أو 7 | ✅ `ai` 6 أو 7 |
 
-الـ hosted tools تحتاج `ai` 6 أو 7. الاستثناء الوحيد: web search في OpenRouter يشتغل على `ai` 4 أيضًا. مع `ai` 4 (ومعه `@ai-sdk/openai` بإصدار 0.0.x أو 1.x) يُرفض كل hosted tool آخر. في OpenAI الـ model هو الـ Responses API model، وهو ما تعطيه `@ai-sdk/openai` من الإصدار 2 فصاعدًا.
+الـ hosted tools تحتاج `ai` 6 أو 7. الاستثناء الوحيد: web search في OpenRouter يعمل على `ai` 4 أيضًا. مع `ai` 4 (ومعه `@ai-sdk/openai` بإصدار 0.0.x أو 1.x) يُرفض كل hosted tool آخر. في OpenAI الـ model هو الـ Responses API model، وهو ما تعطيه `@ai-sdk/openai` من الإصدار 2 فصاعدًا.
 
-في Anthropic تستخدم الـ helpers أحدث server tool مؤرَّخة تصدّرها نسخة `@ai-sdk/anthropic` المثبّتة عندك: `webSearch()` تأخذ أحدث `tools.webSearch_*()`، و`codeInterpreter()` تأخذ أحدث `tools.codeExecution_*()` (Anthropic يسمّيها `code_execution`؛ والـ SDK يبقي الاسم `code_interpreter` في الـ events وفي `usage.hostedToolCalls` على كل الـ providers). الحزمة التي ما فيها أي منها تُرفض مع ذكر التوليفة التي تشتغل. لأي server tool ثانية في Anthropic (مثل web fetch) استخدم `hostedTool('web_fetch', anthropic.tools.webFetch_20260318())`.
+في Anthropic تستخدم الـ helpers أحدث server tool مؤرَّخة تصدّرها نسخة `@ai-sdk/anthropic` المثبّتة لديك: `webSearch()` تأخذ أحدث `tools.webSearch_*()`، و`codeInterpreter()` تأخذ أحدث `tools.codeExecution_*()` (Anthropic يسمّيها `code_execution`؛ والـ SDK يبقي الاسم `code_interpreter` في الـ events وفي `usage.hostedToolCalls` على كل الـ providers). الحزمة التي لا تحتوي أيًّا منها تُرفض مع ذكر التوليفة التي تعمل. ولأي server tool أخرى في Anthropic (مثل web fetch) استخدم `hostedTool('web_fetch', anthropic.tools.webFetch_20260318())`.
 
-في OpenRouter، `webSearch()` تضيف الـ server tool الخاصة بـ OpenRouter، وهي `openrouter:web_search`، إلى الطلب. البحث يصير على جهة OpenRouter لأي model. OpenRouter هو من يختار محرك البحث: بحث الـ model نفسه إن كان عنده، وإلا Exa. ويحاسبك على كل بحث فوق الـ tokens بالأسعار الموجودة في [صفحة أسعار OpenRouter](https://openrouter.ai/pricing). راجع [دليل web search](https://openrouter.ai/docs/guides/features/server-tools/web-search) لتفاصيل المحركات. ولأن السيرفر ينفّذ البحث داخل الطلب، الـ model لا يبلّغ عن أي tool call. بدلها يبلّغ الـ SDK عن hosted call واحدة لكل model step بحث فيها، ويقرأها من ردّ OpenRouter: `name: 'web_search'`، و`args` فارغة، والروابط المستشهد بها من `url_citation` annotations تصير `sources`، و`result: { requests }` إذا بلّغ OpenRouter عن `usage.server_tool_use.web_search_requests` (وإلا `result` تكون `{}`؛ الاختبار الحي ما استلم عددًا). الاستعلام الذي بحث عنه الـ model لا يُبلَّغ عنه.
+في OpenRouter، `webSearch()` تضيف الـ server tool الخاصة بـ OpenRouter، وهي `openrouter:web_search`، إلى الطلب. يجري البحث على جهة OpenRouter لأي model. OpenRouter هو من يختار محرك البحث: بحث الـ model نفسه إن كان عنده، وإلا Exa. ويحاسبك على كل بحث فوق الـ tokens بالأسعار الموجودة في [صفحة أسعار OpenRouter](https://openrouter.ai/pricing). راجع [دليل web search](https://openrouter.ai/docs/guides/features/server-tools/web-search) لتفاصيل المحركات. ولأن السيرفر ينفّذ البحث داخل الطلب، الـ model لا يبلّغ عن أي tool call. بدلها يبلّغ الـ SDK عن hosted call واحدة لكل model step بحث فيها، ويقرأها من ردّ OpenRouter: `name: 'web_search'`، و`args` فارغة، والروابط المستشهد بها من `url_citation` annotations تصبح `sources`، و`result: { requests }` إذا بلّغ OpenRouter عن `usage.server_tool_use.web_search_requests` (وإلا `result` تكون `{}`؛ الاختبار الحي لم يستلم عددًا). الاستعلام الذي بحث عنه الـ model لا يُبلَّغ عنه.
 
 أي توليفة غير مدعومة ترفض الـ run قبل أول model call بخطأ [`LOUSHO_HOSTED_TOOL_UNSUPPORTED`](/ar/errors#lousho_hosted_tool_unsupported) يذكر الـ provider والـ tool وما الذي سيشتغل.
 
-الـ `LLMProvider` المخصّص يعلن عمّا يقدر يرسله عبر `supportsHostedTool(type)` — قيمة `type` هي `'web_search'` أو `'code_interpreter'` أو `'file_search'` أو `'custom'` لـ `hostedTool()` — ويستلم الـ tools في `GenerateOptions.hostedTools`. الـ provider الذي لا يملك هذه الدالة ما يدعم أي hosted tool. و`withRetry()` و`withFallback()` تسألان الـ provider المغلَّف (الأول).
+الـ `LLMProvider` المخصّص يعلن عمّا يستطيع إرساله عبر `supportsHostedTool(type)` — قيمة `type` هي `'web_search'` أو `'code_interpreter'` أو `'file_search'` أو `'custom'` لـ `hostedTool()` — ويستلم الـ tools في `GenerateOptions.hostedTools`. الـ provider الذي لا يملك هذه الدالة لا يدعم أي hosted tool. و`withRetry()` و`withFallback()` تسألان الـ provider المغلَّف (الأول).
 
 ## أي provider tool من AI SDK: `hostedTool()`
 
-`hostedTool(name, tool)` ترسل كائن الـ provider tool الذي بنيته بحزمة الـ provider كما هو، بدون تغيير، على `ai` 6 أو 7. تشتغل مع الـ providers المدمجين ومع أي model من AI SDK مغلَّف بـ [`fromAiSdk()`](/ar/providers#أي-model-من-ai-sdk-fromaisdk):
+`hostedTool(name, tool)` ترسل كائن الـ provider tool الذي بنيته بحزمة الـ provider كما هو، بدون تغيير، على `ai` 6 أو 7. تعمل مع الـ providers المدمجة ومع أي model من AI SDK مغلَّف بـ [`fromAiSdk()`](/ar/providers#أي-model-من-ai-sdk-fromaisdk):
 
 ```ts
 import { createAgent, fromAiSdk, hostedTool } from 'lousho';
@@ -92,15 +92,15 @@ for await (const event of agent.stream('Latest TypeScript release?')) {
 }
 ```
 
-لو كان الـ model call بـ streaming، توصل الـ events لحظة يبلّغ الـ provider عن الـ call. ولو كان بدون streaming، تصل بعد الـ call، بترتيب الـ calls، وقبل نصّه. `tool.done.result` محدودة بـ 20,000 حرف من JSON؛ النتيجة الأطول تصير نص JSON مقصوصًا ينتهي بـ `... [truncated N characters]`. وفي `tool.error` تكون `error.name` هي `'HostedToolError'` مع رسالة الـ provider. وبث واجهة AI SDK (`toUIMessageStream()`) يعلّم أجزاء الـ tool هذه بـ `providerExecuted: true`.
+إذا كان الـ model call بـ streaming، تصل الـ events لحظة يُبلغ الـ provider عن الـ call. وإذا كان بدون streaming، تصل بعد الـ call، بترتيب الـ calls، وقبل نصّه. `tool.done.result` محدودة بـ 20,000 حرف من JSON؛ النتيجة الأطول تصبح نص JSON مقصوصًا ينتهي بـ `... [truncated N characters]`. وفي `tool.error` تكون `error.name` هي `'HostedToolError'` مع رسالة الـ provider. وبث واجهة AI SDK (`toUIMessageStream()`) يعلّم أجزاء الـ tool هذه بـ `providerExecuted: true`.
 
-في الـ traces، الـ `chat` span الخاص بـ model call يحمل `lousho.hosted_tool_calls` (أسماء الـ tools التي شغّلها الـ provider فيه). لا يوجد `execute_tool` span لها، لأن الـ SDK ما نفّذ شيئًا.
+في الـ traces، الـ `chat` span الخاص بـ model call يحمل `lousho.hosted_tool_calls` (أسماء الـ tools التي شغّلها الـ provider فيه). لا يوجد `execute_tool` span لها، لأن الـ SDK لم ينفّذ شيئًا.
 
 ## الـ transcript والـ replay
 
 رسالة الـ assistant في الـ step تحصل على `metadata.hostedToolCalls`: لكل call قيم `id` و`name` و`args` و`result` (بنفس الحد أعلاه) و`isError` و`sources` للروابط التي استشهد بها الـ provider بعدها. تجدها في `result.messages`.
 
-في الـ calls اللاحقة يُرجَع للـ model نص الـ assistant فقط، ولا تُرجَع كتل الـ tools الخاصة بالـ provider أبدًا. هذا يشتغل مع كل provider وكل model. الثمن: الـ citations من الدورات السابقة لا تُعاد للـ model.
+في الـ calls اللاحقة يُرجَع للـ model نص الـ assistant فقط، ولا تُرجَع كتل الـ tools الخاصة بالـ provider أبدًا. هذا يعمل مع كل provider وكل model. الثمن: الـ citations من الدورات السابقة لا تُعاد للـ model.
 
 ## الـ usage والتكلفة
 
@@ -110,7 +110,7 @@ for await (const event of agent.stream('Latest TypeScript release?')) {
 
 ## الموافقات والصلاحيات
 
-الـ SDK لا يقدر يضبط شيئًا لا ينفّذه. الـ hosted tool تشتغل داخل طلب الـ provider، فلا تراها أي قاعدة صلاحيات، ولا guardrail للـ tools، ولا `needsApproval`، ولا hook مثل `preToolCall` / `postToolCall` أو `onToolCall`. **ولا يمكن إيقاف hosted tool لطلب approval (موافقة)**. لو كان الـ run ممنوعًا يبحث أو ينفّذ كودًا بدون إنسان، اترك الـ tool خارج `tools`، أو اختر الـ tools لكل run بدالة:
+الـ SDK لا يستطيع ضبط شيء لا ينفّذه. الـ hosted tool تعمل داخل طلب الـ provider، فلا تراها أي قاعدة صلاحيات، ولا guardrail للـ tools، ولا `needsApproval`، ولا hook مثل `preToolCall` / `postToolCall` أو `onToolCall`. **ولا يمكن إيقاف hosted tool لطلب approval (موافقة)**. إذا كان الـ run ممنوعًا من البحث أو تنفيذ كود دون إنسان، اترك الـ tool خارج `tools`، أو اختر الـ tools لكل run بدالة:
 
 ```ts
 import { createAgent, webSearch } from 'lousho';
@@ -123,7 +123,7 @@ const agent = createAgent({
 await agent.send('Summarize this page.', { metadata: { allowSearch: true } });
 ```
 
-[أوضاع الصلاحيات](/ar/permission-modes) أيضًا ما تقدر ترفض hosted call، لذلك دورها أنها تقرر أي hosted tools تُرسل مع كل model call:
+[أوضاع الصلاحيات](/ar/permission-modes) أيضًا لا تستطيع رفض hosted call، لذلك دورها أنها تقرر أي hosted tools تُرسل مع كل model call:
 
 | الوضع | `webSearch()` و`fileSearch()` | `codeInterpreter()` و`hostedTool()` |
 | --- | --- | --- |
@@ -138,7 +138,7 @@ await agent.send('Summarize this page.', { metadata: { allowSearch: true } });
 
 ## الاختبار
 
-`mockModel` يقبل hosted calls في الـ turn ويسجّل `hostedTools` في كل request، فيقدر agent عنده hosted tools يشتغل بدون اتصال:
+`mockModel` يقبل hosted calls في الـ turn ويسجّل `hostedTools` في كل request، فيستطيع agent لديه hosted tools العمل دون اتصال:
 
 ```ts
 import { createAgent, webSearch } from 'lousho';

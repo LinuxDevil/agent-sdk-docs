@@ -17,7 +17,7 @@ title: "Cloudflare Workers"
 | Tools مدمجة | `current-date` و`day-name` و`http` (أسماء الـ hosts المدرجة فقط، من الـ binding `LOUSHO_HTTP_ALLOW`) | كلها، بما فيها `http` و`web-fetch` |
 | Tools مكتوبة بـ TypeScript | نعم، داخل agent directory: بلا Node builtins، ومن `lousho` فقط الأسماء المذكورة تحت [مجلدات agent على Worker](#build-and-deploy) | نعم، داخل agent directory |
 | تشغيل tools داخل sandbox | لا (الـ build يستبدل الـ sandbox بـ shim يفشل عند استخدامه) | نعم |
-| خوادم MCP عبر stdio | لا (الـ child process لا يقدر يبدأ؛ والـ shim يفشل عند استخدامه) | نعم |
+| خوادم MCP عبر stdio | لا (الـ child process لا يستطيع البدء؛ والـ shim يفشل عند استخدامه) | نعم |
 | [Code mode](/ar/code-mode) (`codeMode`) | لا (الـ build يستبدل QuickJS بـ shim يُفشل الـ run من بدايته) | نعم |
 | خوادم MCP عبر HTTP | لم يُتحقق منه | نعم |
 | Sessions وcheckpoints وapprovals | KV namespace واحد، `AGENT_CHECKPOINTS` (eventually consistent) | الذاكرة أو الملفات أو SQLite |
@@ -32,11 +32,11 @@ title: "Cloudflare Workers"
 أسباب صفوف الـ providers والـ tools:
 
 - الـ providers: `mock` و`openai` و`anthropic` و`openrouter`. الـ providers الحقيقية مبنية على
-  `generateText`/`streamText` من `ai` SDK تبع Vercel
+  `generateText`/`streamText` من `ai` SDK الخاصة بـ Vercel
   مع `@ai-sdk/openai`/`@ai-sdk/anthropic` (و`openrouter` هو
   `@ai-sdk/openai` موجّه إلى `https://openrouter.ai/api/v1`)، وكلها
   مبنية على `fetch()` ومعايير الويب فقط بلا أي استيراد `node:*`،
-  فتُجمَّع وتشتغل على Workers بنظافة؛ والـ leak check في الـ build يتحقق من
+  فتُجمَّع وتعمل على Workers بنظافة؛ والـ leak check في الـ build يتحقق من
   كل bundle. الـ provider `ollama` **غير مدعوم** هنا: الـ endpoint الافتراضي
   محلي `http://localhost:11434` والـ Worker لا يصل إليه؛ استخدم
   `node-server` أو `docker` له؛
@@ -46,12 +46,12 @@ title: "Cloudflare Workers"
   يفحص كل عنوان يُحلّ إليه الـ host ويتصل بالعنوان الذي فحصه،
   فهجوم DNS rebinding لا يتجاوز الفحص. الـ Worker لا يملك أيًّا
   من الاثنين: `fetch()` يحلّ الأسماء داخل شبكة Cloudflare
-  ولا يعطي أي hook لرؤية العنوان أو تثبيته. الذي يقدر الـ Worker يفحصه هو
-  الـ URL (الـ scheme، واسم الـ host، والـ host بصيغة IP literal)؛ والذي لا
-  يقدر يضمنه هو إلى أين يتصل اسم الـ host، فاسم يُحلّ إلى
-  عنوان داخلي لن يُكتشف. لذلك `http` على الـ Worker (بنفس اسم الـ tool
-  `http_request` ونفس المدخلات كما على Node) هي tool مختلفة:
-  توصل فقط إلى أسماء الـ hosts التي تدرجها. عند أول URL وعند كل
+  ولا يعطي أي hook لرؤية العنوان أو تثبيته. ما يستطيع الـ Worker فحصه هو
+  الـ URL (الـ scheme، واسم الـ host، والـ host بصيغة IP literal)؛ وما لا
+  يستطيع ضمانه هو إلى أين يتصل اسم الـ host، فالاسم الذي يُحلّ إلى
+  عنوان داخلي لن يُكتشف. لذلك `http` على الـ Worker (باسم الـ tool نفسه
+  `http_request` والمدخلات نفسها كما على Node) هي tool مختلفة:
+  تصل فقط إلى أسماء الـ hosts التي تدرجها. عند أول URL وعند كل
   redirect ترفض:
   - أي scheme غير `http:` و`https:`؛
   - host بصيغة IP (`http://10.0.0.1/` و`http://[::1]/`)، حتى لو كان
@@ -62,10 +62,10 @@ title: "Cloudflare Workers"
     إذا كان الـ binding غير مضبوط أو فارغًا يُرفض كل طلب (fail closed)؛ وإدخال
     ليس اسم host يُفشل كل طلب بخطأ يسمّيه.
 
-  يعني الـ model لا يقدر يختار host عشوائي ولا host يستغل DNS rebinding،
+  أي أن الـ model لا يستطيع اختيار host عشوائي ولا host يستغل DNS rebinding،
   لأن الأسماء التي أدرجتها وحدها تمر؛ والاسم المدرج موثوق أينما
   حُلّ، فلا تدرج إلا hosts تتحكم بهم أو تثق بهم. TLS يُتحقق منه دائمًا
-  (لا يوجد خيار `validateSSL`) والـ tool تشتغل بلا sandbox. أما tool
+  (لا يوجد خيار `validateSSL`) والـ tool تعمل بلا sandbox. أما tool
   من كتابتك تستدعي `fetch()` داخل Worker فلا تحصل على أي حماية
   من SSRF من الـ SDK.
 
@@ -79,11 +79,11 @@ title: "Cloudflare Workers"
 `compatibility_date` فيه افتراضيًا تاريخ مثبّت لكل إصدار من الـ SDK (`2026-09-01`).
 أول build يكتب الملف كاملًا؛ والـ builds التالية تحدّث فقط المفاتيح التي يملكها
 الـ build (`name` و`main` و`no_bundle` و`[triggers] crons`) وتُبقي كل ما
-غيّرته أو أضفته: `compatibility_date` تبعك، و`[vars]`، وكتلة `[[kv_namespaces]]`
-المملوءة، والـ routes، والتعليقات. يُبنى ويشتغل
+غيّرته أو أضفته: `compatibility_date` الخاص بك، و`[vars]`، وكتلة `[[kv_namespaces]]`
+المملوءة، والـ routes، والتعليقات. يُبنى ويعمل
 مع `ai` v4 (التثبيت الافتراضي) أو `ai` v7 (مع
 `@ai-sdk/openai`/`@ai-sdk/anthropic` v4) مثبتة، بلا أي
-compatibility flag (يعني بلا `nodejs_compat`):
+compatibility flag (أي بلا `nodejs_compat`):
 
 ```bash
 cd .lousho/build/cloudflare-worker
@@ -97,7 +97,7 @@ npx wrangler deploy    # requires a Cloudflare account (`wrangler login`)
 `openai` و`openrouter`، و`@ai-sdk/anthropic` لـ `anthropic`، و`ai`) يجب أن تكون
 مثبتة بجانب `lousho` كي يجمّعها `lousho build`.
 
-**مجلدات agent على Worker.** الـ Worker لا يملك file system ولا يقدر يستورد
+**مجلدات agent على Worker.** الـ Worker لا يملك file system ولا يستطيع استيراد
 ملفًا بمساره وقت التشغيل، لذلك الـ build يقرأ
 [agent directory](/ar/agent-directories) على Node ويكتب `agent.module.ts`:
 استيراد ثابت لكل ملف `tools/*.ts` و`schedules/*.ts` و`channels/*.ts` و
@@ -124,11 +124,11 @@ cd .lousho/build/cloudflare-worker && npx wrangler deploy
   مجلد الأب. كل واحد يحتاج `description` في إعداداته (يقرأها model الأب ليقرر
   متى يفوّض). وكل واحد sub-agent أصلي (native) للأب، كما مع `loadAgentDir()`: الأب
   يفوّض عبر الـ tool `task` أو الاسم البديل `delegate_to_<name>`، والـ sub-agent
-  يشتغل داخل run الأب، فتسري فيه قواعد `permissions` الخاصة بالأب، والـ approvals
-  تبعه توقف الأب (و`approve` المضمّن الخاص به يبتّ فيها أولًا)، واستهلاكه يُضاف إلى
+  يعمل داخل run الأب، فتسري فيه قواعد `permissions` الخاصة بالأب، والـ approvals
+  الخاصة به توقف الأب (و`approve` المضمّن الخاص به يبتّ فيها أولًا)، واستهلاكه يُضاف إلى
   استهلاك الأب (راجع [Sub-agents](/ar/agent-directories#sub-agents)). والـ sub-agent يرث
   model الأب ما لم تضبط إعداداته model خاصًا به.
-- ملفات `schedules/` تصير [cron triggers](#scheduled-runs): الـ build يقيّم
+- ملفات `schedules/` تصبح [cron triggers](#scheduled-runs): الـ build يقيّم
   كل ملف ليكتب تعبير cron الخاص به في `[triggers] crons` ضمن `wrangler.toml`
   (نفس قواعد triggers الـ spec: UTC وخمسة حقول وأسماء الأيام)،
   والـ Worker المولَّد يصدّر handler باسم `scheduled()` يشغّلها. وبدون `schedules/`
@@ -138,7 +138,7 @@ cd .lousho/build/cloudflare-worker && npx wrangler deploy
   `mountChannels()` على Node، على Fetch API. والقنوات تصادق نفسها بنفسها
   (`verify`)، فـ `LOUSHO_API_TOKEN` لا يغطيها. والـ turn الذي يعيش أطول من
   الـ webhook الذي أُقرّ به يكمل العمل تحت `ctx.waitUntil`.
-- خانات `memory/` تحتاج provider يشتغل بلا file system. `kvMemory()` يحفظ عناصر
+- خانات `memory/` تحتاج provider يعمل بلا file system. `kvMemory()` يحفظ عناصر
   الخانة تحت مفاتيح `memory/<slot>#<scope>` في KV namespace المسمى
   `AGENT_CHECKPOINTS` (أو في الـ binding الذي يسمّيه خيار `binding`)؛ وبدون ذلك
   الـ binding تعيش العناصر في ذاكرة isolate واحد. `inMemoryMemory()` يعمل بنفس
@@ -159,12 +159,12 @@ cd .lousho/build/cloudflare-worker && npx wrangler deploy
   `ConfigurationError` و`ToolExecutionError` و`ValidationError`. واستيراد أي اسم آخر
   يُفشل الـ build مع عرض هذه القائمة؛ أما type-only imports فتعمل لكل type.
 
-إلى ماذا تصل الـ tool على Worker: ملف الـ tool يشتغل داخل isolate الـ Worker، لا داخل
-sandbox، وبنفس صلاحيات باقي الـ Worker. يقدر يستدعي `fetch()` لأي host
+إلى ماذا تصل الـ tool على Worker: ملف الـ tool يعمل داخل isolate الـ Worker، لا داخل
+sandbox، وبصلاحيات باقي الـ Worker نفسها. يستطيع استدعاء `fetch()` لأي host
 (`LOUSHO_HTTP_ALLOW` يقيّد الـ tool المدمجة `http` فقط، لا كودك)، ويشارك
 ذاكرة الـ isolate مع كل session يخدمها الـ isolate (وبدون
 `AGENT_CHECKPOINTS` يشمل ذلك الـ sessions نفسها). الـ SDK لا يعطي الـ tool كائن
-`env` تبع الـ Worker (مفاتيح API الخاصة بالـ providers و`LOUSHO_API_TOKEN` والـ KV namespace)،
+`env` الخاص بالـ Worker (مفاتيح API الخاصة بالـ providers و`LOUSHO_API_TOKEN` والـ KV namespace)،
 والـ build لا يحلّ استيرادات `cloudflare:`، فيفشل الـ build عند
 `import { env } from 'cloudflare:workers'`؛ لكن الكود داخل isolate واحد ليس حدًّا أمنيًا. لا تنشر إلا كود
 tools تثق فيه مع هذه الـ bindings.
@@ -174,11 +174,11 @@ tools تثق فيه مع هذه الـ bindings.
 الـ Worker يقدّم [HTTP API](/ar/deployment#http-api): `GET /health`، و`POST /chat`
 مبثوثًا كـ SSE (`ReadableStream`)، و`GET /chat/:sessionId`، وendpoint
 الـ approvals، وجسم `{ "message" }` المُهمَل. وقنوات `channels/` في agent
-directory تضيف مساراتها تحت `/channels` (انظر أعلاه). الـ bindings تبعه:
+directory تضيف مساراتها تحت `/channels` (انظر أعلاه). الـ bindings الخاصة به:
 
 | الـ binding | النوع | وظيفته |
 | ------- | ---- | ------------ |
-| `LOUSHO_API_TOKEN` | secret (`npx wrangler secret put LOUSHO_API_TOKEN`) | يجعل كل route عدا `/health` يشترط `Authorization: Bearer <token>` (مقارنة constant-time، وإلا يرجع `401` بـ JSON). **اضبطه قبل النشر** (`lousho build` يذكّرك بذلك): بدونه يرد كل route من `/chat` (turn، أو transcript، أو قرار approval) بـ `403` (`LOUSHO_REQUEST_FORBIDDEN`)، لأن أي شخص يعرف الرابط كان سيقدر بغير ذلك أن يحادث الـ agent على مفتاح الـ provider تبعك، وأن يقرأ أي session أو يكملها أو يوافق عليها بمعرّفها. أما `/health` والـ OAuth callback و`channels/` (التي تتحقق من طلباتها بنفسها) فتبقى مفتوحة. |
+| `LOUSHO_API_TOKEN` | secret (`npx wrangler secret put LOUSHO_API_TOKEN`) | يجعل كل route عدا `/health` يشترط `Authorization: Bearer <token>` (مقارنة constant-time، وإلا يُرجع `401` بـ JSON). **اضبطه قبل النشر** (`lousho build` يذكّرك بذلك): بدونه يرد كل route من `/chat` (turn، أو transcript، أو قرار approval) بـ `403` (`LOUSHO_REQUEST_FORBIDDEN`)، لأن أي شخص يعرف الرابط كان سيستطيع بغير ذلك أن يحادث الـ agent على مفتاح الـ provider الخاص بك، وأن يقرأ أي session أو يكملها أو يوافق عليها بمعرّفها. أما `/health` والـ OAuth callback و`channels/` (التي تتحقق من طلباتها بنفسها) فتبقى مفتوحة. |
 | `LOUSHO_ALLOW_OPEN_SESSIONS` | variable (`[vars]` في `wrangler.toml`، أو `.dev.vars` مع `wrangler dev`) | القيمة `"true"` تقدّم routes الـ `/chat` على Worker بلا `LOUSHO_API_TOKEN`، لأي شخص. اتركه غير مضبوط خارج demo للتجربة والرمي. اسمه السابق، `LOUSHO_ALLOW_OPEN_TRANSCRIPTS`، ما زال يعمل. |
 | `LOUSHO_ALLOWED_ORIGINS` و`LOUSHO_ALLOWED_HOSTS` و`LOUSHO_REQUIRE_JSON_BODY` | variables | قيم `allowedOrigins` و`allowedHosts` للـ routes (مفصولة بفواصل)، و`requireJsonBody: false` عند القيمة `"false"`: لواجهة أمامية على origin آخر، أو proxy أمام الـ Worker. راجع [الطلبات عبر المواقع](/ar/auth#الطلبات-بين-المواقع). |
 | `AGENT_CHECKPOINTS` | KV namespace | يحفظ الـ sessions والـ checkpoints والـ approvals الموقوفة وعناصر `kvMemory()` في namespace واحد، كـ `KVStore` (أدناه). بدونه تعيش في ذاكرة isolate واحد تعيد Cloudflare تدويره متى شاءت: مناسب لتجربة deploy، لا للإنتاج. |
@@ -189,7 +189,7 @@ directory تضيف مساراتها تحت `/channels` (انظر أعلاه). ا
 (`npx wrangler kv namespace create AGENT_CHECKPOINTS`، ونسخة
 `--preview` منها) ومكان لصق الـ ids الناتجة. أزل التعليق عنها واملأ الـ ids.
 وإذا كانت الـ spec تدرج `http` ففيه أيضًا كتلة `[vars]` معلّقة من أجل
-`LOUSHO_HTTP_ALLOW`؛ أزل التعليق عنها واذكر الـ hosts تبعك:
+`LOUSHO_HTTP_ALLOW`؛ أزل التعليق عنها واذكر الـ hosts الخاصة بك:
 
 ```toml
 [vars]
@@ -210,7 +210,7 @@ curl -N https://<your-worker>.workers.dev/chat \
 
 `KVStore(kvBinding, { prefix?, ttl?, historyLimit?, tokenKey? })` هو الـ `AgentStore` الذي
 يبنيه الـ Worker المولَّد من الـ binding. أما الـ Worker المكتوب باليد فيستورده من
-الـ subpath `/kv`، الذي لا يحتوي أي استيراد `node:*` في أي موضع من dependency graph تبعه،
+الـ subpath `/kv`، الذي لا يحتوي أي استيراد `node:*` في أي موضع من dependency graph الخاص به،
 مع تعريف الـ binding بالنوع `KVBinding` (الجزء `get`/`put`/`delete` من
 `KVNamespace` في Cloudflare، فلا تحتاج `@cloudflare/workers-types`). و`createAgent` يأتي
 من الـ subpath `/worker` — راجع [كتابة Worker بنفسك](#كتابة-worker-بنفسك):
@@ -259,10 +259,10 @@ export default {
 
 ### البتّ في approval واحد مرتين
 
-KV لا يملك compare-and-swap، لذلك لا يقدر `KVStore` أن يحجز approval بشكل atomic
+KV لا يملك compare-and-swap، لذلك لا يستطيع `KVStore` أن يحجز approval بشكل atomic
 كما يفعل `fileStore` و`SqliteStore`. للبتّ في approval، يكتب الطلب
 token عشوائيًا تحت `approvals/<id>#claim` (ما لم يكن هناك حجز سابق)،
-وينتظر 50 ms، ثم يقرؤه من جديد، والطلب الذي ما زال الـ token تبعه موجودًا
+وينتظر 50 ms، ثم يقرؤه من جديد، والطلب الذي ما زال الـ token الخاص به موجودًا
 (وما زال يجد الـ approval) هو وحده الذي يحذف الـ approval ويشغّل الاستدعاء. وفي
 موقع واحد، حيث يكتب الطلب المتزامن الـ token الخاص به داخل تلك النافذة، فإن
 النقرة المزدوجة أو الـ webhook المُعاد أو مراجعَين يبتّان في الوقت نفسه يشغّلون
@@ -310,7 +310,7 @@ Durable Object، أو D1 عبر `ApprovalStore` من كتابتك تحذف `reso
 ## Scheduled runs
 
 الـ cron triggers في الـ spec (`triggers: [{ type: 'cron', cron: '0 9 * * MON', input: '...' }]`)
-تصير `[triggers] crons = [...]` في `wrangler.toml`، والـ Worker المولَّد
+تصبح `[triggers] crons = [...]` في `wrangler.toml`، والـ Worker المولَّد
 يصدّر handler باسم `scheduled()` يشغّلها كـ turns للـ agent (الـ session
 `schedule-<name>-<fire time>`، راجع [Schedules](/ar/schedules#على-cloudflare-workers)). وملفات `schedules/` في agent
 directory تعمل بنفس الطريقة: الـ build يقيّمها لاستخراج التعابير ويولّد تصدير
@@ -323,7 +323,7 @@ directory تعمل بنفس الطريقة: الـ build يقيّمها لاست
 `handleScheduled(agent, schedules, controller, ctx)` (مُصدَّرة من
 `lousho/worker` —
 فالمحدِّد `lousho/deploy-runtime-worker` في الكود المولَّد
-محدِّد virtual لا يحلّه إلا الـ bundler تبع `lousho build`؛ لا تستورده بنفسك). تشغّل الـ schedules التي
+محدِّد virtual لا يحلّه إلا الـ bundler الخاص بـ `lousho build`؛ لا تستورده بنفسك). تشغّل الـ schedules التي
 يساوي `cron` فيها `controller.cron` داخل `ctx.waitUntil()` ولا ترمي أي شيء؛
 وعليك أنت إدراج التعابير نفسها تحت `[triggers] crons`. أعطِ الـ agent store —
 فبدونها تعيش session الـ run المجدول في ذاكرة isolate واحد
@@ -356,10 +356,10 @@ export default {
 
 استورد من `lousho/worker`، لا من جذر الحزمة. المدخل الجذر
 يصدّر أيضًا file stores ومحمّل agent directory وMCP عبر stdio وsandboxes
-ووحدات ثانية خاصة بـ Node، فتجميعه لـ `platform: 'browser'` يفشل بـ
+ووحدات أخرى خاصة بـ Node، فتجميعه لـ `platform: 'browser'` يفشل بـ
 `Could not resolve "async_hooks"` وأمثاله. أما `/worker` فهو `createAgent`
-زائد السطح الآمن للـ Worker، مبني بنفس الـ shims التي
-يطبقها `lousho build`، فلا يحمل أي استيراد `node:` يقدر يتعثر فيه الـ bundler تبعك:
+زائد السطح الآمن للـ Worker، مبني بالـ shims نفسها التي
+يطبقها `lousho build`، فلا يحمل أي استيراد `node:` قد يتعثر فيه الـ bundler الخاص بك:
 
 ```ts
 import {
@@ -374,8 +374,8 @@ import { KVStore } from 'lousho/kv'; // also re-exported from /worker
 (`KVStore` و`KVCheckpointStore` و`CHECKPOINT_KV_BINDING`)، ومساعدات الـ schedules
 (`defineSchedule` و`handleScheduled` وأنواعهما)، و`serveFetch`
 (واجهة [`/chat` HTTP](/ar/deployment#http-api) كـ fetch handler،
-لـ Worker يريد نفس المسارات التي يقدّمها الـ Worker المولَّد)،
-والـ providers التي يقدر الـ Worker يشغّلها (`mock` و`openai` و`anthropic` و
+لـ Worker يريد المسارات نفسها التي يقدّمها الـ Worker المولَّد)،
+والـ providers التي يستطيع الـ Worker تشغيلها (`mock` و`openai` و`anthropic` و
 `openrouter`)، وكل ما يجوز لكود agent directory استيراده (`defineTool` و
 `isDefinedTool` و`always` و`never` و`once` و`defineSkill` و`defineChannel` و
 الـ channel factories و`defineMemory` و`inMemoryMemory` و`kvMemory` و`fromAiSdk` و
@@ -386,17 +386,17 @@ import { KVStore } from 'lousho/kv'; // also re-exported from /worker
 - `ai` و`zod` و`@opentelemetry/api` وحزم الـ providers
   (`@ai-sdk/openai` و`@ai-sdk/anthropic`) *لا* تُجمَّع داخل `/worker` —
   تنحلّ من تثبيتك كي تتشارك نسخة `ai` الخاصة بك. ثبّت الـ peer الذي يحتاجه
-  الـ provider تبعك (لا شيء لـ `mock`)؛ وإذا ظل الـ bundler يحاول حلّ واحدة لم تثبّتها،
-  فعلّمها `external` — الـ `import()` الكسول لا يشتغل أبدًا لـ provider لا
+  الـ provider الخاص بك (لا شيء لـ `mock`)؛ وإذا ظل الـ bundler يحاول حلّ واحدة لم تثبّتها،
+  فعلّمها `external` — الـ `import()` الكسول لا يعمل أبدًا لـ provider لا
   تنشئه أصلًا.
-- الميزات التي لا يقدر الـ Worker يشغّلها — project instructions، وfile session
+- الميزات التي لا يستطيع الـ Worker تشغيلها — project instructions، وfile session
   store، وguardrail patches، وtools داخل sandbox، وcode mode،
   والـ provider `ollama` — تُحمَّل كـ shims تفشل عند استدعائها، تمامًا كما في
   الـ Worker المولَّد. وكذلك `mcpServers` (stdio وstreamable HTTP): المدخل
-  المنشور لا يقدر يحتفظ بمحدِّد external للـ peer الاختيارية
+  المنشور لا يستطيع الاحتفاظ بمحدِّد external للـ peer الاختيارية
   `@modelcontextprotocol/sdk`، فيفشل الاتصال عند أول استخدام — استخدم
   `lousho build` (الـ Worker المولَّد) أو هدف Node لأجل MCP. كل شيء آخر، بما
-  فيه turn من `createAgent({ provider, store })`، يشتغل دون تعديل؛ ولا حاجة إلى
+  فيه turn من `createAgent({ provider, store })`، يعمل دون تعديل؛ ولا حاجة إلى
   flag `nodejs_compat`.
 
 ## الاتساق
@@ -430,7 +430,7 @@ DO class وmigration ودفع كلفة object ذي حالة لكل session. إذ
 وهذا يهم أكثر في توقفات الـ approvals، لأن التوقف
 والاستئناف الذي يطلقه approval الإنسان لاحقًا طلبان منفصلان بطبيعتهما
 قد يصلان إلى موقعين مختلفين. هذا الـ SDK لا يَعِد — وفي ظل
-ضمانات KV لا يقدر أن يَعِد — بـ read-after-write consistency صارمة هنا.
+ضمانات KV لا يستطيع أن يَعِد — بـ read-after-write consistency صارمة هنا.
 إذا كان مسار الـ approval عندك لا يحتمل هذه النافذة، وجّه طلبات الـ session الواحدة
 إلى موقع Cloudflare واحد بنفسك (مثلًا عبر توجيه طلبات مبني على
 Durable Object) أو استخدم store قوي الاتساق
@@ -442,7 +442,7 @@ read-modify-write في KV ليست atomic.
 
 مخازن KV (`KVStore` و`KVCheckpointStore` و`CHECKPOINT_KV_BINDING`،
 المُصدَّرة من `lousho/kv`) لا تحتوي أي إشارة `node:*` في
-أي موضع من dependency graph تبعها، وكذلك مدخل `lousho/worker` الذي
+أي موضع من dependency graph الخاص بها، وكذلك مدخل `lousho/worker` الذي
 يجمّعه Worker مكتوب باليد (بناؤه يُفحص بنفس الطريقة؛ راجع [كتابة Worker
 بنفسك](#كتابة-worker-بنفسك)). الـ Worker يشغّل الـ spec كـ agent من `createAgent()`،
 والـ build يوجّه استيراداتها الخاصة بـ Node فقط (project instructions، وfile session

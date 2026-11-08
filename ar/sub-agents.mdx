@@ -3,25 +3,25 @@ title: "Sub-agents"
 ---
 {/* Generated from docs/sub-agents.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-الـsub-agent (وكيل فرعي) هو agent مستقل — تعليمات وmodel وtools وskills
-خاصة فيه — الـlead (الوكيل الرئيسي) يسلّمه مهمة مكتفية بحالها.
-يبدأ بسياق نظيف: يشوف بس الـprompt اللي إنت تعطيه إياه، ومحادثة الـlead
-ما يشوفها أبدًا. يشتغل بالخطوات اللي يحتاجها، وجوابه النهائي يرجع
-للـlead كنتيجة tool واحدة.
+الـsub-agent (وكيل فرعي) هو agent مستقل — له تعليمات وmodel وtools وskills
+خاصة به — يسلّمه الـlead (الوكيل الرئيسي) مهمة مكتفية بذاتها.
+يبدأ بسياق نظيف: لا يرى إلا الـprompt الذي تعطيه إياه، ولا يرى محادثة الـlead
+أبدًا. يعمل بالخطوات التي يحتاجها، ثم يعود جوابه النهائي
+إلى الـlead كنتيجة tool واحدة.
 
-## Sub-agent ولا skill ولا flow؟
+## Sub-agent أم skill أم flow؟
 
-| استعمل | لما |
+| استخدم | عندما |
 | --- | --- |
-| **Skills** ([docs](/ar/skills)) | الـagent *نفسه* يحتاج تعليمات زيادة لبعض المهام. رخيصة: الـskill نص ينضاف للمحادثة الحالية. |
-| **Sub-agents** | المهمة تحتاج tools مختلفة، أو model مختلف، أو استكشاف طويل مليان tool calls ما تريده في سياق الـlead. الـlead يقرر وقت الـrun إذا يفوّض وماذا يفوّض؛ والمهام المستقلة تشتغل بالتوازي. |
-| **Handoffs** ([docs](/ar/handoffs)) | agent ثاني يتولى المحادثة ويرد على المستخدم بنفسه (فرز على متخصص)، بدل ما يرجع نتيجة للـlead. |
-| **Flows** | الخطوات وترتيبها معروفة من الأول (pipeline)، فما ينفع تتركها لتقدير الـmodel. |
+| **Skills** ([docs](/ar/skills)) | يحتاج الـagent *نفسه* إلى تعليمات إضافية لبعض المهام. رخيصة: الـskill نص يُضاف إلى المحادثة الحالية. |
+| **Sub-agents** | تحتاج المهمة إلى tools مختلفة، أو model مختلف، أو استكشاف طويل مليء بالـtool calls لا تريده في سياق الـlead. يقرر الـlead وقت الـrun ما إذا كان سيفوّض وماذا يفوّض؛ وتعمل المهام المستقلة بالتوازي. |
+| **Handoffs** ([docs](/ar/handoffs)) | يتولى agent آخر المحادثة ويرد على المستخدم بنفسه (فرز إلى متخصص)، بدلًا من إرجاع نتيجة إلى الـlead. |
+| **Flows** | الخطوات وترتيبها معروفة مسبقًا (pipeline)، لذا لا يصح تركها لتقدير الـmodel. |
 
 ## بداية سريعة
 
-أعطِ كل sub-agent حقل `description` (model الـlead يقرأه حتى يختار)،
-وبعدين مرّرهم للـlead تحت `subagents`:
+أعطِ كل sub-agent حقل `description` (يقرؤه model الـlead لكي يختار)،
+ثم مرّرها إلى الـlead تحت `subagents`:
 
 ```ts
 import { createAgent } from 'lousho';
@@ -46,29 +46,29 @@ const lead = createAgent({
 const { text } = await lead.send('Write a short article about the history of the bicycle.');
 ```
 
-`AgentExecutor.execute()` ياخذ نفس خيارات `subagents` و`maxSubagentDepth`.
-استخدمه لما تحتاج hooks أو tracing على run الـlead — الـsub-agents يرثونهم
-(راجع [ما يرثه الـsub-agent](#what-a-sub-agent-inherits)). والـapprovals (الموافقات) تشتغل
-من `createAgent()` كمان (راجع [Approvals](#approvals-inside-a-sub-agent)).
+يأخذ `AgentExecutor.execute()` خيارات `subagents` و`maxSubagentDepth` نفسها.
+استخدمه عندما تحتاج إلى hooks أو tracing على run الـlead — إذ ترثها الـsub-agents
+(راجع [ما يرثه الـsub-agent](#what-a-sub-agent-inherits)). وتعمل الـapprovals (الموافقات)
+من `createAgent()` أيضًا (راجع [Approvals](#approvals-inside-a-sub-agent)).
 
-## كيف يشتغل
+## كيف يعمل
 
-مع `subagents`، الـlead ياخذ:
+مع `subagents`، يحصل الـlead على:
 
 1. بلوك **Available sub-agents** في الـsystem prompt: سطر لكل
-   sub-agent (`- name: description`)، وجملة تقول إن الـsub-agent
-   يشوف بس الـprompt اللي يستلمه.
-2. tool وحدة بس، `task`، إدخالها
+   sub-agent (`- name: description`)، وجملة تذكر أن الـsub-agent
+   لا يرى إلا الـprompt الذي يستلمه.
+2. tool واحدة فقط، `task`، مدخلها
    `{ agent: <one of the names>, prompt: string, description?: string, background?: boolean, taskId?: string, mode?: 'new' | 'resume' | 'fork' }`
    (`description` اسم مختصر اختياري من 3 إلى 5 كلمات يُستخدم في الـevents والـhooks؛
-   و`taskId` و`mode` يكملون مهمة سابقة، راجع [تكملة مهمة](#تكملة-مهمة)؛
-   و`subagentOptions: { continuation: false }` يشيلهم).
+   و`taskId` و`mode` يكملان مهمة سابقة، راجع [تكملة مهمة](#تكملة-مهمة)؛
+   و`subagentOptions: { continuation: false }` يزيلهما).
 3. ثلاث tools للمهام الخلفية: `agent_status` و`agent_await` و`agent_cancel`
    (راجع [Sub-agents في الخلفية](#sub-agents-في-الخلفية)).
 
-لما الـlead يستدعي `task`، الـsub-agent المسمّى يشتغل على `prompt` وحده.
-نتيجة الـtool هي النص النهائي للـsub-agent، ومعها سطر footer صغير يقدر
-الـlead يستفيد منه:
+عندما يستدعي الـlead الأداة `task`، يعمل الـsub-agent المسمّى على `prompt` وحده.
+نتيجة الـtool هي النص النهائي للـsub-agent، ومعها سطر footer صغير يمكن
+للـlead الاستفادة منه:
 
 ```text
 The first bicycles appeared in the 1810s ...
@@ -76,39 +76,39 @@ The first bicycles appeared in the 1810s ...
 [sub-agent 'researcher': 3 step(s), finish reason 'stop', taskId 'task_1']
 ```
 
-إذا الـsub-agent ما خلّص — رمى خطأ، أو استهلك كل `maxSteps`، أو وقف عند حد
-budget، أو انقطع — الـlead ياخذ نتيجة خطأ (`isError: true`) تشرح السبب، مثل
+إذا لم ينتهِ الـsub-agent — رمى خطأً، أو استهلك كل `maxSteps`، أو توقف عند حد
+budget، أو انقطع — يحصل الـlead على نتيجة خطأ (`isError: true`) تشرح السبب، مثل
 `Sub-agent 'researcher' used all 10 of its steps
-(maxSteps) without giving a final answer.` واسم agent مجهول كمان يرجع نتيجة خطأ تعدّد
-الأسماء الصحيحة. والجواب اللي ينقطع عند حد الـoutput tokens للـsub-agent
-(finish reason `'length'`) يرجع رغم ذلك، ومعه سطر بعد الـfooter يقول إنه
-ممكن يكون ناقص. والـsub-agent اللي عنده `output` schema وخلصت خطواته يسوي
-استدعاء أخير إجباري ([Out of steps](/ar/structured-output#عند-نفاد-الخطوات)): لما
-يرجع هذا الاستدعاء كائن صالح، نتيجة `task` تكون هذا الكائن (finish reason
-`'max-steps'` في الـfooter، ومعه سطر يقول إن الخطوات خلصت)، مو خطأ.
-استهلاك الـsub-agent من الـtokens ينضاف لـ`result.usage` الخاصة بالـlead،
-واستهلاك الـ[remote sub-agent](#remote-sub-agents) كمان. و`result.toolErrors`
-الخاصة بالـlead نفسه تعدّ بس الـtool calls حقته؛ أما الاستدعاءات اللي فشلت
-داخل الـsub-agents حقه (وداخل sub-agents حقتهم) فتنحسب في
+(maxSteps) without giving a final answer.` والاسم المجهول لـagent يُرجع أيضًا نتيجة خطأ تعدّد
+الأسماء الصحيحة. والجواب الذي ينقطع عند حد الـoutput tokens للـsub-agent
+(finish reason `'length'`) يُرجَع رغم ذلك، ومعه سطر بعد الـfooter يذكر أنه
+قد يكون ناقصًا. والـsub-agent الذي لديه `output` schema واستنفد خطواته يُجري
+استدعاءً أخيرًا إجباريًا ([Out of steps](/ar/structured-output#عند-نفاد-الخطوات)): عندما
+يُرجع هذا الاستدعاء كائنًا صالحًا، تكون نتيجة `task` هي هذا الكائن (finish reason
+`'max-steps'` في الـfooter، ومعه سطر يذكر أن الخطوات نفدت)، وليست خطأً.
+يُضاف استهلاك الـsub-agent من الـtokens إلى `result.usage` الخاصة بالـlead،
+وكذلك استهلاك الـ[remote sub-agent](#remote-sub-agents). أما `result.toolErrors`
+الخاصة بالـlead نفسه فلا تعدّ إلا الـtool calls الخاصة به؛ وأما الاستدعاءات التي فشلت
+داخل الـsub-agents التابعة له (وداخل الـsub-agents التابعة لها) فتُحتسب في
 `result.usage.delegated.toolErrors`.
 
-أخطاء الإعداد تُرمى ومعها طريقة الحل: sub-agent بدون `description`،
-أو قيمة ليست agent من `createAgent()`، أو tool من عندك اسمها أصلًا
+تُرمى أخطاء الإعداد ومعها طريقة الحل: sub-agent بدون `description`،
+أو قيمة ليست agent من `createAgent()`، أو tool خاصة بك اسمها أصلًا
 `task` (أو `agent_status` أو `agent_await` أو `agent_cancel`).
 
 ## تكملة مهمة
 
-كل استدعاء `task` يشتغل في محادثة فرعية لها `taskId` (`task_1`،
-`task_2`، ... في الـfooter). والـlead يقدر يرجع لها:
+يعمل كل استدعاء `task` في محادثة فرعية لها `taskId` (`task_1`،
+`task_2`، ... في الـfooter). ويمكن للـlead الرجوع إليها:
 
-| إدخال `task` | اللي يشتغل |
+| إدخال `task` | ما يعمل |
 | --- | --- |
-| بدون `taskId` (`mode: 'new'`) | sub-agent جديد، مثل فوق، بـ`taskId` جديد. |
-| `taskId` (`mode: 'resume'`، الافتراضي مع `taskId`) | نفس الـsub-agent مع كامل الـtranscript الخاص فيه (الـprompts السابقة والـtool calls والإجابات)، و`prompt` يدخل كدور مستخدم جديد. النتيجة تحتفظ بنفس الـ`taskId`. |
-| `taskId` مع `mode: 'fork'` | مهمة جديدة (`taskId` جديد) تبدأ من نسخة من ذلك الـtranscript. المهمة الأصلية تبقى مثل ما هي وتقدر تستأنفها بعدين. |
+| بدون `taskId` (`mode: 'new'`) | sub-agent جديد، كما في الأعلى، بـ`taskId` جديد. |
+| `taskId` (`mode: 'resume'`، الافتراضي مع `taskId`) | الـsub-agent نفسه مع كامل الـtranscript الخاص به (الـprompts السابقة والـtool calls والإجابات)، ويدخل `prompt` كدور مستخدم جديد. تحتفظ النتيجة بالـ`taskId` نفسه. |
+| `taskId` مع `mode: 'fork'` | مهمة جديدة (`taskId` جديد) تبدأ من نسخة من ذلك الـtranscript. تبقى المهمة الأصلية كما هي ويمكنك استئنافها لاحقًا. |
 
-الـmodel يعرف هذا من وصف الـtool `task` نفسه، فسؤال المتابعة ما يحتاج
-أي كود. لكن lead يحتفظ بشغله عبر الدورات أو إعادات التشغيل يحتاج
+يعرف الـmodel ذلك من وصف الـtool `task` نفسه، لذا لا يحتاج سؤال المتابعة إلى
+أي كود. لكن الـlead الذي يحتفظ بعمله عبر الدورات أو إعادات التشغيل يحتاج إلى
 store وsession (جلسة):
 
 ```ts
@@ -124,42 +124,42 @@ await chat.send('Research the history of the bicycle.'); // the lead calls task 
 await chat.send('Ask the researcher which source it trusted most.'); // the lead calls task({ taskId: 'task_1', ... })
 ```
 
-أين تتخزن المحادثات:
+أين تُخزَّن المحادثات:
 
 - مع `createAgent({ store })` (`store.sessions`) وrun للـlead له
   `sessionId` (سواء `send(message, { sessionId })` مع checkpoints أو دور
-  في session)، كل مهمة تتحفظ في `store.sessions` بعد ما يخلص run المهمة،
+  في session)، تُحفظ كل مهمة في `store.sessions` بعد انتهاء run المهمة،
   تحت مفتاح مُهشّم (hashed) من معرّف session الـlead ومن `taskId`.
-  وهي تعيش أطول من run الـlead: الدورات اللاحقة في نفس الـsession، وlead
-  مُستأنف بـ`agent.resume()` أو `approvals.resolve()`، وprocess جديدة على
-  نفس الـdurable store (مخزن يبقى بعد إعادة تشغيل الـprocess) — كلهم
-  يقدرون يكملونها. `taskId` من session لـlead
-  ثاني ما يطابق أبدًا. الـsession store ما فيه list API، فالمدخلات هذه ما
-  تنسرد ولا تنحذف مع session الـlead؛ احذف بيانات الـstore لتتخلص منها.
-  ومع `AgentExecutor.execute()` عيّن الـstore بـ
+  وهي تبقى بعد انتهاء run الـlead: فالدورات اللاحقة في الـsession نفسها، والـlead
+  المُستأنف بـ`agent.resume()` أو `approvals.resolve()`، والـprocess الجديدة على
+  الـdurable store نفسه (مخزن يبقى بعد إعادة تشغيل الـprocess) — كلها
+  تستطيع إكمالها. ولا يطابق `taskId` من session لـlead
+  آخر أبدًا. لا يحتوي الـsession store على list API، لذا لا تُسرد هذه المدخلات
+  ولا تُحذف مع session الـlead؛ احذف بيانات الـstore للتخلص منها.
+  ومع `AgentExecutor.execute()` عيّن الـstore باستخدام
   `withSubagentOptions(subagents, { sessions })`.
-- في باقي الحالات (ما فيه session store، أو run للـlead بدون
-  `sessionId`)، المهمة تعيش بالذاكرة لذلك الاستدعاء الواحد لـ`execute()` /
-  `send()`: run يوقف على approval ويُستأنف يبدأ بدون أي مهمة. الـsub-agent
-  اللي الـapproval نفسها تستأنفه يظل يرد على الـlead (كنتيجة `task` أو
-  `agent_await`)، لكن ما تقدر تكمله بـ`taskId` بعدها؛ استخدم session store
-  لهذا.
+- في بقية الحالات (لا يوجد session store، أو run للـlead بدون
+  `sessionId`)، تبقى المهمة في الذاكرة لذلك الاستدعاء الواحد لـ`execute()` /
+  `send()`: فالـrun الذي يتوقف بانتظار approval ثم يُستأنف يبدأ بدون أي مهمة. والـsub-agent
+  الذي تستأنفه الـapproval نفسها يظل يرد على الـlead (كنتيجة `task` أو
+  `agent_await`)، لكن لا يمكنك إكماله بـ`taskId` بعد ذلك؛ استخدم session store
+  لهذا الغرض.
 
-بس المهام اللي خلصت (`stop` أو `length` أو `max-steps`) هي اللي تتحفظ،
-فالمهمة اللي فشلت أو انلغت ما تقدر تكملها. والأخطاء توصل للـlead كـ
-tool errors منظمة: `taskId` مجهول، أو تابع لـsession لـlead ثاني، أو تابع
-لـsub-agent ثاني، يفشل بـ`LOUSHO_SUBAGENT_TASK_NOT_FOUND`؛ ومهمة ما زالت
-شغالة (مهمة background ما خلصت) تفشل بـ`LOUSHO_SUBAGENT_TASK_BUSY`، وتقول
-للـmodel يستدعي `agent_await` أو `agent_cancel` عليها قبل. والخطأ الخاص
-بـ`taskId` تابع لـsub-agent ثاني يقول للـmodel يحذف `taskId` حتى يبدأ مهمة
+لا تُحفظ إلا المهام التي انتهت (`stop` أو `length` أو `max-steps`)،
+لذا لا يمكنك إكمال المهمة التي فشلت أو أُلغيت. وتصل الأخطاء إلى الـlead كـ
+tool errors منظمة: الـ`taskId` المجهول، أو التابع لـsession لـlead آخر، أو التابع
+لـsub-agent آخر، يفشل بالخطأ `LOUSHO_SUBAGENT_TASK_NOT_FOUND`؛ والمهمة التي لا تزال
+تعمل (مهمة background لم تنتهِ) تفشل بالخطأ `LOUSHO_SUBAGENT_TASK_BUSY`، الذي يطلب
+من الـmodel أن يستدعي `agent_await` أو `agent_cancel` عليها أولًا. والخطأ الخاص
+بـ`taskId` تابع لـsub-agent آخر يطلب من الـmodel حذف `taskId` لكي يبدأ مهمة
 جديدة.
 
-الـlead اللي ما يحتاج متابعات أبدًا يقدر يشيل التكملة بـ
-`subagentOptions: { continuation: false }`: وقتها الـtool `task` ما يكون
-فيها وسيط `taskId` ولا `mode`، وكل استدعاء يبدأ مهمة جديدة، ولا وصف الـtool
-ولا بلوك الـprompt يذكرون الـtaskIds. الـmodels الأضعف للـlead أحيانًا تمرر
-`taskId` حق sub-agent لـsub-agent ثاني وتضيع دورة على الخطأ؛ وهذا الخيار
-يشيل الاحتمال.
+يمكن للـlead الذي لا يحتاج إلى متابعات أبدًا أن يزيل التكملة باستخدام
+`subagentOptions: { continuation: false }`: عندها لا تحتوي الـtool `task`
+على الوسيطين `taskId` و`mode`، ويبدأ كل استدعاء مهمة جديدة، ولا يذكر وصف الـtool
+ولا بلوك الـprompt الـtaskIds. أحيانًا تمرّر الـmodels الأضعف للـlead
+`taskId` خاصًا بـsub-agent إلى sub-agent آخر وتضيّع دورة على الخطأ؛ وهذا الخيار
+يزيل هذا الاحتمال.
 
 ```ts
 import { createAgent } from 'lousho';
@@ -168,35 +168,35 @@ const analyst = createAgent({ provider, instructions: 'You analyze.', descriptio
 const lead = createAgent({ provider, subagents: { analyst }, subagentOptions: { continuation: false } });
 ```
 
-المهمة المستأنفة أو المفروعة (forked) هي استدعاء `task` عادي في الباقي:
-تقدر تشغلها بالخلفية (وتحتفظ بنفس الـ`taskId`)، والـapproval داخلها توقف
-الـlead وتستأنفه مثل أي approval لـsub-agent، واستهلاكها ينحسب ضمن
-`usage` و`limits` الخاصة بالـlead. والـsub-agent يشوف كامل الـtranscript
-من جديد مع كل resume، فالمهمة طويلة العمر تكلّف tokens أكثر كل مرة.
+المهمة المستأنفة أو المتفرّعة (forked) هي استدعاء `task` عادي في كل ما عدا ذلك:
+يمكنك تشغيلها في الخلفية (وتحتفظ بالـ`taskId` نفسه)، والـapproval داخلها توقف
+الـlead وتستأنفه مثل أي approval لـsub-agent، ويُحتسب استهلاكها ضمن
+`usage` و`limits` الخاصة بالـlead. ويرى الـsub-agent كامل الـtranscript
+من جديد مع كل resume، لذا تكلّف المهمة طويلة العمر tokens أكثر في كل مرة.
 
 ## مهام بالتوازي
 
-الـtool calls في دور model واحد تشتغل مع بعض (راجع `toolConcurrency`)،
-فلما الـlead يستدعي `task` أكثر من مرة في دور واحد، الـsub-agents
-يشتغلون بالتوازي. النتائج توصل لـtranscript الـlead بنفس الترتيب اللي
-الـmodel سوّى فيه الاستدعاءات. حط سقف بـ`toolConcurrency` على الـlead
-(`1` يشغلهم واحد واحد).
+تعمل الـtool calls في دور model واحد معًا (راجع `toolConcurrency`)،
+لذا عندما يستدعي الـlead الأداة `task` أكثر من مرة في دور واحد، تعمل الـsub-agents
+بالتوازي. تصل النتائج إلى transcript الـlead بالترتيب نفسه الذي
+أجرى به الـmodel الاستدعاءات. ضع حدًا أقصى باستخدام `toolConcurrency` على الـlead
+(`1` يشغّلها واحدًا تلو الآخر).
 
 ## Sub-agents في الخلفية
 
-مع `background: true`، `task` يبدأ الـsub-agent ويرجع فورًا بـ
-`{ taskId, status: 'running', agent }`، فالـlead يقدر يكمل شغله (أو يبدأ
-مهام ثانية) وهو شغال. بعدها الـlead يستخدم:
+مع `background: true`، تبدأ `task` الـsub-agent وتعود فورًا بـ
+`{ taskId, status: 'running', agent }`، لذا يستطيع الـlead مواصلة عمله (أو بدء
+مهام أخرى) أثناء عمله. بعد ذلك يستخدم الـlead:
 
 | الـtool | الإدخال | النتيجة |
 | --- | --- | --- |
-| `agent_status` | `{ taskId? }` | `{ tasks: [{ taskId, agent, status, elapsedMs, approvalId?, toolName?, error? }] }` لمهمة وحدة أو لكل المهام. `status` تكون `queued` أو `running` أو `done` أو `failed` أو `cancelled` أو `awaiting-approval`. |
-| `agent_await` | `{ taskId }` أو `{ taskIds }`، و`timeoutMs` اختياري | تنتظر انتهاء المهمة أو المهام. مهمة `done` تحمل `result`: نفس النص (مع الـfooter) اللي ترجعه `task` متزامنة. مهمة `failed` تحمل `error`. مهمة ما زالت شغالة بعد `timeoutMs` ترجع `status: 'timeout'`. ومع `taskIds` النتيجة `{ tasks: [...] }`. |
-| `agent_cancel` | `{ taskId }` | تلغي مهمة queued أو شغالة (run الخاص فيها ينقطع) وترجع حالتها. |
+| `agent_status` | `{ taskId? }` | `{ tasks: [{ taskId, agent, status, elapsedMs, approvalId?, toolName?, error? }] }` لمهمة واحدة أو لكل المهام. تكون `status` إحدى القيم `queued` أو `running` أو `done` أو `failed` أو `cancelled` أو `awaiting-approval`. |
+| `agent_await` | `{ taskId }` أو `{ taskIds }`، و`timeoutMs` اختياري | تنتظر انتهاء المهمة أو المهام. المهمة `done` تحمل `result`: النص نفسه (مع الـfooter) الذي تُرجعه `task` المتزامنة. والمهمة `failed` تحمل `error`. والمهمة التي لا تزال تعمل بعد `timeoutMs` تُرجع `status: 'timeout'`. ومع `taskIds` تكون النتيجة `{ tasks: [...] }`. |
+| `agent_cancel` | `{ taskId }` | تلغي مهمة queued أو قيد التشغيل (ينقطع الـrun الخاص بها) وتُرجع حالتها. |
 
-بحد أقصى `maxConcurrent` sub-agent خلفي لكل run للـlead يشتغلون بنفس
-الوقت (الافتراضي 3)؛ الاستدعاءات الزيادة بـ`background: true` تاخذ
-`status: 'queued'` وتبدأ لما تفضى الأماكن. عيّنها بـ`subagentOptions`
+يعمل في الوقت نفسه بحد أقصى `maxConcurrent` sub-agent خلفي لكل run للـlead
+(الافتراضي 3)؛ والاستدعاءات الزائدة بـ`background: true` تحصل على
+`status: 'queued'` وتبدأ عندما تتوفر أماكن. عيّنها باستخدام `subagentOptions`
 في `createAgent()`:
 
 ```ts
@@ -212,33 +212,33 @@ const lead = createAgent({
 });
 ```
 
-مع `AgentExecutor.execute()`، ألحق نفس الخيارات بقيمة `subagents`
-بـ`withSubagentOptions(subagents, options)` اللي ترجعها. وفي `createAgent()`
+مع `AgentExecutor.execute()`، ألحِق الخيارات نفسها بقيمة `subagents`
+باستخدام `withSubagentOptions(subagents, options)` الذي يُرجعها. وفي `createAgent()`
 تتقدّم `subagentOptions` على الخيارات الملحقة بهذه الطريقة.
 
-الـlead اللي ما يحتاج مهام خلفية أبدًا يقدر يشيلها بـ
-`subagentOptions: { background: false }`: وقتها الـlead ياخذ بس الـtool
-`task`، بدون وسيط `background` حقها، وبلوك الـprompt ما يذكر المهام
-الخلفية. وهذا يوفر الـschemas والنصوص حق الثلاث tools (كم مئة token) في كل
+يمكن للـlead الذي لا يحتاج إلى مهام خلفية أبدًا أن يزيلها باستخدام
+`subagentOptions: { background: false }`: عندها لا يحصل الـlead إلا على الـtool
+`task`، بدون وسيط `background` الخاص بها، ولا يذكر بلوك الـprompt المهام
+الخلفية. وهذا يوفّر الـschemas والنصوص الخاصة بالـtools الثلاث (بضع مئات من الـtokens) في كل
 طلب للـlead.
 
-الـsub-agent الخلفي يرث من run الـlead مثل المتزامن (hooks وtracing
-وevent listeners وتجميع الاستهلاك)، و`maxSubagentDepth` ينطبق نفس الشي.
-إيقاف signal الـlead يلغي الـsub-agents الخلفيين، سواء كانوا queued أو
-شغالين.
+يرث الـsub-agent الخلفي من run الـlead مثل المتزامن (hooks وtracing
+وevent listeners وتجميع الاستهلاك)، ويُطبَّق `maxSubagentDepth` بالطريقة نفسها.
+وإيقاف signal الـlead يلغي الـsub-agents الخلفية، سواء كانت queued أو
+قيد التشغيل.
 
 ### When the lead run ends
 
-المهام الخلفية تتبع run واحد (استدعاء واحد `execute()` / `send()` /
-`stream()`). لما الـrun يخلص، مهما كانت طريقة انتهائه، المهام اللي ما
-زالت queued أو شغالة **تنلغي** افتراضيًا (runs الخاصة فيها تنقطع). مع
-`awaitBackgroundOnFinish: true` الـrun بالمقابل ينتظر انتهاءها قبل ما
-يكتمل (run lead منقطع أو فاشل يلغيها كمان). بالحالتين الـrun ما يكتمل إلا
-بعد ما تتوقف الـruns الخاصة فيها، فما يوصل أي event لـsub-agent لمستمعي
-الـrun بعدها؛ ومع `awaitBackgroundOnFinish` توصل events الخاصة فيهم قبل
+تتبع المهام الخلفية run واحدًا (استدعاء واحد لـ`execute()` / `send()` /
+`stream()`). عندما ينتهي الـrun، أيًّا كانت طريقة انتهائه، **تُلغى** المهام التي لا
+تزال queued أو قيد التشغيل افتراضيًا (تنقطع الـruns الخاصة بها). ومع
+`awaitBackgroundOnFinish: true` ينتظر الـrun بدلًا من ذلك انتهاءها قبل أن
+يكتمل (والـrun الخاص بـlead منقطع أو فاشل يلغيها أيضًا). في الحالتين لا يكتمل الـrun إلا
+بعد أن تتوقف الـruns الخاصة بها، لذا لا يصل أي event لـsub-agent إلى مستمعي
+الـrun بعد ذلك؛ ومع `awaitBackgroundOnFinish` تصل الـevents الخاصة بها قبل
 `run.done` الخاص بالـlead.
 
-النتيجة تعدّد كل مهمة خلفية في الـrun مع حالتها النهائية:
+تعدّد النتيجة كل مهمة خلفية في الـrun مع حالتها النهائية:
 
 ```ts
 import { createAgent } from 'lousho';
@@ -252,43 +252,43 @@ for (const task of result.backgroundTasks ?? []) {
 }
 ```
 
-`result.backgroundTasks` تحمل `{ taskId, agent, status, elapsedMs, error?,
-approvalId?, toolName? }` لكل مهمة (نفس شكل `agent_status`) وتغيب لما
-الـrun ما بدأ ولا مهمة خلفية. استخدم `agent_await` في الـlead (الـsystem
-prompt يطلب منه هذا) حتى توصل إجاباتهم للمحادثة.
+تحمل `result.backgroundTasks` القيمة `{ taskId, agent, status, elapsedMs, error?,
+approvalId?, toolName? }` لكل مهمة (بشكل `agent_status` نفسه) وتغيب عندما
+لا يبدأ الـrun أي مهمة خلفية. استخدم `agent_await` في الـlead (يطلب منه الـsystem
+prompt ذلك) لكي تصل إجاباتها إلى المحادثة.
 
-الـhook الخاص بالـexecutor اللي وراء هذا public: `ExecuteOptions.onRunEnd`
-يُستدعى مرة وحدة بالضبط لكل run، مع `{ result }` (أيًا كان `finishReason`)
-أو `{ error }`؛ والـrun ينحسم بعد ما يرجع. والمهام الخلفية تتسجل في
-`result` قبل ما `onRunEnd` الخاص فيك يشوفه.
+الـhook الخاص بالـexecutor الذي يقف وراء ذلك عام (public): يُستدعى `ExecuteOptions.onRunEnd`
+مرة واحدة بالضبط لكل run، مع `{ result }` (أيًّا كان `finishReason`)
+أو `{ error }`؛ ويُحسم الـrun بعد أن يعود. وتُسجَّل المهام الخلفية في
+`result` قبل أن يراها `onRunEnd` الخاص بك.
 
 القيود:
 
-- run الـlead اللي يوقف على approval (`finishReason: 'awaiting-approval'`)
-  يخلص هناك: مهامه الخلفية اللي ما زالت queued أو شغالة تنلغي (أو يُنتظر
-  انتهاؤها) مثل أي نهاية ثانية، والـrun المستأنف يبدأ بدون أي مهمة.
-  الـrun المستأنف run مستقل لا صلة له بمهام الـrun الموقوف (يمكن حتى
-  يشتغل في process ثانية)، فما ممكن يخليهم أحياء عبر الوقفة.
-- sub-agent خلفي يحتاج approval يوقف بـ`status: 'awaiting-approval'`
-  (مع `approvalId` و`toolName` الخاصين بالـchild)؛ استدعاؤه ما اشتغل بعد.
-  وما يكمل إلا لما الـlead ينتظره بـ`agent_await` (وصف `task` و
-  `agent_status` يقولان للـmodel هذا). وقتها **الـlead يوقف** على تلك
-  الـapproval، مثل sub-agent متزامن: نتيجة الـlead فيها
-  `finishReason: 'awaiting-approval'`، والـapproval المعلقة تسمي استدعاء
-  الـchild بـ`subagentPath: ['<agent>']`، وتنسرد في
-  `agent.approvals.list()`. و`approvals.resolve()` (أو `resume()` بعد إعادة
-  تشغيل، مع durable store) ينفذ أو يرفض استدعاء الـchild، ويخليه يكمل،
-  والـlead المكمّل ياخذ جواب الـchild كنتيجة `agent_await`
-  (`status: 'done'` مع `result`، أو `'failed'`). استهلاك الـchild ينضاف
-  لاستهلاك الـlead، ومحادثته تتحفظ تحت `taskId` مثل أي مهمة، فـ
-  `task({ taskId })` يقدر يكملها.
-- إذا الـchild وقف مرة ثانية، الـlead يوقف مرة ثانية على الـapproval
-  التالية. وإذا استدعاء `agent_await` واحد ينتظر عدة مهام كلها موقوفة،
-  الـlead يوقف عليهم واحد بعد الثاني، وبعدين ذلك الاستدعاء يرجع كل
-  الإجابات دفعة وحدة.
-- مهمة ما زالت `awaiting-approval` لما الـlead يخلص بدون ما ينتظرها
-  تتسجل في `result.backgroundTasks` بنفس الحالة وما تقدر تستأنفها:
-  الـmodel اختار ما ينتظرها.
+- run الـlead الذي يتوقف بانتظار approval (`finishReason: 'awaiting-approval'`)
+  ينتهي هناك: تُلغى مهامه الخلفية التي لا تزال queued أو قيد التشغيل (أو يُنتظر
+  انتهاؤها) مثل أي نهاية أخرى، ويبدأ الـrun المستأنف بدون أي مهمة.
+  الـrun المستأنف run مستقل لا صلة له بمهام الـrun المتوقف (وقد
+  يعمل حتى في process أخرى)، لذا لا يمكنه إبقاؤها حية عبر التوقف.
+- الـsub-agent الخلفي الذي يحتاج إلى approval يتوقف بـ`status: 'awaiting-approval'`
+  (مع `approvalId` و`toolName` الخاصين بالـchild)؛ ولم يُنفَّذ استدعاؤه بعد.
+  ولا يكمل إلا عندما ينتظره الـlead باستخدام `agent_await` (يخبر وصفا `task` و
+  `agent_status` الـmodel بذلك). عندها **يتوقف الـlead** على تلك
+  الـapproval، مثل sub-agent متزامن: تحتوي نتيجة الـlead على
+  `finishReason: 'awaiting-approval'`، وتسمّي الـapproval المعلقة استدعاء
+  الـchild بـ`subagentPath: ['<agent>']`، وتُسرد في
+  `agent.approvals.list()`. ويُنفّذ `approvals.resolve()` (أو `resume()` بعد إعادة
+  التشغيل، مع durable store) استدعاء الـchild أو يرفضه، ويتركه يكمل،
+  ويحصل الـlead المكمّل على جواب الـchild كنتيجة `agent_await`
+  (`status: 'done'` مع `result`، أو `'failed'`). يُضاف استهلاك الـchild
+  إلى استهلاك الـlead، وتُحفظ محادثته تحت `taskId` مثل أي مهمة، لذا يستطيع
+  `task({ taskId })` إكمالها.
+- إذا توقف الـchild مرة أخرى، يتوقف الـlead مرة أخرى على الـapproval
+  التالية. وإذا كان استدعاء `agent_await` واحد ينتظر عدة مهام كلها متوقفة،
+  يتوقف الـlead عليها واحدة تلو الأخرى، ثم يُرجع ذلك الاستدعاء كل
+  الإجابات دفعة واحدة.
+- المهمة التي لا تزال `awaiting-approval` عندما ينتهي الـlead دون أن ينتظرها
+  تُسجَّل في `result.backgroundTasks` بالحالة نفسها ولا يمكنك استئنافها:
+  فقد اختار الـmodel ألا ينتظرها.
 
 ```ts
 import { createAgent, defineTool } from 'lousho';
@@ -316,9 +316,9 @@ if (paused.finishReason === 'awaiting-approval' && paused.approvalId) {
 
 ## Dynamic catalogs
 
-بدل record ثابت، مرّر catalog فيه `list()` و`resolve(name)`.
-`list()` تُستدعى في بداية كل run يعرض الـtool `task`، فالمجموعة تقدر
-تتغير بين run وrun؛ و`resolve()` تُستدعى لما الـlead يختار اسم (رجّع
+بدلًا من record ثابت، مرّر catalog يحتوي على `list()` و`resolve(name)`.
+تُستدعى `list()` في بداية كل run يعرض الـtool `task`، لذا يمكن أن تتغير
+المجموعة من run إلى آخر؛ وتُستدعى `resolve()` عندما يختار الـlead اسمًا (أرجع
 `undefined` للاسم المجهول).
 
 ```ts
@@ -338,10 +338,10 @@ const lead = createAgent({ provider, instructions: 'You coordinate.', subagents:
 
 ## Remote sub-agents
 
-`remoteAgent()` يستخدم agent إنت منشره أصلًا (`lousho build
+يستخدم `remoteAgent()` agent نشرته أنت أصلًا (`lousho build
 --target=node-server` أو `docker` أو `cloudflare-worker`) كـsub-agent.
-يتحط في `subagents` جنب المحليين، والـlead يفوّض له بنفس الـtool
-`task`، بما فيها `background: true`.
+يوضع في `subagents` بجانب الـagents المحلية، ويفوّض إليه الـlead باستخدام الـtool
+`task` نفسها، بما في ذلك `background: true`.
 
 ```ts
 import { createAgent, remoteAgent } from 'lousho';
@@ -359,53 +359,53 @@ const lead = createAgent({
 });
 ```
 
-كل مهمة تفتح session جديدة على الـagent البعيد (`POST <url>/chat` مع
+تفتح كل مهمة session جديدة على الـagent البعيد (`POST <url>/chat` مع
 `{ sessionId, input }`، وتُقرأ كـstream أحداث SSE، راجع
-[النشر](/ar/deployment#http-api))، ترسل prompt المهمة وترجع النص
-النهائي للـagent البعيد (أو الكائن كـJSON لما يكون للـagent المنشور
-`output` schema، راجع [المخرجات المنظمة](/ar/structured-output))، ووراها
-footer يسمي الـsession والـ`taskId`. استدعاء `task` اللي يستأنف ذلك
-الـ`taskId` يرسل لنفس الـsession البعيدة، فيكمل الـagent البعيد بالـhistory
-الخاص فيه (خلّيه في store على الطرف البعيد)؛ ومهمة بعيدة ما تقدر تعملها
-fork. الـagent البعيد يشوف بس ذلك الـprompt، ويشتغل بالـmodel والـtools
-والـlimits الخاصة فيه، فـruntime الـlead (hooks وsandbox وapproval store)
-ما توصله. وإشارة إيقاف run الـlead توقف الطلب. الخيارات: `url` و`auth`
-و`name` و`description` و`headers` و`fetch` (احقن `fetch` خاصة فيك في
-الاختبارات؛ agent شغال في نفس الـprocess ورا
+[النشر](/ar/deployment#http-api))، وترسل prompt المهمة وتُرجع النص
+النهائي للـagent البعيد (أو الكائن بصيغة JSON عندما يكون للـagent المنشور
+`output` schema، راجع [المخرجات المنظمة](/ar/structured-output))، ويليه
+footer يسمّي الـsession والـ`taskId`. واستدعاء `task` الذي يستأنف ذلك
+الـ`taskId` يُرسَل إلى الـsession البعيدة نفسها، فيكمل الـagent البعيد بالـhistory
+الخاص به (أبقِه في store على الطرف البعيد)؛ ولا يمكنك عمل
+fork لمهمة بعيدة. لا يرى الـagent البعيد إلا ذلك الـprompt، ويعمل بالـmodel والـtools
+والـlimits الخاصة به، لذا لا يصل إليه runtime الـlead (hooks وsandbox وapproval store).
+وإشارة إيقاف run الـlead توقف الطلب. الخيارات: `url` و`auth`
+و`name` و`description` و`headers` و`fetch` (احقن `fetch` خاصة بك في
+الاختبارات؛ فالـagent الذي يعمل في الـprocess نفسها خلف
 `createRouteHandler(agent, { basePath: '/' }).handler` — الـFetch handler
-المصدَّر، راجع [النشر](/ar/deployment#http-api) — يشتغل كـfake
+المُصدَّر، راجع [النشر](/ar/deployment#http-api) — يعمل كـfake
 deployment: `fetch: (input, init) => handler(new Request(input, init))`).
 
-حالات الفشل (الـagent ما يوصله، رد 401 أو أي رد غير 2xx ثاني، stream
-مشوَّه، أو run بعيد يخلص بخطأ) توصل للـlead كـtool error منظم بالكود
+تصل حالات الفشل (تعذّر الوصول إلى الـagent، أو رد 401 أو أي رد آخر غير 2xx، أو stream
+مشوَّه، أو run بعيد ينتهي بخطأ) إلى الـlead كـtool error منظم بالكود
 `LOUSHO_REMOTE_REQUEST_FAILED` (و`LOUSHO_REMOTE_UNAUTHORIZED` لـ401)؛
-والـtoken أبدًا ما يكون جزء من خطأ ولا event.
+ولا يكون الـtoken أبدًا جزءًا من خطأ أو event.
 
-استهلاك الـtokens للـrun البعيد، مثل ما يبلغ عنه الـagent البعيد في event
-`run.done` الخاص فيه، ينضاف لـ`result.usage` الخاصة بالـlead: للإجماليات،
-ولـ`usage.delegated`، ولـ`byModel['remote:<name>']` (`<name>` هو المفتاح
-في `subagents`). البعيد ما يرسل تفصيل لكل model، فذلك الإدخال الواحد يحمل
-إجمالياته وتقدير `costUsd` الخاص فيه؛ ولما البعيد ما يرسل تكلفة،
-`costUsd` الخاصة بالـlead تصير `undefined`. الـlead يثق بهذه الأرقام: ما
-يقدر يتأكد منها. ونشر أقدم من هذا التغيير ما يرسل usage، وعندها ما ينضاف
-شي. run بعيد يوقف على approval يضيف اللي صرفه قبل الوقفة، والتكملة تضيف
-بس اللي صرفته بعدها. الـusage يوصل لما الـrun البعيد يخلص، فـ`limits`
-الخاصة بالـlead تشوفه بس بعد ما استدعاء `task` يرجع. `RemoteSubagent`
-مكتوب باليد ياخذ الـusage لكل دور عبر خيار `onUsage` في `run()` الخاصة
-فيه.
+يُضاف استهلاك الـtokens للـrun البعيد، كما يُبلغ عنه الـagent البعيد في event
+`run.done` الخاص به، إلى `result.usage` الخاصة بالـlead: إلى الإجماليات،
+وإلى `usage.delegated`، وإلى `byModel['remote:<name>']` (`<name>` هو المفتاح
+في `subagents`). لا يرسل الطرف البعيد تفصيلًا لكل model، لذا يحمل ذلك الإدخال الواحد
+إجمالياته وتقدير `costUsd` الخاص به؛ وعندما لا يرسل الطرف البعيد تكلفة،
+تصبح `costUsd` الخاصة بالـlead هي `undefined`. يثق الـlead بهذه الأرقام: ولا
+يستطيع التحقق منها. والنشر الأقدم من هذا التغيير لا يرسل usage، وعندها لا يُضاف
+أي شيء. الـrun البعيد الذي يتوقف بانتظار approval يضيف ما استهلكه قبل التوقف، والتكملة لا تضيف
+إلا ما استهلكته بعده. يصل الـusage عندما ينتهي الـrun البعيد، لذا لا تراه `limits`
+الخاصة بالـlead إلا بعد أن يعود استدعاء `task`. والـ`RemoteSubagent`
+المكتوب يدويًا يحصل على الـusage لكل دور عبر خيار `onUsage` في `run()` الخاصة
+به.
 
 ### Remote approvals
 
-إذا الـrun البعيد وقف على approval، run الـlead يوقف عليها بالضبط مثل
-sub-agent محلي: `result.finishReason` تكون `'awaiting-approval'`،
-والـapproval المعلقة في `agent.approvals.list()` (وفي أزرار القنوات،
-وشات التطوير، وطلبات الصلاحية في ACP) تحمل اسم الـtool البعيدة وإدخالها،
-مع `subagentPath: ['researcher']`. واستدعاء `ask_question` بعيد يوصل
-كسؤال (`kind: 'question'`) تجاوب عليه `agent.approvals.answer()`.
+إذا توقف الـrun البعيد بانتظار approval، يتوقف run الـlead عليها تمامًا مثل
+sub-agent محلي: تكون `result.finishReason` هي `'awaiting-approval'`،
+وتحمل الـapproval المعلقة في `agent.approvals.list()` (وفي أزرار القنوات،
+ومحادثة التطوير، وطلبات الصلاحية في ACP) اسم الـtool البعيدة ومدخلها،
+مع `subagentPath: ['researcher']`. واستدعاء `ask_question` البعيد يصل
+كسؤال (`kind: 'question'`) تجيب عنه باستخدام `agent.approvals.answer()`.
 والبت فيها على الـlead (`resolve` أو `streamResolve` أو `answer`) يرسل
-القرار لمسار الـapprovals عند الـagent البعيد
-(`POST <url>/chat/<session>/approvals/<id>`)، ويقرأ التكملة، وجوابها
-النهائي يصير نتيجة `task`؛ وتكملة توقف مرة ثانية توقف الـlead مرة ثانية.
+القرار إلى مسار الـapprovals لدى الـagent البعيد
+(`POST <url>/chat/<session>/approvals/<id>`)، ويقرأ التكملة، ويصبح جوابها
+النهائي نتيجة `task`؛ والتكملة التي تتوقف مرة أخرى توقف الـlead مرة أخرى.
 
 ```ts
 import type { SimpleAgent } from 'lousho';
@@ -419,28 +419,28 @@ if (paused.finishReason === 'awaiting-approval') {
 }
 ```
 
-الـsnapshot الخاص بالـapproval عند الـlead يحتفظ بس بمعرّف الـsession
-البعيدة، ومعرّف الـapproval البعيدة، والـ`taskId`، واسم الـsub-agent، فـ
-process lead جديدة على نفس الـstore تقدر تبت فيها؛ والـbearer token
-أبدًا ما ينخزن (يُقرأ من خيارات `remoteAgent()` من جديد). والفشل أثناء
-البت (رد 401، أو أي رد غير 2xx ثاني مثل 404 البعيد على approval ما عادت
+لا يحتفظ الـsnapshot الخاص بالـapproval لدى الـlead إلا بمعرّف الـsession
+البعيدة، ومعرّف الـapproval البعيدة، والـ`taskId`، واسم الـsub-agent، لذا تستطيع
+process lead جديدة على الـstore نفسه البت فيها؛ ولا يُخزَّن الـbearer token
+أبدًا (يُقرأ من خيارات `remoteAgent()` من جديد). والفشل أثناء
+البت (رد 401، أو أي رد آخر غير 2xx مثل 404 من الطرف البعيد على approval لم تعد
 معلقة، أو خطأ شبكة) هو الـtool error المنظم لذلك الاستدعاء `task`
-بالأكواد اللي فوق، وrun الـlead يكمل. بس run بدون approval store
-(`AgentExecutor` مجرد) هو اللي يظل يفشل المهمة بـ
-`LOUSHO_SESSION_AWAITING_APPROVAL`، ويسمي الـsession البعيدة ومعرّف
-الـapproval حتى تبت فيها على الـagent البعيد.
+بالأكواد المذكورة أعلاه، ويكمل run الـlead. ولا يظل يُفشل المهمة بالخطأ
+`LOUSHO_SESSION_AWAITING_APPROVAL` إلا الـrun الذي لا يملك approval store
+(`AgentExecutor` مجرد)، ويسمّي الخطأ الـsession البعيدة ومعرّف
+الـapproval لكي تبت فيها على الـagent البعيد.
 
-`remoteAgent()` يغطي agents منشورة عبر HTTP. نوع ثاني من الـsub-agent
-"البعيد" هو runner من framework agents ثانية يشتغل داخل الـprocess —
-ابنِ واحد على نفس العقد بـ`defineRemoteSubagent()` (تحت) أو استخدم
+يغطي `remoteAgent()` الـagents المنشورة عبر HTTP. ونوع آخر من الـsub-agent
+"البعيد" هو runner من frameworks أخرى للـagents يعمل داخل الـprocess —
+ابنِ واحدًا على العقد نفسه باستخدام `defineRemoteSubagent()` (أدناه) أو استخدم
 محوّل Pi الجاهز.
 
 ## Pi coding-agent sub-agents (`piAgent()`)
 
-`piAgent()` يشغّل [Pi coding agent](https://github.com/earendil-works/pi)
+يشغّل `piAgent()` [Pi coding agent](https://github.com/earendil-works/pi)
 (`@earendil-works/pi-coding-agent`، peer dependency اختيارية — `npm install
-@earendil-works/pi-coding-agent`) داخل الـprocess كـsub-agent. يشتغل على
-Node بس: tools الخاصة بـPi (`read` و`bash` و`edit` و`write` و...) تشتغل
+@earendil-works/pi-coding-agent`) داخل الـprocess كـsub-agent. لا يعمل إلا على
+Node: إذ تعمل tools الخاصة بـPi (`read` و`bash` و`edit` و`write` و...)
 على مجلد محلي.
 
 ```ts
@@ -462,78 +462,78 @@ const lead = createAgent({
 });
 ```
 
-كل استدعاء `task` هو Pi session وحدة: `sessionId` الخاص بالمهمة يصير
-معرّف الـPi session، فاستئناف `taskId` — والاستئناف بعد وقفة approval،
-حتى في process جديدة — يفتح نفس ملف الـsession والـprompt التالي يكمل
-الـtranscript. مهمة Pi ما تقدر تعملها fork (استدعاء `task` يفشل بخطأ
+كل استدعاء `task` هو Pi session واحدة: يصبح `sessionId` الخاص بالمهمة
+معرّف الـPi session، لذا فإن استئناف `taskId` — والاستئناف بعد توقف بانتظار approval،
+حتى في process جديدة — يفتح ملف الـsession نفسه ويكمل الـprompt التالي
+الـtranscript. لا يمكنك عمل fork لمهمة Pi (يفشل استدعاء `task` بخطأ
 "cannot be copied" الخاص بالـsession البعيدة). الخيارات: `cwd` (مطلوب)،
 `model`، `modelRuntime`، `description` (مطلوب)، `name`، `permissions`،
 `agentDir`، `sessionDir`، `tools` (allowlist لـtools الخاصة بـPi)،
 `thinkingLevel`.
 
-قواعد `permissions` تحكم كل tool call لـPi (الـ`tool_call` extension
-event الخاص بـPi يطلق قبل ما الـtool تشتغل): `deny` يرفض الاستدعاء،
-و`ask` يوقف run الـlead على approval بالضبط مثل الـremote sub-agent —
-`result.finishReason` تكون `'awaiting-approval'` والـapproval المعلقة
-تحمل اسم tool الـPi ووسائطها و`subagentPath`. الموافقة تقول لـPi إن
-الاستدعاء معتمد وتخلي ذلك الاستدعاء بالذات (نفس اسم الـtool + نفس
-الوسائط) يشتغل مرة وحدة (Pi ما فيه API "شغّل الاستدعاء الموقوف"، فالـmodel
-يعيد إصداره والبوابة تسمح لذلك الاستدعاء الواحد)؛ والرفض يرسل ملاحظة
-القرار كدور مستخدم تالي والاستدعاء المرفوض أبدًا ما يشتغل. بدون approval
-store الـ`ask` يترفض على طول. run Pi موقوف يحتفظ بالـusage الخاص فيه عند
-الوقفة وتكملته تبلغ عن الباقي، نفس حسابات `remoteAgent()`.
+تحكم قواعد `permissions` كل tool call لـPi (يُطلَق الـ`tool_call` extension
+event الخاص بـPi قبل أن تعمل الـtool): `deny` يرفض الاستدعاء،
+و`ask` يوقف run الـlead بانتظار approval تمامًا مثل الـremote sub-agent —
+تكون `result.finishReason` هي `'awaiting-approval'` وتحمل الـapproval المعلقة
+اسم tool الـPi ووسائطها و`subagentPath`. تخبر الموافقةُ Pi بأن
+الاستدعاء معتمد وتسمح لذلك الاستدعاء بالذات (اسم الـtool نفسه + الوسائط
+نفسها) بالعمل مرة واحدة (لا يملك Pi واجهة API لـ"تشغيل الاستدعاء المتوقف"، لذا يعيد الـmodel
+إصداره وتسمح البوابة لذلك الاستدعاء الواحد)؛ ويرسل الرفض ملاحظة
+القرار كدور مستخدم تالٍ ولا يعمل الاستدعاء المرفوض أبدًا. بدون approval
+store يُرفض `ask` مباشرة. ويحتفظ run الـPi المتوقف بالـusage الخاص به عند
+التوقف وتُبلغ تكملته عن الباقي، وفق حسابات `remoteAgent()` نفسها.
 
-`SubagentApprovalPause` (مصدّرة حاليًا) هي اللي يرميها adapter من هذا
-النوع ليوقف الـlead؛ و`defineRemoteSubagent(impl)` تسجل أي object يطابق
-`RemoteSubagent` للاستخدام في `subagents`، فاستدعاء `task` يوجهه على
+`SubagentApprovalPause` (المُصدَّرة حاليًا) هي ما يرميه adapter من هذا
+النوع لكي يوقف الـlead؛ وتسجّل `defineRemoteSubagent(impl)` أي object يطابق
+`RemoteSubagent` للاستخدام في `subagents`، لذا يوجّه استدعاء `task` إليه عبر
 المسار البعيد.
 
 ## Depth
 
-`maxSubagentDepth` (الافتراضي `1`) يحدد عمق تداخل الـsub-agents.
-بالافتراضي، الـlead يقدر يستدعي sub-agents لكن هم ما يقدرون يستدعون
-sub-agents خاصة بهم: run عند الحد ببساطة ما تنعرض له الـtool `task`،
-حتى لو انبنى مع `subagents`. و`maxSubagentDepth: 2` تخلي sub-agents
-الـlead يفوضون مرة زيادة. قيمة الـrun الأعلى تنطبق على الشجرة كلها؛
-و`maxSubagentDepth` الخاصة بـsub-agent معين ما لها أثر إلا لما يشتغل
-كـagent أعلى المستوى.
+يحدد `maxSubagentDepth` (الافتراضي `1`) عمق تداخل الـsub-agents.
+افتراضيًا، يستطيع الـlead استدعاء sub-agents لكنها لا تستطيع استدعاء
+sub-agents خاصة بها: فالـrun الذي بلغ الحد لا تُعرض عليه الـtool `task` ببساطة،
+حتى لو بُني مع `subagents`. وتسمح `maxSubagentDepth: 2` لـsub-agents
+الـlead بالتفويض مرة إضافية. تُطبَّق قيمة الـrun الأعلى على الشجرة كلها؛
+ولا يكون لـ`maxSubagentDepth` الخاصة بـsub-agent معيّن أثر إلا عندما يعمل
+كـagent في المستوى الأعلى.
 
 ## What a sub-agent inherits
 
-الـsub-agent يحتفظ بتعليماته، والـmodel/provider الخاص فيه، والـtools
-والـskills و`maxSteps` الخاصة فيه، وسياقه معزول. ومن الـrun اللي استدعاه
+يحتفظ الـsub-agent بتعليماته، والـmodel/provider الخاص به، والـtools
+والـskills و`maxSteps` الخاصة به، ويبقى سياقه معزولًا. ومن الـrun الذي استدعاه
 يرث:
 
 | إعداد الـruntime | يُورث؟ | ملاحظات |
 | --- | --- | --- |
-| `signal` الإيقاف | نعم | إيقاف الـlead يوقف الـsub-agents الخاصة فيه. |
-| الـtracing (`exporter`) | نعم | الـspan `invoke_agent` الخاصة بالـsub-agent وليدة span `execute_tool task` الخاصة بالـlead. و`captureContent` و`redactContent` يُورثون كمان. |
-| الـhooks (`hooks`) | نعم | تشتغل على استدعاءات الـmodel والـtool calls للـsub-agent، مع `ctx.subagent` متعين (راجع تحت). hook يرمي خطأ داخل sub-agent توقف الـrun كله. |
+| `signal` الإيقاف | نعم | إيقاف الـlead يوقف الـsub-agents التابعة له. |
+| الـtracing (`exporter`) | نعم | الـspan `invoke_agent` الخاصة بالـsub-agent ابنة لـspan `execute_tool task` الخاصة بالـlead. ويُورث `captureContent` و`redactContent` أيضًا. |
+| الـhooks (`hooks`) | نعم | تعمل على استدعاءات الـmodel والـtool calls للـsub-agent، مع تعيين `ctx.subagent` (راجع أدناه). والـhook الذي يرمي خطأً داخل sub-agent يوقف الـrun كله. |
 | الـapproval store (`approvalStore`) | نعم | راجع [Approvals](#approvals-inside-a-sub-agent). |
-| مستمعو الـevents (`onAgentEvent`، `createAgent({ onEvent })`) و`stream()` | نعم | events الـsub-agent تتمرر مع حقل `subagent`. |
-| `toolConcurrency` | نعم، إلا إذا الـsub-agent عيّن قيمته | |
+| مستمعو الـevents (`onAgentEvent`، `createAgent({ onEvent })`) و`stream()` | نعم | تُمرَّر events الـsub-agent مع حقل `subagent`. |
+| `toolConcurrency` | نعم، ما لم يعيّن الـsub-agent قيمته | |
 | `sandbox` | نعم | |
-| استهلاك الـtokens | يتجمّع | ينضاف لـ`result.usage` الخاصة بالـlead (الإجماليات و`byModel` و`usage.delegated`، اللي `toolErrors` فيها تعدّ الـtool calls الفاشلة للـsub-agents) وينحسب ضمن `limits` حقه، حتى لو الـsub-agent فشل بعد ما صرف tokens؛ وللبعيد تحت `byModel['remote:<name>']`. |
-| `limits` الـtokens والتكلفة والمدة | مشتركة | الـsub-agent كمان مقيّد بحدود الـlead، محسوبة مع اللي صرفه الـlead والـsub-agents الثانية حقه اللي ما زالت شغالة: لما يوصلون للحدود، الـsub-agent يوقف (`'budget-exceeded'`) قبل استدعاء الـmodel أو الـtools التالي، والـlead يوقف قبل استدعاء الـmodel التالي حقه. راجع [Budgets](/ar/configuration#الميزانيات). |
-| `maxSubagentDepth` | الرصيد الباقي | راجع [Depth](#depth). |
-| `permissionMode` | نعم، إلا إذا كانت الخاصة بالـlead `'default'` | الـsub-agent يشتغل تحت [permission mode](/ar/permission-modes#الـ-sub-agents) الخاصة بالـlead، وتُقرأ عند كل tool call له؛ وطالما الخاصة بالـlead `'default'` يشتغل بالخاصة فيه (sub-agent وضعه `'plan'` يظل في plan دائمًا). الـremote sub-agent ما يرثها: plan mode يرفض استدعاء `task` إليه. |
-| `principal` | نعم | الطرف اللي يشتغل run الـlead لحسابه (مستدعي route auth، مرسل قناة)؛ والـremote sub-agent ما يُقال له. |
-| `metadata` | نعم | `metadata` الخاصة بـrun الـlead — hooks الـsub-agent تشوفها. |
-| `memory` | لا | خانات الذاكرة حق الـlead تظل للـlead. الـsub-agent اللي عنده `memory` خاصة فيه يسترجع منها في الـprompt حقه وياخذ memory tools خاصة فيه، بنطاق `sessionId` و`metadata` و`principal` الخاصة بـrun الـlead (راجع [Memory](/ar/memory#القيود)). |
-| `onLLMRequest` و`onToolCall` وباقي callbacks الخاصة بـrun واحد | لا | تصف run واحد؛ استخدم hooks أو event listener لتراقب الـsub-agents. |
-| `sessionId` / `checkpointStore` | لا | الـsub-agent ما ياخذ checkpoints خاصة فيه. إذا الـprocess ماتت وsub-agent شغال، الـlead المستأنف يعيد ذلك الاستدعاء `task`. |
-| `output` schema | لا | مخرجات الـsub-agent خاصة فيه: مع schema، `task` ترجع الكائن بعد الـvalidation كـJSON (راجع [المخرجات المنظمة](/ar/structured-output#sub-agents))؛ وبدونها، نص. |
-| سجل المحادثة | لا | الـsub-agent يشوف بس prompt المهمة (زائد أدواره السابقة لما الـlead [يستأنف المهمة](#تكملة-مهمة)). |
+| استهلاك الـtokens | يتجمّع | يُضاف إلى `result.usage` الخاصة بالـlead (الإجماليات و`byModel` و`usage.delegated`، التي تعدّ `toolErrors` فيها الـtool calls الفاشلة للـsub-agents) ويُحتسب ضمن `limits` الخاصة به، حتى لو فشل الـsub-agent بعد أن استهلك tokens؛ وللطرف البعيد تحت `byModel['remote:<name>']`. |
+| `limits` الـtokens والتكلفة والمدة | مشتركة | الـsub-agent مقيّد أيضًا بحدود الـlead، محسوبةً مع ما استهلكه الـlead والـsub-agents الأخرى التابعة له التي لا تزال تعمل: عندما تبلغ الحدود، يتوقف الـsub-agent (`'budget-exceeded'`) قبل استدعاء الـmodel أو الـtools التالي، ويتوقف الـlead قبل استدعاء الـmodel التالي الخاص به. راجع [Budgets](/ar/configuration#الميزانيات). |
+| `maxSubagentDepth` | الرصيد المتبقي | راجع [Depth](#depth). |
+| `permissionMode` | نعم، ما لم تكن قيمة الـlead هي `'default'` | يعمل الـsub-agent تحت [permission mode](/ar/permission-modes#الـ-sub-agents) الخاصة بالـlead، وتُقرأ عند كل tool call له؛ وطالما كانت قيمة الـlead هي `'default'` يعمل بالقيمة الخاصة به (الـsub-agent الذي وضعه `'plan'` يبقى في plan دائمًا). لا يرثها الـremote sub-agent: إذ يرفض plan mode استدعاء `task` إليه. |
+| `principal` | نعم | الطرف الذي يعمل run الـlead لحسابه (مستدعي route auth، مرسل القناة)؛ ولا يُبلَّغ به الـremote sub-agent. |
+| `metadata` | نعم | `metadata` الخاصة بـrun الـlead — تراها hooks الـsub-agent. |
+| `memory` | لا | تبقى خانات الذاكرة الخاصة بالـlead للـlead. والـsub-agent الذي لديه `memory` خاصة به يسترجع منها في الـprompt الخاص به ويحصل على memory tools خاصة به، بنطاق `sessionId` و`metadata` و`principal` الخاصة بـrun الـlead (راجع [Memory](/ar/memory#القيود)). |
+| `onLLMRequest` و`onToolCall` وبقية الـcallbacks الخاصة بـrun واحد | لا | تصف run واحدًا؛ استخدم hooks أو event listener لمراقبة الـsub-agents. |
+| `sessionId` / `checkpointStore` | لا | لا يحصل الـsub-agent على checkpoints خاصة به. إذا توقفت الـprocess بينما يعمل sub-agent، يعيد الـlead المستأنف ذلك الاستدعاء `task`. |
+| `output` schema | لا | مخرجات الـsub-agent خاصة به: مع schema، تُرجع `task` الكائن بعد الـvalidation بصيغة JSON (راجع [المخرجات المنظمة](/ar/structured-output#sub-agents))؛ وبدونها، نصًا. |
+| سجل المحادثة | لا | لا يرى الـsub-agent إلا prompt المهمة (إضافةً إلى أدواره السابقة عندما [يستأنف الـlead المهمة](#تكملة-مهمة)). |
 
 ### Hooks داخل sub-agents
 
 راجع [الـhooks](/ar/hooks) لنقاط الربط والنتائج.
 
-hooks الأب تنطبق على الـsub-agents الخاصة فيه افتراضيًا. و`ctx.subagent`
-يقول للـhook إنه شغال داخل واحد — فيه `name` الـsub-agent، و`depth`
+تُطبَّق hooks الأب على الـsub-agents التابعة له افتراضيًا. ويُخبر `ctx.subagent`
+الـhook بأنه يعمل داخل أحدها — ويحتوي على `name` الـsub-agent، و`depth`
 عمقه (1 لـsub-agent تابع للـrun الأعلى)، و`toolCallId` الخاص بالـlead
-اللي بدأه، والـsub-agent المحيط في `parent` عند تداخل أعمق. والـhook
-اللي لازم يشوف بس الـrun الأعلى يرجع مبكرًا:
+الذي بدأه، والـsub-agent المحيط في `parent` عند التداخل الأعمق. والـhook
+الذي يجب ألا يرى إلا الـrun الأعلى يعود مبكرًا:
 
 ```ts
 import { HookRegistry } from 'lousho';
@@ -550,26 +550,26 @@ hooks.register({
 
 ### Events
 
-`agent.stream()` / `AgentExecutor.stream()` على الـlead تبث run كل
-sub-agent داخل نفس الـstream — الخطوات، وdeltas النص، وevents الـtools،
-والأخطاء — مع حقل `subagent` على كل event منها، فواجهة المستخدم تقدر
-تدجّن نشاط الـsub-agent تحت استدعاء `task` الخاص بالـlead
+يبث `agent.stream()` / `AgentExecutor.stream()` على الـlead الـrun الخاص بكل
+sub-agent داخل الـstream نفسه — الخطوات، وdeltas النص، وevents الـtools،
+والأخطاء — مع حقل `subagent` على كل event منها، لذا تستطيع واجهة المستخدم
+أن تعرض نشاط الـsub-agent متداخلًا تحت استدعاء `task` الخاص بالـlead
 (`subagent.toolCallId`). راجع [Streaming: sub-agents](/ar/streaming#sub-agents).
 
-listener على الـlead (`createAgent({ onEvent })` أو `onAgentEvent`) ياخذ
-نفس الـevents، بما فيها events الـsub-agents، لحظة وقوعها. راجع
-[الاستماع بدون ما تمر على الأحداث](/ar/streaming#الاستماع-بدون-iterating).
+يحصل الـlistener على الـlead (`createAgent({ onEvent })` أو `onAgentEvent`) على
+الـevents نفسها، بما فيها events الـsub-agents، لحظة وقوعها. راجع
+[الاستماع دون المرور على الأحداث](/ar/streaming#الاستماع-بدون-iterating).
 
 ## Approvals inside a sub-agent
 
-لما sub-agent يستدعي tool لها `needsApproval`، **الـrun كله يوقف**:
-`send()` الخاص بالـlead يرجع بـ`finishReason: 'awaiting-approval'` ومعه
-`approvalId`، والـapproval store يحتفظ بسجل واحد بس، استدعاؤه المعلق هو
-استدعاء الـsub-agent (`toolName`، `args`) مع `subagentPath` يسمي
-الـsub-agents اللي شغال داخلهم (مثل `['researcher']`). وافق عليه أو ارفضه
-بـ`lead.approvals.resolve({ id, approved })` (الـlead أصلًا يعرف
-`subagents` الخاصة فيه؛ والـapproval store في الذاكرة هو الافتراضي، فما
-تحتاج `approvalStore`):
+عندما يستدعي sub-agent أداة لها `needsApproval`، **يتوقف الـrun كله**:
+يعود `send()` الخاص بالـlead بـ`finishReason: 'awaiting-approval'` ومعه
+`approvalId`، ويحتفظ الـapproval store بسجل واحد فقط، استدعاؤه المعلق هو
+استدعاء الـsub-agent (`toolName`، `args`) مع `subagentPath` يسمّي
+الـsub-agents التي يعمل داخلها (مثل `['researcher']`). وافق عليه أو ارفضه
+باستخدام `lead.approvals.resolve({ id, approved })` (فالـlead يعرف أصلًا
+`subagents` الخاصة به؛ والـapproval store في الذاكرة هو الافتراضي، لذا لا
+تحتاج إلى `approvalStore`):
 
 ```ts
 import { createAgent } from 'lousho';
@@ -587,45 +587,45 @@ if (paused.finishReason === 'awaiting-approval' && paused.approvalId) {
 }
 ```
 
-الاستئناف يشغل (أو يرفض) استدعاء الـsub-agent المعلق، ويخليه يخلص،
-ويرجع جوابه النهائي للـlead كنتيجة `task`، وبعدين يكمل الـlead. إذا
-الـsub-agent احتاج approval ثانية، الـrun يوقف مرة ثانية بـ`approvalId`
-جديد. يشتغل على أي عمق.
+يشغّل الاستئناف استدعاء الـsub-agent المعلق (أو يرفضه)، ويتركه ينتهي،
+ويُرجع جوابه النهائي إلى الـlead كنتيجة `task`، ثم يكمل الـlead. إذا
+احتاج الـsub-agent إلى approval أخرى، يتوقف الـrun مرة أخرى بـ`approvalId`
+جديد. ويعمل ذلك على أي عمق.
 
-خيار `approve` على الـlead يبت في استدعاءات الـsub-agents الخاصة فيه
-كمان.
+خيار `approve` على الـlead يبت في استدعاءات الـsub-agents التابعة له
+أيضًا.
 
 الضمانات والحدود:
 
-- ولا استدعاء يشتغل مرتين ولا واحد يضيع: حالة الـsub-agent الموقوفة
-  تتخزن داخل سجل الـapproval الخاص بالـlead (JSON عادي، فأي `ApprovalStore`
-  يشتغل)، والاستدعاء المعتمد يشتغل مرة وحدة بالضبط، عند الاستئناف.
-- استدعاءات الـtools الثانية في نفس دور الـlead اللي خلصت تحتفظ بنتائجها
-  وما تشتغل من جديد.
-- approval وحدة معلقة لكل run. إذا sub-agent اثنين وقفوا في نفس الدور،
-  الـrun يوقف على الأول (بترتيب الاستدعاء)؛ والثاني يتوقف والـlead ياخذ
-  نتيجة خطأ لذلك الاستدعاء `task` تقول إن استدعاؤه ما اشتغل، فيقدر يطلبه
+- لا يعمل أي استدعاء مرتين ولا يضيع أي استدعاء: تُخزَّن حالة الـsub-agent المتوقفة
+  داخل سجل الـapproval الخاص بالـlead (JSON عادي، لذا يعمل أي `ApprovalStore`)،
+  ويعمل الاستدعاء المعتمد مرة واحدة بالضبط، عند الاستئناف.
+- استدعاءات الـtools الأخرى في دور الـlead نفسه التي انتهت تحتفظ بنتائجها
+  ولا تعمل من جديد.
+- approval واحدة معلقة لكل run. إذا توقف sub-agentان في الدور نفسه،
+  يتوقف الـrun على الأول (بترتيب الاستدعاء)؛ ويُوقَف الثاني ويحصل الـlead على
+  نتيجة خطأ لذلك الاستدعاء `task` تذكر أن استدعاءه لم يُنفَّذ، لذا يستطيع طلبه
   من جديد بعد الـapproval.
-- hooks ما قبل وبعد الـtool الخاصة باستدعاء `task` تطلق مرة ثانية عند
+- تُطلَق hooks ما قبل الـtool وما بعدها الخاصة باستدعاء `task` مرة أخرى عند
   الاستئناف، مثل hooks أي tool معتمدة.
-- sub-agent تغيّر تعريفه من بعد الوقفة (تعليمات أو model أو tools)
-  يعالجه `onAgentDrift` الخاص بالـlead، مثل الـlead نفسه: `'error'` يرفض
-  الاستئناف ويخلي الـapproval معلقة، و`'warn'` (الافتراضية) تحذّر وتطلق
-  `agent.drift` مع `subagent` متعين. وsub-agent ما عاد عنده tool
-  الاستدعاء المعتمد يرفض دائمًا بـ`LOUSHO_RESUME_TOOL_MISSING`. راجع
-  [الاستئناف بـagent متغير](/ar/durable-execution#استئناف-run-بعد-ما-يتغير-الـ-agent).
-- استهلاك الـtokens يظل يتراكم عبر الوقفة: usage الـsub-agent قبل الوقفة
-  موجود في النتيجة الموقوفة، واللي يصرفه بعد الاستئناف ينضاف لـ
+- الـsub-agent الذي تغيّر تعريفه منذ التوقف (تعليمات أو model أو tools)
+  يعالجه `onAgentDrift` الخاص بالـlead، كما يعالج الـlead نفسه: `'error'` يرفض
+  الاستئناف ويترك الـapproval معلقة، و`'warn'` (الافتراضية) تحذّر وتُطلق
+  `agent.drift` مع تعيين `subagent`. والـsub-agent الذي لم تعد لديه tool
+  الاستدعاء المعتمد يُرفض دائمًا بالخطأ `LOUSHO_RESUME_TOOL_MISSING`. راجع
+  [الاستئناف بـagent متغير](/ar/durable-execution#استئناف-run-بعد-تغيّر-الـ-agent).
+- يستمر تراكم استهلاك الـtokens عبر التوقف: usage الـsub-agent قبل التوقف
+  موجود في النتيجة المتوقفة، وما يستهلكه بعد الاستئناف يُضاف إلى
   `result.usage` الخاصة بالـlead المستأنف.
-- approval لـsub-agent خلفي توقف الـlead لما الـlead ينتظره بـ
+- الـapproval الخاصة بـsub-agent خلفي توقف الـlead عندما ينتظره الـlead باستخدام
   `agent_await`؛ راجع [Sub-agents في الخلفية](#when-the-lead-run-ends).
 
 #### متقدم: executor API
 
-مع `AgentExecutor.execute()` كـlead (راجع [executor API](/ar/executor-api))،
-الـrun يحتاج `approvalStore`؛ بدونه استدعاء الـsub-agent يصير نتيجة خطأ
-وما يشتغل شي. استأنف بـ`resumeAfterApproval()`، ومرّر نفس خيار `subagents`
-اللي استخدمه الـrun الموقوف:
+مع `AgentExecutor.execute()` بوصفه lead (راجع [executor API](/ar/executor-api))،
+يحتاج الـrun إلى `approvalStore`؛ وبدونه يصبح استدعاء الـsub-agent نتيجة خطأ
+ولا يُنفَّذ أي شيء. استأنف باستخدام `resumeAfterApproval()`، ومرّر خيار `subagents` نفسه
+الذي استخدمه الـrun المتوقف:
 
 ```ts
 import { AgentExecutor, resumeAfterApproval, ToolRegistry } from 'lousho/executor';

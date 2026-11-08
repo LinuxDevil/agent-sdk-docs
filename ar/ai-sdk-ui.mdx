@@ -4,17 +4,17 @@ sidebarTitle: "AI SDK UI (useChat)"
 ---
 {/* Generated from docs/ai-sdk-ui.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-إذا كان الـ front end عندك يستخدم أصلًا الـ UI hooks في Vercel AI SDK (`useChat` من `@ai-sdk/react` ومثيلاتها في Vue وSvelte وAngular)، تقدر تخليها على حالها وتشغّل Lousho agent خلف الـ route. ثلاث دوال مُصدَّرة من جذر الحزمة تتولى التحويل. ما تستورد شيء من `ai`، وما تستخدم أي `node:*` module، وتشتغل على Node وWorkers وأي runtime مبني على Fetch.
+إذا كانت الواجهة الأمامية (front end) لديك تستخدم أصلًا الـ UI hooks في Vercel AI SDK (`useChat` من `@ai-sdk/react` ومثيلاتها في Vue وSvelte وAngular)، فيمكنك إبقاؤها على حالها وتشغيل Lousho agent خلف الـ route. ثلاث دوال مُصدَّرة من جذر الحزمة تتولى التحويل. لا تستورد شيئًا من `ai`، ولا تستخدم أي `node:*` module، وتعمل على Node وWorkers وأي runtime مبني على Fetch.
 
 | الدالة | الاتجاه | ماذا تفعل |
 | --- | --- | --- |
-| `toUIMessageStream(run)` | out | تطلّع أحداث الـ run كـ `ReadableStream` من UI message chunks |
-| `toUIMessageStreamResponse(run, init?)` | out | ترجع `Response`: SSE مع `data: [DONE]` في النهاية والهيدر `x-vercel-ai-ui-message-stream: v1` |
-| `fromUIMessages(messages, { lastUserOnly? })` | in | تحوّل الـ `UIMessage[]` اللي يبعتها `useChat` إلى `AgentInput` |
+| `toUIMessageStream(run)` | out | تُخرج أحداث الـ run كـ `ReadableStream` من UI message chunks |
+| `toUIMessageStreamResponse(run, init?)` | out | تُرجع `Response`: SSE مع `data: [DONE]` في النهاية والهيدر `x-vercel-ai-ui-message-stream: v1` |
+| `fromUIMessages(messages, { lastUserOnly? })` | in | تحوّل الـ `UIMessage[]` التي يرسلها `useChat` إلى `AgentInput` |
 
 ## Route handler
 
-بادئة الـ model `vendor/` هي اللي تختار الـ provider؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثلا `openrouter/openai/gpt-4o-mini`).
+بادئة الـ model `vendor/` هي التي تختار الـ provider؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثلًا `openrouter/openai/gpt-4o-mini`).
 
 ```ts
 import { createAgent, fromUIMessages, memoryStore, toUIMessageStreamResponse, type UIMessageLike } from 'lousho';
@@ -61,7 +61,7 @@ export function Chat() {
 }
 ```
 
-المقتطف هذا يستهدف `ai` 6 و7 (`useChat` يأخذ `transport`، و`sendMessage` يرسل الرسالة). على `ai` 4 — وهو peer مدعوم أيضًا — `useChat({ api: '/api/chat' })` يأخذ الـ endpoint مباشرة ويرجع `input` و`handleInputChange` و`handleSubmit` بدل `sendMessage`؛ أما `ai` 5 فليس ضمن الـ peer range.
+هذا المقتطف يستهدف `ai` 6 و7 (`useChat` يأخذ `transport`، و`sendMessage` يرسل الرسالة). على `ai` 4 — وهو peer مدعوم أيضًا — `useChat({ api: '/api/chat' })` يأخذ الـ endpoint مباشرة ويرجع `input` و`handleInputChange` و`handleSubmit` بدل `sendMessage`؛ أما `ai` 5 فليس ضمن الـ peer range.
 
 ## Event mapping
 
@@ -75,17 +75,17 @@ export function Chat() {
 | `tool.partial` | `tool-output-available` مع `preliminary: true` (AI SDK 5 فما فوق): snapshot من [streaming tool](/ar/tools#streaming-للنتائج-الجزئية) |
 | `tool.done` / `tool.error` | `tool-output-available` / `tool-output-error` |
 | `approval.requested` | `data-lousho-approval` (أدناه) |
-| `todo.updated` | `data-lousho-todos`: data part بالشكل `{ todos, counts }` فيه قائمة الـ todos كاملة، بنفس الـ id `todos` فكل تحديث يستبدل اللي قبله (راجع [Todo tools](/ar/tools#todo-tools)) |
+| `todo.updated` | `data-lousho-todos`: data part بالشكل `{ todos, counts }` فيه قائمة الـ todos كاملة، بنفس الـ id `todos` فكل تحديث يستبدل الذي قبله (راجع [Todo tools](/ar/tools#todo-tools)) |
 | `error` | `error` |
 | `run.done` | `finish` |
 
-الـ snapshots اللي تجي من streaming tool توصل كـ preliminary outputs، و`useChat` يعرضها كـ `output` للـ tool part مع `preliminary: true`. أما الـ `tool.done` اللي بعدها فبدون `preliminary`، وهو الـ output النهائي.
+الـ snapshots التي تأتي من streaming tool تصل كـ preliminary outputs، و`useChat` يعرضها كـ `output` للـ tool part مع `preliminary: true`. أما الـ `tool.done` الذي يليها فبدون `preliminary`، وهو الـ output النهائي.
 
-الأحداث اللي ما لها مقابل في الـ UI — retries وcompaction وقرارات الصلاحيات وguardrails وغيرها — وأحداث الـ sub-agents ما توصل. و`finishReason` في الـ `finish` chunk هو الخاص بـ AI SDK (`stop`، `length`، `content-filter`، `tool-calls`، `error`؛ وأي قيمة أخرى مثل `awaiting-approval` أو `max-steps` تتحوّل إلى `other`).
+الأحداث التي ليس لها مقابل في الـ UI — retries وcompaction وقرارات الصلاحيات وguardrails وغيرها — وأحداث الـ sub-agents لا تصل. و`finishReason` في الـ `finish` chunk هو الخاص بـ AI SDK (`stop`، `length`، `content-filter`، `tool-calls`، `error`؛ وأي قيمة أخرى مثل `awaiting-approval` أو `max-steps` تتحوّل إلى `other`).
 
 ## Usage والتكلفة
 
-الـ usage يروح في `messageMetadata` الخاصة بالـ `finish` chunk، فتجده في `message.metadata` على رسالة الـ assistant المكتملة:
+الـ usage يُوضع في `messageMetadata` الخاصة بالـ `finish` chunk، فتجده في `message.metadata` على رسالة الـ assistant المكتملة:
 
 ```json
 { "runId": "run_1", "loushoFinishReason": "stop", "usage": { "totalTokens": 120, "costUsd": 0.0004 } }
@@ -95,7 +95,7 @@ export function Chat() {
 
 ## Approvals و`ask_question`
 
-الـ tool اللي يحتاج approval (موافقة)، أو استدعاء `ask_question`، يوقّف الـ run: الـ stream ينتهي بـ `finish` مع `loushoFinishReason: "awaiting-approval"`، بعد data part مخصص يعرضه `useChat` كـ part من النوع `data-lousho-approval`:
+الـ tool الذي يحتاج approval (موافقة)، أو استدعاء `ask_question`، يوقّف الـ run: الـ stream ينتهي بـ `finish` مع `loushoFinishReason: "awaiting-approval"`، بعد data part مخصص يعرضه `useChat` كـ part من النوع `data-lousho-approval`:
 
 ```json
 {
@@ -112,12 +112,12 @@ export function Chat() {
 }
 ```
 
-`kind` و`question` موجودين بس في حالة `ask_question`؛ أما الـ tool اللي ينتظر [تسجيل دخول OAuth](/ar/oauth#ما-يراه-المستخدم) فيحمل بدلها `kind: 'sign-in'` و`signIn: { provider, displayName?, url }` — اعرض الرابط، ولما الـ provider يرجّع المستخدم، اعتمده («سجّلت الدخول»). ارسم الـ part بأزرارك وأجب عليه عبر الـ approvals route في الـ session API (`POST /chat/:sessionId/approvals/:approvalId`، راجع [Sessions](/ar/sessions) و[Approvals](/ar/approvals)): `{ "approved": true }` أو `{ "approved": false, "note": "..." }` للـ tool، و`{ "answer": "prod" }` للسؤال. الاستجابة هي تكملة الـ run كـ event stream: تقدر تقرأه بالـ parser اللي توفره الـ UI bindings، أو تتجاهله وتستدعي `sendMessage` من `useChat` من جديد؛ أو في الـ route عندك، استدعِ `agent.approvals.streamResolve()` / `streamAnswer()` وأرجع `toUIMessageStreamResponse()` للنتيجة، فتظهر التكملة في نفس المحادثة.
+`kind` و`question` موجودان فقط في حالة `ask_question`؛ أما الـ tool الذي ينتظر [تسجيل دخول OAuth](/ar/oauth#ما-يراه-المستخدم) فيحمل بدلها `kind: 'sign-in'` و`signIn: { provider, displayName?, url }` — اعرض الرابط، وعندما يُعيد الـ provider المستخدم، اعتمده («سجّلت الدخول»). ارسم الـ part بأزرارك وأجب عليه عبر الـ approvals route في الـ session API (`POST /chat/:sessionId/approvals/:approvalId`، راجع [Sessions](/ar/sessions) و[Approvals](/ar/approvals)): `{ "approved": true }` أو `{ "approved": false, "note": "..." }` للـ tool، و`{ "answer": "prod" }` للسؤال. الاستجابة هي تكملة الـ run كـ event stream: يمكنك قراءته بالـ parser الذي توفره الـ UI bindings، أو تجاهله واستدعاء `sendMessage` من `useChat` من جديد؛ أو في الـ route لديك، استدعِ `agent.approvals.streamResolve()` / `streamAnswer()` وأرجع `toUIMessageStreamResponse()` للنتيجة، فتظهر التكملة في نفس المحادثة.
 
 ## تحويل الرسائل الواردة
 
-`fromUIMessages()` تحوّل الـ text parts إلى نص، والـ file parts من نوع `image/*` إلى image parts، وباقي الـ file parts إلى file parts — والـ `url` الخاص بالـ part (عنوان `data:` أو `http(s)`) يصير هو البيانات. أجزاء الـ tool وreasoning وdata وsource وأي جزء غير معروف تتجاهلها، والرسائل اللي تطلع فاضية تحذفها.
+`fromUIMessages()` تحوّل الـ text parts إلى نص، والـ file parts من نوع `image/*` إلى image parts، وباقي الـ file parts إلى file parts — والـ `url` الخاص بالـ part (عنوان `data:` أو `http(s)`) يصبح هو البيانات. أما أجزاء الـ tool وreasoning وdata وsource وأي جزء غير معروف فتتجاهلها، والرسائل التي تصبح فارغة تحذفها.
 
-الرسائل تجي من الـ client، فما يُحتفظ إلا برسائل `user` و`assistant`: رسالة `system` (أو أي role ثاني، أو أي عنصر ما هو رسالة أصلًا) تُحذف، حتى ما يقدر المستدعي يضيف تعليمات إلى الـ prompt الخاص بالـ agent. حدّد التعليمات على الـ agent نفسه (`createAgent({ instructions })`)، مو في الطلب.
+الرسائل تأتي من الـ client، لذا لا يُحتفظ إلا برسائل `user` و`assistant`: رسالة `system` (أو أي role آخر، أو أي عنصر ليس رسالة أصلًا) تُحذف، كي لا يتمكن المستدعي من إضافة تعليمات إلى الـ prompt الخاص بالـ agent. حدّد التعليمات على الـ agent نفسه (`createAgent({ instructions })`)، لا في الطلب.
 
-ممكن ينضاف لاحقًا subpath مخصص `lousho/ai-sdk-ui`؛ حاليًا الدوال تجي من جذر الحزمة.
+قد يُضاف لاحقًا subpath مخصص `lousho/ai-sdk-ui`؛ أما حاليًا فالدوال تأتي من جذر الحزمة.

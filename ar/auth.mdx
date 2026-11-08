@@ -3,7 +3,7 @@ title: "Route auth والـ principals"
 ---
 {/* Generated from docs/auth.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-أي agent يشتغل على HTTP يحتاج يعرف شغلتين عن كل request: هل مسموح له يمرّ أصلًا، ومين المتصل. `lousho/auth` تجاوب على الاثنين. إنت تعطي الـ route قائمة مرتبة من مدخلات auth: `jwt()` أو `oidc()` أو `basic()` أو `apiToken()` أو `anonymous()`، أو function تكتبها بنفسك. أول entry يقبل الـ request يرجع **principal** (هوية المتصل بعد ما auth تحققت منه)، وهذا الـ principal يدخل الـ run، وهناك تقدر دوال `model` و`instructions` و`tools` ونطاقات الـ memory تقرأه.
+أي agent يعمل عبر HTTP يحتاج إلى معرفة أمرين عن كل request: هل يُسمح له بالمرور أصلًا، ومن المتصل. تجيب `lousho/auth` عن السؤالين. أنت تعطي الـ route قائمة مرتبة من مدخلات auth: `jwt()` أو `oidc()` أو `basic()` أو `apiToken()` أو `anonymous()`، أو function تكتبها بنفسك. أول entry يقبل الـ request يُرجع **principal** (هوية المتصل بعد أن تحققت منها auth)، وهذا الـ principal يدخل الـ run، وهناك تستطيع دوال `model` و`instructions` و`tools` ونطاقات الـ memory قراءته.
 
 ```ts
 import { createAgent, createRouteHandler } from 'lousho';
@@ -33,17 +33,17 @@ export const { GET, POST } = createRouteHandler(agent, {
 
 ## قائمة الـ auth
 
-المدخلات تشتغل بالترتيب، وكل واحد منها يسوي واحدة من ثلاثة:
+تعمل المدخلات بالترتيب، وكل واحد منها يفعل واحدًا من ثلاثة أشياء:
 
-| الـ entry ... | يصير إيه |
+| الـ entry ... | ماذا يحدث |
 | --- | --- |
-| يرجع `Principal` | الـ request ينقبل، والمدخلات اللي بعده ما تدخل الصورة |
-| يرجع `null` أو `undefined` | يتخطّى: السؤال ينتقل للـ entry اللي بعده |
-| يرمي `AuthError(401)` أو `AuthError(403)` | الـ request ينرفض بهذا الـ status، والمدخلات اللي بعده ما تدخل الصورة |
+| يُرجع `Principal` | يُقبل الـ request، ولا تُستشار المدخلات التي بعده |
+| يُرجع `null` أو `undefined` | يتخطّى: ينتقل السؤال إلى الـ entry التالي |
+| يرمي `AuthError(401)` أو `AuthError(403)` | يُرفض الـ request بهذا الـ status، ولا تُستشار المدخلات التي بعده |
 
-لو كل المدخلات عملت skip، الـ request ياخذ `401`. والقائمة الفاضية ترفض كل request. أما الـ entry اللي يرمي أي خطأ آخر فهذا bug: الـ request ياخذ `500` بـ body عام، والخطأ يتسجّل بـ `console.error` (وما ينبعت للمتصل أبدًا).
+إذا تخطّت كل المدخلات، يحصل الـ request على `401`. والقائمة الفارغة ترفض كل request. أما الـ entry الذي يرمي أي خطأ آخر فهذا bug: يحصل الـ request على `500` مع body عام، ويُسجَّل الخطأ عبر `console.error` (ولا يُرسل إلى المتصل أبدًا).
 
-الـ helpers الجاهزة ما ترمي أبدًا على credential غلط: كلمة مرور غلط، أو token منتهي، أو token مصدر لـ audience آخر — كلها تعمل skip. يعني الـ entry اللي بعده ياخذ فرصته (يعني عادي يكون عندك مدخلين `jwt()` لـ issuerين مختلفين)، والـ request اللي ما قبله أحد ينتهي بنفس الـ `401`.
+الـ helpers الجاهزة لا ترمي أبدًا عند credential خاطئ: كلمة مرور خاطئة، أو token منتهٍ، أو token صادر لـ audience آخر — كلها تتخطّى. أي أن الـ entry التالي يأخذ فرصته (فمن الطبيعي أن يكون لديك مدخلان `jwt()` لـ issuerين مختلفين)، والـ request الذي لم يقبله أحد ينتهي بالـ `401` نفسه.
 
 الـ `Principal` هو:
 
@@ -59,11 +59,11 @@ interface Principal {
 
 ## الـ helpers
 
-كل الـ helpers تتعمل مرة واحدة عند التشغيل، وتفحص خياراتها وقتها: الـ helper اللي ما يقدر يشتغل يرمي [`LOUSHO_AUTH_CONFIG_INVALID`](/ar/errors#lousho_auth_config_invalid) بدل ما يرفض كل request بعدين.
+تُنشأ كل الـ helpers مرة واحدة عند التشغيل، وتفحص خياراتها حينها: الـ helper الذي لا يستطيع العمل يرمي [`LOUSHO_AUTH_CONFIG_INVALID`](/ar/errors#lousho_auth_config_invalid) بدلًا من أن يرفض كل request لاحقًا.
 
 ### `jwt()`
 
-تقبل `Authorization: Bearer <JWT>` الموقّع بالمفتاح اللي إنت تضبطه. مرّر مصدر مفتاح واحد بالضبط:
+تقبل `Authorization: Bearer <JWT>` الموقّع بالمفتاح الذي تضبطه أنت. مرّر مصدر مفتاح واحدًا بالضبط:
 
 | الخيار | المفتاح | الخوارزميات (الافتراضي: كل عائلة المفتاح) |
 | --- | --- | --- |
@@ -83,20 +83,20 @@ const fromOurAuthServer = jwt({
 });
 ```
 
-اللي ينفحص:
+ما يُفحص:
 
-- قيمة `alg` في الـ header لازم تكون من `algorithms`. `none` مرفوضة دائمًا، وكذلك الـ token اللي هيدره معلّم extension بـ `crit`.
-- الخوارزمية لازم تناسب المفتاح: الـ public key ما ينستخدم أبدًا كسر HMAC مهما يقول هيدر الـ token، ومجموعة المفاتيح ما تعطي مفتاح HMAC أبدًا.
-- `exp` مطلوب، و`nbf` و`iat` محترمين. الثلاثة تسمح بفرق ساعة قدره `clockToleranceSec` (الافتراضي 60، والحد الأقصى 300).
-- لما تضبط `issuer`، لازم `iss` يساوي وحدة من قيم `issuer` بالضبط. ما في تسامح مع سلاش زيادة في الآخر.
-- `aud` (string أو قائمة) لازم يحتوي وحدة من `audience`. و`audience` مطلوبة؛ مرّر `allowAnyAudience: true` لو قاصد تتخطّى هذا الفحص.
-- مجموعة المفاتيح تتجلب بمهلة 5 ثوانٍ، وتعيش في الكاش 10 دقائق، ويُعاد جلبها مرة واحدة كل 30 ثانية كحد أقصى لما يجي token بـ `kid` ما تعرفه (والجلب الفاشل يتعاد بنفس حد الـ 30 ثانية). عنوانها إعداد فقط: هيدرات `jku` و`x5u` و`jwk` في الـ token تتجاهل.
+- يجب أن تكون قيمة `alg` في الـ header من `algorithms`. وتُرفض `none` دائمًا، وكذلك الـ token الذي يعلّم الـ header فيه extension عبر `crit`.
+- يجب أن تناسب الخوارزمية المفتاح: لا يُستخدم الـ public key أبدًا كسر HMAC مهما قال header الـ token، ولا تُعطي مجموعة المفاتيح مفتاح HMAC أبدًا.
+- `exp` مطلوب، و`nbf` و`iat` محترَمان. والثلاثة تسمح بفارق في الساعة قدره `clockToleranceSec` (الافتراضي 60، والحد الأقصى 300).
+- عندما تضبط `issuer`، يجب أن يساوي `iss` إحدى قيم `issuer` بالضبط. ولا تسامح مع شرطة مائلة زائدة في النهاية.
+- يجب أن يحتوي `aud` (string أو قائمة) على إحدى قيم `audience`. و`audience` مطلوبة؛ مرّر `allowAnyAudience: true` إذا كنت تقصد تخطّي هذا الفحص.
+- تُجلب مجموعة المفاتيح بمهلة 5 ثوانٍ، وتبقى في الكاش 10 دقائق، ويُعاد جلبها مرة واحدة كل 30 ثانية كحد أقصى عندما يصل token بـ `kid` غير معروف (ويُعاد الجلب الفاشل بحد الـ 30 ثانية نفسه). عنوانها يأتي من الإعداد فقط: تُتجاهل headers `jku` و`x5u` و`jwk` في الـ token.
 
-الـ principal الافتراضي هو `{ id: sub, type: 'user', authenticator: 'jwt', issuer: iss, claims }`؛ والـ token اللي ما فيه `sub` يتخطّى.
+الـ principal الافتراضي هو `{ id: sub, type: 'user', authenticator: 'jwt', issuer: iss, claims }`؛ والـ token الذي لا يحتوي `sub` يُتخطّى.
 
 ### `oidc()`
 
-هي `jwt()` بس مفاتيحها تجي من OpenID Connect provider. تجلب `<issuer>/.well-known/openid-configuration` مرة واحدة (أو `discoveryUrl` لو مررته)، وتشترط إن `issuer` في الوثيقة يساوي قيمتك بالضبط، وتستخدم `jwks_uri` منها (https، أو http على `localhost` / `127.0.0.1` / `[::1]` — نفس قاعدة `jwksUrl` في `jwt()`). الخوارزميات الافتراضية `RS256` و`ES256`؛ وHMAC ممنوع.
+هي `jwt()` لكن مفاتيحها تأتي من OpenID Connect provider. تجلب `<issuer>/.well-known/openid-configuration` مرة واحدة (أو `discoveryUrl` إذا مررته)، وتشترط أن يساوي `issuer` في الوثيقة قيمتك بالضبط، وتستخدم `jwks_uri` منها (https، أو http على `localhost` / `127.0.0.1` / `[::1]` — القاعدة نفسها الخاصة بـ `jwksUrl` في `jwt()`). الخوارزميات الافتراضية `RS256` و`ES256`؛ وHMAC ممنوع.
 
 ```ts
 import { oidc } from 'lousho/auth';
@@ -104,11 +104,11 @@ import { oidc } from 'lousho/auth';
 const google = oidc({ issuer: 'https://accounts.google.com', audience: process.env.GOOGLE_CLIENT_ID ?? 'client-id' });
 ```
 
-الـ principal يكون `authenticator: 'oidc'`، و`issuer` فيه `iss` اللي رجّعه الـ provider.
+يكون الـ principal بـ `authenticator: 'oidc'`، ويحمل `issuer` فيه قيمة `iss` التي أرجعها الـ provider.
 
 ### `basic()`
 
-credentials بتاع HTTP Basic. أسماء المستخدمين وكلمات المرور تتطبّع NFC وتتقارن في زمن ثابت، وكل user مضبوط يتقارن مع كل request، فالـ user المجهول ياخذ نفس وقت كلمة المرور الغلط. والـ `401` يحمل الهيدر `WWW-Authenticate: Basic realm="<realm>", charset="UTF-8"` عشان المتصفحات تعرض نافذة تسجيل الدخول.
+credentials الخاصة بـ HTTP Basic. تُطبَّع أسماء المستخدمين وكلمات المرور بـ NFC وتُقارَن في زمن ثابت، ويُقارَن كل user مضبوط مع كل request، فيستغرق الـ user المجهول الوقت نفسه الذي تستغرقه كلمة المرور الخاطئة. ويحمل الـ `401` الـ header `WWW-Authenticate: Basic realm="<realm>", charset="UTF-8"` لكي تعرض المتصفحات نافذة تسجيل الدخول.
 
 ```ts
 import { basic } from 'lousho/auth';
@@ -118,17 +118,17 @@ const operators = basic({ users: { ops: process.env.OPS_PASSWORD! }, realm: 'age
 const fromDatabase = basic({ users: async (user, password) => user === 'svc' && password === process.env.SVC_PASSWORD });
 ```
 
-**ما تستخدم `basic()` إلا على HTTPS**: كلمة المرور تسافر مع كل request.
+**لا تستخدم `basic()` إلا عبر HTTPS**: كلمة المرور تُرسل مع كل request.
 
 ### `apiToken()` و`anonymous()`
 
-`apiToken(token, { id })` تقبل `Authorization: Bearer <token>` (يتقارن في زمن ثابت) كـ service principal `{ id: id ?? 'api-token', type: 'service', authenticator: 'api-token' }`. وهذا من زمان هو معنى الـ token كـ string: `createRouteHandler({ auth: '<token>' })` و`LOUSHO_API_TOKEN` الاثنين `apiToken()`. والـ string الفاضي (`auth: ''`، مثلًا env var مضبوط بس قيمته فاضية) ينرفض بـ `LOUSHO_AUTH_CONFIG_INVALID`: من `createRouteHandler()` لحظة إنشائه، ومن `serveFetch()` مع كل request. يعني ما يقفل الـ routes ولا يفتحها بصمت.
+`apiToken(token, { id })` تقبل `Authorization: Bearer <token>` (يُقارَن في زمن ثابت) كـ service principal `{ id: id ?? 'api-token', type: 'service', authenticator: 'api-token' }`. وهذا منذ زمن هو معنى الـ token المكتوب كـ string: `createRouteHandler({ auth: '<token>' })` و`LOUSHO_API_TOKEN` كلاهما `apiToken()`. والـ string الفارغ (`auth: ''`، مثلًا env var مضبوط لكن قيمته فارغة) يُرفض بـ `LOUSHO_AUTH_CONFIG_INVALID`: من `createRouteHandler()` لحظة إنشائه، ومن `serveFetch()` مع كل request. أي أنه لا يقفل الـ routes ولا يفتحها بصمت.
 
-`anonymous()` تقبل الكل كـ `{ id: 'anonymous', type: 'user', authenticator: 'anonymous' }`: حطها آخر وحدة في الـ routes اللي تخدم المتصلين المسجلين والمجهولين مع بعض، واقرأ `principal.authenticator` في الـ run.
+`anonymous()` تقبل الجميع كـ `{ id: 'anonymous', type: 'user', authenticator: 'anonymous' }`: ضعها في آخر القائمة في الـ routes التي تخدم المتصلين المسجلين والمجهولين معًا، واقرأ `principal.authenticator` في الـ run.
 
 ### entry من عندك
 
-أي function تاخذ `Request` تشتغل كـ entry. صرّح بالـ challenges اللي ترد بها على `401`، وإلا تعلن `Bearer`:
+أي function تأخذ `Request` تعمل كـ entry. صرّح بالـ challenges التي ترد بها مع `401`، وإلا فإنها تعلن `Bearer`:
 
 ```ts
 import { AuthError, type AuthFn } from 'lousho/auth';
@@ -144,33 +144,33 @@ tenantKey.challenges = [{ scheme: 'Bearer', realm: 'tenants' }];
 
 ## `401` و`403` و`WWW-Authenticate`
 
-- ما حد قبل الـ request (أو entry رمى `AuthError(401)`): `401` مع `{ "error": "Unauthorized" }` وهيدر `WWW-Authenticate` واحد لكل challenge مختلف في القائمة، بالترتيب (`Bearer` لـ `jwt` و`oidc` و`apiToken`؛ و`Basic realm="..."` لـ `basic`).
-- entry رمى `AuthError(403)`: `403` مع `{ "error": "Forbidden" }`.
-- entry فشل بطريقة أخرى: `500` مع `{ "error": "Internal Server Error" }`.
+- لم يقبل أحد الـ request (أو رمى entry `AuthError(401)`): `401` مع `{ "error": "Unauthorized" }` وheader `WWW-Authenticate` واحد لكل challenge مختلف في القائمة، بالترتيب (`Bearer` لـ `jwt` و`oidc` و`apiToken`؛ و`Basic realm="..."` لـ `basic`).
+- رمى entry `AuthError(403)`: `403` مع `{ "error": "Forbidden" }`.
+- فشل entry بطريقة أخرى: `500` مع `{ "error": "Internal Server Error" }`.
 
-الـ body ما يقول أبدًا أي فحص فشل: الـ token المنتهي والتوقيع الغلط والـ audience الغلط كلها تاخذ نفس الـ `401`. وكل رد auth يحمل `Cache-Control: no-store`. والـ tokens وكلمات المرور ما تتسجّل أبدًا.
+لا يذكر الـ body أبدًا أي فحص فشل: الـ token المنتهي والتوقيع الخاطئ والـ audience الخاطئ كلها تحصل على الـ `401` نفسه. وكل رد auth يحمل `Cache-Control: no-store`. ولا تُسجَّل الـ tokens وكلمات المرور أبدًا.
 
-## أين يشتغل
+## أين يعمل
 
 | الـ helper أو السيرفر | Node 22+ | Cloudflare Workers وVercel Edge وBun وDeno |
 | --- | --- | --- |
-| `jwt()` و`oidc()` و`basic()` و`apiToken()` و`anonymous()` و`routeAuth()` | نعم | نعم: Web Crypto و`fetch` فقط، وما في استيراد `node:` |
+| `jwt()` و`oidc()` و`basic()` و`apiToken()` و`anonymous()` و`routeAuth()` | نعم | نعم: Web Crypto و`fetch` فقط، ولا يوجد استيراد `node:` |
 | `createRouteHandler({ auth })` | نعم | نعم |
-| الـ targetين `node-server` و`docker` | نعم | لا (Node `http`) |
+| الـ targetان `node-server` و`docker` | نعم | لا (Node `http`) |
 | ملف `auth.ts` في مجلد الـ agent | نعم (`node-server` و`docker`) | لا |
-| الـ build target `cloudflare-worker` | | `LOUSHO_API_TOKEN` فقط؛ ما في قائمة auth حتى الآن |
+| الـ build target `cloudflare-worker` | | `LOUSHO_API_TOKEN` فقط؛ لا توجد قائمة auth حتى الآن |
 
-`oidc()` و`jwt({ jwksUrl })` تحتاج `fetch` خارجي لمجموعة المفاتيح، وكل الـ runtimes المذكورة عندها. وفي Worker مكتوب يدويًا، نادِ `createRouteHandler` أو `routeAuth()` بنفسك مع أي helper.
+تحتاج `oidc()` و`jwt({ jwksUrl })` إلى `fetch` خارجي لمجموعة المفاتيح، وكل الـ runtimes المذكورة توفّره. وفي Worker مكتوب يدويًا، استدعِ `createRouteHandler` أو `routeAuth()` بنفسك مع أي helper.
 
 ## `createRouteHandler`
 
-`auth` ياخذ القائمة، أو entry واحد، أو token string، أو (زي قبل) function ترجع boolean. `true` تقبل بالـ principal `{ id: 'anonymous', type: 'user', authenticator: 'custom' }`، و`false` تعني `401`. من دون `auth` يكون الـ route مفتوح، وفي الإنتاج (`NODE_ENV=production`) يسجّل تحذير واحد. `GET <basePath>/health` ما يكون ورا `auth` أبدًا. والـ principal المقبول يوصل لكل route: `POST <basePath>` و`/chat` والـ approvals (الموافقات) وendpoint `useChat`. شوف [Next.js](/ar/nextjs#المسارات).
+يأخذ `auth` القائمة، أو entry واحدًا، أو token string، أو (كما كان سابقًا) function تُرجع boolean. تقبل `true` بالـ principal `{ id: 'anonymous', type: 'user', authenticator: 'custom' }`، و`false` تعني `401`. ومن دون `auth` يكون الـ route مفتوحًا، وفي الإنتاج (`NODE_ENV=production`) يُسجَّل تحذير واحد. ولا يكون `GET <basePath>/health` خلف `auth` أبدًا. ويصل الـ principal المقبول إلى كل route: `POST <basePath>` و`/chat` والـ approvals (الموافقات) وendpoint `useChat`. راجع [Next.js](/ar/nextjs#المسارات).
 
 ## سيرفر Node و`auth.ts`
 
-السيرفر المولَّد (يستخدم `createDeployedServer()` الداخلية في الـ bundle) ياخذ نفس القائمة (أو entry واحد). ولما `LOUSHO_API_TOKEN` يكون مضبوط، `apiToken(LOUSHO_API_TOKEN)` تتلحق ورا مدخلاتك، فيظل token المشغّل شغّال. الـ channels تحت `/channels/<name>` ما هي ورا القائمة: هي تتحقق من طلباتها بنفسها.
+يأخذ السيرفر المولَّد (يستخدم `createDeployedServer()` الداخلية في الـ bundle) القائمة نفسها (أو entry واحدًا). وعندما يكون `LOUSHO_API_TOKEN` مضبوطًا، تُلحق `apiToken(LOUSHO_API_TOKEN)` بعد مدخلاتك، فيبقى token المشغّل فعّالًا. الـ channels تحت `/channels/<name>` ليست خلف القائمة: فهي تتحقق من طلباتها بنفسها.
 
-في [مجلد الـ agent](/ar/agent-directories)، حط القائمة في `auth.ts` (أو `auth.js`) جنب `agent.ts`:
+في [مجلد الـ agent](/ar/agent-directories)، ضع القائمة في `auth.ts` (أو `auth.js`) بجانب `agent.ts`:
 
 ```ts
 // my-agent/auth.ts
@@ -182,13 +182,13 @@ export default [
 ];
 ```
 
-`lousho build --target=node-server` (أو `docker`) يجمّعها، والسيرفر المبني يستخدمها (`resolveAgentDir()` ترجعها كـ `auth`، والـ manifest يقول `auth: true`). ومع وجود `auth.ts`، الـ token المخبوز عبر `adapter.scaffold(..., { auth: { token } })` ما ينستخدم؛ أما `LOUSHO_API_TOKEN` فيظل شغّال. والـ target `cloudflare-worker` يقدّم ملفات الـ spec فقط ويحتفظ بـ token `LOUSHO_API_TOKEN`؛ شوف [النشر](/ar/deployment#المصادقة).
+يجمّعها `lousho build --target=node-server` (أو `docker`)، ويستخدمها السيرفر المبني (تُرجعها `resolveAgentDir()` كـ `auth`، ويذكر الـ manifest `auth: true`). ومع وجود `auth.ts`، لا يُستخدم الـ token المضمَّن عبر `adapter.scaffold(..., { auth: { token } })`؛ أما `LOUSHO_API_TOKEN` فيبقى فعّالًا. والـ target `cloudflare-worker` يقدّم ملفات الـ spec فقط ويحتفظ بـ token `LOUSHO_API_TOKEN`؛ راجع [النشر](/ar/deployment#المصادقة).
 
-وممكن `auth.ts` كمان يصدّر دوال اسمها `authorizeSession` و`authorizeApproval` جنب الـ default export. السيرفر المبني يستخدمها كقواعد [من يقدر يستخدم الـ session](#من-يقدر-يستخدم-الـ-session) و[من يقدر يحسم الـ approval](#من-يقدر-يحسم-الـ-approval)، و`resolveAgentDir()` ترجعها بنفس الأسماء. وأي قيمة ثانية تحت هذه الأسماء تفشّل التحميل (`LOUSHO_AGENT_DIR_INVALID`). و`lousho dev` ما فيه route auth، فلا القائمة ولا هذه القواعد تنطبق هناك.
+ويمكن أن يصدّر `auth.ts` أيضًا دوالّ اسمها `authorizeSession` و`authorizeApproval` بجانب الـ default export. يستخدمها السيرفر المبني كقواعد [من يستطيع استخدام الـ session](#من-يستطيع-استخدام-الـ-session) و[من يستطيع حسم الـ approval](#من-يستطيع-حسم-الـ-approval)، وتُرجعها `resolveAgentDir()` بالأسماء نفسها. وأي قيمة أخرى تحت هذه الأسماء تُفشل التحميل (`LOUSHO_AGENT_DIR_INVALID`). ولا يوجد route auth في `lousho dev`، فلا القائمة ولا هذه القواعد تنطبق هناك.
 
 ## قراءة الـ principal في الـ run
 
-الـ principal موجود على سياق الـ run جنب `sessionId` و`metadata`. بادئة `vendor/` في الـ model هي اللي تختار الـ provider؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`).
+يوجد الـ principal في سياق الـ run بجانب `sessionId` و`metadata`. بادئة `vendor/` في الـ model هي التي تختار الـ provider؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`).
 
 ```ts
 import { createAgent, defineMemory, inMemoryMemory, type Principal } from 'lousho';
@@ -214,20 +214,20 @@ await agent.send('Hello', { principal: caller });
 await agent.session({ id: 'chat-1' }).send('Hello again', { principal: caller });
 ```
 
-`principal` منفصل عن `metadata` عن قصد: `metadata` هو اللي المتصل أرسله، و`principal` هو اللي auth تحققت منه. والـ run اللي يتستأنف من checkpoint أو بعد approval يحتفظ بالـ principal اللي بدأ فيه. والـ channels (Slack وDiscord وTeams وGitHub وTelegram) تحط الـ sender كـ principal (`authenticator: 'slack'`، `'discord'`، إلخ). والـ tools وسياسات الـ approval وقواعد الـ permissions والـ sub-agents يشوفوه كمان: شوف [Principals in tools and approvals](#principals-in-tools-and-approvals).
+`principal` منفصل عن `metadata` عن قصد: `metadata` هو ما أرسله المتصل، و`principal` هو ما تحققت منه auth. والـ run الذي يُستأنف من checkpoint أو بعد approval يحتفظ بالـ principal الذي بدأ به. والـ channels (Slack وDiscord وTeams وGitHub وTelegram) تضع الـ sender كـ principal (`authenticator: 'slack'`، `'discord'`، إلخ). وتراه أيضًا الـ tools وسياسات الـ approval وقواعد الـ permissions والـ sub-agents: راجع [Principals in tools and approvals](#principals-in-tools-and-approvals).
 
 ## ملاحظات أمنية
 
-- **الـ session (الجلسة) افتراضيًا ملك المتصل اللي بدأها.** بعد ما الـ route auth يقبل متصل، الـ session id ينربط بأول principal يرسل له turn (قراءة الـ id ما تحجز شي)، وأي principal ثاني ياخذ `403` (`LOUSHO_SESSION_FORBIDDEN`). وهذا السجل يعيش في الذاكرة، لكل agent، لآخر 100,000 session انستخدمت. والـ session المخزّنة اللي مالكها مو مسجّل (بعد restart، أو على replica ثانية، أو بعد تجاوز هذا الحد) تنرفض لكل principal، حتى مالكها. ولو عندك أكثر من instance، أو store يعيش أطول من الـ process، مرّر `authorizeSession` يفحص الملكية مقابل بياناتك أنت. شوف [من يقدر يستخدم الـ session](#من-يقدر-يستخدم-الـ-session).
-- **الـ cookies تحتاج حماية من CSRF، والـ routes تعطيها افتراضيًا.** الـ POST لازم يكون JSON (وإلا `415`) وما يجي من صفحة موقع ثاني (`403`، `LOUSHO_REQUEST_FORBIDDEN`). وخلّي cookie الـ session كمان `SameSite=Lax` أو `Strict`. شوف [الطلبات بين المواقع](#الطلبات-بين-المواقع).
-- **الـ approvals.** القرار يوصل بس لـ approval تابع للـ session اللي في الـ URL (approval session ثانية يعطي `404`). وافتراضيًا ما يحسمه إلا المتصل اللي الـ run يشتغل لصالحه. ولو الـ approval لازم يجي من شخص ثاني، مثل مشرف يوافق على استرداد مبلغ لعميل، اضبط `authorizeApproval`. وإلا العميل يقدر يوافق على الـ call حقه بنفسه: الـ approval id موجود في الـ stream حقه. شوف [من يقدر يحسم الـ approval](#من-يقدر-يحسم-الـ-approval).
-- **الأخطاء.** routes الـ session ترسل `name` و`code` الخطأ مع رسالة عامة. والخطأ الكامل (body رد الـ provider، أو chat template) يروح لسجل السيرفر (`console.error`) ولـ `onEvent`. مرّر `exposeErrors: true` عشان ترسل الرسالة الخام، زي ما يسوي `lousho dev`. وحزمة الـ provider الناقصة (`LOUSHO_PEER_MISSING`) ترسل رسالتها دائمًا: وهي أمر `npm install` من الـ SDK نفسه.
-- `basic()` بس على HTTPS؛ والـ bearer token كمان كلمة مرور، فأنهِ TLS قدّام أي سيرفر ما هو على localhost.
-- خلّي `issuer` و`audience` مضبوطين في `jwt()`: وإلا token صادر لخدمة أخرى من خدماتك ينقبل هنا.
+- **الـ session (الجلسة) افتراضيًا ملك المتصل الذي بدأها.** بعد أن يقبل الـ route auth متصلًا، يرتبط الـ session id بأول principal يرسل إليه turn (قراءة الـ id لا تحجز شيئًا)، وأي principal آخر يحصل على `403` (`LOUSHO_SESSION_FORBIDDEN`). ويعيش هذا السجل في الذاكرة، لكل agent، لآخر 100,000 session استُخدمت. والـ session المخزّنة التي لم يُسجَّل مالكها (بعد restart، أو على replica أخرى، أو بعد تجاوز هذا الحد) تُرفض لكل principal، حتى لمالكها. وإذا كان لديك أكثر من instance، أو store يعيش أطول من الـ process، فمرّر `authorizeSession` يفحص الملكية مقابل بياناتك أنت. راجع [من يستطيع استخدام الـ session](#من-يستطيع-استخدام-الـ-session).
+- **الـ cookies تحتاج إلى حماية من CSRF، والـ routes توفّرها افتراضيًا.** يجب أن يكون الـ POST بصيغة JSON (وإلا `415`) وألّا يأتي من صفحة موقع آخر (`403`، `LOUSHO_REQUEST_FORBIDDEN`). واجعل cookie الـ session أيضًا `SameSite=Lax` أو `Strict`. راجع [الطلبات بين المواقع](#الطلبات-بين-المواقع).
+- **الـ approvals.** لا يصل القرار إلا إلى approval تابع للـ session الموجودة في الـ URL (الـ approval الخاص بـ session أخرى يعطي `404`). وافتراضيًا لا يحسمه إلا المتصل الذي يعمل الـ run لصالحه. وإذا كان يجب أن يأتي الـ approval من شخص آخر، مثل مشرف يوافق على استرداد مبلغ لعميل، فاضبط `authorizeApproval`. وإلا يستطيع العميل الموافقة على الـ call الخاص به بنفسه: فالـ approval id موجود في الـ stream الخاص به. راجع [من يستطيع حسم الـ approval](#من-يستطيع-حسم-الـ-approval).
+- **الأخطاء.** ترسل routes الـ session قيمتي `name` و`code` للخطأ مع رسالة عامة. ويذهب الخطأ الكامل (body رد الـ provider، أو chat template) إلى سجل السيرفر (`console.error`) وإلى `onEvent`. مرّر `exposeErrors: true` لكي ترسل الرسالة الخام، كما يفعل `lousho dev`. وحزمة الـ provider الناقصة (`LOUSHO_PEER_MISSING`) ترسل رسالتها دائمًا: وهي أمر `npm install` من الـ SDK نفسه.
+- `basic()` عبر HTTPS فقط؛ والـ bearer token هو أيضًا كلمة مرور، فأنهِ TLS أمام أي سيرفر ليس على localhost.
+- أبقِ `issuer` و`audience` مضبوطين في `jwt()`: وإلا فإن token صادرًا لخدمة أخرى من خدماتك سيُقبل هنا.
 
 ## Principals in tools and approvals
 
-كل حاجة تقرّر أو تتصرف نيابة عن المتصل تاخذ principal الـ run، وهو frozen (أي tool أو policy تحاول تسنّد له قيمة ترمي خطأ):
+كل ما يقرّر أو يتصرف نيابة عن المتصل يحصل على principal الـ run، وهو frozen (أي tool أو policy تحاول إسناد قيمة إليه ترمي خطأ):
 
 | أين | كيف |
 | --- | --- |
@@ -235,11 +235,11 @@ await agent.session({ id: 'chat-1' }).send('Hello again', { principal: caller })
 | function `needsApproval` | `ctx.principal` (الوسيط الثاني) |
 | `when(args, ctx)` في قاعدة permission | `ctx.principal` |
 | الـ hooks `preToolCall` و`postToolCall` | `ctx.principal` |
-| `onPermissionDecision(entry, { principal })` | الوسيط الثاني؛ والـ entry نفسه ما يحمل principal |
-| approval معلّق (`agent.approvals.list()` و`approve` وfunction `approvers` في الـ channel) | `request.principal`: مين المتصل |
-| الـ sub-agents داخل الـ process (`task` والمهام الخلفية) | principal الـ lead، في كل اللي فوق |
+| `onPermissionDecision(entry, { principal })` | الوسيط الثاني؛ والـ entry نفسه لا يحمل principal |
+| approval معلّق (`agent.approvals.list()` و`approve` وfunction `approvers` في الـ channel) | `request.principal`: من المتصل |
+| الـ sub-agents داخل الـ process (`task` والمهام الخلفية) | principal الـ lead، في كل ما سبق |
 
-والـ run اللي ما فيه principal (ما في route auth، أو `send()` من دون `principal`) ما يكون له principal في أي موضع من اللي فوق.
+والـ run الذي ليس له principal (لا يوجد route auth، أو `send()` من دون `principal`) لا يكون له principal في أي موضع مما سبق.
 
 ### في tool
 
@@ -259,7 +259,7 @@ export const myOrders = defineTool({
 });
 ```
 
-الـ principal يجي بس من route auth أو من sender تحققت منه الـ channel، وما يجي أبدًا من body الـ request ولا من الـ model، والـ tool ما تقدر تغيّره.
+لا يأتي الـ principal إلا من route auth أو من sender تحققت منه الـ channel، ولا يأتي أبدًا من body الـ request ولا من الـ model، ولا تستطيع الـ tool تغييره.
 
 ### سياسات الـ approval وقواعد الـ permissions
 
@@ -289,7 +289,7 @@ await agent.send('Deploy the API', { principal: { id: 'ci', type: 'service', aut
 
 ### من وافق
 
-القرار يقدر يسمّي مين اتخذه. والـ tool الموافَق عليه يشوف صاحب القرار في `ctx.approval.by`، جنب `ctx.approval.note`:
+يستطيع القرار أن يسمّي من اتخذه. وترى الـ tool الموافَق عليها صاحب القرار في `ctx.approval.by`، بجانب `ctx.approval.note`:
 
 ```ts
 import { createAgent, defineTool, type Principal } from 'lousho';
@@ -316,17 +316,17 @@ const paused = await agent.send('Email Sam', { principal: alice });
 await agent.approvals.resolve({ id: paused.approvalId!, approved: true }, { principal: lead });
 ```
 
-`resolve()` و`answer()` و`streamResolve()` و`streamAnswer()` تاخذ `{ principal }`. والـ approvals route (`POST /chat/:sessionId/approvals/:id`) يمرّر المتصل اللي قبلته قائمة الـ auth؛ حقول الـ body ما تقدر تضبطه. و`mountChannels()` تمرّر الـ user اللي ضغط كـ `{ id, type: 'user', authenticator: <channel name> }`، أو، لو السؤال اتجاوب برسالة، مُرسل الرسالة. أما القرارات اللي تعملها callback `approve` أو اللي تنرسل لـ `/channels/<name>/approvals/:id` فما فيها approver.
+تأخذ `resolve()` و`answer()` و`streamResolve()` و`streamAnswer()` القيمة `{ principal }`. ويمرّر الـ approvals route (`POST /chat/:sessionId/approvals/:id`) المتصل الذي قبلته قائمة الـ auth؛ ولا تستطيع حقول الـ body ضبطه. وتمرّر `mountChannels()` الـ user الذي ضغط كـ `{ id, type: 'user', authenticator: <channel name> }`، أو، إذا أُجيب عن السؤال برسالة، مُرسل الرسالة. أما القرارات التي يتخذها callback `approve` أو التي تُرسل إلى `/channels/<name>/approvals/:id` فليس فيها approver.
 
-الـ approver ما يصير principal الـ run أبدًا: الـ call الموافَق عليه وباقي الـ run يشتغل لصالح المتصل اللي وقّفه. وأي credential أو grant تخص هذا المتصل تُستخدم بس لاتصالاته هو، مهما كان مين اللي وافق.
+لا يصبح الـ approver أبدًا principal الـ run: فالـ call الموافَق عليه وبقية الـ run يعملان لصالح المتصل الذي أوقفه. وأي credential أو grant تخص هذا المتصل لا تُستخدم إلا لاستدعاءاته هو، بغض النظر عمّن وافق.
 
-### من يقدر يستخدم الـ session
+### من يستطيع استخدام الـ session
 
-افتراضيًا، بعد ما الـ route auth يقبل متصل، الـ session تصير ملك أول principal يرسل لها turn (والـ principals تتقارن بـ `id` و`type` و`authenticator` و`issuer`). وأي principal ثاني ياخذ `403` (`LOUSHO_SESSION_FORBIDDEN`) على `GET /chat/:id` و`POST /chat` و`POST <basePath>` وendpoint `useChat`؛ أما القرارات على الـ approvals حقها فمتروكة لـ `authorizeApproval` (تحت). وقراءة id ما أحد أرسل له turn لسا ما تحجز شي، فالمتصل ما يقدر يقفل id متوقّع (`user-42`) على صاحبه بإنه يقرأه أول. والـ turn اللي `input` حقه فاضي ياخذ `400` وما يحجز شي، والـ turn اللي ما يخزّن شي (فشل قبل الحفظ) يتخلّى عن حجزه. والـ route اللي بدون auth ما يفحص شي. وكل اللي يتصلون بنفس `apiToken()` هم principal واحد، فيتشاركون كل الـ sessions؛ والـ route المحمي بـ bearer token واحد (`auth: '<token>'`، أو سيرفر Node أو الـ Worker مع `LOUSHO_API_TOKEN` بس) ما يفحص أي مالك أصلًا.
+افتراضيًا، بعد أن يقبل الـ route auth متصلًا، تصبح الـ session ملكًا لأول principal يرسل إليها turn (وتُقارَن الـ principals بـ `id` و`type` و`authenticator` و`issuer`). وأي principal آخر يحصل على `403` (`LOUSHO_SESSION_FORBIDDEN`) على `GET /chat/:id` و`POST /chat` و`POST <basePath>` وendpoint `useChat`؛ أما القرارات على الـ approvals الخاصة بها فمتروكة لـ `authorizeApproval` (أدناه). وقراءة id لم يرسل إليه أحد turn بعد لا تحجز شيئًا، فلا يستطيع المتصل أن يقفل id متوقعًا (`user-42`) على صاحبه بقراءته أولًا. والـ turn الذي يكون `input` فيه فارغًا يحصل على `400` ولا يحجز شيئًا، والـ turn الذي لا يخزّن شيئًا (فشل قبل الحفظ) يتخلّى عن حجزه. والـ route الذي ليس عليه auth لا يفحص شيئًا. وكل من يتصلون بالـ `apiToken()` نفسه هم principal واحد، فيتشاركون كل الـ sessions؛ والـ route المحمي بـ bearer token واحد (`auth: '<token>'`، أو سيرفر Node أو الـ Worker مع `LOUSHO_API_TOKEN` فقط) لا يفحص أي مالك أصلًا.
 
-المالك ينحفظ في الذاكرة، لكل agent object، لآخر 100,000 session انستخدمت. والـ restart، أو replica ثانية، أو session ما انستخدمت مدة أطول، أو host يبني الـ agent مع كل request، كلها تنسّيه. وقتها الافتراضي يفشل مقفول: الـ session المخزّنة أصلًا (فيها transcript أو turn ما خلص) وما لها مالك مسجّل تنرفض لكل principal، حتى اللي بدأها، عشان ما أحد يستولي على session بإنه يخلّي النظام ينسى مالكها. وبس الـ session اللي ما انخزنت أبدًا ممكن تنحجز من جديد. فلأي شي يشتغل على أكثر من instance، أو يحتفظ بالـ sessions بين الـ restarts، افحص الملكية بنفسك بـ `authorizeSession`.
+يُحفظ المالك في الذاكرة، لكل agent object، لآخر 100,000 session استُخدمت. والـ restart، أو replica أخرى، أو session لم تُستخدم لمدة أطول، أو host يبني الـ agent مع كل request، كلها تُنسيه. حينها يفشل الافتراضي مغلقًا: الـ session المخزّنة مسبقًا (فيها transcript أو turn لم يكتمل) والتي ليس لها مالك مسجّل تُرفض لكل principal، حتى من بدأها، لكي لا يستولي أحد على session بجعل النظام ينسى مالكها. ولا يمكن حجز session من جديد إلا إذا لم تُخزَّن أبدًا. لذا لأي شيء يعمل على أكثر من instance، أو يحتفظ بالـ sessions بين مرات الـ restart، افحص الملكية بنفسك عبر `authorizeSession`.
 
-`createRouteHandler()` وسيرفر Node المولَّد ياخذون `authorizeSession`، وهو يستبدل هذا الافتراضي (في مجلد الـ agent، صدّره من `auth.ts`: شوف المثال تحت [من يقدر يحسم الـ approval](#من-يقدر-يحسم-الـ-approval)). ينسأل قبل ما المتصل يقرأ session (`action: 'read'`)، أو يرسل لها turn (`'chat'`، ويشمل `POST <basePath>` وendpoint `useChat`)، أو يحسم واحد من الـ approvals حقها (`'approve'`). رجّع `false` عشان `403` (`LOUSHO_SESSION_FORBIDDEN`). واشتقاق الـ id من المتصل يخلّي الفحص stateless:
+يأخذ `createRouteHandler()` وسيرفر Node المولَّد `authorizeSession`، وهو يستبدل هذا الافتراضي (في مجلد الـ agent، صدّره من `auth.ts`: راجع المثال أدناه في [من يستطيع حسم الـ approval](#من-يستطيع-حسم-الـ-approval)). يُستدعى قبل أن يقرأ المتصل session (`action: 'read'`)، أو يرسل إليها turn (`'chat'`، ويشمل `POST <basePath>` وendpoint `useChat`)، أو يحسم أحد الـ approvals الخاصة بها (`'approve'`). أرجِع `false` للحصول على `403` (`LOUSHO_SESSION_FORBIDDEN`). واشتقاق الـ id من المتصل يجعل الفحص stateless:
 
 ```ts
 import { createAgent, createRouteHandler, memoryStore } from 'lousho';
@@ -344,21 +344,21 @@ export const { GET, POST } = createRouteHandler(agent, {
 });
 ```
 
-`authorizeSession: () => true` يخلّي كل متصل مصادَق عليه يستخدم كل session (السلوك اللي كان قبل هذا الافتراضي).
+`authorizeSession: () => true` تسمح لكل متصل مصادَق عليه باستخدام كل session (السلوك الذي كان قبل هذا الافتراضي).
 
 ### الطلبات بين المواقع
 
-المتصفح يرسل الـ cookies مع الطلبات اللي تسويها صفحة موقع ثاني، فمع auth مبني على cookies، صفحة على `evil.example` كان ممكن تبدأ turn أو توافق على call باسم المستخدم حقك. routes الـ session ترفض هذا افتراضيًا:
+يرسل المتصفح الـ cookies مع الطلبات التي تنشئها صفحة موقع آخر، فمع auth مبني على الـ cookies، كان يمكن لصفحة على `evil.example` أن تبدأ turn أو توافق على call باسم المستخدم الخاص بك. ترفض routes الـ session هذا افتراضيًا:
 
-- الـ POST اللي `Origin` حقه مو origin السيرفر نفسه (الـ `Host` حقه، أو الـ host اللي يبلّغ عنه proxy قدّامه في `X-Forwarded-Host` أو `Forwarded: host=`) ومو موجود في `allowedOrigins`، أو اللي المتصفح علّمه بـ `Sec-Fetch-Site: cross-site`، ياخذ `403` (`LOUSHO_REQUEST_FORBIDDEN`). والطلبات اللي بدون `Origin` (curl، أو سيرفر، أو agent ثاني) ما تتأثر؛
-- body الـ POST لازم يكون `Content-Type: application/json` (وإلا `415`، `LOUSHO_UNSUPPORTED_MEDIA_TYPE`): لأن الـ forms و`text/plain` هي اللي يقدر موقع ثاني يرسلها بدون CORS preflight.
+- الـ POST الذي لا يكون `Origin` الخاص به origin السيرفر نفسه (أي الـ `Host` الخاص به، أو الـ host الذي يبلّغ عنه proxy أمامه في `X-Forwarded-Host` أو `Forwarded: host=`) وليس موجودًا في `allowedOrigins`، أو الذي علّمه المتصفح بـ `Sec-Fetch-Site: cross-site`، يحصل على `403` (`LOUSHO_REQUEST_FORBIDDEN`). ولا تتأثر الطلبات التي ليس فيها `Origin` (curl، أو سيرفر، أو agent آخر)؛
+- يجب أن يكون body الـ POST بـ `Content-Type: application/json` (وإلا `415`، `LOUSHO_UNSUPPORTED_MEDIA_TYPE`): لأن الـ forms و`text/plain` هي ما يستطيع موقع آخر إرساله من دون CORS preflight.
 
-الـ front end اللي على origin ثاني تحطه في `allowedOrigins` (ويحتاج كمان CORS headers، يضيفها الـ host حقك)؛ و`allowedOrigins: ['*']` يطفّي فحص الـ origin، و`requireJsonBody: false` يطفّي فحص الـ content-type. والقيم تتقارن كـ origins: حالة الأحرف، والسلاش في الآخر، والـ port الافتراضي (`https://app.example:443`) ما تفرق. و`allowedHosts` (مطفّي افتراضيًا) يرفض أي request الـ `Host` حقه مو في القائمة، للحماية من DNS rebinding لسيرفر على عنوان خاص. الثلاثة تشتغل على `createRouteHandler()` وسيرفر Node المولَّد؛ وهذا السيرفر والـ Cloudflare Worker يقرأونها من `LOUSHO_ALLOWED_ORIGINS` و`LOUSHO_ALLOWED_HOSTS` (مفصولة بفواصل) و`LOUSHO_REQUIRE_JSON_BODY=false`.
+ضع الـ front end الموجود على origin آخر في `allowedOrigins` (ويحتاج أيضًا إلى CORS headers يضيفها الـ host الخاص بك)؛ و`allowedOrigins: ['*']` تعطّل فحص الـ origin، و`requireJsonBody: false` تعطّل فحص الـ content-type. وتُقارَن القيم كـ origins: حالة الأحرف، والشرطة المائلة في النهاية، والـ port الافتراضي (`https://app.example:443`) لا تُحدث فرقًا. و`allowedHosts` (معطّل افتراضيًا) يرفض أي request لا يكون الـ `Host` الخاص به في القائمة، للحماية من DNS rebinding لسيرفر على عنوان خاص. تعمل الثلاثة على `createRouteHandler()` وسيرفر Node المولَّد؛ ويقرأها هذا السيرفر والـ Cloudflare Worker من `LOUSHO_ALLOWED_ORIGINS` و`LOUSHO_ALLOWED_HOSTS` (مفصولة بفواصل) و`LOUSHO_REQUIRE_JSON_BODY=false`.
 
-ورا reverse proxy:
+خلف reverse proxy:
 
-- الـ proxy لازم يبلّغ السيرفر بالـ host العام، وإلا الـ POST من نفس الموقع في المتصفح ياخذ `403`: خلّ الـ `Host` الأصلي (في nginx: `proxy_set_header Host $host;`)، أو اضبط `X-Forwarded-Host` (`proxy_set_header X-Forwarded-Host $host;`) أو `Forwarded: host=...`. والـ port الافتراضي فيه (`agent.example:443`) يطابق صفحة `https://agent.example`. وإلا حط الـ origin العام في `allowedOrigins`.
-- `allowedHosts` يفحص بس هيدر `Host` اللي يوصل للسيرفر، وما يفحص الهيدرات المحوَّلة أبدًا (لأن الصفحة اللي تسوي DNS rebinding تقدر تضبطها). ورا proxy يعيد كتابة `Host`، حط الاسم الـ upstream اللي يرسله الـ proxy، مو الاسم العام.
+- يجب أن يبلّغ الـ proxy السيرفر بالـ host العام، وإلا يحصل الـ POST القادم من الموقع نفسه في المتصفح على `403`: أبقِ الـ `Host` الأصلي (في nginx: `proxy_set_header Host $host;`)، أو اضبط `X-Forwarded-Host` (`proxy_set_header X-Forwarded-Host $host;`) أو `Forwarded: host=...`. والـ port الافتراضي فيه (`agent.example:443`) يطابق صفحة `https://agent.example`. وإلا فضع الـ origin العام في `allowedOrigins`.
+- لا يفحص `allowedHosts` إلا header الـ `Host` الذي يصل إلى السيرفر، ولا يفحص الـ headers المحوَّلة أبدًا (لأن الصفحة التي تنفّذ DNS rebinding تستطيع ضبطها). وخلف proxy يعيد كتابة `Host`، ضع اسم الـ upstream الذي يرسله الـ proxy، لا الاسم العام.
 
 ```ts
 import { createAgent, createRouteHandler } from 'lousho';
@@ -371,13 +371,13 @@ export const { GET, POST } = createRouteHandler(agent, {
 });
 ```
 
-### من يقدر يحسم الـ approval
+### من يستطيع حسم الـ approval
 
-القرار المرسَل لـ `POST /chat/:sessionId/approvals/:id` لازم يسمّي الـ session اللي يتبع لها الـ approval؛ وأي session ثانية ترد بـ `404`، زي الـ approval اللي انحسم من قبل. أما `POST <basePath>/approvals/:id` (الـ route اللي يرسل له `useLoushoAgent`) فما يسمّي session، فينفحص مقابل الـ session الخاصة بالـ approval نفسه.
+يجب أن يسمّي القرار المرسَل إلى `POST /chat/:sessionId/approvals/:id` الـ session التي يتبع لها الـ approval؛ وأي session أخرى ترد بـ `404`، مثل الـ approval الذي حُسم من قبل. أما `POST <basePath>/approvals/:id` (الـ route الذي يرسل إليه `useLoushoAgent`) فلا يسمّي session، فيُفحص مقابل الـ session الخاصة بالـ approval نفسه.
 
-بعدها `authorizeApproval({ principal, sessionId, approval })` يقرر؛ و`false` تعني `403` (`LOUSHO_APPROVAL_FORBIDDEN`). والافتراضي، `callerOwnsApproval`، ما يخلّي أحد يحسم إلا المتصل اللي الـ run الموقوف يشتغل لصالحه (`approval.principal`، يتقارن بـ `id` و`type` و`authenticator` و`issuer`). يعني المستخدم يقدر يأكد الـ call حقه، وما يقدر يحسم call مستخدم ثاني. والـ run اللي بدون principal، أو الـ route اللي بدون auth، يقبل أي متصل.
+بعدها تقرر `authorizeApproval({ principal, sessionId, approval })`؛ و`false` تعني `403` (`LOUSHO_APPROVAL_FORBIDDEN`). والافتراضي، `callerOwnsApproval`، لا يسمح لأحد بالحسم إلا للمتصل الذي يعمل الـ run الموقوف لصالحه (`approval.principal`، ويُقارَن بـ `id` و`type` و`authenticator` و`issuer`). أي أن المستخدم يستطيع تأكيد الـ call الخاص به، ولا يستطيع حسم call مستخدم آخر. والـ run الذي ليس له principal، أو الـ route الذي ليس عليه auth، يقبل أي متصل.
 
-لما `needsApproval` يعني إن شخص ثاني لازم يوافق، قل مين. هنا العميل ما عاد يقدر يوافق على استرداد مبلغه بنفسه، والمشرف يقدر يقرأ أي session (عشان يشوف على إيش يوافق) ويحسم فيها:
+عندما يعني `needsApproval` أن شخصًا آخر يجب أن يوافق، فحدّد من هو. هنا لم يعد العميل يستطيع الموافقة على استرداد مبلغه بنفسه، ويستطيع المشرف قراءة أي session (ليرى ما الذي يوافق عليه) والحسم فيها:
 
 ```ts
 import { createAgent, createRouteHandler, memoryStore } from 'lousho';
@@ -397,7 +397,7 @@ export const { GET, POST } = createRouteHandler(agent, {
 });
 ```
 
-في مجلد agent مبني بـ `lousho build --target=node-server` (أو `docker`)، صدّر نفس القواعد من `auth.ts`. هنا المستخدمين يقدّمون طلبات مصاريف، والمدير يحسمها، وما أحد يوافق على طلبه بنفسه:
+في مجلد agent مبني بـ `lousho build --target=node-server` (أو `docker`)، صدّر القواعد نفسها من `auth.ts`. هنا يقدّم المستخدمون طلبات مصاريف، ويحسمها المدير، ولا يوافق أحد على طلبه بنفسه:
 
 ```ts
 // my-agent/auth.ts
@@ -424,20 +424,20 @@ export function authorizeApproval({ principal, approval }: ApprovalAccessRequest
 }
 ```
 
-وقتها طلب alice الموقوف في الـ session `alice-1` يتحسم بـ `POST /chat/alice-1/approvals/:id` مع token المدير (`200`)؛ ومع token alice نفسها ياخذ `403` (`LOUSHO_APPROVAL_FORBIDDEN`). وبدون هذه الـ exports السيرفر المبني يحتفظ بالافتراضيات، فما يقدر يحسمه إلا alice.
+حينها يُحسم طلب alice الموقوف في الـ session `alice-1` عبر `POST /chat/alice-1/approvals/:id` مع token المدير (`200`)؛ ومع token alice نفسها يحصل على `403` (`LOUSHO_APPROVAL_FORBIDDEN`). ومن دون هذه الـ exports يحتفظ السيرفر المبني بالافتراضيات، فلا يستطيع حسمه إلا alice.
 
-لما طلبين يحسمون نفس الـ approval، ياخذون continuation واحد: طول ما continuation القرار الفائز شغّال (على نفس process السيرفر)، أي قرار ثاني لهذا الـ approval ياخذ `409` (`LOUSHO_APPROVAL_CONFLICT`)، سواء وصل في نفس اللحظة أو والـ tool المحسوم شغّال؛ وبعد ما ينتهي هذا الـ continuation، القرار ياخذ `404` (`LOUSHO_APPROVAL_NOT_FOUND`). والقرار اللي عالجته replica ثانية ياخذ `404` هناك.
+عندما يحسم طلبان الـ approval نفسه، يحصلان على continuation واحد: ما دام continuation القرار الفائز يعمل (على process السيرفر نفسها)، يحصل أي قرار آخر لهذا الـ approval على `409` (`LOUSHO_APPROVAL_CONFLICT`)، سواء وصل في اللحظة نفسها أو أثناء عمل الـ tool المحسومة؛ وبعد انتهاء هذا الـ continuation، يحصل القرار على `404` (`LOUSHO_APPROVAL_NOT_FOUND`). والقرار الذي عالجته replica أخرى يحصل على `404` هناك.
 
-### الوقف والكراش والـ fork
+### الإيقاف والتعطّل والـ fork
 
-الـ principal ينحفظ مع checkpoints الـ run وsnapshots الـ approvals، فالـ run اللي يتستأنف في process أخرى (بعد restart، أو `agent.approvals.resolve()`، أو `agent.resume()`، أو turn معلّق في session) يشتغل لصالح نفس المتصل. والـ call اللي يكمّل run غير مكتمل له checkpoint لازم ما يمرّر principal (فيكمّل بالمحفوظ) أو يمرّر نفسه؛ أما `send(message, { sessionId, principal })` من متصل آخر فيرمي `LOUSHO_CONFIG_INVALID`، عشان مدخله ما يشتغل بهوية غيره. والـ checkpoints والـ snapshots المحفوظة قبل هذا الإصدار ما فيها principal وتستأنف بدونه.
+يُحفظ الـ principal مع checkpoints الـ run وsnapshots الـ approvals، فالـ run الذي يُستأنف في process أخرى (بعد restart، أو `agent.approvals.resolve()`، أو `agent.resume()`، أو turn معلّق في session) يعمل لصالح المتصل نفسه. والـ call الذي يكمل run غير مكتمل له checkpoint يجب ألّا يمرّر principal (فيكمل بالمحفوظ) أو أن يمرّر الـ principal نفسه؛ أما `send(message, { sessionId, principal })` من متصل آخر فيرمي `LOUSHO_CONFIG_INVALID`، لكي لا يعمل مدخله بهوية غيره. والـ checkpoints والـ snapshots المحفوظة قبل هذا الإصدار ليس فيها principal وتُستأنف من دونه.
 
-`agent.fork()` و`AgentExecutor.fork()` تنسخ checkpoint الـ run مع الـ principal: يعني الـ fork هو run لنفس المتصل. والـ approval المعلّق ما ينسخ؛ الـ fork يطلبه من جديد. أما `session.fork()` فتنسخ المحادثة فقط: الـ fork ما فيه principal خاص، وكل turn فيه يشتغل بالـ principal اللي `send()` تمرّره، والـ approval المعلّق يظل مع الـ session الأصلية.
+تنسخ `agent.fork()` و`AgentExecutor.fork()` checkpoint الـ run مع الـ principal: أي أن الـ fork هو run للمتصل نفسه. ولا يُنسخ الـ approval المعلّق؛ بل يطلبه الـ fork من جديد. أما `session.fork()` فتنسخ المحادثة فقط: ليس للـ fork principal خاص، وكل turn فيه يعمل بالـ principal الذي تمرّره `send()`، ويبقى الـ approval المعلّق مع الـ session الأصلية.
 
 ### الـ sub-agents
 
-الـ sub-agents داخل الـ process (الـ tool `task` والمهام الخلفية) تشتغل لصالح متصل الـ lead، وحتى عند استئناف الـ approval الخاص بها. أما الـ [remote sub-agent](/ar/sub-agents) (`remoteAgent()`) فما يعرف مين المتصل: الـ route auth على السيرفر البعيد هو اللي يقرر الـ principal (مثلًا الـ service principal اللي يطلع من `apiToken()` على token الـ lead).
+تعمل الـ sub-agents داخل الـ process (الـ tool `task` والمهام الخلفية) لصالح متصل الـ lead، حتى عند استئناف الـ approval الخاص بها. أما الـ [remote sub-agent](/ar/sub-agents) (`remoteAgent()`) فلا يعرف من المتصل: الـ route auth على السيرفر البعيد هو الذي يقرر الـ principal (مثلًا الـ service principal الناتج عن `apiToken()` على token الـ lead).
 
-### اللي يتخزن واللي يتسجّل
+### ما يُخزَّن وما يُسجَّل
 
-الـ principal، ومعه الـ claims، يتخزن في الـ checkpoints وسجلات الـ approvals اللي أصلًا فيها transcript المحادثة؛ فعامل هذه الـ stores كبيانات شخصية. وما يتضاف لأحداث `AgentEvent` (حتى `permission.decision`)، ولا لـ spans في OpenTelemetry، ولا ملفات الـ trace، ورسائل الأخطاء ما تسمّي المتصلين.
+يُخزَّن الـ principal، ومعه الـ claims، في الـ checkpoints وسجلات الـ approvals التي تحتوي أصلًا على transcript المحادثة؛ فعامل هذه الـ stores كبيانات شخصية. ولا يُضاف إلى أحداث `AgentEvent` (حتى `permission.decision`)، ولا إلى spans في OpenTelemetry، ولا إلى ملفات الـ trace، ولا تذكر رسائل الأخطاء أسماء المتصلين.

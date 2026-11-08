@@ -26,7 +26,7 @@ interface TriggerAdapter<TChannel = unknown> {
 }
 ```
 
-`listen` تأخذ `agent` و`onEvent` معًا بقصد. الـ`agent` هو الواجهة البسيطة: prompt يدخل ونص يطلع. والـ`onEvent` هي نقطة الدخول التي يناديها الـadapter عندما ينطلق الـtrigger: الـcaller البسيط يمرّر `(input) => agent.send(input)`، والـcaller الذي عنده checkpointing أو approval gates أو تحكم بالإلغاء يمرّر `onEvent` تغلّف هذا كله. استدعِ `stop()` على الـhandle الذي ترجعه لإيقاف الـadapter.
+`listen` تأخذ `agent` و`onEvent` معًا بقصد. الـ`agent` هو الواجهة البسيطة: prompt يدخل ونص يخرج. والـ`onEvent` هي نقطة الدخول التي يستدعيها الـadapter عندما ينطلق الـtrigger: الـcaller البسيط يمرّر `(input) => agent.send(input)`، والـcaller الذي عنده checkpointing أو approval gates أو تحكم بالإلغاء يمرّر `onEvent` تغلّف هذا كله. استدعِ `stop()` على الـhandle الذي ترجعه لإيقاف الـadapter.
 
 دلالات الرد تختلف بين adapter وآخر. الـadapter الذي يكون ردّه هو الطلب المفتوح نفسه (webhook) ليس فيه `reply()`، والذي لا ينتظره مستدعٍ (ساعة) يسلّم النتيجة إلى مكان آخر، والذي عنده قناة رد منفصلة عن الطلب (chat) يطبّق `reply()`.
 

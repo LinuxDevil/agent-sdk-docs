@@ -3,13 +3,13 @@ title: "Hooks"
 ---
 {/* Generated from docs/hooks.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-الـ hook هو object بالشكل `{ name, preToolCall?, postToolCall?, preGenerate?, postGenerate? }` يشتغل داخل الـ agent loop، حول كل tool call وكل model call. استخدمه لكتابة audit log، أو لرفض tool، أو لحجب نتيجة أو قصّها، أو لحقن context قبل الـ model call، أو لتغيير الـ request اللي ينبعث (header أو `temperature`).
+الـ hook هو object بالشكل `{ name, preToolCall?, postToolCall?, preGenerate?, postGenerate? }` يعمل داخل الـ agent loop، حول كل tool call وكل model call. استخدمه لكتابة audit log، أو لرفض tool، أو لحجب نتيجة أو قصّها، أو لحقن context قبل الـ model call، أو لتغيير الـ request الذي سيُرسَل (header أو `temperature`).
 
-الـ hooks كود تكتبه إنت، مش policy ولا قرار بشري: للقواعد اللي تسمح أو ترفض أو تسأل على مستوى كل tool، ولموافقة شخص على call معيّن، استخدم `permissions` و`needsApproval` ([الموافقات](/ar/approvals)). الـ listeners مثل `onEvent` يراقبون الـ run فقط وما يقدرون يغيّروه ([Streaming](/ar/streaming#الاستماع-بدون-iterating))؛ الـ hook يقدر.
+الـ hooks كود تكتبه أنت، وليست policy ولا قرارًا بشريًا: للقواعد التي تسمح أو ترفض أو تسأل على مستوى كل tool، ولموافقة شخص على call معيّن، استخدم `permissions` و`needsApproval` ([الموافقات](/ar/approvals)). الـ listeners مثل `onEvent` تراقب الـ run فقط ولا تستطيع تغييره ([Streaming](/ar/streaming#الاستماع-بدون-iterating))؛ أما الـ hook فيستطيع.
 
 ## أول hook لك
 
-مرّر الـ hooks إلى `createAgent({ hooks })`. هذا الـ hook يسجّل كل tool call والنتيجة اللي رجّعت:
+مرّر الـ hooks إلى `createAgent({ hooks })`. هذا الـ hook يسجّل كل tool call والنتيجة التي أعادها:
 
 ```ts
 import { createAgent, defineTool, type AgentHook } from 'lousho';
@@ -45,41 +45,41 @@ const agent = createAgent({
 await agent.send('Look up hooks');
 ```
 
-كل method اختيارية: نفّذ النقاط اللي تحتاجها فقط. الـ hook اللي ما يرجع شيء يراقب فقط؛ وتعديل `ctx.args` أو `ctx.messages` أو `ctx.request` في مكانه يغيّر الـ run أيضًا.
+كل method اختيارية: نفّذ النقاط التي تحتاجها فقط. الـ hook الذي لا يعيد شيئًا يراقب فقط؛ وتعديل `ctx.args` أو `ctx.messages` أو `ctx.request` في مكانه يغيّر الـ run أيضًا.
 
 ## نقاط الـ hook الأربع
 
-| النقطة | متى تشتغل | الـ context | ما يمكنها ترجعه |
+| النقطة | متى تعمل | الـ context | ما يمكنها أن تعيده |
 | --- | --- | --- | --- |
-| `preToolCall(ctx)` | قبل ما الـ tool يشتغل، وقبل قواعد الـ permissions والـ tool guardrails وفحص الموافقة. | `ToolCallHookContext`: `toolCallId` و`toolName` و`args` (live) و`toolCall`، زائد الحقول المشتركة تحت. | لا شيء، أو `{ deny }` أو `{ result }` أو `{ input }` (انظر [Hook outcomes](#hook-outcomes)). |
-| `postToolCall(ctx, result)` | بعد ما يستقر الـ tool call: نجاح، أو error على مستوى الـ tool، أو موافقة مطلوبة. قيمة `result` هي `{ result, error?, requiresApproval? }`. | `ToolCallHookContext`. | لا شيء، أو `{ result }` عشان تستبدل اللي يشوفه الـ model. |
-| `preGenerate(ctx)` | قبل كل model call. | `GenerateHookContext`: `request` (كائن الـ `GenerateOptions` الـ live اللي بينبعث) و`emit?`، زائد الحقول المشتركة. | لا شيء؛ عدّل `ctx.messages` أو `ctx.request`، أو ارمِ error. |
-| `postGenerate(ctx, result)` | بعد ما يخلص كل model call، مع الـ `GenerateResult` الخاص به. | `GenerateHookContext`. | لا شيء؛ أو ارمِ error. |
+| `preToolCall(ctx)` | قبل أن يعمل الـ tool، وقبل قواعد الـ permissions والـ tool guardrails وفحص الموافقة. | `ToolCallHookContext`: `toolCallId` و`toolName` و`args` (live) و`toolCall`، إضافة إلى الحقول المشتركة أدناه. | لا شيء، أو `{ deny }` أو `{ result }` أو `{ input }` (انظر [Hook outcomes](#hook-outcomes)). |
+| `postToolCall(ctx, result)` | بعد أن يستقر الـ tool call: نجاح، أو error على مستوى الـ tool، أو موافقة مطلوبة. قيمة `result` هي `{ result, error?, requiresApproval? }`. | `ToolCallHookContext`. | لا شيء، أو `{ result }` لكي تستبدل ما يراه الـ model. |
+| `preGenerate(ctx)` | قبل كل model call. | `GenerateHookContext`: `request` (كائن الـ `GenerateOptions` الـ live الذي سيُرسَل) و`emit?`، إضافة إلى الحقول المشتركة. | لا شيء؛ عدّل `ctx.messages` أو `ctx.request`، أو ارمِ error. |
+| `postGenerate(ctx, result)` | بعد أن ينتهي كل model call، مع الـ `GenerateResult` الخاص به. | `GenerateHookContext`. | لا شيء؛ أو ارمِ error. |
 
-الحقول المشتركة في كل context هي `agentId` و`agentName` و`sessionId` و`messages` (سجل المحادثة الـ live) و`metadata` (مساحة حرة تحط فيها اللي تريده) و`subagent` (تتعبّى داخل sub-agent). سياقات الـ tool call تحمل أيضًا `resumedAfterApproval`: تكون `true` فقط لما الـ hook يشتغل على call يُعاد تشغيله بعد ما شخص وافق على إيقافه، عشان hook عنده state (مثل loop guard أو عدّاد audit) يقدر يتخطى إعادة التشغيل بـ `if (ctx.resumedAfterApproval) return;`. ويوجد `ctx.emit` لما يكون للـ run listeners (`createAgent({ onEvent })` أو `onAgentEvent`) أو لما يكون فيه streaming، ويضيف حدثَي `compaction.start` و`compaction.done` إلى أحداث الـ run. وداخل run الـ executor، يحصل `preGenerate` أيضًا على `ctx.generate(provider, request, purpose)`: model call جانبي (يستخدمه الـ summarizer الخاص بالـ compaction) له `chat` span خاص به موسوم بـ `lousho.call.purpose`، ويُحسب ضمن `usage` الخاص بالـ run وضمن الـ budgets.
+الحقول المشتركة في كل context هي `agentId` و`agentName` و`sessionId` و`messages` (سجل المحادثة الـ live) و`metadata` (مساحة حرة تضع فيها ما تريد) و`subagent` (تُملأ داخل sub-agent). سياقات الـ tool call تحمل أيضًا `resumedAfterApproval`: تكون `true` فقط عندما يعمل الـ hook على call يُعاد تشغيله بعد أن وافق شخص على إيقافه، لكي يستطيع hook لديه state (مثل loop guard أو عدّاد audit) تخطي إعادة التشغيل بـ `if (ctx.resumedAfterApproval) return;`. ويوجد `ctx.emit` عندما يكون للـ run listeners (`createAgent({ onEvent })` أو `onAgentEvent`) أو عندما يكون هناك streaming، ويضيف حدثَي `compaction.start` و`compaction.done` إلى أحداث الـ run. وداخل run الـ executor، يحصل `preGenerate` أيضًا على `ctx.generate(provider, request, purpose)`: model call جانبي (يستخدمه الـ summarizer الخاص بالـ compaction) له `chat` span خاص به موسوم بـ `lousho.call.purpose`، ويُحسب ضمن `usage` الخاص بالـ run وضمن الـ budgets.
 
 ## Hook outcomes
 
-الـ tool-call hook يقدر يغيّر ما يحدث، لا يراقبه فقط. الـ `preToolCall` hook يقدر يرجع:
+الـ tool-call hook يستطيع أن يغيّر ما يحدث، لا أن يراقبه فقط. الـ `preToolCall` hook يستطيع أن يعيد:
 
-- لا شيء: الـ call يكمل بدون تغيير (وتعديل `ctx.args` في مكانه يعمل أيضًا).
-- `{ deny: reason }`: الـ call ما يشتغل. الـ model يوصله نفس خطأ الـ tool
-  `kind: 'denied'` اللي ينتج عن رفض `needsApproval` (انظر
-  [الموافقات](/ar/approvals#الموافقة-أو-المنع-أو-السؤال))، والـ streams تشوف `tool.error`،
+- لا شيء: يستمر الـ call دون تغيير (وتعديل `ctx.args` في مكانه يعمل أيضًا).
+- `{ deny: reason }`: لا يعمل الـ call. يصل إلى الـ model خطأ الـ tool نفسه
+  `kind: 'denied'` الذي ينتج عن رفض `needsApproval` (انظر
+  [الموافقات](/ar/approvals#الموافقة-أو-المنع-أو-السؤال))، وترى الـ streams `tool.error`،
   و`onPermissionDecision` يسجّل `decision: 'deny'` مع `hook` و`reason`.
-- `{ result: value }`: الـ call ما يشتغل و`value` تصير نتيجته. حدث
-  `tool.done` ورسالة `tool` في الـ transcript (`metadata`) يحملون
+- `{ result: value }`: لا يعمل الـ call وتصبح `value` نتيجته. حدث
+  `tool.done` ورسالة `tool` في الـ transcript (`metadata`) يحملان
   `replacedByHook: '<hook name>'`.
-- `{ input: args }`: الـ call يشتغل بـ `args`. ينعمل عليها validation مرة ثانية
-  ضد الـ input schema الخاصة بالـ tool؛ وإذا ما طابقتها تصير خطأ tool من النوع `kind: 'validation'`
-  رسالته تذكر اسم الـ hook، والـ tool ما يشتغل.
+- `{ input: args }`: يعمل الـ call بـ `args`. يُجرى عليها validation مرة أخرى
+  مقابل الـ input schema الخاصة بالـ tool؛ وإذا لم تطابقها تصبح خطأ tool من النوع `kind: 'validation'`
+  تذكر رسالته اسم الـ hook، ولا يعمل الـ tool.
 
-الـ `postToolCall` hook يقدر يرجع `{ result: value }` لاستبدال النتيجة اللي
-يشوفها الـ model (يحجبها أو يقصّها)؛ ورجوع لا شيء يبقي النتيجة الأصلية. الـ hooks
-تشتغل بترتيب تسجيلها: أول `deny` أو `result` من pre-hook يتخطى الـ pre-hooks اللي بعده،
-وقيم `input` تتسلسل (كل hook يشوف قيمة اللي قبله في
-`ctx.args`)، وكل post-hook يشوف النتيجة اللي استبدلها hook قبله. والـ hook
-اللي يرمي error يفشّل الـ run مثل قبل. والـ sub-agents ترث hooks
+الـ `postToolCall` hook يستطيع أن يعيد `{ result: value }` لاستبدال النتيجة التي
+يراها الـ model (يحجبها أو يقصّها)؛ وإعادة لا شيء تُبقي النتيجة الأصلية. الـ hooks
+تعمل بترتيب تسجيلها: أول `deny` أو `result` من pre-hook يتخطى الـ pre-hooks التي تليه،
+وقيم `input` تتسلسل (كل hook يرى قيمة الذي قبله في
+`ctx.args`)، وكل post-hook يرى النتيجة التي استبدلها hook قبله. والـ hook
+الذي يرمي error يُفشل الـ run كما كان من قبل. والـ sub-agents ترث hooks
 الـ agent الرئيسي ونتائجها.
 
 ```ts
@@ -105,17 +105,17 @@ const agent = createAgent({ provider, instructions: 'You research things.', hook
 
 ## أمثلة
 
-كل مثال برنامج كامل. كلها تشتغل على `mockModel`، فما في واحد منها يحتاج API key ولا model call حقيقي؛ ونفس النمط يختبر الـ hooks اللي كتبتها offline ([Testing](/ar/testing)). كل مثال يجهّز turn للـ model فيه tool call، وبعده جواب نهائي.
+كل مثال برنامج كامل. جميعها تعمل على `mockModel`، فلا يحتاج أيٌّ منها إلى API key ولا إلى model call حقيقي؛ والنمط نفسه يختبر الـ hooks التي كتبتها offline ([Testing](/ar/testing)). كل مثال يجهّز turn للـ model فيه tool call، تليه إجابة نهائية.
 
-### أوقف run ما يتقدّم
+### أوقف run لا يتقدّم
 
-`createProgressGuard()` يوقف run يصرف الـ budget تبعه على calls ما توصل لشيء. هو مطفي إلا إذا أضفته:
+`createProgressGuard()` يوقف run ينفق الـ budget الخاص به على calls لا تؤدي إلى شيء. وهو معطّل ما لم تُضِفه:
 
-- من ثاني فشل لـ tool بنفس الخطأ، يضيف `hint` للنتيجة، فيها نصيحة حسب نوع الفشل (`classifyToolFailure()`: input غلط، أو timeout، أو قدرة ناقصة، أو صلاحية، أو غير معروف).
-- بعد `maxFailures` فشل بنفس الخطأ (الافتراضي 3)، يرفض هالـ tool لباقي الـ run. الأرقام في الرسالة ما تخلي الخطأ مختلف.
-- بعد `maxRepeats` calls متطابقة ترجّع نفس النتيجة (الافتراضي 3)، يرفض هالـ call. الـ call اللي نتيجته تتغيّر مو تكرار.
-- بعد ما `maxSameResults` calls لـ tool ترجّع نفس النتيجة (الافتراضي 5)، يرفض هالـ tool، حتى لو الـ arguments تختلف في كل call. هذا يمسك الـ model لما يعيد صياغة بحث يظل يلقى نفس الشيء.
-- بعد `maxDenials` رفض (الافتراضي 3)، الرفض اللي بعده يوقف الـ run بـ `LOUSHO_RUN_NO_PROGRESS`، و`agent.recover()` ما يعيد محاولته.
+- ابتداءً من الفشل الثاني لـ tool بالخطأ نفسه، يضيف `hint` إلى النتيجة، فيه نصيحة بحسب نوع الفشل (`classifyToolFailure()`: input خاطئ، أو timeout، أو قدرة ناقصة، أو صلاحية، أو غير معروف).
+- بعد `maxFailures` من حالات الفشل بالخطأ نفسه (الافتراضي 3)، يرفض هذا الـ tool لبقية الـ run. الأرقام في الرسالة لا تجعل الخطأ مختلفًا.
+- بعد `maxRepeats` من الـ calls المتطابقة التي تعيد النتيجة نفسها (الافتراضي 3)، يرفض هذا الـ call. الـ call الذي تتغيّر نتيجته ليس تكرارًا.
+- بعد أن تعيد `maxSameResults` من الـ calls لـ tool النتيجة نفسها (الافتراضي 5)، يرفض هذا الـ tool، حتى لو اختلفت الـ arguments في كل call. هذا يكشف الـ model عندما يعيد صياغة بحث يظل يجد الشيء نفسه.
+- بعد `maxDenials` من حالات الرفض (الافتراضي 3)، يوقف الرفض التالي الـ run بـ `LOUSHO_RUN_NO_PROGRESS`، ولا يعيد `agent.recover()` محاولته.
 
 ```ts
 import { createAgent, createProgressGuard, defineTool } from 'lousho';
@@ -143,11 +143,11 @@ for await (const event of agent.stream('Where is order A-1?')) {
 }
 ```
 
-كل action ينبث كحدث `heal.action`. النتيجة اللي استبدلها تتعلّم على الـ span تبع الـ tool بـ `lousho.tool.replaced_by_hook`، والرفض ينسجّل كخطأ الـ span. الـ guard يعدّ من سجل محادثة الـ run، فالـ run المستأنَف يحتفظ بتاريخه. الـ calls اللي في batch وحدة ما تنعد إلا لما تخلص الـ batch، وضغط السياق (compaction) ممكن يشيل calls قديمة من العدّ.
+كل action يُبث كحدث `heal.action`. النتيجة التي استبدلها تُعلَّم على الـ span الخاص بالـ tool بـ `lousho.tool.replaced_by_hook`، ويُسجَّل الرفض كخطأ في الـ span. الـ guard يعدّ من سجل محادثة الـ run، فيحتفظ الـ run المستأنَف بتاريخه. الـ calls الموجودة في batch واحدة لا تُعدّ إلا بعد أن تنتهي الـ batch، وقد يُزيل ضغط السياق (compaction) calls قديمة من العدّ.
 
-### افحص اللي طلّعته الـ tool
+### افحص ما أخرجته الـ tool
 
-الكتابة الناجحة ما تثبت إن الـ output صالح للاستخدام. `createOutputCheck()` يشغّل الفحص تبعك بعد ما تنجح الـ tool. إذا رجّع مشكلة، أو رمى، الـ model يشوفها كـ `outputCheckFailed` على النتيجة ويقدر يصلّح الـ output. الفحص هو كودك، فخلّه مستقل عن اللي كتبه الـ model.
+الكتابة الناجحة لا تثبت أن الـ output صالح للاستخدام. `createOutputCheck()` يشغّل الفحص الخاص بك بعد أن تنجح الـ tool. إذا أعاد مشكلة، أو رمى خطأً، يراها الـ model كـ `outputCheckFailed` على النتيجة ويستطيع إصلاح الـ output. الفحص هو كودك، فاجعله مستقلًا عما كتبه الـ model.
 
 ```ts
 import { createAgent, createOutputCheck, defineTool } from 'lousho';
@@ -211,7 +211,7 @@ console.log(result.text);
 
 ### أضف argument افتراضي
 
-ارجع `{ input }` عشان تشغّل الـ tool بـ arguments مختلفة. ينعمل عليها validation مرة ثانية ضد الـ schema الخاصة بالـ tool.
+أعِد `{ input }` لكي تشغّل الـ tool بـ arguments مختلفة. يُجرى عليها validation مرة أخرى مقابل الـ schema الخاصة بالـ tool.
 
 ```ts
 import { createAgent, defineTool, type AgentHook } from 'lousho';
@@ -245,7 +245,7 @@ await agent.send('Search for hooks');
 
 ### قصّ النتيجة أو احجبها
 
-الـ `postToolCall` يستلم النتيجة المستقرة، ويقدر يرجع `{ result }` عشان يستبدل اللي يشوفه الـ model. الـ tool نفسه اشتغل بدون تغيير.
+الـ `postToolCall` يستلم النتيجة المستقرة، ويستطيع أن يعيد `{ result }` لكي يستبدل ما يراه الـ model. الـ tool نفسه عمل دون تغيير.
 
 ```ts
 import { createAgent, defineTool, type AgentHook } from 'lousho';
@@ -280,7 +280,7 @@ console.log(toolMessage?.role); // 'tool': its content is the redacted text
 
 ### احقن context قبل الـ model call
 
-الـ `preGenerate` يشوف `ctx.messages` و`ctx.request` الـ live. اعمل `push` لرسالة عشان تضيف context، أو غيّر حقل في الـ request.
+الـ `preGenerate` يرى `ctx.messages` و`ctx.request` الـ live. نفّذ `push` لرسالة لكي تضيف context، أو غيّر حقلًا في الـ request.
 
 ```ts
 import { createAgent, type AgentHook } from 'lousho';
@@ -305,21 +305,21 @@ console.log(model.calls.length); // 1
 
 للـ tool call الواحد، الترتيب هو: validation على الـ arguments، ثم `preToolCall` hooks،
 ثم قواعد الـ permissions (`permissions`)، ثم الـ tool guardrails، ثم `needsApproval` الخاص بالـ tool،
-ثم إيقاف الموافقة، ثم التنفيذ، ثم `postToolCall` hooks. الـ hooks تشتغل قبل كل
-قرار موافقة، فالقواعد و`needsApproval` والشخص كلهم يشوفون
-الـ input اللي أنتجه الـ hook ويوافقون عليه؛ و`args` في الموافقة المعلّقة تُظهره. ولما يُستأنف
-call موافَق عليه، تشتغل الـ pre-hooks مرة ثانية: تظل قادرة على رفضه أو
-تقديم نتيجته، لكن `{ input }` مختلف عن الـ input الموافَق عليه يُرفض
-بخطأ tool بدل ما يشتغل. انظر [الموافقات](/ar/approvals) للإيقاف والاستئناف.
+ثم إيقاف الموافقة، ثم التنفيذ، ثم `postToolCall` hooks. الـ hooks تعمل قبل كل
+قرار موافقة، فالقواعد و`needsApproval` والشخص جميعهم يرون
+الـ input الذي أنتجه الـ hook ويوافقون عليه؛ و`args` في الموافقة المعلّقة تُظهره. وعندما يُستأنف
+call موافَق عليه، تعمل الـ pre-hooks مرة أخرى: تظل قادرة على رفضه أو
+تقديم نتيجته، لكن `{ input }` المختلف عن الـ input الموافَق عليه يُرفض
+بخطأ tool بدلًا من أن يعمل. انظر [الموافقات](/ar/approvals) للإيقاف والاستئناف.
 
-- **أكثر من hook** يشتغلون بترتيب مصفوفة `hooks`، واحد في كل مرة: كل واحد يُنتظر بـ `await` قبل اللي بعده، فالـ hook اللاحق يشوف اللي غيّره السابق.
-- **hook يرمي error** يفشّل الـ run. الـ hooks كود موثوق: الـ error ما يتحوّل إلى tool result يشوفه الـ model.
-- **Compaction.** `createAgent({ hooks })` يشغّل الـ hooks اللي كتبتها أول، وبعدها الـ compaction hook، فالـ compaction يشوف اللي أضافوه ([Context compaction](/ar/compaction)).
-- **Sub-agents** ترث hooks الـ agent الرئيسي. `ctx.subagent` تتعبّى لما الـ hook يشتغل داخل واحد منهم، فيقدر الـ hook يرجع مبكر عشان يشوف الـ run الأعلى فقط ([الـ hooks داخل الـ sub-agents](/ar/sub-agents#hooks-داخل-sub-agents)).
+- **أكثر من hook** تعمل بترتيب مصفوفة `hooks`، واحدًا تلو الآخر: يُنتظر كل واحد بـ `await` قبل الذي يليه، فيرى الـ hook اللاحق ما غيّره السابق.
+- **hook يرمي error** يُفشل الـ run. الـ hooks كود موثوق: لا يتحوّل الـ error إلى tool result يراه الـ model.
+- **Compaction.** `createAgent({ hooks })` يشغّل الـ hooks التي كتبتها أولًا، ثم الـ compaction hook، فيرى الـ compaction ما أضافته ([Context compaction](/ar/compaction)).
+- **Sub-agents** ترث hooks الـ agent الرئيسي. `ctx.subagent` تُملأ عندما يعمل الـ hook داخل أحدها، فيستطيع الـ hook أن يعود مبكرًا لكي يرى الـ run الأعلى فقط ([الـ hooks داخل الـ sub-agents](/ar/sub-agents#hooks-داخل-sub-agents)).
 
 ## HookRegistry
 
-`createAgent({ hooks })` يقبل array عادي. الكود اللي يستخدم الـ executor API ([executor API](/ar/executor-api)) يمرّر `HookRegistry`: مجموعة مرتّبة فيها `register` و`registerMany` و`get` و`has` و`list` و`unregister` و`clear` و`size()` — انتبه، `size` method (`hooks.size()`)، مش property بنمط `Map`. تسجيل hook ثاني بنفس الـ `name` يستبدل الأول ويطبع warning.
+`createAgent({ hooks })` يقبل array عاديًا. الكود الذي يستخدم الـ executor API ([executor API](/ar/executor-api)) يمرّر `HookRegistry`: مجموعة مرتّبة فيها `register` و`registerMany` و`get` و`has` و`list` و`unregister` و`clear` و`size()` — انتبه، `size` هي method (`hooks.size()`)، وليست property بنمط `Map`. تسجيل hook ثانٍ بالـ `name` نفسه يستبدل الأول ويطبع warning.
 
 ```ts
 import { HookRegistry, type AgentHook } from 'lousho/hooks';
@@ -336,4 +336,4 @@ hooks.register(redactPii);
 console.log(hooks.list().map((hook) => hook.name)); // [ 'redact-pii' ]
 ```
 
-`HookRegistry` و`AgentHook` وأنواع الـ context موجودة في جذر الـ package وفي الـ subpath `lousho/hooks`. الـ hooks اللي تتكتب في محرر الـ canvas الخاص بـ Agent Forge تُترجَم إلى `HookRegistry` وتشتغل داخل sandbox بدل الـ host process: انظر [Agent Forge](/ar/agent-forge#hooks).
+`HookRegistry` و`AgentHook` وأنواع الـ context موجودة في جذر الـ package وفي الـ subpath `lousho/hooks`. الـ hooks التي تُكتب في محرر الـ canvas الخاص بـ Agent Forge تُترجَم إلى `HookRegistry` وتعمل داخل sandbox بدلًا من الـ host process: انظر [Agent Forge](/ar/agent-forge#hooks).

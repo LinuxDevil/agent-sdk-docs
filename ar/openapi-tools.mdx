@@ -10,7 +10,7 @@ title: "OpenAPI tools"
 البيانات تطلب [approval](/ar/approvals) (موافقة) افتراضيًا.
 
 `openApiTools` مُصدَّرة من `lousho` ومن
-`lousho/tools`. ما تحتاج أي حزمة إضافية. بادئة الموديل
+`lousho/tools`. لا تحتاج إلى أي حزمة إضافية. بادئة الموديل
 `vendor/` هي التي تحدد الـ provider؛ ومع OpenRouter استخدم
 `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`).
 
@@ -30,10 +30,10 @@ const paused = await agent.send('Refund order 1042');
 // agent.approvals.resolve({ id: paused.approvalId!, approved: true })
 ```
 
-`openApiTools()` دائمًا async، لأن المستند ممكن يكون URL. ترجع array من
+`openApiTools()` دائمًا async، لأن المستند قد يكون URL. تُرجع array من
 tools تمرّرها إلى `createAgent({ tools })` مثل أي tools أخرى.
 
-`document` ممكن يكون object مُفسَّر لـ OpenAPI 3.0 أو 3.1، أو string بصيغة
+`document` يمكن أن يكون object مُفسَّرًا لـ OpenAPI 3.0 أو 3.1، أو string بصيغة
 JSON أو YAML، أو https URL (string أو `URL`). `openApiTools()` تحلّل
 المستند مرة واحدة؛ أما `execute` في الـ tool فلا تفعل إلا بناء الطلب
 وإرساله.
@@ -42,10 +42,10 @@ JSON أو YAML، أو https URL (string أو `URL`). `openApiTools()` تحلّل
 
 | الجزء | القيمة |
 | ---- | ----- |
-| الاسم | `operationId`، مع استبدال أي حرف خارج `A-Za-z0-9_-` بـ `_`. بدون `operationId`: `<method>_<path>` (`GET /orders/{orderId}` يصير `get_orders_orderId`). مع `prefix`: `<prefix>__<name>`. بحد أقصى 64 حرفًا. وعمليتان بنفس الاسم ترميان `ConfigurationError` يذكر الاثنتين. |
+| الاسم | `operationId`، مع استبدال أي حرف خارج `A-Za-z0-9_-` بـ `_`. بدون `operationId`: `<method>_<path>` (`GET /orders/{orderId}` يصبح `get_orders_orderId`). مع `prefix`: `<prefix>__<name>`. بحد أقصى 64 حرفًا. وعمليتان بنفس الاسم ترميان `ConfigurationError` يذكر الاثنتين. |
 | الوصف | `summary` الخاص بالعملية، ثم `description` (يُقطع عند 1,000 حرف)، ثم الـ method والـ path (`GET /orders/{orderId}`). |
 | الـ input | object فيه كل parameter من path وquery وheader وcookie كخاصية top-level (إلزامية كما يصرّح المستند)، إضافة إلى `body` لجسم طلب `application/json`. الـ schemas تتبع إشارات `$ref` داخل `components`، بما فيها `parameters` و`requestBodies`. و`nullable` في OpenAPI 3.0 يعمل. والـ parameter الذي اسمه مأخوذ من موضع آخر يُسمّى `<location>_<name>`. |
-| النتيجة | `{ status, statusText, body }` لكل response HTTP، حتى حالات الخطأ، فيقدر الـ model يقرأ 404 ويتصرف بناءً عليه. و`body` يكون JSON مُفسَّر إذا قالت الاستجابة إنها JSON، وإلا text، ويكون `null` إذا كانت فارغة. |
+| النتيجة | `{ status, statusText, body }` لكل response HTTP، حتى حالات الخطأ، فيستطيع الـ model أن يقرأ 404 ويتصرف بناءً عليه. و`body` يكون JSON مُفسَّرًا إذا ذكرت الاستجابة أنها JSON، وإلا text، ويكون `null` إذا كانت فارغة. |
 | الأخطاء | فشل الشبكة، والـ timeout، والـ redirect المرفوض — كلها أخطاء tool. |
 
 معاملات الـ header `Accept` و`Content-Type` و`Authorization` تُتجاهل كما
@@ -94,7 +94,7 @@ const tools = await openApiTools(spec, {
 
 `providedArguments` تملأ الـ parameters التي لا يجب أن يختارها الـ model،
 مثل tenant id. المفتاح المزوَّد يُحذف من الـ input schema الخاصة بالـ tool
-(فالـ model لا يراه أبدًا) ويُضاف إلى الطلب. والقيمة ممكن تكون دالة،
+(فالـ model لا يراه أبدًا) ويُضاف إلى الطلب. ويمكن أن تكون القيمة دالة،
 تُستدعى لكل طلب مع العملية ومعرّف الـ tool call.
 
 ```ts
@@ -120,7 +120,7 @@ parameter قد أخذ `body` من قبل). والمفتاح الذي لا تمت
 ## قواعد الأمان
 
 - **الـ base URL لك أنت، لا للـ model.** الـ model يختار قيم الـ parameters
-  والـ body؛ ولا يختار الـ host أبدًا. الـ base URL لازم يكون https. ولا
+  والـ body؛ ولا يختار الـ host أبدًا. يجب أن يكون الـ base URL https. ولا
   يُقبل http العادي إلا لـ `localhost` و`127.0.0.1` و`[::1]`، وأي URL فيه
   اسم مستخدم أو كلمة مرور يُرفض. ونفس القاعدة تنطبق على URL المستند.
 - **بيانات الاعتماد لا تصل إلى ما يراه الـ model وسجلاتك.** الـ headers
@@ -133,7 +133,7 @@ parameter قد أخذ `body` من قبل). والمفتاح الذي لا تمت
   والـ redirect إلى origin آخر هو خطأ tool، فالـ token لا يغادر الـ origin
   المُعَدّ أبدًا.
 - **قيم الـ path تبقى داخل المقطع الخاص فيها.** معاملات الـ path تُرمَّز
-  percent-encoded (فلا يقدر `../admin` يطلع خارج مقطعه)، والقيمة
+  percent-encoded (فلا يستطيع `../admin` الخروج من مقطعه)، والقيمة
   التي تساوي `.` أو `..` تمامًا تُرفض.
 - **العناوين الخاصة: لا فحص افتراضيًا، و`privateAddresses: 'refuse'`
   يفعّله.** افتراضيًا الـ tools تنادي الـ base URL الذي أعددته أنت، أينما
@@ -150,14 +150,14 @@ parameter قد أخذ `body` من قبل). والمفتاح الذي لا تمت
   خاص أبدًا. والـ IP literals بأي صيغة يقبلها `URL` (`2130706433`،
   `0x7f000001`، `0177.0.0.1`، `[::ffff:127.0.0.1]`) وأسماء `localhost` /
   `*.localhost` تُرفض عند إنشاء الـ tools، كـ `ConfigurationError`. الـ
-  model لا يقدر ينقل طلبًا إلى host آخر: قيم الـ path تُرمَّز
+  model لا يستطيع نقل طلب إلى host آخر: قيم الـ path تُرمَّز
   percent-encoded داخل مقطعها، ومتغيرات server URL تأخذ فقط القيم
   الافتراضية للمستند، والـ redirects تبقى على origin الأساس. ضع الـ hosts
   الداخلية الخاصة بك في `allowPrivate` (`allowPrivate: ['localhost']`
   لواجهة محلية). والطلب المرفوض هو خطأ tool يذكر الـ host، ولا يذكر أبدًا
   العناوين التي حُلّ إليها.
   `'refuse'` لا يمكن دمجه مع `fetch`: الـ `fetch` المخصصة تحل الأسماء
-  بنفسها، فلا يقدر الفحص يثبّت العنوان الذي تتصل به، وإنشاء الـ tools يرمي
+  بنفسها، فلا يستطيع الفحص تثبيت العنوان الذي تتصل به، وإنشاء الـ tools يرمي
   خطأً بدل أن يفحص نصف الطريق فقط. ومع `fetch` الخاصة بك (أو proxy)، افحص
   الوجهات هناك. `'refuse'` يحتاج Node.js (`undici` و`node:dns`)؛ وعلى
   runtime بدونهما، إنشاء الـ tools يرمي `ConfigurationError` بدل إرسال
@@ -180,12 +180,12 @@ const tools = await openApiTools(spec, { include: (op) => op.tags.includes('orde
 
 - OpenAPI 3.0 و3.1 فقط. ومستند Swagger 2.0 يرمي `ConfigurationError`
   يطلب منك تحويله أولًا.
-- أجسام الطلبات لازم تكون JSON (`application/json` أو `+json`). والعملية
+- يجب أن تكون أجسام الطلبات JSON (`application/json` أو `+json`). والعملية
   التي ليس لها إلا جسم multipart أو form أو XML تُستبعد؛ وتسميتها في
   `include` ترمي خطأً.
 - يُستخدم فقط أول مدخل في `servers`، والمتغيرات بقيمها الافتراضية.
   وتُتجاهل `servers` على مستوى الـ path وعلى مستوى العملية.
-- كل `$ref` لازم يكون محليًا (`#/components/...`)؛ والإشارة إلى ملف آخر
+- يجب أن يكون كل `$ref` محليًا (`#/components/...`)؛ والإشارة إلى ملف آخر
   أو URL ترمي خطأً. اعمل bundle للمستند أولًا.
 - لا يوجد OAuth flows. و`bearerToken` و`headers` يغطّيان بيانات الاعتماد
   الثابتة والمتغيرة لكل طلب.
