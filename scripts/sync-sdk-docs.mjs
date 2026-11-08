@@ -73,7 +73,6 @@ const PAGES = {
   'docs/troubleshooting.md': 'troubleshooting',
   'docs/migrating-to-create-agent.md': 'migrating-to-create-agent',
   'docs/migrating-from-ai-sdk.md': 'migrating-from-ai-sdk',
-  'docs/comparison.md': 'comparison',
   // 'mcp' is reserved by Mintlify's built-in MCP endpoint; the page lives at /mcp-integration.
   'docs/mcp.md': 'mcp-integration',
   'docs/hooks.md': 'hooks',
@@ -117,7 +116,6 @@ const SIDEBAR_TITLES = {
   'executor-api': 'Executor API',
   'migrating-to-create-agent': 'Migrating to createAgent()',
   'migrating-from-ai-sdk': 'Migrating from the AI SDK',
-  comparison: 'Comparison',
   'build-a-coding-agent': 'Build a coding agent',
   'mcp-integration': 'MCP',
   runs: 'Runs and cancellation',
