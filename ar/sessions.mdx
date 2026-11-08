@@ -7,6 +7,8 @@ title: "Sessions"
 الـ **session** (جلسة) هي محادثة فيها أكثر من turn: بتحتفظ بسجل المحادثة
 وبتمرّره للـ model مع كل `send()`.
 
+شوف كمان: [إيقاف وإعادة تشغيل واستئناف](/ar/pause-and-resume)، دليل قصير من الأول للآخر.
+
 > الأمثلة في الصفحة دي بتسيب لك تعريف بعض الأسماء: `provider` هو أي `LLMProvider` (من غير اتصال: `createMockProvider()`).
 
 ```ts
@@ -351,7 +353,7 @@ ids بتاع الـ sessions لازم تطابق `^[A-Za-z0-9_-]{1,128}$` (بت�
 | --- | --- | --- | --- | --- |
 | In memory (`memoryStore()`) | `MemorySessionStore` | in memory | `InMemoryApprovalStore` | tests وscripts، process واحدة ما بيتعملها restart أبد |
 | Files (`fileStore(dir)`) | `<dir>/sessions/<id>.json` | `<dir>/checkpoints/` و`<dir>/checkpoint-history/` | `<dir>/approvals/<id>.json` | جهاز واحد، وتبي ملفات عادية تقدر تفحصها |
-| SQLite | `store.sessions` | `store.checkpoints` | `store.approvals` | سيرفر Node: ملف واحد durable بيدعم transactions، وعدة processes تتشاركه بأمان |
+| SQLite | `store.sessions` | `store.checkpoints` | `store.approvals` | سيرفر Node: ملف واحد durable بيدعم transactions، وعدة processes على host واحد تتشاركه (شوف [مشاركة ملف SQLite](#مشاركة-ملف-sqlite)) |
 | Cloudflare KV (`KVStore` من `lousho/kv`) | `store.sessions` | `store.checkpoints` | `store.approvals` | deployments على Workers (شوف [النشر](/ar/deployment)) |
 
 كل واحدة فيهم جزء من `AgentStore`: مرّرهم مع بعض كده
@@ -432,8 +434,9 @@ store.close();
 - المجلد بيتنشأ لو مش موجود. والـ schema متعملها versioning بـ
   `PRAGMA user_version` وبتتعملها migration عند الفتح؛ وdatabase مكتوبة
   بإصدار أحدث بتترفض.
-- وضع WAL وbusy timeout مدته 5 ثواني بيخلّوا عمليتين يتشاركوا الملف. وبس
-  واحدة فيهم تقدر تقرر الـ approval.
+- وضع WAL وانتظار قصير للـ lock مع إعادة محاولات (حوالي 5 ثواني في المجموع، وبعدين
+  `LOUSHO_STORAGE_BUSY`) بيخلّوا عدة processes يتشاركوا الملف. وبس واحدة فيهم تقدر
+  تقرر الـ approval. شوف [مشاركة ملف SQLite](#مشاركة-ملف-sqlite).
 - الـ checkpoints وsnapshots بتاع الـ approval بيتخزّنوا كـ JSON معتم ما بيتفسّرش محتواه، فالحقول
   الجديدة بتعدي round-trip من غير ما تتغير.
 - `prune()` بيشيل الـ sessions والـ checkpoints اللي ما اتحدثت خلال `olderThanMs`،
@@ -445,6 +448,27 @@ store.close();
   من غير ما يشغّل الـ tool.
 - ملف مش database بتاع SQLite بيفشل بـ error بيذكر المسار؛
   واستخدام الـ store بعد `close()` بيرمي error واضح.
+
+### مشاركة ملف SQLite
+
+ده الكلام الوحيد اللي الصفحات التانية بتربط عليه.
+
+- **مدعوم:** عدة processes (مثلًا replicaين Docker على named volume واحد، أو
+  سيرفر وCLI) على **host واحد**، بيتشاركوا ملف SQLite واحد على **ديسك محلي**.
+  الملف شغال بوضع WAL، وكل turn في session بيمسك
+  [run lease](/ar/durable-execution#run-leases)، فالـ replicas تقدر تتبادل
+  الرسايل على نفس الـ session. والكتابة على session بتشغّلها process تانية
+  بتفشل بـ `LOUSHO_SESSION_BUSY`؛ و`POST /chat` والـ channels بيردوا عليها
+  بـ `409` وهيدر `Retry-After`، فاعمل retry.
+- **مش مدعوم:** ملف SQLite على filesystem شبكي (NFS، EFS، SMB)، لأن SQLite
+  ما تقدرش تعتمد على الـ locking بتاعه، ولا عدة hosts. لعدة hosts، اعمل
+  implementation لـ `SessionStore` و`CheckpointStore` و`ApprovalStore` على
+  database مشتركة زي Postgres أو Redis. الـ SDK ما فيهاش store شبكي.
+- **الساعات والـ PIDs:** الـ leases بتتحسب بساعة كل process لوحدها، فخلّي
+  ساعات الـ replicas متزامنة (NTP). والـ run اللي وقع بيتاخد بدري بس لما يكون
+  ثابت إن الـ process بتاعته مش موجودة على نفس الـ host (بيتفحص الـ boot id
+  والـ PID namespace ووقت بداية الـ process)؛ غير كده بيستنى من 30 لـ 60 ثانية
+  لحد ما الـ lease تنتهي. شوف [Run leases](/ar/durable-execution#run-leases).
 
 ## تعليمات المشروع
 

@@ -47,9 +47,15 @@ await AgentExecutor.execute({ agent, input, provider, toolRegistry, exporter });
 
 ```
 invoke_agent {agent name}          INTERNAL
+  guardrail {guardrail name}       INTERNAL   one per input/output guardrail check
   chat {model}                     CLIENT     one per provider.generate() call
   execute_tool {tool name}         INTERNAL   one per tool call
+    guardrail {guardrail name}     INTERNAL   one per tool guardrail check
+  handoff {target agent}           INTERNAL   zero-length marker, one per honored handoff
+  approval.wait {tool name}        INTERNAL   zero-length marker, one per paused approval
 ```
+
+`handoff` و`approval.wait` هي spans علامات (marker spans): `startTime === endTime`، فالمستهلك يقدر يعلّم الـ agent الهدف في الـ handoff على أنه العقدة النشطة في الـ run (`lousho.handoff.from` / `lousho.handoff.to`)، ويعلّم عقدة الـ tool لـ call متوقف على أنها في حالة انتظار (`lousho.approval.id` / `lousho.approval.kind` / `lousho.approval.expires_at`)، بدون ما يبقي span مفتوحا طول فترة الانتظار.
 
 كل استدعاء لـ `send()` / `stream()` هو trace مستقل بذاته إلا إذا حدّدت له parent. إذا تريد تجمع عدة runs في trace واحد، مرّر id لـ span من عندك في `parentSpanId`؛ الـ span `invoke_agent` للـ run يصير child له، وتكلفته تتجمّع فيه:
 
@@ -135,6 +141,18 @@ invoke_workflow {flow name}        INTERNAL
 | `gen_ai.agent.name`, `gen_ai.conversation.id` | الـ agent المستدعي / الـ session |
 | `lousho.tool.parent_call_id` | في call عمله سكربت [code mode](/ar/code-mode): id الخاص بـ call الـ `run_code` (والـ span تبعه هو الأب) |
 
+### فحص حاجز الحماية: `guardrail {name}`
+
+span واحد لكل فحص guardrail (حاجز حماية)، تحت span الـ `invoke_agent` للـ run (فحوص المدخلات والمخرجات) أو تحت span الـ `execute_tool` للـ call المفحوص (فحوص `tools`). الـ span يحمل الـ ids والنتيجة فقط، ولا يحمل أبدا النص المفحوص أو سبب التفعيل، لأنهما قد يحتويان بيانات المستخدم (والتفعيل يُبلَّغ عنه أصلا عبر الحدث `guardrail.tripped`).
+
+| السمة | القيمة |
+| --- | --- |
+| `lousho.guardrail.name` | قيمة `name` للـ guardrail |
+| `lousho.guardrail.kind` | `input` أو `output` أو `tool` |
+| `lousho.guardrail.outcome` | `pass` أو `block` أو `rewrite`، تُضبط لما يرجع الفحص |
+| `lousho.guardrail.parallel` | `true` في فحص مدخلات `runInParallel`؛ غائبة غير ذلك |
+| `gen_ai.tool.name` | في فحص `tool`: الـ tool التي فُحصت الـ arguments تبعها |
+
 ### Flows
 
 مواصفة GenAI ما تعرّف أي convention لعقد الـ flows، فـ spans الـ nodes تستخدم الـ namespace `lousho.flow.*`. أما span الـ run فيستخدم convention الـ workflow الوارد في المواصفة.
@@ -185,6 +203,41 @@ const exporter = createOtelTraceExporter(); // metrics on by default
 
 الـ prompts ومخرجات الـ model وarguments ونتائج الـ tools حساسة وكبيرة الحجم. لذلك سمات المحتوى `gen_ai.*` **لا تُسجَّل افتراضيا أبدا**. فعّلها لكل agent على حدة بـ `createAgent({ exporter, captureContent: true })`.
 
+الاستثناء هو الـ collector المحلي: لما يشير `LOUSHO_OBSERVE` إلى loopback (`1`/`true`، أو URL الـ host فيه `127.0.0.1` أو `localhost` أو `::1`؛ ومنفذ `localhost` يحوّله SSH tunnel إلى daemon بعيد يُعتبر loopback أيضا، فاضبط `captureContent: false` إذا هذا الـ daemon لازم ما يستلم المحتوى)، `createAgent` يجعل القيمة الافتراضية لـ `captureContent` هي `true`، فعرض الـ trace في الـ daemon يُظهر الـ prompt ومخرجات الـ model وarguments ونتائج الـ tools التي تشرح سبب الفشل. الـ daemon وحده يستلم هذا المحتوى، ويبقى في قاعدة بيانات الـ daemon على جهازك: الـ `exporter` الخاص بالـ agent نفسه (ملفات `fileTraceExporter()`، أو exporter لـ OTLP أو لـ vendor، أو تصدير OTel في الـ server المبني) يظل يرى كل span بدونه، إلا إذا ضبط الـ agent `captureContent: true` أو كان متغير محتوى OTel المذكور تحت `true`. عطّله بـ `captureContent: false`؛ والـ collector الذي يتجاوز loopback يحتفظ بالقيمة الافتراضية (opt-in). هذه القيمة الافتراضية تنطبق على الـ agents المبنية بـ `createAgent`.
+
+#### الأسرار في المحتوى المسجَّل
+
+المحتوى المسجَّل يمر على `redactContent` قبل ما يُسجَّل. إذا كانت غير محددة أو `true` (الافتراضي)، يشتغل منظّف مدمج على نص الرسائل وتعليمات النظام وarguments الـ tool calls ونتائج الـ tools، ويستبدل أشكال مفاتيح الـ API بـ `[redacted]`:
+
+| الشكل | مثال |
+| --- | --- |
+| `sk-…` (OpenAI، وOpenRouter `sk-or-v1-…`، وAnthropic `sk-ant-…`) | `sk-or-v1-0123…` |
+| `lsv2_…` (LangSmith) | `lsv2_pt_0123…` |
+| `ghp_…`، `gho_…`، `ghu_…`، `ghs_…`، `ghr_…`، `github_pat_…` (GitHub) | `ghp_0123…` |
+| `AKIA` + 16 حرفا كبيرا أو رقما (id مفتاح وصول AWS) | `AKIA…EXAMPLE` |
+| `Bearer <token>` بأي حالة أحرف (الكلمة تبقى كما كُتبت: `Bearer [redacted]`) | `Bearer <token>` |
+| `sk_live_…`، `rk_live_…`، `sk_test_…`، `rk_test_…` (Stripe) | `<stripe-key>` |
+| `xoxb-…`، `xoxa-…`، `xoxp-…`، `xoxr-…`، `xoxs-…` (Slack) | `<slack-token>` |
+| `AIza` + 35 حرفا (مفتاح Google API) | `<google-api-key>` |
+| `eyJ….eyJ….<signature>` (JWT) | `<jwt>` |
+
+نفس التنظيف (أو الدالة تبعك) يشتغل على نص الخطأ المسجَّل على الـ span، أي `error` ورسالة حالة الخطأ، فالـ token الموجود في رسالة خطأ مرمي يُحجب أيضا؛ و`error.type` (اسم الـ class) يبقى كما هو. `redactContent: false` يسجّل نص الخطأ كما هو.
+
+كل شكل يحتاج token طويلا بعد البادئة (16 حرفا أو أكثر لـ `sk-` و`lsv2_` و`gh*_` و`github_pat_` وStripe وBearer؛ و10 أو أكثر لـ Slack؛ و35 لـ Google؛ وأجزاء JWT من 8 أو أكثر)، فكلمات مثل `sk-learn` أو `task-` تبقى كما هي. Bearer لا يميّز حالة الأحرف، فكلمة طويلة بعد "bearer" في نص عادي ممكن تُحجب أيضا. المنظّف يلتقط صيغ المفاتيح الشائعة، لا كل سر: كلمة مرور مكتوبة في prompt تظل تُسجَّل، فاضبط `captureContent: false` إذا المحتوى لازم ما يوصل أبدا إلى قاعدة البيانات المحلية.
+
+مرّر دالة إذا تريد تستخدم الحجب الخاص بك بدل المنظّف. تستلم كل قطعة نص عادي (قبل ترميز JSON) وترجع ما يُسجَّل؛ وإذا رمت خطأ، يُسجَّل ذلك النص على هيئة `[redacted]` والـ run يكمل:
+
+```ts
+import { createAgent } from 'lousho';
+
+createAgent({
+  model: 'openai/gpt-4o-mini',
+  redactContent: (text) => text.replace(/\b\d{16}\b/g, '[card]'),
+});
+```
+
+`redactContent: false` يسجّل المحتوى كما هو (ويسجّل أيضا الـ attributes الـ deprecated `input`/`prompt`/`args`/`result`، شوف تحت).
+
 #### متقدم: الـ executor API
 
 مع الـ executor، فعّلها لكل run على حدة:
@@ -230,7 +283,7 @@ await AgentExecutor.execute({ agent, input, provider, exporter, captureContent: 
 
 مع `createOtelTraceExporter({ legacyAttributes: false })` تحمل spans الـ OpenTelemetry أسماء GenAI فقط، بدون الأسماء الـ deprecated جنبها (attributes أقل في كل span)؛ والقيمة الافتراضية `true` تحتفظ بالاثنين.
 
-سمات المحتوى الـ deprecated (`input`، `prompt`، `args`، `result`) معطّلة افتراضيا: قيمة `redactContent` الافتراضية `true`. مرّر `redactContent: false` إذا تريد تسجيلها مثل قبل؛ و`captureContent` يتحكم فقط بسمات المحتوى `gen_ai.*`.
+سمات المحتوى الـ deprecated (`input`، `prompt`، `args`، `result`) معطّلة افتراضيا: قيمة `redactContent` الافتراضية `true` (والدالة تُحسب `true` هنا). مرّر `redactContent: false` إذا تريد تسجيلها مثل قبل؛ و`captureContent` يتحكم فقط بسمات المحتوى `gen_ai.*`.
 
 ## Local traces
 
@@ -288,6 +341,211 @@ invoke_agent weather         |████████████████�
 الملفات تحمل ما تحمله الـ spans. افتراضيا هذا يعني لا محتوى رسائل ولا tools: الـ attributes الـ deprecated `input` و`prompt` و`args` و`result` تُسجَّل فقط مع `redactContent: false` (شوف [Deprecated attribute names](#deprecated-attribute-names))، و`captureContent: true` يضيف محتوى `gen_ai.*`. خلّي `.lousho/` خارج الـ version control؛ المشاريع التي ينشئها `lousho init` تتجاهله.
 
 `lousho dev` و`lousho chat` يكتبان هذه الملفات لما تمرّر `--traces` (إلى `.lousho/traces`) أو `--traces=<dir>`، سواء لملف spec أو مجلد agent أو module. يعني agent مبني من ملف spec تقدر تتتبّعه بدون أي كود. وهي opt-in عن قصد: الملفات تحفظ توقيتات الـ spans وأعداد الـ tokens والتكاليف، ومحتوى الـ prompt والـ tools فقط إذا ضبط الـ agent `redactContent: false` أو `captureContent: true`، فلا يُكتب شيء على القرص إلا إذا طلبت. تنسيق ملف الـ spec ليس فيه إعداد للـ traces.
+
+## الـ observe daemon
+
+`lousho observe start` يشغّل collector محليا على `http://127.0.0.1:7777` (loopback فقط، بدون حاجة لمصادقة). لما يكون `LOUSHO_OBSERVE` مضبوطا، كل agent مبني على هذه الـ SDK يبلّغه بالـ spans تلقائيا: `1` أو `true` أو `on` أو `yes` يرسل إلى الـ URL الافتراضي، وURL بـ `http://`/`https://` يرسل إليه، و`0` أو `false` أو `off` أو `no` أو `none` أو `disabled` أو القيمة الفاضية (بأي حالة أحرف) توقف الإبلاغ. أي قيمة ثانية تُعامَل كخطأ إملائي: يُطبع تحذير واحد يذكر `LOUSHO_OBSERVE` لكل عملية والإبلاغ يبقى متوقفا. `LOUSHO_OBSERVE_PROJECT` يعطي الصفوف label؛ و`LOUSHO_OBSERVE_TOKEN` يرسل bearer token للـ daemons المربوطة على عنوان يتجاوز loopback (`--require-token` مع `lousho observe token create`).
+
+**الأمان.** لأن الـ daemon على loopback ما يطلب token، فهو يرفض الطلبات التي تقدر صفحة ويب في متصفحك تزوّرها. على كل route تحت `/api/*`:
+
+- الـ daemon المربوط على loopback يجاوب فقط أسماء `Host` الخاصة بـ loopback (`localhost`، `*.localhost`، `127.x.y.z`، `[::1]`)، وأي `Host` ثاني يحصل على 403، وهذا يُفشل هجمات DNS rebinding؛
+- الكتابة (أي شيء غير `GET`/`HEAD`/`OPTIONS`) التي `Origin` فيها ليس origin بـ `http(s)` على loopback (بما فيها `Origin: null`)، أو التي تحمل `Sec-Fetch-Site: cross-site`، تحصل على 403؛
+- الكتابة التي لها body لازم ترسل `Content-Type: application/json`، وأي شيء ثاني (`text/plain`، إرسال النماذج) يحصل على 415.
+
+الـ reporter في الـ SDK والـ CLI والـ proxy في Studio ما يرسلون `Origin` ويرسلون JSON دائما، فما يتأثرون؛ أما client مخصص يكتب إلى الـ daemon فلازم يرسل `application/json` أيضا. وفي daemon يطلب token، فحص الـ 401 يجي أولا.
+
+ملف SQLite واحد (الافتراضي `~/.lousho/observe.db`، بوضع WAL) يحفظ observations الأسطول (fleet) وجلساته (sessions) ودرجات التقييم (eval scores) وإصدارات الـ prompts والسياق المشترك. `npx lousho studio` يعرضه (شوف [Agent Forge](/ar/agent-forge#الشاشات)): Traces وTrace (أشجار traces مع waterfall للـ latency)، وThreads، وMonitoring (مراقبة حية للأسطول بحالة مشتقة من الـ heartbeat — الجلسات المفتوحة لـ agent تعطّل تنقلب إلى `interrupted` — فوق رسوم بيانية لكل agent للـ runs وlatency الـ p95 ونسبة الأخطاء والتكلفة والـ tokens)، وScores، وDatasets، وEvaluators، وAnnotation queues، وPrompts، وContext Hub. شريط التنقل في Studio يبيّن إذا يقدر يوصل للـ daemon. التنبيهات على انتقالات `down` أو على حدود نسبة الأخطاء ترسل POST إلى URLs الـ `--webhook` أو إلى `alerts.json` بجنب قاعدة البيانات.
+
+Insights يحسب متوسط الـ runs في اليوم على الأيام التي كان فيها الـ agent نشطا ضمن النافذة (من الأحدث بين بداية النافذة وأول ظهور للـ agent)، فـ agent ظهر أول مرة اليوم ومعه 12 run يُظهر 12/يوم، وليس 12/7. السلسلة لكل bucket (`series` في `GET /api/v1/insights`، buckets بالساعة أو اليوم لكل agent) تحمل `runs` و`errors` و`cost_usd` و`input_tokens` و`output_tokens` و`latency_ms`، بالإضافة إلى `p95_latency_ms` (على الـ runs المنتهية في الـ bucket؛ لا صف إذا ما انتهى أي run) و`error_rate` (الأخطاء / الـ runs). هاتان تُخزَّنان لكل bucket، ولا تُجمعان. قاعدة البيانات التي كتبها daemon أقدم تفتقدهما للـ buckets السابقة: شغّل `lousho observe rebuild-rollups` مرة واحدة لتعبئتها.
+
+الـ daemon يقدّم أيضا مخزنين تقدر الـ agents تستخدمهما وقت التشغيل:
+
+- **سجل الـ prompts (Prompt registry).** `createAgent({ prompt: 'name@version' })` (أو `'name@label'`) أو `LOUSHO_PROMPT` يجلب التعليمات منه وقت البناء (`@latest` والـ labels تُحلّ على الـ daemon؛ والـ daemon الذي لا يمكن الوصول إليه يرجع إلى `instructions`؛ وبدون `instructions` يفشل الـ run بـ `LOUSHO_PROMPT_UNRESOLVED`). الجلب الفاشل لا يُخزَّن مؤقتا للأبد: الـ runs في الـ 30 ثانية التالية تُحلّ فورا (باستخدام `instructions`، أو بالفشل)، ثم الـ run التالي يعيد المحاولة، فالـ daemon الذي كان متوقفا لفترة قصيرة وقت البناء يتعافى بدون إعادة تشغيل. ذلك الـ run وحده ينتظر جلب إعادة المحاولة، حتى 2.5 ثانية. كل run يسجّل الإصدار الذي استخدمه بالضبط. `lousho prompt push` ينشر إصدارا جديدا؛ والـ push الذي نصه ومتغيراته تساوي الإصدار الأحدث لا ينشئ شيئا (`200 { unchanged: true, version }`). الـ label (`prod`، `staging`) يشير إلى إصدار واحد بالضبط: `lousho prompt label mira prod 3` (أو `PUT /api/v1/prompts/:name/labels/:label` مع `{ version }`) ينقله، و`push --labels` ينقله إلى الإصدار المنشور، و`GET /api/v1/prompts/:name/:ref` يقبل رقما صحيحا أو `latest` أو label. الـ ref الذي هو label يمشي بنفس مسار الإصدار: إذا تعذّر حلّه فالنتيجة هي الرجوع إلى `instructions` أو `LOUSHO_PROMPT_UNRESOLVED`، مع نفس نافذة إعادة المحاولة ذات الـ 30 ثانية.
+- **Context hub.** `hub()` / `hubTools()` تسمح للـ agents بنشر قيم key-value ضمن namespaces والاستعلام عنها، بنطاق `private` (الـ agent الكاتب فقط) أو `fleet` (كل agent على الـ daemon).
+
+شاشة [Prompts](/ar/agent-forge#prompts) في Studio تعرض إصدارات السجل والـ labels والفروقات وتنقل الـ labels، وشاشة [Context Hub](/ar/agent-forge#context-hub) تتصفح الـ hub.
+
+الـ runs من playground في Studio (`POST /playground/run`، شوف [Agent Forge](/ar/agent-forge#الـ-endpoint-حق-تشغيل-الـ-playground)) تُبلَّغ على أنها الـ agent `playground`؛ والـ run الذي بدأ من prompt في السجل يحمل ref الـ prompt (`name@label`، `name@3`) في الـ attribute `lousho.prompt.ref` على الـ root span.
+
+الإبلاغ يتم بأسلوب fire-and-forget ولا يوقف الـ run أبدا: لما يكون الـ daemon متوقفا، الدفعة الفاشلة ترجع للطابور ويُعاد إرسالها مع exponential backoff (1 ث، 2 ث، 4 ث ... بحد أقصى 30 ث)، فإعادة تشغيل الـ daemon في منتصف run لا تضيّع شيئا. الـ backlog يُفرَّغ في دفعات واحدة بعد الثانية مباشرة، كل دفعة بحد أقصى 1000 حدث و4 MB من JSON (تحت حدود الـ daemon لكل طلب: 1000 حدث و5 MB). فقط هذه تُسقَط وتُحسب في `dropped` الخاص بالـ reporter: الأحداث المطرودة بعد تجاوز حد الـ buffer (`maxBuffered`، الافتراضي 5000 حدث، أو 32 MB من الأحداث المسلسلة، أيهما يجي أولا؛ الأقدم أولا)؛ والأحداث التي تتجاوز أحدث 16 MB لما يحصل flush عند انهيار؛ والأحداث التي ما زالت غير مرسلة بعد آخر محاولة في flush الخروج؛ والحدث الواحد الأكبر من أي طلب (فوق 5 MB مسلسلا، مثلا مع تفعيل تسجيل المحتوى)؛ والدفعة التي يرفضها الـ daemon نهائيا (`400`/`413`)، والتي لا يُعاد إرسالها أبدا. بداية الـ root لـ run مفتوح (في الطابور، ونهايته لم تأتِ بعد) تُحفظ في الحالتين: تقليم الـ buffer وشريحة الـ 16 MB في flush الانهيار يطردان الأحداث الأخرى أولا، فالـ run الذي تتجاوز أبناؤه الـ buffer يظل يظهر. فقط لما ما يبقى شيء آخر للطرد تُطرد بدايات الـ runs المفتوحة أيضا، الأقدم أولا، لكي تبقى الذاكرة محدودة. العدد يُرسل مع كل heartbeat في `meta.dropped` (تراكمي للعملية)، وكل صف في قائمة الأسطول `/api/v1/agents` في الـ daemon يعرض آخر قيمة منه في `dropped`: رقم، أو `null` لـ agent على SDK أقدم لم يرسل شيئا.
+
+العملية التي تموت بسبب exception غير ملتقط أو rejection غير معالَج تظل تبلّغ عن آخر run لها: الـ reporter يراقب `uncaughtExceptionMonitor` ويرسل ما يحمله (أحدث 16 MB منه، بدايات الـ root للـ runs المفتوحة أولا)، الأقدم أولا، ويؤخّر الانهيار حتى 1 ث لكل reporter. مخرجات الخطأ في Node ورمز الخروج يبقيان كما هما، والسكربت الذي ينجو من الـ throw (عبر معالج `uncaughtException` خاص به، أو callback التقاط مثل الذي في الـ REPL) يستمر في الإبلاغ. أما `process.exit()` الصريح أو SIGKILL فيظلان يضيّعان ما في الـ buffer.
+
+كل run يظهر من لحظة بدايته: الـ reporter يرسل الـ root span للـ run (الـ `invoke_agent` الأعلى، الذي بلا parent) بمجرد ما يُفتح، بدون انتظار الفاصل الزمني ذي الـ 5 ث، وStudio يعرض ذلك الـ trace على أنه `running`. نهاية الـ run تستبدل ذلك الصف بالحالة النهائية والاستهلاك والتكلفة والمخرجات، وتُحسب مرة واحدة. فالعملية التي تُقتل في منتصف run (SIGKILL، انقطاع الكهرباء) تظل تترك الـ trace تبعها، والـ trace ينقلب إلى `interrupted` لما يتوقف الـ agent عن إرسال heartbeat ويعلّمه الـ sweep بـ `down`. كل عملية reporter ترسل أيضا `instance_id` عشوائيا، لأن إعادة التشغيل أو عملية ثانية لنفس الـ agent تبلّغ تحت نفس id الـ agent. عمليات الـ agent الواحد التي تشتغل جنبا إلى جنب لا تقاطع runs بعضها أبدا ما دامت ترسل heartbeat، حتى لو تشاركت نفس الـ hostname والـ pid (نسخ `--network host` كلها pid 1). لما تسكت عملية من عمليات agent بينما عملية ثانية منه تستمر في إرسال heartbeat (supervisor أعاد تشغيلها بـ pid جديد، أو مات واحد من عدة workers)، الـ sweep يعلّم الـ runs المفتوحة للعملية الساكتة بـ `interrupted` بعد ما تفوّت حوالي heartbeatين (علامة `stale`)، والحكم يكون على الفاصل الزمني للـ heartbeat الخاص بتلك العملية وعلى ساعة الـ daemon. إعادة التشغيل على نفس الـ host بنفس الـ pid (pid 1 في container) تعلّمها أبكر: عند أول heartbeat للعملية الجديدة (بعد أول heartbeat لها) يصل بعد أكثر من فاصل heartbeat واحد زائد 10 ثوان من آخر heartbeat للعملية القديمة، إذا كانت العملية القديمة ساكتة من لحظة ظهور الجديدة. ولما ما تبقى أي عملية للـ agent، يصير الـ agent `down` وتُعلَّم الـ runs المفتوحة له كما فوق. العملية التي تخرج بشكل سليم في منتصف run (SIGINT، SIGTERM) تعلّم الـ runs المفتوحة لها بـ `interrupted` فورا. الـ agent الذي عطّل الـ heartbeats (`heartbeatIntervalMs: 0`) لا يمر عليه الـ sweep أبدا، فالـ runs المقتولة له تبقى `running`. أما الـ child spans (calls الـ model وcalls الـ tools) فما زالت تُرسل فقط لما تنتهي، فالـ run المقتول يحتفظ بالـ root وبأي child انتهى وأُرسل.
+
+درجات التقييم تمر عبر نفس الأنبوب — `lousho eval --observe` يرسلها حتى لو `LOUSHO_OBSERVE` غير مضبوط. كل case ينتج صف `<eval>/<check>` واحدا لكل assertion، بالإضافة إلى صف `<eval>` واحد للنجاح/الفشل (1 إذا نجحت كل فحوص الـ gate، وإلا 0).
+
+ملاحظات البشر هي درجة أيضا. `POST /api/v1/scores` مع `{ "trace_id", "obs_id"?, "name", "value", "comment"? }` (`value` رقم أو `null`، و`name` حتى 200 حرف، و`comment` حتى 10 000) يضيف درجة واحدة بـ `source: "human"` ويجاوب `201 { "score_id" }`. كل استدعاء يضيف صفا، والدرجة تُنسب إلى الـ agent الخاص بالـ trace. الـ `trace_id` غير المعروف (أو `obs_id` غير موجود في ذلك الـ trace) يعطي `404`، والـ `name` الفاضي يعطي `400`. يقبل نفس الـ token الذي يقبله الـ ingest، و`GET /api/v1/scores?trace_id=...` يعرضه.
+
+### مجموعات البيانات (Datasets)
+
+الـ dataset هي مجموعة أمثلة لها اسم، تشغّل عليها التقييمات. كل مثال فيه `input` وقيمة `expected` اختيارية، وكلاهما أي قيمة JSON. شاشة [Datasets](/ar/agent-forge#datasets) في Studio تعرضها وتنشئها، و**Add to dataset** في الـ trace ينسخ الـ trace إليها. الـ routes تقبل نفس الـ token الذي يقبله الـ ingest:
+
+| الـ route | الجواب |
+| --- | --- |
+| `POST /api/v1/datasets` `{ "name", "description"? }` | `201 { dataset }`. الـ `name` من 1 إلى 200 حرف أو رقم أو `.` أو `_` أو `-`، ويبدأ بحرف أو رقم (وإلا `400`). الاسم المأخوذ يعطي `409`. |
+| `GET /api/v1/datasets?limit&offset` | `{ datasets, total, limit, offset }`، الأحدث أولا. `limit` الافتراضي 100 (الأقصى 1000). |
+| `GET /api/v1/datasets/:name?limit&offset` | `{ dataset, examples, total, limit, offset }`، الأمثلة الأقدم أولا. `limit` الافتراضي 1000 (الأقصى 10 000). |
+| `POST /api/v1/datasets/:name/examples` | `201 { example }`. الـ body هو `{ "input", "expected"? }` أو `{ "from_trace_id" }`، ولا يجوز الاثنان معا أبدا. |
+| `DELETE /api/v1/datasets/:name/examples/:id` | `204`. |
+
+صف الـ dataset هو `{ dataset_id, name, description, created_at, example_count }` وصف المثال هو `{ example_id, dataset_id, input, expected, source_trace_id, created_at }`، و`expected` و`source_trace_id` قيمتهما `null` إذا لم تُحدَّدا. `from_trace_id` ينسخ الـ root observation للـ trace: مدخلاته تصير `input` ومخرجاته `expected`. النص المخزَّن الذي هو JSON صالح يُنسخ كتلك القيمة، وأي نص ثاني يُنسخ كـ JSON string. الـ trace الذي الـ root فيه بلا input مسجَّل (تسجيل المحتوى كان معطّلا) يعطي `400`. الـ dataset أو الـ trace أو المثال غير المعروف يعطي `404` بالرمز `LOUSHO_REQUEST_INVALID`. body المثال ممكن يصل إلى 1 MiB.
+
+الـ retention لا يحذف أبدا الـ datasets أو الأمثلة. المثال يحتفظ بـ `source_trace_id` تبعه بعد ما يُحذف ذلك الـ trace.
+
+### قواعد التقييم الحي (Online evaluator rules)
+
+قاعدة الـ evaluator تحدد أي traces جديدة تُقيَّم وكيف. قاعدة `code` تحمل مصدر دالة `(trace) => number | { value, comment }`، وقاعدة `judge` تحمل model ومعيار تقييم (rubric) للحكم. الـ daemon يشغّل قواعد `code` على الـ traces الجديدة (شوف [Online evaluators](#التقييم-الحي-online-evaluators))؛ وقواعد `judge` تشتغل عبر Agent Forge (شوف [Judge rules](#قواعد-الحَكَم-عبر-agent-forge)). شاشة [Evaluators](/ar/agent-forge#evaluators) في Studio تديرها. الـ routes تقبل نفس الـ token الذي يقبله الـ ingest:
+
+| الـ route | الجواب |
+| --- | --- |
+| `POST /api/v1/evaluators` `{ "name", "kind", "config", "filter"?, "sample_rate"?, "enabled"? }` | `201 { evaluator }`. الاسم المأخوذ يعطي `409`. |
+| `GET /api/v1/evaluators?limit&offset&kind&enabled` | `{ evaluators, total, limit, offset }`، الأقدم أولا. `limit` الافتراضي 100 (الأقصى 1000). `kind` هو `code` أو `judge` و`enabled` هو `true` أو `false`؛ وأي قيمة ثانية تعطي `400`. |
+| `GET /api/v1/evaluators/:id` | `{ evaluator }`. |
+| `PUT /api/v1/evaluators/:id` | `{ evaluator }`. الـ body أي مجموعة جزئية من حقول الإنشاء. القاعدة بعد الدمج تُفحص ككل، فتغيير `kind` يحتاج `config` مطابقا في نفس الطلب. إعادة التسمية إلى اسم مأخوذ تعطي `409`. |
+| `DELETE /api/v1/evaluators/:id` | `204`. |
+
+صف القاعدة هو `{ rule_id, name, enabled, filter, sample_rate, kind, config, created_at, updated_at }`. الحقول هي:
+
+- `name`: من 1 إلى 200 حرف بعد إزالة المسافات من الطرفين، وفريد.
+- `enabled`: قيمة منطقية، `true` افتراضيا.
+- `filter`: `{ "agent_id"?, "status"?, "name_contains"? }`، و`{}` افتراضيا. `status` هو `ok` أو `error`، وكل قيمة string غير فاضي.
+- `sample_rate`: رقم من 0 إلى 1، و`1` افتراضيا.
+- `kind` و`config`: `code` يأخذ `{ "source" }` (حتى 64 KiB من النص)، و`judge` يأخذ `{ "model", "rubric" }` (حتى 200 و20 000 حرف).
+
+الحقل غير المعروف، أو `kind` غير معروف، أو `config` لا يطابق الـ `kind` يعطي `400` بالرمز `LOUSHO_REQUEST_INVALID`. القاعدة غير المعروفة تعطي `404` بنفس الرمز. `updated_at` يتغير مع كل `PUT`. الـ body ممكن يصل إلى 128 KiB. الـ retention لا يحذف القواعد أبدا.
+
+### التقييم الحي (Online evaluators)
+
+لما تنتهي الـ root observation للـ trace، الـ daemon يشغّل كل قاعدة `code` مفعّلة يطابق `filter` فيها الـ root (`agent_id`، و`status`، و`name_contains` على اسمه). القاعدة تشتغل لما `Math.random() < sample_rate`، فـ `0` لا تشتغل أبدا و`1` تشتغل دائما. كل تشغيل يكتب درجة واحدة بـ `source: "online"`، و`name` = اسم القاعدة، و`agent_id` الخاص بالـ root، وبدون `obs_id`. الـ trace الذي عنده أصلا درجة online بنفس الاسم لا يُقيَّم مرة ثانية.
+
+الـ `source` الخاص بالقاعدة يشتغل كـ `(<source>)(trace)` في بيئة الـ isolate المعزولة (`sandbox({ driver: 'isolate', timeoutMs: 2000 })`). الـ `trace` هو object JSON عادي:
+
+```json
+{ "trace_id": "<trace-id>", "agent_id": "<agent-id>", "name": "<root name>",
+  "status": "ok", "start": 0, "end": 0, "duration_ms": 0,
+  "input": "<root input>", "output": "<root output>", "error_message": null,
+  "observations": [] }
+```
+
+`observations` يحمل صفوف الـ trace، الأقدم أولا، بحد أقصى 200. الصف الذي JSON الـ `attrs` فيه أطول من 8192 حرفا يحمل `"attrs": { "truncated": true }` بدلا منه. `error_message` هو `attrs.error` لأول صف خطأ، حتى لو كان ذلك الصف بعد أول 200. القواعد تطابق على صف الـ root وحده، فالـ trace الذي لا يحتفظ به filter أي قاعدة لا يحمّل أي صفوف أخرى، والـ worker يعالج trace واحدا في كل دورة من الـ event loop. الدالة ترجع رقما محدودا (قيمة `value` للدرجة) أو `{ "value": <number | null>, "comment"?: "<text>" }` (الـ comment يُقص عند 1000 حرف). أي شيء ثاني يعطي درجة `value: null` بالـ comment `invalid_result`. التشغيل الذي يفشل يعطي درجة `value: null` ونوع خطأ الـ sandbox كـ comment: `timeout` أو `oom` أو `driver`. الخطأ الذي يرميه كودك لا يحمل نوعا، فيُبلَّغ عنه كـ `driver`.
+
+الـ isolate driver يحتاج الحزمة الاختيارية `isolated-vm` (`npm install isolated-vm`). على Node 20 وما بعده، الـ daemon يحتاج أيضا `NODE_OPTIONS=--no-node-snapshot`. بدونهما، قواعد الـ code تُتخطّى والـ daemon يحذّر مرة واحدة.
+
+القواعد تشتغل خارج طلب الـ ingest، trace واحد في كل مرة، فالـ ingest يبقى سريعا حتى لما يكون evaluator بطيئا أو يفشل. حتى 1000 trace تنتظر في الذاكرة؛ وبعد ذلك، الـ traces الجديدة تُسقَط (وتُحسب). الـ traces المنتظرة تضيع لما يُعاد تشغيل الـ daemon، فتلك الـ traces لا تحصل أبدا على درجات online.
+
+`POST /api/v1/evaluators/:id/test` `{ "trace_id": "<trace-id>" }` يجرّب القاعدة تجربة جافة (dry run) على trace واحد ويجاوب `200 { "result": { "value", "comment" } }`. يتجاهل `enabled` و`filter` و`sample_rate`، ولا يكتب أي درجة. القاعدة غير المعروفة تعطي `404`، وكذلك الـ trace غير الموجود أو الذي بلا root observation. الـ body الخاطئ يعطي `400`. التجارب الجافة تمشي واحدة واحدة: الطلب الثاني ينتظر حتى تنتهي التجربة الجارية. قاعدة `judge` تعطي `409` (`judge evaluators run through Agent Forge`). وبدون الـ isolate يجاوب `{ "result": { "value": null, "comment": "isolate_unavailable" } }`.
+
+#### قواعد الحَكَم (عبر Agent Forge)
+
+الـ daemon لا يحمل مفاتيح أي provider، فما يقدر يشغّل قاعدة `judge` بنفسه. لما تطابق قاعدة `judge` trace جديدا (بنفس فحوص `filter` و`sample_rate` و"مُقيَّم من قبل" التي في قواعد الـ code)، الـ daemon يضع job في الطابور لتلك القاعدة وذلك الـ trace. Agent Forge (`lousho studio`) يسحب الـ jobs، ويشغّل كل judge بمفاتيح الـ provider الموجودة عنده أصلا (المفتاح المحفوظ في إعدادات Studio يغلب متغير البيئة الخاص بالـ provider، كما في الـ playground)، ويرسل النتيجة راجعا. الـ daemon يكتبها كنفس درجة `source: "online"`. فالـ judges تشتغل فقط ما دام Studio شغالا. وحتى ذلك الحين الـ jobs تنتظر.
+
+- بحد أقصى 500 job تنتظر في نفس الوقت (المعلّقة زائد المحجوزة). بعد ذلك، الـ jobs الجديدة تُسقَط وتُحسب. الـ jobs تعيش في الذاكرة، فإعادة تشغيل الـ daemon تضيّعها.
+- الـ judge هو call واحد للـ model المحدد في `model` الخاص بالقاعدة (`provider/model`، أو `mock`). الـ system prompt هو تعليمة تقييم ثابتة زائد الـ `rubric` الخاص بالقاعدة. رسالة المستخدم تحمل اسم الـ trace وحالته ومدخلاته ومخرجاته وخطأه، كل واحد مقصوص عند حوالي 8 KB. الـ model لازم يرد بـ object JSON `{ "score": <0..1>, "comment": "<short reason>" }`. Agent Forge يقرأ أول object JSON في الرد. الرد الذي بلا درجة صالحة يعطي درجة `value: null` بالـ comment `invalid_judge_output`. وخطأ الـ provider (مفتاح ناقص مثلا) يعطي درجة `value: null` بالـ comment `judge_error: <message>`.
+- call الـ judge لا ينشئ trace خاصا به، فلا يشغّل الـ evaluators أبدا.
+
+الـ endpointان اللذان يستخدمهما Agent Forge (يقبلان نفس الـ token الذي يقبله الـ ingest، والذي يرسله Agent Forge من `LOUSHO_OBSERVE_TOKEN` إذا كان مضبوطا):
+
+| الـ route | الجواب |
+| --- | --- |
+| `POST /api/v1/evaluators/judge-jobs/claim` `{ "max"?: 1..20 (5), "lease_ms"?: 1000..300000 (60000) }` | `200 { "jobs": [{ "job_id", "rule", "trace" }] }` (مصفوفة فاضية إذا ما في شيء ينتظر). كل job محجوزة لمدة `lease_ms`. الحجز الذي تنتهي مدته يرجّع الـ job إلى بداية الطابور. الـ job التي قاعدتها حُذفت أو عُطّلت أو ما عادت `judge` تُتجاهَل وقت الحجز. `trace` هو الـ object الذي تستلمه قاعدة الـ code، لكن مع `"observations": []` (الـ judge يقرأ فقط حقول الـ root و`error_message`). |
+| `POST /api/v1/evaluators/judge-jobs/:job_id/result` `{ "value": <0..1 or null>, "comment"?: "<at most 1000 characters>" or null }` | `201 { "score_id" }`، والـ job تخرج من الطابور. الدرجة تأخذ اسم القاعدة كما كان وقت الحجز، فالقاعدة التي يتغير اسمها وهي محجوزة تُسجَّل درجتها تحت اسمها القديم. الـ job غير المعروفة، أو التي انتهت مدة حجزها، تعطي `404`. الـ body الخاطئ يعطي `400`. |
+
+Agent Forge يحجز حتى 5 jobs كل ثانيتين، بمدة حجز 60 ثانية، ويشغّلها واحدة واحدة. كل call للـ judge يُقطع بعد 20 ثانية، أو أبكر إذا كان المتبقي من مدة الحجز أقل (الـ call المقطوع يعطي درجة `value: null` بالـ comment `judge_error: timed out after <n> ms`). الـ job المحجوزة التي انتهت مدة حجزها قبل دورها لا تشتغل: تنتهي صلاحيتها وتُحجز مرة ثانية لاحقا. الـ daemon المتوقف يوقف الحلقة مؤقتا فقط، ويسجّل مرة واحدة لكل انقطاع. التجربة الجافة تحت لها نفس الحد ذي الـ 20 ثانية.
+
+لتجربة قاعدة judge تجربة جافة، استخدم Agent Forge: `POST /observe/api/v1/evaluators/:id/test` `{ "trace_id" }` على server الـ Studio يشغّل الـ judge على ذلك الـ trace ويجاوب `200 { "result": { "value", "comment" } }` بدون كتابة درجة. ولقاعدة `code` يمرّر الطلب إلى الـ daemon بدون تغيير. أما `/test` الخاص بالـ daemon نفسه فما زال يجاوب `409` لقاعدة judge.
+
+### طوابير المراجعة (Annotation queues)
+
+طابور المراجعة هو قائمة traces لها اسم، يراجعها شخص واحدا واحدا. إكمال عنصر يكتب درجاته كدرجات بشرية، نفس صفوف `source: "human"` التي يكتبها `POST /api/v1/scores`، فتظهر في `GET /api/v1/scores` وعلى الـ trace. شاشة [Annotation queues](/ar/agent-forge#annotation-queues) في Studio تنشئ الطوابير وهي واجهة المراجعة. الـ routes تقبل نفس الـ token الذي يقبله الـ ingest:
+
+| الـ route | الجواب |
+| --- | --- |
+| `POST /api/v1/queues` `{ "name", "rubric"? }` | `201 { queue }`. الاسم المأخوذ يعطي `409`. |
+| `GET /api/v1/queues?limit&offset` | `{ queues, total, limit, offset }`، الأحدث أولا. `limit` الافتراضي 100 (الأقصى 1000). |
+| `GET /api/v1/queues/:id` | `{ queue }`. |
+| `DELETE /api/v1/queues/:id` | `204`. عناصر الطابور تُحذف معه؛ والدرجات المكتوبة أصلا تبقى. |
+| `POST /api/v1/queues/:id/items` `{ "trace_ids": [...] }` | `201 { added, skipped_existing }`. يقبل من 1 إلى 500 id، تُضاف للطابور بالترتيب المعطى. كل id لازم يشير إلى trace مخزَّن، وإلا فالجواب `404` يذكر أول id غير معروف ولا يُضاف شيء. الـ ids الموجودة أصلا في الطابور تُذكر في `skipped_existing`، ولا تُعامَل كأخطاء. |
+| `GET /api/v1/queues/:id/items?status&limit&offset` | `{ items, total, limit, offset }`، الأقدم أولا. `status` هو `pending` أو `done` أو `skipped`؛ وأي قيمة ثانية تعطي `400`. |
+| `GET /api/v1/queues/:id/next` | `{ item }`، أقدم عنصر معلّق، أو `204` بلا body إذا ما في عنصر معلّق. |
+| `POST /api/v1/queues/:id/items/:item/complete` `{ "scores", "reviewer"?, "status"? }` | `{ item, score_ids }`. |
+
+صف الطابور هو `{ queue_id, name, rubric, created_at, counts: { pending, done, skipped } }`. صف العنصر هو `{ item_id, queue_id, trace_id, status, reviewer, created_at, done_at }`، و`reviewer` و`done_at` قيمتهما `null` حتى ينتهي العنصر. `:id` هو الـ `queue_id`.
+
+- `name`: من 1 إلى 200 حرف بعد إزالة المسافات من الطرفين، وفريد.
+- `rubric`: حتى 50 مدخلا من `{ "name", "description"?, "min"?, "max"? }`، و`[]` افتراضيا. الأسماء من 1 إلى 200 حرف وفريدة، والوصف حتى 2000 حرف، و`min` لا يجوز أن يتجاوز `max`.
+
+body الإكمال يأخذ `scores`، حتى 50 مدخلا من `{ "name", "value", "comment"? }` حيث `value` رقم أو `null`، و`reviewer` اختياري (حتى 200 حرف)، و`status`، وهو `done` (الافتراضي) أو `skipped`. كل درجة تُكتب على الـ trace الخاص بالعنصر، والحالة و`reviewer` و`done_at` تُضبط في نفس الـ transaction. لما يكون للطابور rubric، كل اسم درجة لازم يكون واحدا من أسمائه والقيمة لازم تكون ضمن `min` و`max` للمدخل المطابق، وإلا فالجواب `400`. التخطي مع درجات يعطي `400`. إكمال عنصر منتهٍ أو متخطّى أصلا يعطي `409` ولا يكتب شيئا. العنصر غير الموجود في الطابور يعطي `404`.
+
+`next` لا يحجز ولا يقفل العنصر الذي يرجعه. السؤال مرتين يرجع نفس العنصر حتى يكمله أحد. الطابور مصمَّم لمراجع واحد يشتغل محليا، فمراجعان على نفس الطابور ممكن يقيّمان نفس الـ trace.
+
+الـ retention لا يلمس الطوابير أو العناصر أبدا. إذا حُذف trace عنصر ما، العنصر يحتفظ بـ `trace_id` تبعه و`next` يظل يرجعه. إكماله بدرجات يعطي حينها `404` يذكر الـ trace، والعنصر يبقى معلّقا، فتخطّاه بدلا من ذلك. الـ bodies الخاطئة والحقول غير المعروفة تعطي `400` بالرمز `LOUSHO_REQUEST_INVALID`، والطابور غير المعروف يعطي `404` بنفس الرمز. الـ bodies ممكن تصل إلى 256 KiB.
+
+### الاحتفاظ بالبيانات (Retention)
+
+الـ daemon يحتفظ افتراضيا بـ 30 يوما من الـ runs. في أول sweep بعد التشغيل، ثم مرة كل يوم، يحذف كل trace انتهت كل observations فيه وانتهت آخرها قبل أكثر من `--retention-days` (الافتراضي 30؛ و`--retention-days 0` يحتفظ بكل شيء). الـ trace يُحذف كله أو يبقى كله: observation واحدة ما زالت مفتوحة (`end` غير مضبوط، run جارٍ) تحفظ الـ trace بأكمله، مهما كان قديما. مع الـ trace تُحذف درجاته وروابط استخدام الـ prompts تبعه؛ والدرجات الأقدم من النافذة التي لم يبقَ لـ trace تبعها أي observations تُحذف أيضا. الجلسة تُحذف فقط إذا لم تكن `active`، وانتهت (أو، إذا بلا نهاية، بدأت) قبل النافذة، ولا تشير إليها أي observation متبقية، فالمحادثة القديمة التي ما زالت نشطة لا تُحذف أبدا. الجلسات الخاملة تنتهي من نفسها (شوف [Idle sessions](#الجلسات-الخاملة))، فالمحادثات المنتهية تتقادم فعلا.
+
+الحذف لا يلمس أبدا الـ rollups الخاصة بـ Insights (الرسوم البيانية للأيام المحذوفة تبقى)، ولا سجل الـ prompts، ولا مدخلات الـ hub، ولا سجل الـ agents، ولا الـ tokens. الحذف اليومي لا يشغّل `VACUUM`، لأنه يوقف الـ ingest؛ لاسترجاع مساحة القرص، شغّل `lousho observe prune --older-than 30d`. يحذف فورا بالنافذة التي تعطيها (أيام كاملة فقط)، ويطبع كم observation ودرجة وجلسة حذف، ثم يشغّل `VACUUM`. وهو آمن حتى والـ daemon شغال على نفس قاعدة البيانات.
+
+### التصدير
+
+`lousho observe export [--since 7d] [--agent X] [--out file]` يفرّغ الـ traces بصيغة JSONL للتحليل بدون اتصال أو لأداة ثانية. كل سطر هو trace واحد: `{ "trace": <trace row>, "observations": [...], "scores": [...] }`، بنفس أشكال الـ APIs الخاصة بقائمة الـ traces وتفاصيلها، الأقدم أولا وبلا حد أقصى. `--since` يأخذ `<N>d` أو `<N>h` أو `<N>m` رجوعا من الآن؛ و`--agent` يطابق `agent_id`، أو اسم agent إذا كان يشير إلى agent واحد بالضبط. الأسطر تذهب إلى stdout (والعدد إلى stderr) إلا إذا حدد `--out` ملفا، فيُكتب فوقه. يقرأ قاعدة البيانات مباشرة ويشتغل بدون daemon شغال. المحتوى المسجَّل يُصدَّر كما هو مخزَّن، فتعامل مع الملف مثل قاعدة البيانات.
+
+### الـ API لقائمة الـ traces
+
+`GET /api/v1/traces` يرجع `{ traces, total, limit, offset }`، صف واحد لكل trace، الأحدث أولا. معاملات الاستعلام (كلها اختيارية):
+
+| المعامل | المعنى |
+| --- | --- |
+| `agent_id`، `session_id`، `project`، `status` | مطابقة تامة (`status` هو حالة الـ root observation، أو `running` / `interrupted`). |
+| `from`، `to` | نافذة بداية الـ trace بالـ ms منذ الـ epoch، نصف مفتوحة: `from <= start < to`. |
+| `since`، `until` | حدود أقدم شاملة على بداية كل observation، باقية لأجل المستدعين الحاليين. |
+| `q` | جزء نصي لا يميّز حالة الأحرف (ASCII) من اسم الـ root observation أو مدخلاتها أو مخرجاتها. `%` و`_` يطابقان حرفيا. |
+| `min_duration_ms` | الـ traces التي طولها على الأقل هذه القيمة (`end - start`). |
+| `model` | الـ traces التي استخدمت فيها أي observation هذا الـ model. |
+| `prompt` | `<name>` أو `<name>@<version>`: الـ traces التي شغّلت فيها أي observation ذلك الـ prompt من السجل (مربوط عبر حدث `prompt_use`)، بأي إصدار أو بذلك الإصدار فقط. |
+| `sort` | `start` (الافتراضي)، أو `duration`، أو `tokens` (input + output)، أو `cost`. التعادل يُحسم بـ `trace_id`. |
+| `order` | `desc` (الافتراضي) أو `asc`. |
+| `limit`، `offset` | حجم الصفحة (1-500، الافتراضي 50) والإزاحة. |
+
+قيمة `sort` أو `order` غير معروفة، أو `min_duration_ms` غير رقمي، أو `prompt` باسم فاضي أو بإصدار غير صحيح، يجاوب بـ `400` بالرمز `LOUSHO_REQUEST_INVALID`.
+
+كل صف فيه `trace_id` و`name` و`agent_id` و`session_id` و`start` و`end` و`status`، والأعداد `observations` و`generations` و`tools` و`errors`، والمجاميع `input_tokens` و`output_tokens` و`cost_usd`، بالإضافة إلى:
+
+- `agent_name`: اسم الـ agent من الـ heartbeat تبعه، أو `null`.
+- `model`: الـ model الخاص بأول call لـ model، أو `null`.
+- `error_message`: الـ attribute `error` لأول observation فاشلة (مثلا `upstream 529 overloaded`)، أو `null`.
+- `input_preview` / `output_preview`: أول 200 حرف من مدخلات الـ run ومخرجاته المخزَّنة، أو `null` إذا ما سُجّل شيء.
+
+### الـ API للجلسات (threads)
+
+`GET /api/v1/sessions` يرجع `{ sessions, total, limit, offset }`، الأحدث أولا (`started_at` تنازليا). معاملات الاستعلام (كلها اختيارية): `agent_id`، و`status` (مطابقة تامة)، و`from` / `to` (بداية الجلسة بالـ ms منذ الـ epoch، نصف مفتوحة `from <= started_at < to`)، و`limit` / `offset` (1-500، الافتراضي 50). صف الجلسة هو `{ session_id, agent_id, agent_name, status, started_at, ended_at, traces, input_tokens, output_tokens, cost_usd, last_input_preview }`: `traces` يعدّ ids الـ traces المختلفة، والـ tokens والتكلفة مجاميع observations الجلسة، و`last_input_preview` هو أول 200 حرف من مدخلات الـ root لآخر trace فيها. `status` هو `active` أو `ended` (خاملة، شوف تحت) أو `interrupted` (الـ agent تبعها توقف).
+
+`GET /api/v1/sessions/:id` يرجع `{ session, traces }` مع الـ traces (نفس صفوف قائمة الـ traces) مرتبة حسب البداية تصاعديا، بحد أقصى 500؛ والـ id غير المعروف يعطي 404 بالرمز `LOUSHO_REQUEST_INVALID`. شاشة [Threads](/ar/agent-forge#threads) في Studio تقرأ هذين الـ routeين.
+
+### الجلسات الخاملة
+
+الـ SDK لا ترسل أي حدث "session closed": صف الجلسة موجود لأن الـ runs تبعها تحمل الـ id الخاص بها، فالـ daemon هو الذي يقرر متى تنتهي المحادثة. كل sweep (كل 30 ث) يعلّم الجلسة بـ `ended` لما لا يكون أي run فيها ما زال مفتوحا (الـ run الجاري يبقيها `active` مهما طال) ولم يبدأ أو ينتهِ فيها شيء لمدة `--session-idle-minutes` (الافتراضي 30؛ و`0` يعطّل هذا). الـ run المعلَّم بـ `interrupted` (عمليته ماتت بينما الـ agent استمر في الاشتغال) ما عاد يُحسب جاريا؛ بل يُحسب نشاطا في لحظة مقاطعته. `ended_at` للجلسة هو وقت آخر نشاط، وليس وقت الـ sweep. الجلسة التي لا يشير إليها أي run ترجع إلى آخر وقت حدّثها فيه الـ daemon. الجلسات في قاعدة بيانات كتبها daemon أقدم تُغلق في أول sweep يجدها خاملة.
+
+run جديد في جلسة `ended` يرجعها `active` (و`ended_at` يتبع الـ runs تبعها من جديد)، وكذلك النشاط الجديد في جلسة `interrupted`. الحدث المعاد إرساله أو المعاد ترتيبه لنشاط في `ended_at` الخاص بالجلسة أو قبله لا يعيد فتحها. مرحلة الخمول لا تلمس أبدا الجلسات `interrupted`. بعد ما تنتهي، تُحذف الجلسة عبر [الـ retention](#الاحتفاظ-بالبيانات-retention) مثل أي جلسة منتهية أخرى، فـ Threads يعرض فقط المحادثات الحية على أنها `active`. نافذة الخمول يُحكم عليها حسب الطوابع الزمنية التي تبلّغ عنها الـ agents تبعك، فـ agent ساعته متأخرة كثيرا عن ساعة الـ daemon ممكن ينهي جلسة مبكرا؛ والـ run التالي له يعيد فتحها.
+
+## الـ server المبني
+
+الـ server الذي ينشئه `lousho build --target=node-server` أو `--target=docker` يصدّر الـ traces بدون أي كود لما يكون المتغير القياسي `OTEL_EXPORTER_OTLP_ENDPOINT` (أو `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`) مضبوطا في المكان الذي يشتغل فيه. يسجّل tracer provider لـ OpenTelemetry يرسل الـ spans عبر OTLP/HTTP، ويعطي الـ agent `createOtelTraceExporter()`، فكل turn لـ `/chat` يصل كشجرة `invoke_agent` / `chat` / `execute_tool` المذكورة فوق. والـ `exporter` الموجود أصلا في إعدادات الـ agent (تبع مجلد agent أو module) يستمر في الاشتغال: الاثنان يستلمان كل span.
+
+الـ SDK الخاصة بـ OpenTelemetry ليست مضمَّنة. ثبّت هذه الحزم بجنب `dist/server.js`، أو أضفها إلى dependencies في `package.json` الخاص بالبناء قبل ما تبني صورة الـ docker:
+
+```bash
+npm install @opentelemetry/api @opentelemetry/sdk-trace-node@^2 @opentelemetry/resources@^2 @opentelemetry/exporter-trace-otlp-http
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 OTEL_SERVICE_NAME=support-agent node dist/server.js
+```
+
+- الـ server يستوردها عند بدء التشغيل فقط إذا كان المتغير مضبوطا. لما تنقص واحدة منها، يسجّل أي حزم لازم تُثبَّت ويخدم بدون تصدير الـ traces.
+- `service.name` هو `OTEL_SERVICE_NAME` إذا كان مضبوطا، وإلا اسم الـ agent. `OTEL_RESOURCE_ATTRIBUTES` و`OTEL_EXPORTER_OTLP_HEADERS` (لمفتاح API) وإعدادات الـ batch (`OTEL_BSP_SCHEDULE_DELAY`، ...) تشتغل كما يوثّقها الـ OTel SDK.
+- عند SIGINT أو SIGTERM، الـ server يرسل الـ spans التي ما زالت عنده قبل ما يخرج.
+- إذا ما كان أي من المتغيرين مضبوطا، لا يُستورد شيء والـ server يشتغل كما كان.
+
+محتوى الرسائل يتبع إعدادات الـ agent نفسه ([Message and argument content is opt-in](#محتوى-الرسائل-والـ-arguments-هو-opt-in)).
 
 ## Backends
 

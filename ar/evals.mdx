@@ -205,6 +205,51 @@ defineEval({
 جديد وسكربت `mockModel` جديد. مع agent واحدة مشتركة، الـ scripted model
 تخلص عنده الـ turns عند ثاني case.
 
+#### من الـ daemon
+
+الـ cases ممكن كمان تكون في سجل الـ datasets حق الـ observe daemon (شوف
+[Datasets](/ar/observability#مجموعات-البيانات-datasets)، `/api/v1/datasets`): أنشئ dataset، وضيف لها
+أمثلة بيدك أو انسخها من trace عجبك، وبعدين مرّر `dataset: 'name'` بدل
+`cases`. في Studio، شاشة [Datasets](/ar/agent-forge#datasets) تنشئ الـ datasets
+وتعرض أمثلتها، وزر **Add to dataset** في الـ trace ينسخه لها.
+
+```bash
+curl -X POST "$LOUSHO_OBSERVE/api/v1/datasets" -H 'content-type: application/json' -d '{"name":"refunds"}'
+curl -X POST "$LOUSHO_OBSERVE/api/v1/datasets/refunds/examples" -H 'content-type: application/json' \
+  -d '{"input":"Refund order 42","expected":"refunded"}'
+curl -X POST "$LOUSHO_OBSERVE/api/v1/datasets/refunds/examples" -H 'content-type: application/json' \
+  -d '{"from_trace_id":"<a trace id>"}'
+```
+
+```ts
+import { createAgent, defineEval, includes } from 'lousho';
+
+defineEval({
+  name: 'refunds',
+  dataset: 'refunds',
+  agent: () => createAgent({ instructions: 'You handle refunds.' }),
+  async test(t, c) {
+    await t.send(String(c.input));
+    t.completed();
+    if (typeof c.expected === 'string') t.soft('mentions the outcome', t.reply, includes(c.expected));
+  },
+});
+```
+
+لما vitest يجمع الملف، `defineEval()` يجلب كل أمثلة الـ dataset من الـ daemon
+اللي يشير له `LOUSHO_OBSERVE` (ويرسل `LOUSHO_OBSERVE_TOKEN` لو مضبوط) ويسجّل
+test واحد لكل مثال، الأقدم أول: `refunds [#1]`، `refunds [#2]`، .... وكل `c`
+هو `DatasetCase`: `{ input, expected, label, example_id, source_trace_id }`، حيث
+`input` و`expected` هم أي JSON موجود في المثال (`expected` قيمته `null` لو
+ما انضبط). و`LOUSHO_OBSERVE` يُقرأ لحظة استدعاء `defineEval()`.
+
+الـ eval يفشل بـ
+[`LOUSHO_DATASET_UNAVAILABLE`](/ar/errors#lousho_dataset_unavailable) لما
+`LOUSHO_OBSERVE` مو مضبوط، أو الـ daemon ما يمكن الوصول له خلال 10 ثواني، أو
+الـ dataset مو موجودة، أو ما فيها أمثلة: الـ eval اللي ما يشغّل شي ما ينجح
+أبدًا. وتمرير `cases` و`dataset` مع بعض يرمي `LOUSHO_EVALS_INVALID`. والـ dataset
+eval اللي يستبعده `lousho eval --tag` يتخطّى بدون جلب.
+
 ## Judge evals
 
 `t.judge(rubric)` يقيّم آخر رد بـ LLM ويرجع درجة من
@@ -280,6 +325,8 @@ lousho eval [globs...] [--tag t] [--junit path] [--json path] [--strict] [--judg
 env var `LOUSHO_EVAL_RESULTS`، التي يضبطها `lousho eval` ثم يرجع يقراها.
 هذا أثبت من reporter مخصص لـ vitest: يشتغل عبر إصدارات vitest المختلفة
 وworker pools، وما يحتاج تحميل أي module من مشروعك.
+
+مع ضبط `LOUSHO_OBSERVE` (أو `lousho eval --observe`)، الـ span `eval` حق كل case وصفوف الدرجات (score rows) حقها تنرسل للـ collector لما تخلص الـ case، وكل انتظار حدّه ثانية وحدة؛ الـ collector الواقف أو الساكت ما يفشّل الـ case أبدًا ولا يبطّئها بشكل ملحوظ. صفوف الدرجات تمشي في نفس الطابور مع الـ spans: تطلع بعد span الـ case، ولما الـ collector واقف تنحفظ وتتعاد معه (وتنرسل عند الخروج أو الـ crash) بدل ما تضيع. ولما ينتهي وقت انتظار، الـ cases في الـ 30 ثانية اللي بعدها تتخطّى الانتظار (صفوفها تظل تنضاف للطابور)، وبعدها الـ case الجاية تجرّب من جديد. وجنب صف درجة `<eval>/<check>` لكل assertion، كل case تطلع صف درجة `<eval>` واحد، قيمته 1 لما كل فحوص الـ gate تنجح والـ case ما رمت خطأ، و0 غير كذا (التعليق حقه يسرد فحوص الـ gate الفاشلة أو الخطأ؛ وإخفاقات الـ soft تظهر بس في صفوفها هي)؛ واسم الـ case هو الـ attribute `lousho.eval.case` على الـ span `eval` اللي يملك الـ trace، مو attribute على الدرجة. شاشة [Scores](/ar/agent-forge#scores) في Studio تعرض هذي الصفوف لكل eval (نسب النجاح، الاتجاه، الفحوص الفاشلة)، جنب درجات `online` من [قواعد الـ evaluators](/ar/agent-forge#evaluators) ودرجات `human` من الـ feedback وطوابير الـ annotation.
 
 ### حدود الوقت
 

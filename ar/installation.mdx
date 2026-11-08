@@ -154,10 +154,10 @@ npm install ./lousho-<version>.tgz ai zod
 
 ## إنشاء مشروع جديد
 
-`lousho init` ينشئ مشروعًا جاهزًا للتشغيل: `package.json` (ESM، ويعتمد على هذه الـ SDK بنطاق إصدار)، و`tsconfig.json` strict، و`src/agent.ts` يستدعي `createAgent({ model, instructions })` مع أداة مثال معرَّفة بـ `defineTool()`، و`src/agent.test.ts` يشتغل offline باستخدام `mockModel`، و`.env.example` يذكر اسم متغير مفتاح الـ provider عندك، و`.gitignore`، وREADME. بعدها يثبّت الاعتماديات ويشغّل `git init`.
+`lousho init` ينشئ مشروعًا جاهزًا للتشغيل: `package.json` (ESM، ويعتمد على هذه الـ SDK بنطاق إصدار)، و`tsconfig.json` strict، و`src/agent.ts` يستدعي `createAgent({ model, instructions })` مع أداة مثال معرَّفة بـ `defineTool()`، و`src/agent.test.ts` يشتغل offline باستخدام `mockModel`، و`.env.example` يذكر اسم متغير مفتاح الـ provider عندك، و`.gitignore`، وREADME، وملف `AGENTS.md` (ومعه ملف `CLAUDE.md` من سطر واحد يستورده) يعرّف coding agents بملفات المشروع وسكربتاته وأعرافه. بعدها يثبّت الاعتماديات ويشغّل `git init`.
 
 ```bash
-npm create lousho my-agent         # or: npx lousho init my-agent
+npm create lousho my-agent   # or: npx lousho init my-agent
 npx lousho init my-agent --yes --provider anthropic --template tools --no-install
 ```
 

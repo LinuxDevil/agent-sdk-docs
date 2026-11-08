@@ -1,8 +1,205 @@
 ---
-title: "Pause, restart, resume"
+title: "الإيقاف المؤقت وإعادة التشغيل والاستئناف"
+description: "درس عملي لمهمة واحدة: agent يتوقف ليسأل إنسانًا قبل استدعاء أداة خطِر، ويصمد أمام إعادة تشغيل الـ process وهو ينتظر، ويكمل حين يقرّر أحدهم. ثم ما يحدث حين يموت الـ process في منتصف أداة."
 ---
+{/* Generated from docs/pause-and-resume.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-{/* pending-translation */}
-<Note>
-هذه الصفحة لم تُترجَم إلى العربية بعد. اقرأ [النسخة الإنجليزية](/pause-and-resume).
-</Note>
+تستخدم المقتطفات `mockModel` لكي تعمل كما تُلصَق، دون مفتاح API. ضع
+`provider` أو `model` حقيقيًا للـ agent الخاص بك؛ ولا شيء آخر يتغيّر. كل
+قسم يحيل إلى الصفحة التي فيها التفاصيل الكاملة.
+
+## 1. أداة تحتاج موافقة
+
+اضبط `needsApproval` على الأداة. يتوقف الـ run قبل أن تُنفَّذ الأداة:
+
+```ts
+import { defineTool } from 'lousho';
+import { z } from 'zod';
+
+export const refund = defineTool({
+  name: 'refund',
+  description: 'Refund an order',
+  input: z.object({ orderId: z.string() }),
+  needsApproval: true, // or a predicate over the arguments
+  execute: async ({ orderId }) => `refunded ${orderId}`,
+});
+```
+
+راجع [الموافقات](/ar/approvals#أي-الـ-calls-توقف) للـ predicates وسياسات
+الصلاحيات.
+
+## 2. أعطِ الـ agent مخزنًا متينًا
+
+الوقفات ونقاط الحفظ تعيش في `store` الخاص بالـ agent. الافتراضي في الذاكرة،
+وتضيع محتوياته عند إعادة التشغيل. استخدم مخزنًا متينًا: `SqliteStore` (ملف واحد يدعم المعاملات،
+تتشاركه عدة processes على جهاز واحد) أو `fileStore(dir)` (ملفات JSON عادية). راجع
+[اختيار المخزن](/ar/sessions#choosing-a-store).
+
+## 3. الإرسال: يتوقف الـ run
+
+لا ترمي `send()` خطأً عند الوقفة. بل تُرجع النتيجة مع
+`finishReason: 'awaiting-approval'` والـ id المطلوب اتخاذ القرار بشأنه:
+
+```ts
+import { createAgent, defineTool } from 'lousho';
+import { SqliteStore } from 'lousho/sqlite';
+import { mockModel } from 'lousho/testing';
+import { z } from 'zod';
+
+const refund = defineTool({
+  name: 'refund',
+  description: 'Refund an order',
+  input: z.object({ orderId: z.string() }),
+  needsApproval: true,
+  execute: async ({ orderId }) => `refunded ${orderId}`,
+});
+
+const agent = createAgent({
+  provider: mockModel([{ toolCalls: [{ name: 'refund', args: { orderId: 'B-1' } }] }]),
+  tools: [refund],
+  store: new SqliteStore('./pause-and-resume.db'),
+});
+
+// `sessionId` makes the run durable: its progress is checkpointed under this id.
+const paused = await agent.send('Refund order B-1', { sessionId: 'refund-B-1' });
+console.log(paused.finishReason, paused.approvalId); // 'awaiting-approval', '...'
+// The process can exit now. The pause is in the store.
+```
+
+استخدم `agent.session({ id })` بدل `sessionId` عندما يجب أن تحتفظ المحادثة
+بسجلّ عبر الدورات (راجع [الجلسات](/ar/sessions#durable-sessions))؛
+استدعاءات الإيقاف والاستئناف أدناه هي نفسها.
+
+## 4. في process جديد: اسرد الوقفات واتّخذ القرار في إحداها
+
+شغّل الـ process مرة أخرى بالمخزن نفسه. تُرجع `agent.approvals.list()`
+الاستدعاءات المعلّقة، الأقدم أولًا، بما فيها التي تركها في المخزن process آخر أو run
+سابق. وتنفّذ `agent.approvals.resolve()` الاستدعاء (أو ترفضه)،
+وتكمل الـ run، وتُرجع النتيجة:
+
+```ts
+import { createAgent, defineTool } from 'lousho';
+import { SqliteStore } from 'lousho/sqlite';
+import { mockModel } from 'lousho/testing';
+import { z } from 'zod';
+
+const refund = defineTool({
+  name: 'refund',
+  description: 'Refund an order',
+  input: z.object({ orderId: z.string() }),
+  needsApproval: true,
+  execute: async ({ orderId }) => `refunded ${orderId}`,
+});
+
+// The same agent definition and the same store. Here the mock model only has
+// the final reply left to give; a real provider needs no script.
+const agent = createAgent({
+  provider: mockModel(['Order B-1 is refunded.']),
+  tools: [refund],
+  store: new SqliteStore('./pause-and-resume.db'),
+});
+
+for (const call of await agent.approvals.list()) {
+  console.log(`${call.toolName}`, call.args); // refund { orderId: 'B-1' }
+  const result = await agent.approvals.resolve({ id: call.id, approved: true });
+  console.log(result.finishReason, result.text); // 'stop', 'Order B-1 is refunded.'
+}
+```
+
+- للرفض، مرّر `approved: false` و`note` يراه النموذج سببًا للرفض.
+- الجلسة التي توقفت يُعثَر عليها من سجلّ وقفتها، فلا تحتاج إلى
+  فتحها أو استدعاء `resume()` أولًا.
+- ترمي `resolve()` خطأً عندما يكون الـ id غير معروف أو حُسم مسبقًا، فإذا تسابق processان
+  على وقفة واحدة، لا يستطيعان كلاهما تشغيل الأداة.
+- الوقفة الناتجة من `send(msg, { sessionId })` تظهر في `agent.pending()` مع
+  `status: 'awaiting-approval'` و`approvalId` الخاص بها.
+
+## 5. شاهد الـ run ينتهي
+
+تُرجع `resolve()` نتيجة الـ run المُكمَل. نُفّذت الأداة، وحصل النموذج على
+مخرجاتها وأجاب، و`finishReason` هو `'stop'`. إذا توقف الـ run المُكمَل
+مرة أخرى (استدعاء آخر عليه `needsApproval`)، تحصل على `'awaiting-approval'`
+وid جديد: اسرد واتّخذ القرار من جديد. ولعرض التقدّم للمستخدم بدلًا من ذلك، استخدم
+`agent.approvals.streamResolve()`. كل ما عدا ذلك بشأن القرارات (عدة استدعاءات
+في خطوة واحدة، و"لا تسأل مرة أخرى"، والموافقة مع وسائط معدّلة، وانتهاء الصلاحية) موجود في
+[الموافقات](/ar/approvals#وكلاء-createagent).
+
+## 6. حين يموت الـ process في منتصف الـ run
+
+يترك الانهيار (crash) أو الإيقاف القسري نقطة حفظ الـ run في المخزن بالحالة
+`'in-progress'`. يعثر عليها الـ process المُعاد تشغيله بـ `agent.pending()` ويُنهيها
+بـ `agent.resume(sessionId)`، أو يسلّم المهمة كلها إلى `agent.recover()`.
+
+يحاكي هذا المقتطف الانهيار بأداة ترمي
+`PropagatingToolError` في المرة الأولى (كما يوقف process يموت
+الخطوة)، ثم يتعافى:
+
+```ts
+import { createAgent, defineTool, memoryStore, PropagatingToolError } from 'lousho';
+import { mockModel } from 'lousho/testing';
+import { z } from 'zod';
+
+let charges = 0;
+let attempts = 0;
+const tools = [
+  defineTool({ name: 'charge', description: 'Charge the card', input: z.object({}), execute: async () => `charged ${++charges}` }),
+  defineTool({
+    name: 'ship',
+    description: 'Ship the order',
+    input: z.object({}),
+    execute: async () => {
+      if (++attempts === 1) throw new PropagatingToolError('process died'); // the "crash"
+      return 'shipped';
+    },
+  }),
+];
+// Use fileStore(dir) or a SqliteStore in real code: memoryStore() does not survive a restart.
+const agent = createAgent({
+  provider: mockModel([{ toolCalls: [{ name: 'charge' }] }, { toolCalls: [{ name: 'ship' }] }, 'Order charged and shipped.']),
+  tools,
+  store: memoryStore(),
+});
+await agent.send('Charge and ship order 7', { sessionId: 'order-7' }).catch(() => undefined);
+
+// After the restart: what is unfinished?
+for (const run of await agent.pending()) {
+  console.log(run.sessionId, run.status); // order-7 in-progress
+}
+
+// Finish it. Completed steps are not run again.
+const finished = await agent.resume('order-7'); // ExecutionResult, or null when nothing was pending
+console.log(finished?.text, charges); // Order charged and shipped. 1
+```
+
+لتفعل هذا دون كتابة الحلقة، شغّل `agent.recover()` مرة واحدة لكل process عند
+بدء التشغيل: فهي تستطلع `pending()` وتستأنف كل run بحالة `'in-progress'`، وتترك
+الموافقات لإنسان، وتشغيلها آمن على كل نسخة (replica) (تضمن run leases أن
+process واحدًا فقط يستأنف كل run). راجع
+[الاستعادة التلقائية](/ar/durable-execution#الاستعادة-التلقائية).
+
+**مرة واحدة على الأقل (at-least-once) للخطوة التي كانت تعمل.** ردود النموذج المسجّلة
+ونتائج الأدوات المنتهية لا تتكرر أبدًا: ولهذا نُفّذت `charge` مرة واحدة أعلاه.
+لكن الأداة التي كانت في منتصف الاستدعاء حين مات الـ process تُنفَّذ من جديد عند الاستئناف، فقد
+يحدث أثرها الجانبي مرتين. اجعل هذه الأدوات idempotent (مفتاح idempotency
+يُمرَّر إلى API الدفع، أو فحص "هل فعلت هذا من قبل"). راجع
+[At-least-once tools](/ar/durable-execution#at-least-once-tools-خلّي-الـ-side-effects-idempotent).
+والأداة التي عليها `needsApproval` لا تتأثر بهذا وهي تنتظر: فالوقفة
+لا تسجّل أي عمل، بل تنتظر القرار فقط.
+
+## 7. عبر HTTP
+
+الخادم المبني (راجع [النشر](/ar/deployment)) يفعل هذا نيابةً عنك. العميل
+الذي يعيد إرسال `POST /chat` بعد انقطاع الاتصال يستطيع إرسال ترويسة
+`Idempotency-Key` نفسها: الدورة المنتهية تُعاد دون تشغيل أي شيء،
+والدورة التي قطعها انهيار تُستأنف من آخر نقطة حفظ لها بدل
+البدء من جديد. الجلسة المتوقفة على موافقة تُجيب بـ `409`
+(`LOUSHO_SESSION_AWAITING_APPROVAL`) حتى يُتّخذ القرار. جدول النتائج
+موجود في [إعادة إرسال دورة](/ar/deployment#إعادة-إرسال-turn).
+
+## إلى أين بعد ذلك
+
+- [الموافقات](/ar/approvals): سياسات الصلاحيات، وعدة استدعاءات في خطوة واحدة،
+  وانتهاء الصلاحية، واتخاذ القرار في الكود.
+- [الجلسات](/ar/sessions#durable-sessions): دورات الجلسات المتينة والمخازن.
+- [التنفيذ المتين](/ar/durable-execution): نقاط الحفظ، وrun leases،
+  والضمانات، والـ fork والـ replay.

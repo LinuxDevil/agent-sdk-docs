@@ -8,6 +8,8 @@ title: "Approvals"
 في `ApprovalStore`، يعني القرار يقدر يوصل بعد دقائق أو أيام، من request
 ثاني أو من process ثانية، والـ run يكمل من حيث وقف.
 
+انظر أيضًا: [الإيقاف وإعادة التشغيل والاستئناف](/ar/pause-and-resume)، شرح قصير من البداية للنهاية.
+
 > الأمثلة في هذه الصفحة تترك بعض الأسماء لك: `provider` هو أي `LLMProvider` (بدون اتصال: `createMockProvider()`)؛ `agent` هو نتيجة `createAgent()`؛ `input` هو نص المستخدم، من نوع `string`؛ `emailTool` هو tool مبني بـ `defineTool()`؛ `storage` هو `StorageService`؛ `toolRegistry` هو `ToolRegistry`.
 
 ```ts
@@ -564,7 +566,7 @@ approval معلّق (شوف [Durable execution](/ar/durable-execution)).
 | `InMemoryApprovalStore` | الـ process هذي بس؛ الافتراضي لـ `createAgent()`. |
 | `StorageServiceApprovalStore(storage)` | ملفات JSON عبر `StorageService`. |
 | `fileStore(dir)` | ملف JSON لكل وقفة، `<dir>/approvals/<id>.json`، على جهاز واحد؛ الـ approval ينحسم من process واحدة بس (شوف [اختيار المخزن](/ar/sessions#choosing-a-store)). |
-| `SqliteStore.approvals` | ملف SQLite واحد، تتشاركه عدة processes بأمان؛ الـ approval ينحسم من وحدة منهم بس. |
+| `SqliteStore.approvals` | ملف SQLite واحد، تتشاركه عدة processes على host واحد ([التفاصيل](/ar/sessions#مشاركة-ملف-sqlite))؛ الـ approval ينحسم من وحدة منهم بس. |
 
 الـ `ApprovalStore` يحتاج `save()` و`resolve()`. أما `load(id)` (يقرأ وقفة
 بدون ما يحجزها) و`list()` (كل وقفة لسا ما انحسمت، الأقدم أول) فاختياريتان؛

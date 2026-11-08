@@ -232,11 +232,18 @@ const lead = createAgent({
 | فحوص توقيع Slack وDiscord تقبل timestamp متقدمًا بدقيقة كحد أقصى (كانت خمس دقائق في الاتجاهين)، ويُقرأ بالثواني. | لا يمكن تعطيله |
 | `telegramChannel` و`teamsChannel` ما عادا ينشران رابط تسجيل دخول OAuth في محادثة جماعية. | لا يمكن تعطيله |
 | الـ channels بدون `store` تحفظ الـ transcripts في `createAgent({ store })` الخاص بالـ agent لما يكون فيه `sessions`. | مرّر للـ channel الـ `store` الخاص به |
+| الـ node-server المبني (وصورة Docker) يشترط `LOUSHO_API_TOKEN` / `auth.ts` على `/channels/<name>` للـ channel اللي ما عنده `verify` لما يكون token أو `auth.ts` مضبوطًا؛ والـ channels اللي تتحقق من نفسها ما تغيّرت. | أعطِ الـ channel دالة `verify` |
+| `webhookChannel` يرد بـ`{ sessionId, text, finishReason, approval? }` بدل الـ `ExecutionResult` الكامل. | `webhookChannel({ fullResult: true })` |
+| دورة channel على session تشغّلها عملية ثانية ترد بـ`409` (`LOUSHO_SESSION_BUSY`، `Retry-After: 2`) بدل `500`. | لا يمكن تعطيله (أعد المحاولة بعد المهلة) |
+| `POST /chat` على session تشغّلها عملية ثانية يرد بـ`409` (`LOUSHO_SESSION_BUSY`، `Retry-After: 2`) بدل stream بحالة `200` ما فيه إلا الخطأ. | لا يمكن تعطيله (أعد المحاولة بعد المهلة) |
+| السيرفر المبني يستأنف الـ runs اللي خلّاها crash قيد التنفيذ لما يبدأ، وكل 30 ثانية. | `LOUSHO_RECOVER_ON_START=0` |
+| الـ node-server المبني (وبالتالي صورة Docker، اللي تضبط `HOST=0.0.0.0`) يرفض يبدأ على host ليس loopback بدون auth (لا `LOUSHO_API_TOKEN` ولا token مبني ولا `auth.ts`): يخرج بـ`LOUSHO_SERVER_UNPROTECTED` بدل ما يقدّم agent مفتوحًا مع تحذير. الـ hosts من نوع loopback ما تغيّرت. شوف [المصادقة](/ar/deployment#المصادقة). | اضبط `LOUSHO_API_TOKEN` (أو أضف `auth.ts`)، أو `LOUSHO_ALLOW_PUBLIC=1` لتقديم الـ agent المفتوح عن قصد |
 
 ### الـ sessions والـ approvals والمتانة
 
 | التغيير | طريقة التعطيل |
 | ------ | ------- |
+| `agent.recover()` يتراجع (back off) بعد آخر فشل للـ run ويوقف استئنافه بعد 10 إخفاقات متتالية، وينادي `onQuarantined(run)` مرة واحدة، بدل ما يستأنفه في كل sweep للأبد. شوف [الاستعادة التلقائية](/ar/durable-execution#الاستعادة-التلقائية). | قيمة أكبر لـ`maxAttempts` |
 | الـ run المحفوظ بـcheckpoint يمسك run lease أثناء تنفيذه: أي عملية ثانية أو replica أو store object يرسل لنفس الـ session، أو يستأنفها، أو يحسم واحدة من الـ approvals الخاصة بها، يفشل بـ`LOUSHO_SESSION_BUSY` بدل ما ينفّذ الـ tool calls مرة ثانية. شوف [Run leases](/ar/durable-execution#run-leases). | لا يمكن تعطيله (الـ `CheckpointStore` المخصص بدون `acquireLease()` ما يحصل على lease) |
 | الـ approvals تشتغل مرة واحدة على الأكثر: الحسم فيها يعيد حفظ الدورة كـ`'in-progress'` مع الاستدعاء في `Checkpoint.startedToolCallIds`؛ وبعد crash في منتصف الاستدعاء، الاستئناف يعطي هذا الاستدعاء خطأ tool من نوع `kind: 'interrupted'` بدل ما يشغّله من جديد. شوف [الضمانات](/ar/durable-execution#الضمانات). | لا يمكن تعطيله |
 | حسم approval انحذف الـ run الخاص بها أو استُبدل يفشل بـ`LOUSHO_APPROVAL_ORPHANED` ويسحبها (كان يكتب فوق المحادثة الأحدث). | لا يمكن تعطيله |
@@ -278,6 +285,8 @@ const lead = createAgent({
 | ------ | ------- |
 | الـ MCP tools تطلب approval افتراضيًا (`approval: 'always'`)؛ والـ MCP tool اللي اسمها نفس اسم tool محلية تُرفض. شوف [Approval لأدوات MCP](/ar/mcp-integration#الـ-approval-على-tools-mcp). | `approval: 'annotations'` على السيرفرات اللي تثق فيها |
 | نتائج الـ tools محدودة بـ50,000 حرف (يُحفظ أولها وآخرها). | `maxToolResultChars: Infinity` |
+| `createAgent()` و`defineTool()` يرميان `LOUSHO_CONFIG_INVALID` لأي مفتاح خيار ما يعرفانه، مع اقتراح. | لا يمكن تعطيله (احذف المفتاح أو غيّر اسمه) |
+| أدوات الملفات في الـ workspace ترفض `.env` و`.env.*` افتراضيًا (لكن ليس `.env.example` و`.env.sample` و`.env.template`). | مرّر قائمة `deny` خاصة بك (تحل محل الافتراضيات) |
 | `defineTool()` يرمي `LOUSHO_CONFIG_INVALID` لو جذر `input` ليس object أو فيه حقل `z.date()` / `z.bigint()`؛ ومعاملات الـ tool call اللي ما هي JSON صالح توصل للـ model كـ`LOUSHO_TOOL_ARGS_INVALID` بدل تشغيل الـ tool بـ`{}`. | لا يمكن تعطيله |
 | خطوة `toolCall` في الـ flow تمر عبر بوابة الـ agent (`permissions` و`permissionMode` والـ approval) وتتحقق من معاملاتها؛ والاستدعاء اللي يحتاج approval يفشل بـ`LOUSHO_FLOW_TOOL_DENIED` بدون `approve`. شوف [Flows](/ar/flows#استدعاءات-الـtool). | مرّر `approve` في سياق الـ flow |
 | أنماط `allow` النصية في `createShellTool` ترفض المعاملات اللي تطلع برا الـ workspace (`..` و`~` والمسارات المطلقة)، حتى عبر علامات الاقتباس. | `CommandRule` في `allow` مع فحص `args` |
@@ -285,6 +294,7 @@ const lead = createAgent({
 | `SubprocessSandbox` يكتب فقط تحت `root` ويشغّل الـ containers كـ`1000:1000` مع إسقاط كل الـ capabilities. شوف [Sandboxed tools](/ar/guardrails#sandboxed-tools). | `root`، `user: 'root'` |
 | نتيجة MCP المكوّنة من نص فقط توصل للـ model كـ`{ "text": ... }`. | لا يمكن تعطيله |
 | `redactContent` افتراضيًا `true`: خصائص الـ span الـ deprecated `input` / `prompt` / `args` / `result` تُستثنى، فملفات `fileTraceExporter()` ما فيها أي محتوى. شوف [Observability](/ar/observability#محتوى-الرسائل-والـ-arguments-هو-opt-in). | `redactContent: false` (أو `captureContent: true` لمحتوى `gen_ai.*`) |
+| محتوى `gen_ai.*` المسجَّل (نص الرسائل، وتعليمات النظام، ومعاملات الـ tool calls ونتائجها) يمر افتراضيًا على منقّح مدمج: أشكال مفاتيح الـ API (مفاتيح OpenAI وOpenRouter وAnthropic، وtokens الخاصة بـ LangSmith وGitHub وAWS، وtokens من نوع `Bearer`) تُسجَّل كـ`[redacted]`. ما يُلمس إلا المحتوى اللي تسجّله أنت (`captureContent: true`، أو الافتراضي في observe على loopback). شوف [الأسرار في المحتوى المسجَّل](/ar/observability#الأسرار-في-المحتوى-المسجَّل). | `redactContent: false` يسجّل المحتوى كما هو؛ ودالة `(text) => string` تستبدل المنقّح بمنقّحك |
 | `agent.stream()` يعيد رمي خطأ الـ run بعد حدثي `error` و`run.done`. شوف [Streaming](/ar/streaming). | `stream(input, { throwOnError: false })` |
 | `send([])` يرمي `LOUSHO_CONFIG_INVALID`. | لا يمكن تعطيله |
 
@@ -299,6 +309,8 @@ const lead = createAgent({
 | Agent Forge يُفشل الـ run على provider حقيقي بدون API key (`LOUSHO_PROVIDER_MISSING_API_KEY`) بدل ما يستخدم الـ mock provider بصمت. | غيّر provider الـ agent إلى `mock` |
 | حزمة npm ما عادت تشحن `llms-full.txt` (يبقى في المستودع؛ و`llms.txt` يُشحن). | جيب `llms-full.txt` من المستودع |
 | `lousho eval` يخرج بـ1 لما ما تشتغل أي حالة (كل الحالات تخطّاها `--tag`، أو ما فيه `defineEval()` في الملفات). | مرّر الـ tags أو الـ globs اللي تختار الحالات |
+| الـ observe daemon ينهي الـ sessions الخاملة: لما ما يكون فيه أي run مفتوح في الـ session وما بدأ أو انتهى فيها شي لمدة 30 دقيقة، تصير حالتها `ended` (مع `ended_at` = آخر نشاط فيها) بدل ما تبقى `active`؛ وأي run جديد فيها يرجّعها `active`. شوف [الـ sessions الخاملة](/ar/observability#الجلسات-الخاملة). | `lousho observe start --session-idle-minutes N` (`0` يبقي الـ sessions `active` لين يتوقف الـ agent الخاص بها) |
+| الـ observe daemon يحذف البيانات القديمة افتراضيًا: في أول sweep ثم مرة يوميًا يحذف كل trace انتهت كل observations فيه قبل أكثر من 30 يومًا، مع scores الـ trace وروابط استخدام الـ prompts، والـ sessions اللي ما عادت `active` وانتهت قبل النافذة وما عاد يشير لها شي. أما الـ trace اللي فيه run ما زال مفتوحًا، والـ sessions النشطة، وتجميعات Insights، والـ prompts، وعناصر الـ hub، وسجل الـ agents، والـ tokens، والـ datasets، وقواعد الـ evaluators، وطوابير الـ annotation فما تُحذف أبدًا. شوف [الاحتفاظ بالبيانات](/ar/observability#الاحتفاظ-بالبيانات-retention). | `lousho observe start --retention-days 0` يحتفظ بكل شي (أو `N` لنافذة أخرى) |
 | `lousho mcp --port N` أو `--host H` بدون `--http` خطأ استخدام (exit 2)؛ الـ stdio ما له port. | احذف الـ flags، أو أضف `--http` |
 | الـ `package.json` في build من نوع node-server أو docker ما عاد يذكر `lousho` (الـ bundle يحتويه). | أضفه بنفسك لو فيه كود ثاني بجانب الـ build يستورد الـ SDK |
 | حزمة npm ما عادت تشحن `dist/cli/*.js` (نسخة CommonJS من الـ CLI) ولا `dist/cli/*.d.ts`؛ و`bin/lousho.js` ما كان يحمّلها أصلًا. | شغّل الـ CLI عبر `bin/lousho.js` (`npx lousho`) |

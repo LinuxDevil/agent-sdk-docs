@@ -107,6 +107,77 @@ const agent = createAgent({ provider, instructions: 'You research things.', hook
 
 كل مثال برنامج كامل. كلها تشتغل على `mockModel`، فما في واحد منها يحتاج API key ولا model call حقيقي؛ ونفس النمط يختبر الـ hooks اللي كتبتها offline ([Testing](/ar/testing)). كل مثال يجهّز turn للـ model فيه tool call، وبعده جواب نهائي.
 
+### أوقف run ما يتقدّم
+
+`createProgressGuard()` يوقف run يصرف الـ budget تبعه على calls ما توصل لشيء. هو مطفي إلا إذا أضفته:
+
+- من ثاني فشل لـ tool بنفس الخطأ، يضيف `hint` للنتيجة، فيها نصيحة حسب نوع الفشل (`classifyToolFailure()`: input غلط، أو timeout، أو قدرة ناقصة، أو صلاحية، أو غير معروف).
+- بعد `maxFailures` فشل بنفس الخطأ (الافتراضي 3)، يرفض هالـ tool لباقي الـ run. الأرقام في الرسالة ما تخلي الخطأ مختلف.
+- بعد `maxRepeats` calls متطابقة ترجّع نفس النتيجة (الافتراضي 3)، يرفض هالـ call. الـ call اللي نتيجته تتغيّر مو تكرار.
+- بعد ما `maxSameResults` calls لـ tool ترجّع نفس النتيجة (الافتراضي 5)، يرفض هالـ tool، حتى لو الـ arguments تختلف في كل call. هذا يمسك الـ model لما يعيد صياغة بحث يظل يلقى نفس الشيء.
+- بعد `maxDenials` رفض (الافتراضي 3)، الرفض اللي بعده يوقف الـ run بـ `LOUSHO_RUN_NO_PROGRESS`، و`agent.recover()` ما يعيد محاولته.
+
+```ts
+import { createAgent, createProgressGuard, defineTool } from 'lousho';
+import { mockModel } from 'lousho/testing';
+import { z } from 'zod';
+
+const lookup = defineTool({
+  name: 'lookup',
+  description: 'Look up an order',
+  input: z.object({ id: z.string() }),
+  async execute() {
+    return { status: 'unknown' };
+  },
+});
+
+const call = { toolCalls: [{ name: 'lookup', args: { id: 'A-1' } }] };
+const agent = createAgent({
+  provider: mockModel([call, call, call, call, 'I could not find that order.']),
+  tools: [lookup],
+  hooks: [createProgressGuard({ ignoreTools: ['poll_job'], fallbacks: { lookup: 'search_orders' } })],
+});
+
+for await (const event of agent.stream('Where is order A-1?')) {
+  if (event.type === 'heal.action') console.log(event.action, event.toolName);
+}
+```
+
+كل action ينبث كحدث `heal.action`. النتيجة اللي استبدلها تتعلّم على الـ span تبع الـ tool بـ `lousho.tool.replaced_by_hook`، والرفض ينسجّل كخطأ الـ span. الـ guard يعدّ من سجل محادثة الـ run، فالـ run المستأنَف يحتفظ بتاريخه. الـ calls اللي في batch وحدة ما تنعد إلا لما تخلص الـ batch، وضغط السياق (compaction) ممكن يشيل calls قديمة من العدّ.
+
+### افحص اللي طلّعته الـ tool
+
+الكتابة الناجحة ما تثبت إن الـ output صالح للاستخدام. `createOutputCheck()` يشغّل الفحص تبعك بعد ما تنجح الـ tool. إذا رجّع مشكلة، أو رمى، الـ model يشوفها كـ `outputCheckFailed` على النتيجة ويقدر يصلّح الـ output. الفحص هو كودك، فخلّه مستقل عن اللي كتبه الـ model.
+
+```ts
+import { createAgent, createOutputCheck, defineTool } from 'lousho';
+import { mockModel } from 'lousho/testing';
+import { z } from 'zod';
+
+const files = new Map<string, string>();
+const writeFile = defineTool({
+  name: 'write_file',
+  description: 'Write a file',
+  input: z.object({ path: z.string(), text: z.string() }),
+  async execute({ path, text }) {
+    files.set(path, text);
+    return { path };
+  },
+});
+
+const agent = createAgent({
+  provider: mockModel([{ toolCalls: [{ name: 'write_file', args: { path: 'report.md', text: '' } }] }, 'Done.']),
+  tools: [writeFile],
+  hooks: [
+    createOutputCheck({
+      write_file: (args) => (files.get(String(args.path)) ? undefined : `${String(args.path)} is empty`),
+    }),
+  ],
+});
+
+await agent.send('Write the report');
+```
+
 ### امنع tool بالاسم
 
 ```ts

@@ -28,16 +28,16 @@ console.log(text);
 ## ما يميّزها
 
 <CardGroup cols={2}>
-  <Card title="تسجيل وإعادة تشغيل واكتشاف الانحراف" icon="flask-conical" href="/ar/evals">
+  <Card title="تسجيل وإعادة تشغيل واكتشاف الانحراف" icon="alien-8bit" href="/ar/evals">
     `lousho eval --record` يحفظ run حقيقي لكل حالة مع الـ provider في cassette، و`--replay` يشغّلها في CI بدون شبكة ولا مفتاح، و`--drift` يعيد التسجيل ويوضّح كيف تغيّر مسار استدعاءات الـ tools. و`defineEval()` يتحقق من الـ tools التي استُدعيت، وبأي ترتيب، وبأي معاملات.
   </Card>
   <Card title="Approvals متينة على stores عندك" icon="database" href="/ar/durable-execution">
     الـ sessions والـ checkpoints وتوقفات الـ approval محفوظة في الذاكرة، أو ملفات، أو ملف SQLite واحد، أو Cloudflare KV. والـ run المتوقف مؤقتًا أو المنقطع يستأنف من طلب آخر أو عملية أخرى، حتى على Worker.
   </Card>
-  <Card title="agent واحد وواجهات كثيرة" icon="activity" href="/ar/deployment">
+  <Card title="agent واحد وواجهات كثيرة" icon="robot" href="/ar/deployment">
     `lousho build` ينشر الـ agent على سيرفر Node أو Docker أو Worker؛ و`lousho acp` يقدّمه للمحررات، و`serveMcp` لعملاء MCP. وكل run يصدر spans وفق OpenTelemetry GenAI مع استهلاك الـ tokens والتكلفة بالدولار الأمريكي.
   </Card>
-  <Card title="مستضاف عندك، مع كل إصدارات AI SDK" icon="box" href="/ar/installation">
+  <Card title="مستضاف عندك، مع كل إصدارات AI SDK" icon="computer" href="/ar/installation">
     حزمة واحدة، بدون حساب على منصة ولا control plane مستضاف. الـ peer `ai` يقبل v4 و v6 و v7، و`fromAiSdk()` / `fromAiSdkTools()` يعيدان استخدام الـ models والـ tools اللي عندك من AI SDK.
   </Card>
 </CardGroup>
@@ -66,7 +66,7 @@ console.log(text);
   <Card title="في تطبيق ويب" icon="browser" href="/ar/react">
     `useLoushoAgent()` لـ React و Vue، وstore لـ Svelte، و`useChat` من Vercel AI SDK، أو `createRouteHandler(agent)` في أي إطار عمل مبني على Fetch API.
   </Card>
-  <Card title="في المحادثات وعلى جدول" icon="message-square" href="/ar/channels">
+  <Card title="في المحادثات وعلى جدول" icon="message" href="/ar/channels">
     قنوات Slack و Discord و webhooks و HTTP العادي تربط الرسائل بالـ sessions وترجّع الـ approvals للقناة. وجدولات cron تبدأ runs من تلقاء نفسها.
   </Card>
   <Card title="في محرّر" icon="code" href="/ar/acp">
