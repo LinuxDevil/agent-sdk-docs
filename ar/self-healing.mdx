@@ -1,0 +1,166 @@
+---
+title: "التعافي الذاتي والتحسين الذاتي"
+description: "كيف يستعيد Lousho الـ run الفاشل الآن (agent.recover()، وإعادة محاولة مع تشخيص، والتوقف المؤقت أثناء انقطاع المزوّد، وحارس التقدّم) ويقترح تعديلات على التعليمات والمهارات لاحقًا (improveAgent)، يوافق عليها شخص دائمًا."
+---
+{/* Generated from docs/self-healing.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
+
+يتعامل Lousho مع حالات الفشل في طبقتين:
+
+| الطبقة | ماذا تفعل | متى تعمل | من يقرّر |
+| --- | --- | --- | --- |
+| [استعادة الـ run الآن](#استعادة-الـ-run-الآن) | تستأنف الـ runs المنقطعة، وتعيد المحاولة مع تراجع (backoff)، وتحاول مرة أخرى مع ملاحظة عن الخطأ، وتتوقف مؤقتًا أثناء انقطاع المزوّد، وتوقف الـ run الذي لا يحرز تقدّمًا | بينما يخدم الـ agent الـ traffic | الحلقة، ضمن حدود تضعها أنت. والـ run الذي تتخلّى عنه ينتظر شخصًا |
+| [اقتراح تعديلات لاحقًا](#اقتراح-تعديلات-لاحقًا) | تبحث عن تعليمات ومهارات أفضل مستخدمةً حالات فاشلة، وتختبرها مقابل الحالية | دون اتصال، عندما تشغّلها | شخص. لا يُطبَّق شيء نيابةً عنك |
+
+الطبقة الأولى لا تغيّر الـ agent أبدًا. هي فقط تُكمل الـ runs أو توقفها.
+والطبقة الثانية تقترح تغييرات على الـ agent لكنها لا تُجريها أبدًا.
+
+هذه الصفحة نظرة عامة. كل قسم يربط بالصفحة التي فيها التفاصيل الكاملة.
+
+## استعادة الـ run الآن
+
+أعطِ الـ agent مخزن checkpoints وشغّل `agent.recover()` مرة واحدة لكل process.
+كل `intervalMs` (الافتراضي 30 ثانية) تسرد `agent.pending()` وتستأنف
+كل run منقطع من آخر checkpoint له، فلا تُشغَّل الخطوات المكتملة
+مرة أخرى.
+
+```ts
+import { createAgent, createProgressGuard } from 'lousho';
+import { SqliteStore } from 'lousho/sqlite';
+
+const agent = createAgent({
+  provider,
+  store: new SqliteStore('./.lousho/jobs.db'),
+  hooks: [createProgressGuard()],
+});
+
+const recovery = agent.recover({
+  retryWithDiagnosis: true,
+  onRecovered: (run) => console.log('recovered', run.sessionId),
+  onQuarantined: (run) => console.warn('needs a person', run.sessionId, run.lastError?.message),
+  onOutage: (paused) => console.warn(paused ? 'provider down, paused' : 'provider back'),
+  onError: (error, run) => console.error('recovery failed', run?.sessionId, error),
+});
+```
+
+استدعِ `recovery.stop()`، أو ألغِ خيار `signal`، عند الإيقاف.
+
+ما تفعله الحلقة مع حالات الفشل:
+
+- **التراجع (backoff).** الـ run الذي فشل يُتخطّى حتى تنقضي مدة تراجعه:
+  `intervalMs` مضاعفةً لكل محاولة فاشلة متتالية، حتى 15 دقيقة.
+- **العزل (quarantine).** بعد `maxAttempts` حالات فشل متتالية (الافتراضي 10)، تتوقف
+  الحلقة عن استئناف الـ run وتستدعي `onQuarantined(run)` مرة واحدة. وتظل `agent.pending()`
+  تسرده، وتظل `agent.resume()` تشغّله، حتى يقرّر شخص.
+  حفظ التقدّم يصفّر العدّاد.
+- **إعادة المحاولة مع تشخيص.** مع `retryWithDiagnosis: true` (الافتراضي `false`)،
+  يحصل الـ run الذي يبلغ الحد أولًا على محاولة أخرى: fork باسم `<id>.heal`،
+  يُستأنَف من الخطوة نفسها، مع ملاحظة تقول لماذا فشل الـ run. تقتبس الملاحظة
+  الخطأ كبيانات وتحدّ طوله. إذا اكتمل الـ fork، يُحذَف
+  الأصلي ويُبلِّغ `onRecovered` بـ id الأصلي. وإذا بلغ الـ fork
+  الحد هو أيضًا، يُعزَل الاثنان. ينطبق هذا على runs الـ `send()`، لا
+  على دورات الجلسات، ويجب أن يحتفظ المخزن بـ
+  [سجل checkpoints](/ar/durable-execution#checkpoint-history).
+- **الأخطاء التي لن تزول.** الـ run الذي يحمل آخر خطأ له `retryable: false`،
+  مثل 400 من المزوّد، يُترك وشأنه.
+- **انقطاعات المزوّد.** بعد 3 حالات فشل متتالية من المزوّد، عبر أي runs، تتوقف
+  الحلقة مؤقتًا وتستدعي `onOutage(true)`. ثم تجرّب run واحدًا في كل مرة، على
+  فترات متزايدة، وتستدعي `onOutage(false)` بمجرد أن ينجح أحدها. ولا تُعزَل الـ runs
+  بسبب فشل المزوّد أثناء التوقف المؤقت. ومفتاح API الخاطئ
+  لا يُحسَب انقطاعًا.
+- **الموافقات.** الـ run المتوقف على موافقة أو سؤال يُترك لشخص.
+
+يمكن لكل replica أن تشغّل `recover()`: تضمن [run leases](/ar/durable-execution#run-leases)
+أن تستأنف واحدة منها فقط الـ run. راجع
+[الاستعادة التلقائية](/ar/durable-execution#الاستعادة-التلقائية) للسلوك
+الكامل.
+
+### إيقاف الـ run الذي لا يحرز تقدّمًا
+
+تعيد الاستعادة تشغيل الـ runs التي انقطعت. أما الـ run الذي ما زال يعمل لكنه عالق،
+مثل run يستدعي أداة فاشلة مرة بعد مرة، فيحتاج إلى hook بدلًا من ذلك.
+تضيف `createProgressGuard()` تلميحًا إلى نتيجة الأداة التي تظل تفشل بالطريقة
+نفسها، ثم ترفض الأداة أو الاستدعاء المتكرر. وبعد أن ترفض `maxDenials`
+استدعاءات (الافتراضي 3)، يوقف الرفض التالي الـ run بـ
+[`LOUSHO_RUN_NO_PROGRESS`](/ar/errors#lousho_run_no_progress). يُسجَّل هذا الخطأ
+على أنه غير قابل لإعادة المحاولة، فلا تستأنف `agent.recover()` الـ run.
+
+كل تلميح ورفض وإيقاف يُبَث كحدث `heal.action`:
+
+```ts
+import { createAgent, createProgressGuard } from 'lousho';
+
+const agent = createAgent({ provider, hooks: [createProgressGuard()] });
+
+for await (const event of agent.stream('Where is order A-1?')) {
+  if (event.type === 'heal.action') console.log(event.action, event.toolName, event.reason);
+}
+```
+
+لفحص ما أنتجته الأداة، وليس فقط ما إذا كانت فشلت، أضف
+`createOutputCheck()`. راجع [Hooks](/ar/hooks#أوقف-run-ما-يتقدّم)
+للاثنين، و[أحداث البث](/ar/stream-events) لحقول `heal.action`.
+
+### مراقبتها
+
+- استدعاءات `recover()` الراجعة: `onRecovered` و`onQuarantined` و`onOutage`
+  و`onError`. الاستدعاء الراجع الذي يرمي خطأ لا يوقف الحلقة.
+- تسرد `agent.pending()` كل run غير مكتمل مع `lastError` و`attempts`،
+  بما في ذلك المعزولة.
+- النتيجة التي استبدلها حارس التقدّم تُعلَّم على span الأداة بـ
+  `lousho.tool.replaced_by_hook`، ويُسجَّل الرفض كخطأ الـ span.
+  راجع [التتبّع والمراقبة](/ar/observability) للـ spans ولـ daemon
+  الـ observe المحلي.
+
+## اقتراح تعديلات لاحقًا
+
+تبحث `improveAgent()` من `lousho/improve` عن تعليمات ومهارات أفضل
+مستخدمةً حالات فاشلة تعطيها لها. وهي تجريبية.
+
+```ts
+import { createAgent } from 'lousho';
+import { formatImproveResult, improveAgent, renderTranscript } from 'lousho/improve';
+
+const result = await improveAgent({
+  harness: { instructions: 'You answer from the docs.', skills: {} },
+  cases: ['discount-question'],
+  holdout: ['refund-question'],
+  editor: { provider },
+  maxTokens: 500_000,
+  probe: async (candidate, caseId) => {
+    const agent = createAgent({ provider, instructions: candidate.instructions });
+    const run = await agent.send(caseId);
+    return { passed: (run.text ?? '').includes('cannot'), transcript: renderTranscript(run.messages), tokens: run.usage?.totalTokens ?? 0, ended: run.finishReason };
+  },
+});
+
+if (result.outcome === 'proposal') console.log(formatImproveResult(result));
+```
+
+ما تفعله وما لا تفعله:
+
+- **تُرجع اقتراحًا فقط.** الـ `outcome` بقيمة `proposal` يأتي مع `diff`.
+  يراجعه شخص، مستعينًا بـ `formatImproveResult()` للحصول على بطاقة مقروءة، ثم
+  يطبّقه بنفسه.
+- **لا تستطيع تغيير إلا التعليمات والمهارات.** لا تستطيع تغيير الأدوات أو
+  الصلاحيات أو الحدود.
+- **تختبر قبل أن تقترح.** يُشغِّل كل مرشّح حالاتك مرة أخرى ويجب أن
+  يحسّن حالة تدريب واحدة على الأقل دون أن يجعل أي حالة أسوأ، بما في ذلك
+  الحالات المحجوزة (held-out) التي لا يراها المحرّرون أبدًا. وتفحص أيضًا التكلفة لكل run ناجح
+  مقابل `maxCostIncrease` (الافتراضي 0.5).
+- **الـ `probe` الخاص بك يشغّل الـ agent، فهو المسؤول عن الآثار الجانبية.** أضف
+  `createShadowHook({ readOnly: [...] })` إلا إذا كانت كل أداة آمنة للتشغيل.
+
+يمكن أن تأتي الحالات من traces الخاصة بك: تحوّل `casesFromFailures(db)` الـ runs الفاشلة في
+قاعدة بيانات observe المحلية لديك إلى حالات. وتصل نتائج الأدوات فيها إلى المحرّرين
+معلَّمة بأنها غير موثوقة.
+
+راجع [تحسين الـ agent](/ar/improve) للبوابة والنتائج وملاحظات
+الأمان.
+
+## كيف تتكامل الطبقتان
+
+الـ run الذي تتخلّى عنه الطبقة الأولى، معزولًا أو موقوفًا بـ
+`LOUSHO_RUN_NO_PROGRESS`، علامة على أن شيئًا في الـ agent يحتاج إلى تغيير.
+أصلِح الأداة، أو غيّر التعليمات. وإذا كان السبب في التعليمات أو
+المهارات، فيمكن أن تصبح حالات الفشل تلك حالات لـ `improveAgent()`، ويقرّر شخص
+ما إذا كان سيطبّق ما تقترحه.

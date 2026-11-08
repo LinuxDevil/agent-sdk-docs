@@ -93,6 +93,7 @@ const PAGES = {
   'docs/claude-projects.md': 'claude-projects',
   'docs/hostinger-vps.md': 'hostinger-vps',
   'docs/upgrading.md': 'upgrading',
+  'docs/self-healing.md': 'self-healing',
   'docs/improve.md': 'improve',
   'docs/agent-spec.md': 'agent-spec',
   'CHANGELOG.md': 'changelog',

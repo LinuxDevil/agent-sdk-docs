@@ -184,6 +184,8 @@ console.log(charges); // 1: the completed charge step did not run again
 
 `onError(error, run?)` يتبلّغ عن sweep ما قدر يقرأ قائمة الـ store (`run` بقيمة undefined) وعن استئناف فشل (`run` متعيّن)؛ والحلقة تكمل في الحالتين. و`onRecovered(run, result)` ياخذ كل run كمّلته. إلغاء `signal` (أو `stop()`) يوقف الـ polling ويسوي abort للاستئنافات الجارية (الـ checkpoints حقها تبقى للتشغيل الجاي)؛ و`done` تكتمل أول ما يستقر كل شيء. الحلقة تبقي الـ process حيّة لين توقفها. ومثل `pending()`، `recover()` ترمي `LOUSHO_CONFIG_MISSING_CHECKPOINT_STORE` لو ما في checkpoint store. ومع store مخصص ما عنده leases (`acquireLease`)، ما في شيء يمنعها من استئناف run لسا شغّال في process ثانية: شغّلها في process وحدة بس.
 
+لنظرة عامة على الاستعادة جنب الـ progress guard و`improveAgent()`، شوف [التعافي الذاتي والتحسين الذاتي](/ar/self-healing).
+
 ## Run leases
 
 خلال ما يشتغل run عنده checkpoints (turn في session، أو run من `send(msg, { sessionId })`، أو استئناف بعد approval)، يمسك lease على id الـ checkpoint حقه في الـ checkpoint store: owner id وانتهاء صلاحية بعد 30 ثانية، يتجدد كل 10 ثواني. أي process ثانية أو replica ثانية أو store object ثاني يحاول يشغّل أو يستأنف نفس الـ id خلال هالوقت — `send()` كانت بتستأنف الـ turn المعلّقة أول، أو `agent.resume()`، أو `agent.approvals.resolve()` — يفشل بـ`LOUSHO_SESSION_BUSY` قبل ما تشتغل أي tool أو ينادى أي model (والـ approval المحسومة تبقى معلّقة). فـ replicaين ورا load balancer ما يشغّلون أبدًا tool calls نفس الـ turn مرتين.
