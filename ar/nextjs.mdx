@@ -4,7 +4,7 @@ sidebarTitle: "Next.js وFetch frameworks"
 ---
 {/* Generated from docs/nextjs.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-`createRouteHandler(agent, options?)` يشغّل الـ agent من ملف route في أي framework تستقبل الـ handlers فيه `Request` من Web API وترجع `Response`: الـ Next.js App Router، وSvelteKit، وRemix / React Router، وHono، وBun.serve. هو غلاف رفيع فوق نفس session API المستخدم في `lousho dev` وفي السيرفر المنشور ([النشر](/ar/deployment))، لذلك تشتغل الـ bindings الخاصة بـ React وVue وSvelte معه بدون أي تغيير. لا يستورد أي framework ولا أي module من `node:*`. بادئة `vendor/` في اسم الـ model هي التي تحدد الـ provider؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`).
+`createRouteHandler(agent, options?)` يشغّل الـ agent من ملف route في أي framework تستقبل الـ handlers فيه `Request` من Web API وترجع `Response`: الـ Next.js App Router، وSvelteKit، وRemix / React Router، وHono، وBun.serve. هو غلاف رفيع فوق نفس session API المستخدم في `lousho dev` وفي السيرفر المنشور ([النشر](/ar/deployment))، لذلك تعمل الـ bindings الخاصة بـ React وVue وSvelte معه بدون أي تغيير. لا يستورد أي framework ولا أي module من `node:*`. بادئة `vendor/` في اسم الـ model هي التي تحدد الـ provider؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o-mini`).
 
 ## Next.js App Router
 
@@ -28,7 +28,7 @@ export const { GET, POST } = createRouteHandler(agent, {
 });
 ```
 
-**الـ route بدون `auth` عام (public)**: أي شخص يصل إليه يقدر يشغّل الـ agent ويصرف ميزانية الـ model عندك. مرّر bearer token، أو دالة تتحقق من الـ session أو الـ cookie الخاصة بتطبيقك:
+**الـ route بدون `auth` عام (public)**: أي شخص يصل إليه يستطيع تشغيل الـ agent وإنفاق ميزانية الـ model لديك. مرّر bearer token، أو دالة تتحقق من الـ session أو الـ cookie الخاصة بتطبيقك:
 
 ```ts
 import { createAgent, createRouteHandler } from 'lousho';
@@ -55,11 +55,11 @@ export const { GET, POST } = createRouteHandler(createAgent({ model: 'openai/gpt
 | `GET <basePath>/oauth/callback` | الـ redirect من الـ OAuth provider بعد تسجيل الدخول؛ لا يمر على `auth` أبدًا (يحميه `state` الذي يُستخدم مرة واحدة) |
 | `GET <basePath>/health` | `ok`، ولا يمر على `auth` أبدًا |
 
-الـ agent يحتفظ بالـ sessions عبر `store` الخاص به (`createAgent({ store })`)، فإذا كنت تستخدم sessions أعطِ الـ agent ‏store يعيش أطول من استدعاء serverless واحد. مع `auth`، يرتبط معرّف الـ session بأول principal يرسل إليه turn (قراءة المعرّف لا تحجزه)، وأي principal آخر يحصل على `403` (`LOUSHO_SESSION_FORBIDDEN`). هذا الربط محفوظ في الذاكرة، فالـ instance الجديدة على serverless تنساه، وعندها ترفض الـ session المخزّنة لكل المستخدمين، حتى لمالكها: في تطبيق فيه أكثر من مستخدم، مرّر `authorizeSession` أيضًا، مثلًا مع معرّفات مشتقة من المتصل (`${userId}-<suffix without '-'>`، كما في المثال أدناه). راجع [من يحق له استخدام session](/ar/auth#من-يقدر-يستخدم-الـ-session).
+الـ agent يحتفظ بالـ sessions عبر `store` الخاص به (`createAgent({ store })`)، فإذا كنت تستخدم sessions أعطِ الـ agent ‏store يعيش أطول من استدعاء serverless واحد. مع `auth`، يرتبط معرّف الـ session بأول principal يرسل إليه turn (قراءة المعرّف لا تحجزه)، وأي principal آخر يحصل على `403` (`LOUSHO_SESSION_FORBIDDEN`). هذا الربط محفوظ في الذاكرة، فالـ instance الجديدة على serverless تنساه، وعندها ترفض الـ session المخزّنة لكل المستخدمين، حتى لمالكها: في تطبيق فيه أكثر من مستخدم، مرّر `authorizeSession` أيضًا، مثلًا مع معرّفات مشتقة من المتصل (`${userId}-<suffix without '-'>`، كما في المثال أدناه). راجع [من يحق له استخدام session](/ar/auth#من-يستطيع-استخدام-الـ-session).
 
 مسارات POST تقبل JSON فقط (`Content-Type: application/json`، وهو ما يرسله `useLoushoAgent` و`useChat`)، وترفض طلب متصفح من origin آخر إلا إذا أضفته إلى `allowedOrigins`: راجع [الطلبات عبر المواقع](/ar/auth#الطلبات-بين-المواقع).
 
-**من يحق له الموافقة على استدعاء.** لا يوجد في `createRouteHandler` خيار `approvers`؛ الـ approvals تُحسم عبر `authorizeApproval({ principal, sessionId, approval })`. افتراضيًا (`callerOwnsApproval`) المستخدم الذي يشتغل الاستدعاء المحجوز (gated) لصالحه هو من يقدر يوافق عليه، ولا يقدر يحسم استدعاء مستخدم آخر، فالتطبيق ذو المستخدم الواحد الذي يسأل مستخدمه نفسه لا يحتاج أي شيء. وهذا يعني أيضًا أن المستخدم يقدر يوافق على استرداد مبلغ لنفسه. إذا لازم تأتي الموافقة من شخص آخر، مرّر `authorizeApproval`. هذه قاعدة الشخصين: المشرف هو من يحسم، وأبدًا ليس على استدعاء يشتغل لصالحه هو. ويحتاج المشرف أيضًا `authorizeSession` حتى يقرأ session العميل (`GET /chat/:id`، ليعرض ما يوافق عليه) ويحسم فيها؛ فافتراضيًا الـ session ملك العميل وحده:
+**من يحق له الموافقة على استدعاء.** لا يوجد في `createRouteHandler` خيار `approvers`؛ الـ approvals تُحسم عبر `authorizeApproval({ principal, sessionId, approval })`. افتراضيًا (`callerOwnsApproval`) المستخدم الذي يعمل الاستدعاء المحجوز (gated) لصالحه هو من يستطيع الموافقة عليه، ولا يستطيع حسم استدعاء مستخدم آخر، فالتطبيق ذو المستخدم الواحد الذي يسأل مستخدمه نفسه لا يحتاج إلى أي شيء. وهذا يعني أيضًا أن المستخدم يستطيع الموافقة على استرداد مبلغ لنفسه. إذا كان يجب أن تأتي الموافقة من شخص آخر، فمرّر `authorizeApproval`. هذه قاعدة الشخصين: المشرف هو من يحسم، ولا يحسم أبدًا استدعاءً يعمل لصالحه هو. ويحتاج المشرف أيضًا `authorizeSession` حتى يقرأ session العميل (`GET /chat/:id`، ليعرض ما يوافق عليه) ويحسم فيها؛ فافتراضيًا الـ session ملك العميل وحده:
 
 ```ts
 import { createAgent, createRouteHandler, memoryStore } from 'lousho';
@@ -82,9 +82,9 @@ export const { GET, POST } = createRouteHandler(agent, {
 });
 ```
 
-الخطأ يصل إلى الـ client على شكل `name` و`code` مع رسالة عامة؛ و`exposeErrors: true` يرسل النص الأصلي. راجع [من يحق له حسم approval](/ar/auth#من-يقدر-يحسم-الـ-approval) لمعرفة الـ `403` الذي يرد به، ولصيغة المشرف في أي session.
+الخطأ يصل إلى الـ client على شكل `name` و`code` مع رسالة عامة؛ و`exposeErrors: true` يرسل النص الأصلي. راجع [من يحق له حسم approval](/ar/auth#من-يستطيع-حسم-الـ-approval) لمعرفة الـ `403` الذي يرد به، ولصيغة المشرف في أي session.
 
-إذا اختفى الـ client أثناء بث turn في session (تبويب أُغلق، اتصال انقطع)، يكمل الـ turn حتى نهايته على السيرفر ويُحفظ في الـ session، فالـ tool الذي اشتغل فعلًا (استرداد مبلغ، بريد إلكتروني) يكون في الـ transcript، والرسالة التالية من المستخدم تقدر تسأل عنه. لا يُكتب أي شيء بعد ذلك في الـ stream المغلق. على host من نوع serverless، مرّر `waitUntil` الخاص بالمنصة (مثلًا `waitUntil` من `@vercel/functions`) حتى تبقى الـ function حيّة إلى أن يُحفظ الـ turn. أما `onDisconnect: 'abort'` فيلغي الـ turn بدلًا من ذلك، كما كان سابقًا؛ ونتائج الـ tools التي حصل عليها تبقى محفوظة.
+إذا اختفى الـ client أثناء بث turn في session (تبويب أُغلق، اتصال انقطع)، يكمل الـ turn حتى نهايته على السيرفر ويُحفظ في الـ session، فالـ tool الذي عمل فعلًا (استرداد مبلغ، بريد إلكتروني) يكون في الـ transcript، والرسالة التالية من المستخدم تستطيع السؤال عنه. لا يُكتب أي شيء بعد ذلك في الـ stream المغلق. على host من نوع serverless، مرّر `waitUntil` الخاص بالمنصة (مثلًا `waitUntil` من `@vercel/functions`) حتى تبقى الـ function حيّة إلى أن يُحفظ الـ turn. أما `onDisconnect: 'abort'` فيلغي الـ turn بدلًا من ذلك، كما كان سابقًا؛ ونتائج الـ tools التي حصل عليها تبقى محفوظة.
 
 `auth` يقبل أيضًا قائمة مرتبة من `jwt()` و`oidc()` و`basic()` و`apiToken()`، والمتصل الذي تقبله يصل إلى الـ run باسم `principal`: راجع [auth المسارات والـ principals](/ar/auth).
 

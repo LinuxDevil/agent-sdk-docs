@@ -11,7 +11,7 @@ description: "كيف ينتهي الـrun، كيف توقفه، وكيف تعم�
 
 النوع (`ExecutionFinishReason`) هو union مغلق، فالمقارنة بسبب مكتوب بشكل خاطئ لا تمر في الـcompile.
 
-`'max-steps'` تعني أن ميزانية `maxSteps` (الافتراضية 10) انتهت والـmodel كان ما زال يريد يكمل، فقد يكون الرد فارغًا أو جزئيًا. الـrun الذي ينتهي طبيعيًا ضمن الميزانية يحتفظ بـ`'stop'`. الخطوات التي تأتي من `initialSteps` أو من استئناف بعد approval تُحسب ضمن الميزانية، و`result.steps` هو عدد الخطوات التي تمت. السبب نفسه موجود في `run.done` ضمن [streaming](/ar/streaming)، وفي `finish` اللي هو مقابلها في `onEvent` الـdeprecated.
+`'max-steps'` تعني أن ميزانية `maxSteps` (الافتراضية 10) انتهت والـmodel ما زال يريد أن يكمل، فقد يكون الرد فارغًا أو جزئيًا. الـrun الذي ينتهي طبيعيًا ضمن الميزانية يحتفظ بـ`'stop'`. الخطوات التي تأتي من `initialSteps` أو من استئناف بعد approval تُحسب ضمن الميزانية، و`result.steps` هو عدد الخطوات التي تمت. السبب نفسه موجود في `run.done` ضمن [streaming](/ar/streaming)، وفي `finish` الذي هو مقابلها في `onEvent` الـdeprecated.
 
 ```ts
 import { createAgent, createMockProvider } from 'lousho';
@@ -43,8 +43,8 @@ const result = await agent.send('Summarize this', { signal: AbortSignal.timeout(
 
 كيف يتصرف الإلغاء:
 
-- الـ`signal` يُفحص قبل كل call للـmodel وقبل كل tool call. ويُمرَّر إلى الـprovider عبر `GenerateOptions.signal` (يُرسل إلى `ai` SDK باسم `abortSignal`) وإلى كل tool عبر `execute(args, { abortSignal })`، فالعمل الجاري يقدر يوقف مبكرًا. الـ`httpTool` الجاهزة تمرره إلى `fetch`، والـruns الفرعية المفوَّضة (أداة `task`) تُلغى مع الـrun الأب.
-- الـrun الملغى **يرجع نتيجة** ولا يرمي rejection: `finishReason: 'aborted'` مع الرسائل والخطوات اللي تمت. إذا قطع الإلغاء call للـmodel يعمل بالـstreaming، يبقى النص الذي بثّه في `result.text` (وفي رسالة assistant معلَّمة بـ`interrupted`). الـrejection الناتج عن الإلغاء، مثل `AbortError`، لا يُعتبر فشلًا: أغلفة الـretry والـfallback الخاصة بالـprovider لا تعيد محاولته، ولا يُختصر إلى خطأ provider.
+- الـ`signal` يُفحص قبل كل call للـmodel وقبل كل tool call. ويُمرَّر إلى الـprovider عبر `GenerateOptions.signal` (يُرسل إلى `ai` SDK باسم `abortSignal`) وإلى كل tool عبر `execute(args, { abortSignal })`، فيستطيع العمل الجاري أن يتوقف مبكرًا. الـ`httpTool` الجاهزة تمرره إلى `fetch`، والـruns الفرعية المفوَّضة (أداة `task`) تُلغى مع الـrun الأب.
+- الـrun الملغى **يُرجع نتيجة** ولا يرمي rejection: `finishReason: 'aborted'` مع الرسائل والخطوات التي تمت. إذا قطع الإلغاء call للـmodel يعمل بالـstreaming، يبقى النص الذي بثّه في `result.text` (وفي رسالة assistant معلَّمة بـ`interrupted`). الـrejection الناتج عن الإلغاء، مثل `AbortError`، لا يُعتبر فشلًا: أغلفة الـretry والـfallback الخاصة بالـprovider لا تعيد محاولته، ولا يُختصر إلى خطأ provider.
 - أحداث الـrun تنتهي بـ`run.done` مع `finishReason: 'aborted'`.
 - الـrun لا ينتظر provider يتجاهل الـsignal: يُترك الـcall للـmodel لحظة الإلغاء (ويُهمَل رده المتأخر وأي شيء يبثّه بعدها) وينتهي الـrun بـ`'aborted'`. ولا يُنتظر كذلك الـtool الذي يتجاهل `abortSignal` الخاص به: ينتهي الـrun بـ`'aborted'` دون call جديد للـmodel، ويأخذ الـcall الذي ما زال يعمل نتيجة 'cancelled'، ويستمر الـtool في العمل في الخلفية (والنتيجة التي تصل في لحظة إطلاق الـsignal نفسها تُحفظ). `defineTool({ timeoutMs })` يضع حدًا لمدة call الـtool: الـcall الذي ما زال يعمل عندها يفشل بخطأ tool يراه الـmodel، والـrun الذي يُلغى أثناء تشغيل call كهذا يتوقف عن انتظاره.
 - `result.abortReason` يقول لك السبب: سبب الـsignal على شكل `{ name, message }`، حيث `name` هو `'TimeoutError'` مع `AbortSignal.timeout()`، و`'AbortError'` مع `controller.abort()` (مع نص السبب إذا كان string، مثل `controller.abort('user left')`)، أو اسم الـError نفسه إذا كان السبب Error.
@@ -76,9 +76,9 @@ const agent = createAgent({
 
 الضمانات، أيًّا كان الحد:
 
-- **ترتيب السجل هو ترتيب الاستدعاء.** نتائج الـtools تنضاف بالترتيب اللي طلب فيه الـmodel الـcalls، لا بترتيب انتهائها، فيكون طلب الـprovider التالي deterministic.
+- **ترتيب السجل هو ترتيب الاستدعاء.** تُضاف نتائج الـtools بالترتيب الذي طلب به الـmodel الـcalls، لا بترتيب انتهائها، فيكون طلب الـprovider التالي deterministic.
 - **الأحداث.** الـcalls تبدأ بترتيب الطلب. حدث `tool.start` للـcall و`onToolCall` وvalidation الوسائط وhooks الـ`preToolCall` وفحص `needsApproval` تعمل قبل بدايتها مباشرة، call واحدة كل مرة. حدث `tool.done` (أو `tool.error`) يُطلق عند انتهائها، فالنتائج تصل بترتيب الانتهاء. مع `toolConcurrency: 1` تتعاقب أحداث البدء والتسوية تمامًا كما كانت.
-- **الموافقات.** أول call تحتاج approval توقف الدفعة: الـcalls اللي قبلها تعمل (بالتوازي) وتُسجَّل نتائجها، ثم يتوقف الـrun على هذه الـcall (`finishReason: 'awaiting-approval'`). الـcalls اللي بعدها لا تبدأ في هذا الـrun. `resumeAfterApproval()` تسجّل نتيجة الـcall المتوقفة (أو رفضها) ثم تشغّل الـcalls اللاحقة بنفس الطريقة، فكل call في الدورة تحصل على نتيجة واحدة بالضبط — راجع [Durable execution](/ar/durable-execution#approval-في-منتصف-batch-من-tool-calls).
+- **الموافقات.** أول call تحتاج approval توقف الدفعة: الـcalls التي قبلها تعمل (بالتوازي) وتُسجَّل نتائجها، ثم يتوقف الـrun على هذه الـcall (`finishReason: 'awaiting-approval'`). الـcalls التي بعدها لا تبدأ في هذا الـrun. `resumeAfterApproval()` تسجّل نتيجة الـcall المتوقفة (أو رفضها) ثم تشغّل الـcalls اللاحقة بنفس الطريقة، فكل call في الدورة تحصل على نتيجة واحدة بالضبط — راجع [Durable execution](/ar/durable-execution#approval-في-منتصف-batch-من-tool-calls).
 - **الإخفاقات معزولة.** الـtool التي ترمي خطأ تأخذ نتيجة خطأ خاصة بها، وأخواتها تكمل. الخطأ المنتشر (`PropagatingToolError`، مثل حاجز عمق التفويض أو hook يرمي) يمنع بدء calls جديدة، وينتظر الجارية حتى تستقر، ثم يرفض الـrun. لا تبقى أي tool تعمل منفصلة.
 - **الإلغاء.** إلغاء أثناء تشغيل دفعة ينهي الـrun بـ`finishReason: 'aborted'`. الـcalls التي انتهت تحتفظ بنتائجها، والباقي تأخذ نتيجة تفيد بأنها أُلغيت. الـtools الجارية ترى الإلغاء عبر `abortSignal` الخاص بها.
 - **Checkpoints.** مع `sessionId` و`checkpointStore` تُحفظ دورة الـmodel في checkpoint قبل أن تبدأ أي call، ثم تُحفظ من جديد كلما زاد طول سلسلة الـcalls المنتهية بالترتيب (ومع `1`، بعد كل call). الـrun المستأنف لا يعيد تشغيل call مسجَّلة، ولا يسأل الـmodel ثانية عن دورة سبق حفظها.

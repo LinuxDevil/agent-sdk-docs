@@ -182,7 +182,7 @@ process واحدًا فقط يستأنف كل run). راجع
 لكن الأداة التي كانت في منتصف الاستدعاء حين مات الـ process تُنفَّذ من جديد عند الاستئناف، فقد
 يحدث أثرها الجانبي مرتين. اجعل هذه الأدوات idempotent (مفتاح idempotency
 يُمرَّر إلى API الدفع، أو فحص "هل فعلت هذا من قبل"). راجع
-[At-least-once tools](/ar/durable-execution#at-least-once-tools-خلّي-الـ-side-effects-idempotent).
+[At-least-once tools](/ar/durable-execution#at-least-once-tools-اجعل-الـ-side-effects-idempotent).
 والأداة التي عليها `needsApproval` لا تتأثر بهذا وهي تنتظر: فالوقفة
 لا تسجّل أي عمل، بل تنتظر القرار فقط.
 

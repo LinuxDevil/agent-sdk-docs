@@ -4,12 +4,12 @@ sidebarTitle: "المحررات (ACP)"
 ---
 {/* Generated from docs/acp.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-[Agent Client Protocol](https://agentclientprotocol.com) بروتوكول يخلّي المحرر
-يقود agent للبرمجة يشتغل كعملية فرعية: المحرر يكتب طلبات JSON-RPC 2.0
+[Agent Client Protocol](https://agentclientprotocol.com) بروتوكول يتيح للمحرر
+أن يقود agent للبرمجة يعمل كعملية فرعية: المحرر يكتب طلبات JSON-RPC 2.0
 على stdin الخاص بالـ agent، رسالة JSON واحدة في كل سطر، ويقرأ
 ردوده وتحديثاته الـ streamed من stdout. Zed ومحررات
-أخرى تتكلم بهذا البروتوكول. `lousho acp` يقدّم أي Lousho agent بهذه الطريقة، فتقدر
-تدردش معه وتتابع الـ tool calls وتوافق عليها من لوحة الـ agent في المحرر.
+أخرى تتكلم بهذا البروتوكول. `lousho acp` يقدّم أي Lousho agent بهذه الطريقة، فيمكنك أن
+تحادثه وتتابع الـ tool calls وتوافق عليها من لوحة الـ agent في المحرر.
 
 ## الأمر
 
@@ -23,11 +23,11 @@ npx lousho acp src/agent.ts                        # a .ts/.js module (createAge
 lousho acp <spec.yaml|spec.json|agent-dir|agent.ts> [--model provider/model]
 ```
 
-الـ `<path>` يتحمّل بنفس طريقة [`lousho chat`](/ar/cli#lousho-chat)، و`--model`
-يشتغل بنفس الشكل. بادئة `vendor/` في الـ model تختار الـ provider؛
+يُحمَّل الـ `<path>` بطريقة [`lousho chat`](/ar/cli#lousho-chat) نفسها، و`--model`
+يعمل بالشكل نفسه. بادئة `vendor/` في الـ model تختار الـ provider؛
 ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثلاً
-`openrouter/openai/gpt-4o`). المحرر هو الذي يبدأ العملية، وهي تظل شغالة حتى
-ينغلق stdin. لا يحمل stdout إلا رسائل البروتوكول: الأخطاء،
+`openrouter/openai/gpt-4o`). المحرر هو الذي يبدأ العملية، وتظل تعمل حتى
+يُغلق stdin. لا يحمل stdout إلا رسائل البروتوكول: الأخطاء،
 وأي شيء يطبعه كود الـ agent بـ `console.log`، تذهب إلى stderr الذي
 تعرضه المحررات في سجلاتها. مسار أو خيار خاطئ ينهي العملية برمز خروج 1 مع
 الخطأ المرمّز (`LOUSHO_CONFIG_INVALID`، ...) على stderr.
@@ -59,10 +59,10 @@ lousho acp <spec.yaml|spec.json|agent-dir|agent.ts> [--model provider/model]
 
 | الـ method | ما تفعله |
 | ------ | ------------ |
-| `initialize` | ترجّع `protocolVersion: 1` و`loadSession: false`، وقدرات prompt نصية فقط، وبدون طرق مصادقة. |
-| `session/new` | تفتح session (جلسة) في الـ SDK عبر `agent.session()`: الـ prompts في session واحدة تتشارك سجلّها. ترجّع `{ sessionId }`. `cwd` و`mcpServers` يُتجاهَلان؛ عرّف سيرفرات MCP للـ agent في إعداداته هو. |
-| `session/prompt` | تشغّل دورة واحدة. كتل النص هي المدخل؛ وكتلة `resource_link` تصير رابط Markdown إلى URI الخاص بها. تُنجَز بـ `{ stopReason }` عند انتهاء الدورة. |
-| `session/cancel` (إشعار) | تلغي الدورة الشغالة في الـ session: `session/prompt` الخاص بها يُنجَز بـ `{ stopReason: 'cancelled' }`، وطلب الصلاحية الذي ما يزال مفتوحًا يُحسب مرفوضًا. |
+| `initialize` | تُرجع `protocolVersion: 1` و`loadSession: false`، وقدرات prompt نصية فقط، وبدون طرق مصادقة. |
+| `session/new` | تفتح session (جلسة) في الـ SDK عبر `agent.session()`: الـ prompts في session واحدة تتشارك سجلّها. تُرجع `{ sessionId }`. `cwd` و`mcpServers` يُتجاهَلان؛ عرّف سيرفرات MCP للـ agent في إعداداته هو. |
+| `session/prompt` | تشغّل دورة واحدة. كتل النص هي المدخل؛ وكتلة `resource_link` تصبح رابط Markdown إلى URI الخاص بها. تُنجَز بـ `{ stopReason }` عند انتهاء الدورة. |
+| `session/cancel` (إشعار) | تلغي الدورة الجارية في الـ session: `session/prompt` الخاص بها يُنجَز بـ `{ stopReason: 'cancelled' }`، وطلب الصلاحية الذي ما يزال مفتوحًا يُحسب مرفوضًا. |
 
 طوال تنفيذ الدورة يرسل الـ agent إشعارات `session/update`:
 
@@ -74,30 +74,30 @@ lousho acp <spec.yaml|spec.json|agent-dir|agent.ts> [--model provider/model]
 الـ sub-agent runs التي يبدأها الـ tool `task` لا تُمرَّر إلى المحرر؛
 الـ `task` نفسه يظهر كـ tool call واحد.
 
-**الصلاحيات.** لما tool تحتاج approval (موافقة) — `needsApproval` أو قواعد `permissions`
+**الصلاحيات.** عندما تحتاج tool إلى approval (موافقة) — `needsApproval` أو قواعد `permissions`
 التي تطلب ذلك — يرسل الـ agent للمحرر طلب `session/request_permission`
-فيه الـ tool call وخيارين: `allow` (Allow، `allow_once`)
+يتضمّن الـ tool call وخيارين: `allow` (Allow، `allow_once`)
 و`reject` (Reject، `reject_once`). الإجابة تحسم الـ approval عبر
 `agent.approvals.streamResolve()` والدورة المستأنفة تكمل بث
-التحديثات؛ والرفض يعلّم الـ tool call بـ `failed` والـ model يكمل شغله.
-الدورة الواحدة يمكن تسأل عدة مرات.
+التحديثات؛ والرفض يعلّم الـ tool call بـ `failed` ويكمل الـ model عمله.
+يمكن أن تسأل الدورة الواحدة عدة مرات.
 
 **الأسئلة.** التوقف من نوع `ask_question` (`askQuestion: true`) لا يتحوّل إلى
-طلب صلاحية، لأن إجابة المستخدم يمكن تكون نصًا حرًا. بدل ذلك ينهي
-الدورة بـ `end_turn`، والسؤال مع خياراته المرقّمة يصير رسالة
+طلب صلاحية، لأن إجابة المستخدم يمكن أن تكون نصًا حرًا. بدلًا من ذلك ينهي
+الدورة بـ `end_turn`، ويصبح السؤال مع خياراته المرقّمة رسالة
 الـ agent؛ والـ prompt التالي في الـ session هو الإجابة
 (`agent.approvals.streamAnswer()`).
 
-**أسباب التوقف.** `end_turn` للانتهاء الطبيعي، و`max_turn_requests` لما
-`maxSteps` ينفد، و`max_tokens` لما إحدى ميزانيات `limits` تُستنفد أو الـ model يقف
-عند حدّ مخرجاته، و`refusal` لما guardrail يمنع أو فلتر
+**أسباب التوقف.** `end_turn` للانتهاء الطبيعي، و`max_turn_requests` عندما
+ينفد `maxSteps`، و`max_tokens` عندما تُستنفد إحدى ميزانيات `limits` أو يتوقف الـ model
+عند حدّ مخرجاته، و`refusal` عندما يمنع guardrail أو فلتر
 المحتوى عند الـ provider يوقف الـ model، و`cancelled` بعد
 `session/cancel`.
 
 **الأخطاء.** الـ method غير المعروفة يُرَدّ عليها بخطأ JSON-RPC رقم `-32601`، وسطر
 ليس JSON بـ `-32700`، وسطر هو JSON لكنه ليس كائن طلب (`null`، أو مصفوفة، أو نص،
 أو رقم، أو `method` ليست نصًا) بـ `-32600`، و`sessionId` غير معروف أو prompt فارغ بـ `-32602`، وprompt
-ثاني بينما واحد يشتغل في نفس الـ session بـ `-32600`. والـ run الذي يفشل
+ثانٍ بينما آخر يعمل في الـ session نفسها بـ `-32600`. والـ run الذي يفشل
 يُرَدّ عليه بـ `-32603` مع رسالة الخطأ، ورمز خطأ الـ SDK الخاص به (مثلاً
 `LOUSHO_PROVIDER_RATE_LIMITED`) في `error.data.code`. والـ `params` التي قيمتها `null`
 أو ليست object تُقرأ كـ `{}`. والسطر المشوّه لا يوقف السيرفر أبدًا.
@@ -117,8 +117,8 @@ lousho acp <spec.yaml|spec.json|agent-dir|agent.ts> [--model provider/model]
 
 نواة البروتوكول هي `serveAcp(agent, { input, write })`: تقرأ أسطر JSON-RPC
 من أي async iterable وتسلّم كل سطر صادر إلى `write`،
-فتقدر تقدّمها على transport آخر أو تشغّلها في الاختبارات بدون عملية.
-وتُنجَز لما ينتهي `input`، بعد إلغاء أي دورة شغالة.
+فيمكنك تقديمها على transport آخر أو تشغيلها في الاختبارات دون عملية.
+وتُنجَز عندما ينتهي `input`، بعد إلغاء أي دورة جارية.
 
 ```ts
 import * as readline from 'node:readline';

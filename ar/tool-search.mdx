@@ -5,12 +5,12 @@ title: "Tool search"
 
 agent عنده tools كثيرة (عدة سيرفرات MCP أو toolkit داخلية كبيرة) يرسل
 تعريف كل tool مع كل استدعاء للـ model. هذا يكلّف input tokens، وبعد
-حوالي 30 tool يصير الـ model أسوأ في اختيار الصح. مع tool search،
+حوالي 30 tool يصبح الـ model أسوأ في اختيار الصحيحة. مع tool search،
 الـ tools المعلَّمة بـ `deferLoading` تُترَك خارج الطلب. الـ model
 يحصل على tool مدمجة واحدة هي `tool_search`، يلاقي الذي يحتاجه بكلمات
 قليلة، والـ tools التي وجدها تُرسَل من خطوته التالية.
 
-البحث يشتغل داخل الـ SDK، فيعمل مع كل provider.
+البحث يعمل داخل الـ SDK، فيعمل مع كل provider.
 
 ## متى تستخدمه
 
@@ -99,7 +99,7 @@ descriptors التي يرجعها تحمل `deferLoading`، فتمرير `mcp.to
 يتضمن الطلب هذه الـ tools. وحين تُحمَّل كل الـ tools المؤجلة لا تعود
 `tool_search` معروضة.
 
-الـ tool المؤجلة التي يستدعيها الـ model باسمها قبل تحميلها تشتغل مثل أي
+الـ tool المؤجلة التي يستدعيها الـ model باسمها قبل تحميلها تعمل مثل أي
 tool أخرى (الـ approvals والصلاحيات والـ guardrails تنطبق كالمعتاد).
 و`stream()` يبلّغ عن `tool_search` كزوج عادي `tool.start` / `tool.done`.
 
@@ -126,7 +126,7 @@ tool أخرى (الـ approvals والصلاحيات والـ guardrails تنط�
 | `thresholdPercent` | `0.1` | التأجيل فقط حين تبلغ التعريفات المؤجلة هذه الحصة من الـ context window. القيمة `0` تؤجّل دائمًا. |
 | `maxResults` | `5` | عدد الـ tools التي تُحمَّل في كل بحث. |
 | `contextWindow` | من الـ model registry، وإلا 128,000 | الـ context window الخاص بالـ model، لحساب العتبة. القيمة الاحتياطية 128,000 تطبع `console.warn` مرة واحدة؛ اضبطه (أو استخدم `registerModel()`) مع الـ models المحلية. |
-| `search(query, tools)` | الترتيب بالكلمات المفتاحية | ترتيبك الخاص (مثلًا embeddings): أرجِع أسماء الـ tools، الأفضل أولًا. الأسماء غير المعروفة والمكررة تُسقَط. وإذا رمت الدالة خطأً، يصير الاستدعاء tool error ولا يُحمَّل شيء. |
+| `search(query, tools)` | الترتيب بالكلمات المفتاحية | ترتيبك الخاص (مثلًا embeddings): أرجِع أسماء الـ tools، الأفضل أولًا. الأسماء غير المعروفة والمكررة تُسقَط. وإذا رمت الدالة خطأً، يصبح الاستدعاء tool error ولا يُحمَّل شيء. |
 
 ```ts
 import { createAgent } from 'lousho';
@@ -167,7 +167,7 @@ Claude Agent SDK.
   والـ fork، والدورة التالية في الـ session، كلها تبقي الـ tools
   المحمَّلة.
 - الاستئناف لا يبلّغ عن
-  [agent drift](/ar/durable-execution#استئناف-run-بعد-ما-يتغير-الـ-agent) بسبب
+  [agent drift](/ar/durable-execution#استئناف-run-بعد-تغيّر-الـ-agent) بسبب
   التحميل: الـ fingerprint يشمل كل tool، مؤجلة أو لا.
 - [compaction](/ar/compaction) يقتطع نتيجة `tool_search` يلغي تحميل
   أدواتها من استدعاء الـ model التالي؛ والـ model يبحث من جديد حين

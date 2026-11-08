@@ -3,7 +3,7 @@ title: "Structured output"
 ---
 {/* Generated from docs/structured-output.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-مرّر للـ agent zod schema في الخيار `output`، والرد النهائي يصير object typed وصالح حسب الـ schema: `result.object`. الـ agent يقدر يعمل tool calls أولًا عادي؛ الإجابة النهائية فقط لازم تطابق الـ schema. بادئة `vendor/` في اسم الـ model هي التي تحدد الـ provider؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثال: `openrouter/openai/gpt-4o-mini`).
+مرّر للـ agent zod schema في الخيار `output`، فيصبح الرد النهائي object typed وصالحًا وفق الـ schema: `result.object`. يستطيع الـ agent إجراء tool calls أولًا كالمعتاد؛ والإجابة النهائية وحدها يجب أن تطابق الـ schema. بادئة `vendor/` في اسم الـ model هي التي تحدد الـ provider؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثال: `openrouter/openai/gpt-4o-mini`).
 
 ```ts
 import { z } from 'zod';
@@ -25,7 +25,7 @@ if (result.object) {
 
 نوع `result.object` هو `z.output<typeof schema>`، فيطبّق zod عليه الـ defaults والـ transforms. أما `result.text` فيحتفظ بنص JSON الخام الذي كتبه الـ model.
 
-الـ schema ممكن يكون zod 3 أو zod 4: يتحوّل إلى JSON Schema بـ`z.toJSONSchema` في zod 4 وبمحوّل `ai` SDK في zod 3، والـ validation في الحالتين يصير بـ`safeParse` الخاصة بالـ schema نفسه. نوع `output` هو Standard Schema، نفس `defineTool({ input })`، فيستنتج TypeScript نوع `result.object` بدون cast سواء كان الـ schema من zod 3، أو zod 4 (`zod/v4` على zod 3.25، أو zod 4 نفسه)، أو أي Standard Schema آخر يقدر ينتج JSON Schema:
+يمكن أن يكون الـ schema من zod 3 أو zod 4: يتحوّل إلى JSON Schema بـ`z.toJSONSchema` في zod 4 وبمحوّل `ai` SDK في zod 3، ويجري الـ validation في الحالتين بـ`safeParse` الخاصة بالـ schema نفسه. نوع `output` هو Standard Schema، مثل `defineTool({ input })`، فيستنتج TypeScript نوع `result.object` دون cast سواء كان الـ schema من zod 3، أو zod 4 (`zod/v4` على zod 3.25، أو zod 4 نفسه)، أو أي Standard Schema آخر يستطيع إنتاج JSON Schema:
 
 ```ts
 import { z } from 'zod/v4';
@@ -38,7 +38,7 @@ console.log(object?.city); // typed: string
 
 ## الـ schemas التي تعكس tool له أثر جانبي
 
-لما يعكس الـ output schema الـ payload الخاص بـ tool له أثر جانبي (مثلًا مصفوفة `comments[]` في `output` بجانب tool اسمه `post_comment`)، كثير من الـ models تضع البيانات في الـ object النهائي ولا تستدعي الـ tool أبدًا، أو تعمل الاثنين. لا تعتمد على الـ model ليختار واحدًا منهما. إما أن تنفّذ الأثر الجانبي في كودك أنت من `result.object` بعد الـ validation، أو لا تعكس الـ payload أصلًا: خلّ الـ tool يأخذ البيانات، واترك `output` لملخص أو حالة.
+عندما يعكس الـ output schema الـ payload الخاص بـ tool له أثر جانبي (مثلًا مصفوفة `comments[]` في `output` بجانب tool اسمه `post_comment`)، فإن كثيرًا من الـ models تضع البيانات في الـ object النهائي ولا تستدعي الـ tool أبدًا، أو تفعل الأمرين معًا. لا تعتمد على الـ model ليختار واحدًا منهما. إما أن تنفّذ الأثر الجانبي في كودك أنت من `result.object` بعد الـ validation، أو لا تعكس الـ payload أصلًا: اجعل الـ tool يأخذ البيانات، واترك `output` لملخص أو حالة.
 
 ```ts
 import { z } from 'zod';
@@ -58,7 +58,7 @@ for (const comment of result.object?.comments ?? []) {
 }
 ```
 
-في نمط "استخرج، ثم وافق، ثم نفّذ"، افصل الخطوات الثلاث عن بعض. الـ agent يستخرج فقط إلى `output` (بدون tool له أثر جانبي). كودك يعرض الـ object بعد الـ validation على شخص، ولا ينفّذ إلا لما يقول نعم، مع idempotency key مأخوذ من البيانات (رقم المطالبة)، لأن إعادة تشغيل الـ flow كله تستخرج من جديد:
+في نمط "استخرج، ثم وافق، ثم نفّذ"، افصل الخطوات الثلاث بعضها عن بعض. الـ agent يستخرج فقط إلى `output` (بلا tool له أثر جانبي). وكودك يعرض الـ object بعد الـ validation على شخص، ولا ينفّذ إلا عندما يوافق، مع idempotency key مأخوذ من البيانات (رقم المطالبة)، لأن إعادة تشغيل الـ flow كله تستخرج من جديد:
 
 ```ts
 import { z } from 'zod';
@@ -79,11 +79,11 @@ if (claim && (await askReviewer(claim))) {
 }
 ```
 
-وإذا لازم الـ model يستدعي الـ tool بنفسه، اربطه بـ`needsApproval`، وشوف [Approvals](/ar/approvals#إنهاء-الـ-run-بعد-الرفض) لإيقاف الـ run عند الرفض.
+وإذا كان يجب أن يستدعي الـ model الـ tool بنفسه، فاربطه بـ`needsApproval`، وراجع [Approvals](/ar/approvals#إنهاء-الـ-run-بعد-الرفض) لإيقاف الـ run عند الرفض.
 
 ## Sessions
 
-`agent.session()` على agent له `output` يرجّع session نتيجة `send()` فيها (وكذلك `result` في `stream()`) تحمل الـ`object` typed لكل turn. ما فيه `output` مختلف لكل نداء: الـ schema هو schema الـ agent.
+`agent.session()` على agent له `output` يُرجع session تحمل فيها نتيجة `send()` (وكذلك `result` في `stream()`) الـ`object` typed لكل turn. لا يوجد `output` مختلف لكل نداء: الـ schema هو schema الـ agent.
 
 ```ts
 import { z } from 'zod';
@@ -97,9 +97,9 @@ console.log(object?.tempC); // typed: number
 
 ## Sub-agents
 
-الـ sub-agent الذي له `output` schema خاص يرد على الـ lead بالـ object بعد الـ validation. نتيجة الـ tool `task` (وكذلك `result` في `agent_await` لمهمة تعمل في الخلفية) هي الـ object كـ JSON، بعده سطر فارغ ثم الـ footer المعتاد `[sub-agent '<name>': ... taskId '<id>']`، فالـ lead model يقرأ الـ object نفسه بدل صياغة نثرية عنه. وإذا ظل رد الـ sub-agent غير صالح بعد خطوة الإصلاح، يفشل نداء `task` بخطأ tool منظم (`kind: 'execution'` ورسالة تذكر مشاكل الـ schema)، والـ lead يقدر يعمل retry أو يغيّر طريقته. والـ sub-agent الذي تخلص خطواته ثم يعطي object صالح في النداء الأخير الإجباري ([عند نفاد الخطوات](#عند-نفاد-الخطوات)) يرد على الـ lead بذلك الـ object، مثل sub-agent أنهى عمله عادي؛ والـ footer يعرض سبب الانتهاء `'max-steps'`، وبعده سطر يقول إن الخطوات خلصت.
+الـ sub-agent الذي له `output` schema خاص يرد على الـ lead بالـ object بعد الـ validation. نتيجة الـ tool `task` (وكذلك `result` في `agent_await` لمهمة تعمل في الخلفية) هي الـ object كـ JSON، بعده سطر فارغ ثم الـ footer المعتاد `[sub-agent '<name>': ... taskId '<id>']`، فالـ lead model يقرأ الـ object نفسه بدل صياغة نثرية عنه. وإذا ظل رد الـ sub-agent غير صالح بعد خطوة الإصلاح، يفشل نداء `task` بخطأ tool منظم (`kind: 'execution'` ورسالة تذكر مشاكل الـ schema)، ويستطيع الـ lead إجراء retry أو تغيير طريقته. والـ sub-agent الذي تنفد خطواته ثم يعطي object صالحًا في النداء الأخير الإجباري ([عند نفاد الخطوات](#عند-نفاد-الخطوات)) يرد على الـ lead بذلك الـ object، مثل sub-agent أنهى عمله بشكل عادي؛ والـ footer يعرض سبب الانتهاء `'max-steps'`، ويليه سطر يذكر أن الخطوات نفدت.
 
-الـ sub-agent **لا** يرث `output` الخاص بالـ lead: مخرجات كل agent خاصة فيه، والـ sub-agent بدون `output` يرجّع نص كالمعتاد. وإذا كان الـ agent المنشور وراء [`remoteAgent()`](/ar/sub-agents#remote-sub-agents) له `output` schema، يرجّع الـ object البعيد بنفس الطريقة (JSON ثم الـ footer)، مقروء من `object` في حدث `run.done` في الـ stream البعيد.
+الـ sub-agent **لا** يرث `output` الخاص بالـ lead: مخرجات كل agent خاصة به، والـ sub-agent بلا `output` يُرجع نصًا كالمعتاد. وإذا كان للـ agent المنشور خلف [`remoteAgent()`](/ar/sub-agents#remote-sub-agents) `output` schema، فإنه يُرجع الـ object البعيد بالطريقة نفسها (JSON ثم الـ footer)، مقروء من `object` في حدث `run.done` في الـ stream البعيد.
 
 ```ts
 import { z } from 'zod';
@@ -117,7 +117,7 @@ console.log(result.text);
 
 ## الحقول الاختيارية
 
-الحقول الاختيارية تشتغل على الـ endpoints الصارمة للـ structured output (OpenAI و OpenRouter)، التي تشترط أن تكون كل خاصية مذكورة في `required`. في الـ JSON Schema المرسل للـ model، كل خاصية اختيارية (`.optional()`، `.default()`) تصير required و nullable بدلًا من ذلك، وعلى كل المستويات: الـ objects المتداخلة، وعناصر المصفوفات، وفروع الـ unions. والـ `null` الذي يرجّعه الـ model لحقل كهذا يُحذف قبل الـ validation، فالـ schema الذي كتبته أنت يظل يقبله، و`result.object` لا يحتوي مفتاحًا له. أما الحقل الذي يقبل `null` بنفسه (`.nullable()`، `.nullish()`) فيحتفظ بالـ `null`.
+الحقول الاختيارية تعمل على الـ endpoints الصارمة للـ structured output (OpenAI و OpenRouter)، التي تشترط أن تكون كل خاصية مذكورة في `required`. في الـ JSON Schema المرسل للـ model، كل خاصية اختيارية (`.optional()`، `.default()`) تصبح required و nullable بدلًا من ذلك، وعلى كل المستويات: الـ objects المتداخلة، وعناصر المصفوفات، وفروع الـ unions. والـ `null` الذي يُرجعه الـ model لحقل كهذا يُحذف قبل الـ validation، فالـ schema الذي كتبته أنت يظل يقبله، و`result.object` لا يحتوي مفتاحًا له. أما الحقل الذي يقبل `null` بنفسه (`.nullable()`، `.nullish()`) فيحتفظ بالـ `null`.
 
 ```ts
 import { z } from 'zod';
@@ -132,21 +132,21 @@ const { object } = await agent.send('Review this change.');
 console.log(object?.note); // typed: string | undefined
 ```
 
-## كيف يشتغل
+## كيف يعمل
 
 1. الـ system prompt يأخذ قسم `## Output format` يطلب الإجابة النهائية كـ JSON object فقط يطابق الـ schema، معروض كـ JSON Schema.
-2. نداءات الـ model التي لا تعرض tools تحمل `responseFormat: { type: 'json', schema }` في `GenerateOptions`: كل نداءات agent بدون tools، ونداء "أجب الآن" لما تخلص الخطوات (انظر أدناه)، وخطوة الإصلاح. هو مجرد hint: الـ providers المدمجين المبنيين على `ai`-SDK يفعّلون JSON mode في الـ model (مع الـ schema في الـ models التي تدعم structured outputs؛ و OpenRouter والـ provider `pi` يرسلان response format صارم من نوع `json_schema`)، والـ custom provider يقدر يستخدمه أو يتجاهله. النداء الذي يعرض tools يمشي بدونه، والـ model يجيب من الـ schema الموجود في الـ prompt: لأن مع response format صارم بجانب الـ tools، بعض الـ models (`openai/gpt-4o-mini` عبر OpenRouter) تظل تستدعي tools حتى `maxSteps` بدل ما تجيب. و`toolChoice: 'none'` يُحسب كأنه لا tools معروضة. ولإرساله على كل نداء رغم ذلك، مرّر `output: { schema, responseFormat: 'always' }`.
-3. لما الـ model يرد بدون tool calls، يتحلّل الرد كـ JSON (ووجود code fence ```` ```json ```` حوله مسموح) ثم يصير validation عليه بالـ schema. والرد القريب من الصحيح يُقرأ بدون نداء إصلاح: لما الرد كله ليس JSON، تُحذف كتل `<think>…</think>`، ويُستخدم أول fenced block، أو أول `{…}` / `[…]` متوازن، يتحلّل وينجح في الـ validation. يعني مقدمة نثرية، أو نثر بعد fenced block، أو كتلة reasoning قبل الـ JSON، كلها ما تكلّف شيء إضافي. و`result.text` يحتفظ بالرد كما كتبه الـ model.
-4. إذا كان غير صالح، الـ model يأخذ خطوة إصلاح واحدة: رسالة user تبدأ بـ`[output-invalid]` وتعدّد المشاكل، مثلا `1 issue (tempC: Expected number, received string)`. ولما يكون الرد هو الـ JSON Schema نفسه (بعض الـ models المحلية تكرره)، الرسالة تقول ذلك وتعرض بدلًا منه مثال object بالشكل الصحيح. خطوة الإصلاح تنحسب من `maxSteps`، وما فيه خطوة إذا خلصت الميزانية. وما فيه خطوة أيضًا إذا انقطع الرد عند حد `maxTokens` (كان `finishReason` الخاص بالـ model هو `'length'`): الإصلاح سينقطع بنفس الطريقة، فينتهي الـ run فورًا مع `outputError.kind: 'truncated'` ورسالة تقول ارفع `modelSettings.maxTokens`. رسالة الإصلاح والرد الذي رفضته تُرسلان لذلك النداء الواحد فقط: ليستا في `result.messages` ولا في transcript الـ session، فالـ turn اللاحق لا يراهما أبدًا.
-5. وإذا ظل غير صالح، الـ run يعمل resolve (ليس reject) مع `finishReason: 'output-invalid'`، بدون `object`، ومع `outputError`: `{ kind, message, issues: [{ path, message }] }`، حيث `kind` هو `'invalid'` أو `'truncated'`.
+2. نداءات الـ model التي لا تعرض tools تحمل `responseFormat: { type: 'json', schema }` في `GenerateOptions`: كل نداءات agent بلا tools، ونداء "أجب الآن" عندما تنفد الخطوات (انظر أدناه)، وخطوة الإصلاح. هو مجرد hint: الـ providers المدمجة المبنية على `ai`-SDK تفعّل JSON mode في الـ model (مع الـ schema في الـ models التي تدعم structured outputs؛ و OpenRouter والـ provider `pi` يرسلان response format صارم من نوع `json_schema`)، والـ custom provider يستطيع استخدامه أو تجاهله. النداء الذي يعرض tools يجري بدونه، ويجيب الـ model من الـ schema الموجود في الـ prompt: لأنه مع response format صارم بجانب الـ tools، تظل بعض الـ models (`openai/gpt-4o-mini` عبر OpenRouter) تستدعي tools حتى `maxSteps` بدلًا من أن تجيب. و`toolChoice: 'none'` يُحسب كأنه لا tools معروضة. ولإرساله على كل نداء رغم ذلك، مرّر `output: { schema, responseFormat: 'always' }`.
+3. عندما يرد الـ model بلا tool calls، يُحلَّل الرد كـ JSON (ووجود code fence ```` ```json ```` حوله مسموح) ثم يجري عليه validation بالـ schema. والرد القريب من الصحيح يُقرأ دون نداء إصلاح: عندما لا يكون الرد كله JSON، تُحذف كتل `<think>…</think>`، ويُستخدم أول fenced block، أو أول `{…}` / `[…]` متوازن، يُحلَّل وينجح في الـ validation. أي أن المقدمة النثرية، أو النثر بعد fenced block، أو كتلة reasoning قبل الـ JSON، كلها لا تكلّف شيئًا إضافيًا. و`result.text` يحتفظ بالرد كما كتبه الـ model.
+4. إذا كان غير صالح، يأخذ الـ model خطوة إصلاح واحدة: رسالة user تبدأ بـ`[output-invalid]` وتعدّد المشاكل، مثلًا `1 issue (tempC: Expected number, received string)`. وعندما يكون الرد هو الـ JSON Schema نفسه (بعض الـ models المحلية تكرره)، تذكر الرسالة ذلك وتعرض بدلًا منه مثال object بالشكل الصحيح. خطوة الإصلاح تُحسب من `maxSteps`، ولا توجد خطوة إذا نفدت الميزانية. ولا توجد خطوة أيضًا إذا انقطع الرد عند حد `maxTokens` (كان `finishReason` الخاص بالـ model هو `'length'`): سينقطع الإصلاح بالطريقة نفسها، فينتهي الـ run فورًا مع `outputError.kind: 'truncated'` ورسالة تطلب رفع `modelSettings.maxTokens`. رسالة الإصلاح والرد الذي رفضته تُرسلان لذلك النداء الواحد فقط: ليستا في `result.messages` ولا في transcript الـ session، فالـ turn اللاحق لا يراهما أبدًا.
+5. وإذا ظل غير صالح، يجري للـ run resolve (لا reject) مع `finishReason: 'output-invalid'`، دون `object`، ومع `outputError`: `{ kind, message, issues: [{ path, message }] }`، حيث `kind` هو `'invalid'` أو `'truncated'`.
 
 ## عند نفاد الخطوات
 
-لما يكون الـ model ما زال يستدعي tools و`maxSteps` تخلص، الـ run الذي فيه `output` لا يستسلم: يعمل نداء model أخير بدون tools معروضة ("أجب الآن") ويعمل validation على ذلك الرد بنفس الطريقة. الإجابة الصالحة تنهي الـ run بـ`finishReason: 'max-steps'` مع `object`؛ وغير الصالحة تنهيه بـ`'output-invalid'` مع `outputError`. النداء الإضافي لا يصير إذا كان حد آخر من الميزانية (الـ tokens، التكلفة، المدة) قد استُنفد أصلًا. و`limits.maxSteps` الذي يخلص يأخذ نفس النداء؛ لكن ذلك الـ run يظل ينتهي بـ`'budget-exceeded'` مع `result.budget`، ومعه `object` إذا نجحت الإجابة في الـ validation. ومثل رسالة الإصلاح، prompt "أجب الآن" يُرسل لذلك النداء فقط ولا يُحفظ في `result.messages` ولا في transcript الـ session.
+عندما يكون الـ model ما زال يستدعي tools وتنفد `maxSteps`، فإن الـ run الذي فيه `output` لا يستسلم: يُجري نداء model أخيرًا بلا tools معروضة ("أجب الآن") ويُجري validation على ذلك الرد بالطريقة نفسها. الإجابة الصالحة تنهي الـ run بـ`finishReason: 'max-steps'` مع `object`؛ وغير الصالحة تنهيه بـ`'output-invalid'` مع `outputError`. لا يحدث النداء الإضافي إذا كان حد آخر من الميزانية (الـ tokens، التكلفة، المدة) قد استُنفد أصلًا. و`limits.maxSteps` عندما ينفد يحصل على النداء نفسه؛ لكن ذلك الـ run يظل ينتهي بـ`'budget-exceeded'` مع `result.budget`، ومعه `object` إذا نجحت الإجابة في الـ validation. ومثل رسالة الإصلاح، prompt "أجب الآن" يُرسل لذلك النداء فقط ولا يُحفظ في `result.messages` ولا في transcript الـ session.
 
 ## الـ schema في الـ prompt
 
-الخطوتان 1 و 2 ترسلان الـ schema مرتين في النداء بدون tools: مرة داخل كتلة `## Output format` في الـ system prompt، ومرة في `responseFormat`. لما الـ provider يفرض `responseFormat` (structured outputs في OpenAI، و OpenRouter، والـ provider `pi`) تصير نسخة الـ prompt زائدة؛ ومع schema كبير تكلّف حوالي ألف token في كل نداء. مرّر `output` بصيغة `{ schema, promptSchema: false }` لتترك الـ schema خارج الـ prompt؛ طلب "JSON فقط" يبقى، وبما أن `responseFormat` يصير النسخة الوحيدة من الـ schema، فهو يُرسل في كل نداء، بما فيها النداءات التي تعرض tools (قيمة `responseFormat` الافتراضية هنا `'always'`؛ اضبطها على `'final'` لإبعاده عن تلك النداءات):
+الخطوتان 1 و 2 ترسلان الـ schema مرتين في النداء بلا tools: مرة داخل كتلة `## Output format` في الـ system prompt، ومرة في `responseFormat`. عندما يفرض الـ provider `responseFormat` (structured outputs في OpenAI، و OpenRouter، والـ provider `pi`) تصبح نسخة الـ prompt زائدة؛ ومع schema كبير تكلّف حوالي ألف token في كل نداء. مرّر `output` بصيغة `{ schema, promptSchema: false }` لتترك الـ schema خارج الـ prompt؛ طلب "JSON فقط" يبقى، وبما أن `responseFormat` يصبح النسخة الوحيدة من الـ schema، فهو يُرسل في كل نداء، بما فيها النداءات التي تعرض tools (قيمة `responseFormat` الافتراضية هنا `'always'`؛ اضبطها على `'final'` لإبعاده عن تلك النداءات):
 
 ```ts
 import { z } from 'zod';
@@ -159,7 +159,7 @@ const agent = createAgent({
 const { object } = await agent.send('Weather in Paris?');
 ```
 
-خلّ الافتراضي (`promptSchema: true`، أو `output: schema` مباشرة) لما يتعامل الـ provider - أو الـ model - مع `responseFormat` كـ hint لـ JSON mode فقط (الـ providers المدمجين المبنيين على `ai`-SDK يحذفون الـ schema للـ models التي لا تدعم structured outputs؛ والـ custom provider قد يتجاهله كليًا). في هذه الحالة نسخة الـ prompt هي المكان الوحيد الذي يرى فيه الـ model الشكل المطلوب للإجابة. وخلّه أيضًا لـ agent عنده tools: نداءاته التي تعرض tools لا تحمل `responseFormat` افتراضيًا، فنسخة الـ prompt هي ما تجيب منه.
+أبقِ الافتراضي (`promptSchema: true`، أو `output: schema` مباشرة) عندما يتعامل الـ provider - أو الـ model - مع `responseFormat` كـ hint لـ JSON mode فقط (الـ providers المدمجة المبنية على `ai`-SDK تحذف الـ schema للـ models التي لا تدعم structured outputs؛ والـ custom provider قد يتجاهله كليًا). في هذه الحالة نسخة الـ prompt هي المكان الوحيد الذي يرى فيه الـ model الشكل المطلوب للإجابة. وأبقِه أيضًا لـ agent لديه tools: نداءاته التي تعرض tools لا تحمل `responseFormat` افتراضيًا، فنسخة الـ prompt هي ما تجيب منه.
 
 | `output` | الـ schema في الـ prompt | `responseFormat` في النداءات التي تعرض tools | في النداءات بدون tools |
 | --- | --- | --- | --- |
@@ -170,7 +170,7 @@ const { object } = await agent.send('Weather in Paris?');
 
 ## المخرجات المُصلَحة وقواعد العمل
 
-لما يأتي `object` من خطوة الإصلاح، النتيجة فيها `outputRepaired: true`. الإصلاح يعالج المشاكل التي تُعرض عليه، فممكن **يغيّر القيم** حتى تنجح في الـ validation. إذا كان الـ schema يرمّز قاعدة عمل، مثل refinement يشترط أن `total` يساوي `subtotal + tax`، فالـ model المطلوب منه إصلاح فاتورة إجماليها المطبوع يخالف القاعدة قد يعيد كتابة الإجمالي حتى يمر الـ object. خلّ الـ schema مقتصرًا على بنية المستند، وتحقّق من قواعد العمل على `result.object` بعد الاستخراج، حيث الفشل مسؤوليتك أنت للإبلاغ عنه:
+عندما يأتي `object` من خطوة الإصلاح، تحتوي النتيجة `outputRepaired: true`. الإصلاح يعالج المشاكل التي تُعرض عليه، فقد **يغيّر القيم** حتى تنجح في الـ validation. إذا كان الـ schema يرمّز قاعدة عمل، مثل refinement يشترط أن `total` يساوي `subtotal + tax`، فالـ model المطلوب منه إصلاح فاتورة إجماليها المطبوع يخالف القاعدة قد يعيد كتابة الإجمالي حتى يمر الـ object. اجعل الـ schema مقتصرًا على بنية المستند، وتحقّق من قواعد العمل على `result.object` بعد الاستخراج، حيث الفشل مسؤوليتك أنت للإبلاغ عنه:
 
 ```ts
 import { z } from 'zod';
@@ -199,13 +199,13 @@ if (invoice && Math.abs(invoice.subtotal + invoice.tax - invoice.total) > 0.005)
 
 والرد الذي يأتي بشكل الـ schema الخاص بك نفسه (من model لا يفرض الـ schema) ينجح في الـ validation أيضًا.
 
-- **لا `z.date()`.** JSON ما فيه نوع للتاريخ، فحقل `z.date()` في zod 4 لن ينجح في الـ validation أبدًا. `createAgent()` يرمي `ConfigurationError` يذكر اسم الحقل. استخدم `z.iso.date()` أو `z.iso.datetime()` لنص ISO، أو `z.iso.datetime().pipe(z.coerce.date())` لتحصل على `Date` في `result.object`.
+- **لا `z.date()`.** JSON ليس فيه نوع للتاريخ، فحقل `z.date()` في zod 4 لن ينجح في الـ validation أبدًا. `createAgent()` يرمي `ConfigurationError` يذكر اسم الحقل. استخدم `z.iso.date()` أو `z.iso.datetime()` لنص ISO، أو `z.iso.datetime().pipe(z.coerce.date())` لتحصل على `Date` في `result.object`.
 
 ## Streaming
 
-`agent.stream()` يشتغل بنفس الطريقة: `run.result` يعمل resolve ومعه `object`، والحدث الأخير `run.done` يحمل `object` (مرمّز كـ JSON) إذا كان الرد صالح. خطوة الإصلاح تظهر كزوج زيادة من `step.start` / `step.done`. شوف [Streaming](/ar/streaming).
+`agent.stream()` يعمل بالطريقة نفسها: يجري لـ `run.result` resolve ومعه `object`، والحدث الأخير `run.done` يحمل `object` (مرمّزًا كـ JSON) إذا كان الرد صالحًا. خطوة الإصلاح تظهر كزوج إضافي من `step.start` / `step.done`. راجع [Streaming](/ar/streaming).
 
-أثناء بث الرد، كل `text.delta` يغيّر الرد المحلَّل يتبعه حدث `object.delta`، و`object` فيه هو الـ object الجزئي حتى الآن: قيمة النص غير المكتملة تُقطع عند آخر النص، والمفتاح أو الرقم غير المكتمل يُترك، والـ objects والمصفوفات المفتوحة تُغلق. لا يصير عليه validation حسب الـ schema (ممكن يكون حقل ما زال ناقصًا)؛ استخدمه لعرض التقدّم، و`result.object` للإجابة. والـ UI bindings تحتفظ به باسم `partialObject`.
+أثناء بث الرد، كل `text.delta` يغيّر الرد المحلَّل يتبعه حدث `object.delta`، و`object` فيه هو الـ object الجزئي حتى الآن: قيمة النص غير المكتملة تُقطع عند آخر النص، والمفتاح أو الرقم غير المكتمل يُترك، والـ objects والمصفوفات المفتوحة تُغلق. لا يجري عليه validation وفق الـ schema (قد يكون حقل ما زال ناقصًا)؛ استخدمه لعرض التقدّم، و`result.object` للإجابة. والـ UI bindings تحتفظ به باسم `partialObject`.
 
 ```ts
 import { createAgent } from 'lousho';
@@ -219,7 +219,7 @@ for await (const event of planner.stream('Plan a 3-day trip to Lisbon.')) {
 
 ## متقدم: executor API
 
-`AgentExecutor.execute()` و`AgentExecutor.stream()` يأخذون نفس خيار `output`. هناك نوع `result.object` هو `unknown`؛ حلّله مرة ثانية بالـ schema، أو استخدم `createAgent()` إذا تريد النوع المستنتج.
+`AgentExecutor.execute()` و`AgentExecutor.stream()` تأخذان خيار `output` نفسه. هناك نوع `result.object` هو `unknown`؛ حلّله مرة أخرى بالـ schema، أو استخدم `createAgent()` إذا أردت النوع المستنتج.
 
 ```ts
 import { z } from 'zod';
@@ -248,4 +248,4 @@ console.log(object?.city); // 'Paris'
 
 ## انظر أيضًا
 
-- [Decisions](/ar/decisions): `decide()` يجيب على أسئلة من نوع predicate / choice / score حول input واحد، على endpoint سريع مخصص لذلك؛ وهو الخيار الصحيح لما تحتاج تصنيفًا أو درجة ثقة، لا object.
+- [Decisions](/ar/decisions): `decide()` يجيب على أسئلة من نوع predicate / choice / score حول input واحد، على endpoint سريع مخصص لذلك؛ وهو الخيار الصحيح عندما تحتاج تصنيفًا أو درجة ثقة، لا object.

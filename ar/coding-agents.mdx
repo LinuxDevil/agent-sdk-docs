@@ -1,9 +1,9 @@
 ---
 title: "Lousho مع coding agents"
-description: "أعطِ Claude Code أو Cursor أو أي coding agent آخر توثيق الـ SDK بصيغة يقدر يقرأها، ليكتب كود على الـ API الفعلي."
+description: "أعطِ Claude Code أو Cursor أو أي coding agent آخر توثيق الـ SDK بصيغة يستطيع قراءتها، ليكتب كودًا على الـ API الفعلي."
 ---
 
-أي coding agent يكتب كود Lousho أحسن لما يقرأ التوثيق الحالي بدل التخمين من بيانات التدريب. الـ SDK ينشر توثيقه في ملفين machine-readable، وهذا الموقع يقدّم كل صفحة بصيغة Markdown.
+أي coding agent يكتب كود Lousho بشكل أفضل عندما يقرأ التوثيق الحالي بدلًا من التخمين من بيانات التدريب. الـ SDK ينشر توثيقه في ملفين machine-readable، وهذا الموقع يقدّم كل صفحة بصيغة Markdown.
 
 ## التوثيق كملفات
 
@@ -24,22 +24,22 @@ Tests must run offline: use mockModel from lousho/testing.
 
 ## التوثيق من هذا الموقع
 
-في أعلى كل صفحة هنا زر **Copy page**، ينسخ الصفحة بصيغة Markdown لتلصقها في محادثة. ومن نفس القائمة تقدر تفتح الصفحة في ChatGPT أو Claude.
+في أعلى كل صفحة هنا زر **Copy page**، ينسخ الصفحة بصيغة Markdown لتلصقها في محادثة. ومن القائمة نفسها يمكنك فتح الصفحة في ChatGPT أو Claude.
 
 ## دع الـ coding agent يتحقق من عمله
 
 جزءان في الـ SDK يسهّلان التحقق من عمل الـ agent بدون مفتاح API:
 
 - [Testing](/ar/testing): `mockModel` يحدد ردود الـ model مسبقًا، فيقدر الاختبار يتحقق من الـ tool calls ومن النص النهائي ويشتغل offline في CI.
-- [Evals](/ar/evals): `defineEval()` يتحقق من مسار التنفيذ (أي tools، بأي ترتيب، وبأي معاملات)، و`lousho eval` يطلع النتيجة بصيغة JUnit.
+- [Evals](/ar/evals): `defineEval()` يتحقق من مسار التنفيذ (أي tools، بأي ترتيب، وبأي معاملات)، و`lousho eval` يُخرج النتيجة بصيغة JUnit.
 
 الأمر `npx lousho doctor` يفحص نسخة Node والـ peer dependencies ومفاتيح API، ويطبع طريقة إصلاح أي نقص. وهو أول أمر مفيد يشغّله الـ coding agent في checkout جديد.
 
 ## الـ agent الذي تبنيه بـ Lousho كـ coding agent
 
-الاتجاه المعاكس متغطى أيضًا. الـ agent الذي تبنيه بالـ SDK يقدر هو نفسه يشتغل على الكود:
+الاتجاه المعاكس مغطّى أيضًا. الـ agent الذي تبنيه بالـ SDK يستطيع هو نفسه العمل على الكود:
 
-- [Build a coding agent](/ar/build-a-coding-agent): شرح خطوة بخطوة لـ coding agent يشتغل في الطرفية، مع tools للملفات والـ shell، وapprovals وأسئلة متابعة.
+- [Build a coding agent](/ar/build-a-coding-agent): شرح خطوة بخطوة لـ coding agent يعمل في الطرفية، مع tools للملفات والـ shell، وapprovals وأسئلة متابعة.
 - [Registry kits](/ar/registry): `lousho add coding-kit` (أو `coding-pi`، نفس الـ harness على الـ Pi provider مع Pi coding sub-agent) يثبّت coding agent ببنية production — checkpoints وقواعد صلاحيات وloop guard وسقف تكلفة — كمجلد واحد.
 - [Pi coding sub-agents](/ar/sub-agents#pi-coding-agent-sub-agents-piagent): `piAgent()` يفوّض مهام implementation محددة النطاق لـ Pi coding agent. له قواعد صلاحيات خاصة به، ويوقّف الـ approval ويستأنفه بشكل durable.
 - [Workspace tools](/ar/workspace-tools): tools لنظام الملفات والـ shell محصورة في مجلد جذر، والـ shell يتطلب approval.

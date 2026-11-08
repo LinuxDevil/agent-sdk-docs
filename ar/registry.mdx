@@ -6,25 +6,25 @@ title: "Registry"
 `lousho add` يثبّت tool أو skill أو channel أو schedule أو خانة memory أو kit
 داخل [agent directory](/ar/agent-directories) من registry. عنصر الـ`kit` هو
 agent directory كامل: تثبيته يوزّع `agent.*` و`instructions.md` وtools وskills
-وسub-agents، فالهدف يصير (أو يكبر ليصير) agent directory بنفسه. الـregistry
-مجرد JSON ثابت: index إضافة إلى مستند لكل عنصر يحمل محتوى ملفاته. الملفات
-تُنسخ إلى مشروعك كودًا مصدريًا تملكه وتقدر تعدّله. ما في plugin loader في
+وسub-agents، فيصبح الهدف (أو يتوسع ليصبح) agent directory بذاته. الـregistry
+مجرد JSON ثابت: index إضافة إلى مستند لكل عنصر يحمل محتوى ملفاته. تُنسخ الملفات
+إلى مشروعك كودًا مصدريًا تملكه وتستطيع تعديله. لا يوجد plugin loader في
 الـruntime، ولا شيء من الـregistry يُنفَّذ أو يُستورد أثناء الإضافة.
 
-`lousho add` يشتغل بدون أي إعداد: بدون `--registry` أو `LOUSHO_REGISTRY` يقرأ
+`lousho add` يعمل دون أي إعداد: بدون `--registry` أو `LOUSHO_REGISTRY` يقرأ
 الـregistry الافتراضي على `https://registry.lousho.com/index.json`، وهو مجلد
 `registry/dist/` في مستودع الـSDK مُقدَّم كـJSON ثابت. إذا تعذّر الوصول لهذا
 الـhost، يقرأ `lousho add` بدلًا منه من GitHub: من وسم الإصدار (release tag)
 الخاص بنسخة الـSDK المثبّتة
 (`https://raw.githubusercontent.com/LinuxDevil/agent-sdk/<version>/registry/dist/index.json`)،
-ثم من نفس الوسم مع البادئة `v` (للإصدارات الأقدم)، ثم من `main`.
+ثم من الوسم نفسه مع البادئة `v` (للإصدارات الأقدم)، ثم من `main`.
 وإذا تعذّر الوصول إلى GitHub أيضًا (بدون اتصال، أو عطل، أو نسخة لم يُرفع وسمها
 أبدًا)، يقرأ `lousho add` نسخة `registry/dist/` المرفقة داخل الحزمة المثبّتة،
 ويطبع تنبيهًا من سطر واحد بأن هذا الـregistry المرفق قد يكون أقدم من النسخة
-المتاحة على الإنترنت. الـregistry الافتراضي وحده يرجع لهذا البديل، أما الـregistry الذي تسمّيه بنفسك فلا. `--registry`
-و`LOUSHO_REGISTRY` توجّهه إلى registry ثاني، والقيمة `none` (في أي منهما)
-تعطّل الـregistry بالكامل — ساعتها `lousho add` يفشل بـ`LOUSHO_CONFIG_INVALID`،
-وهذا يناسب الاستخدام offline أو البيئات المقفولة.
+المتاحة على الإنترنت. الـregistry الافتراضي وحده يرجع إلى هذا البديل، أما الـregistry الذي تسمّيه بنفسك فلا. `--registry`
+و`LOUSHO_REGISTRY` توجّهانه إلى registry آخر، والقيمة `none` (في أي منهما)
+تعطّل الـregistry بالكامل — وحينها يفشل `lousho add` بـ`LOUSHO_CONFIG_INVALID`،
+وهذا يناسب الاستخدام offline أو البيئات المغلقة.
 
 الـregistry الافتراضي فيه حاليًا تسعة عناصر:
 
@@ -45,9 +45,9 @@ agent directory كامل: تثبيته يوزّع `agent.*` و`instructions.md` 
 `agent.*` و`approve.*` و`hooks.*` و`instructions*` و`lousho-registry.json`،
 وأي شيء تحت `.lousho/` و`tools/` و`skills/` و`subagents/` و`.git/`
 و`node_modules/`. والـshell فيها يشغّل فقط `node --test` (مسارات ملفات
-اختبار، بدون flags) و`git status`. ومع ذلك تظل الـkits تشغّل الاختبارات التي
-يكتب الـagent الكود لها، يعني كود الـagent يشتغل بصلاحيات مستخدمك. استخدم shell
-داخل sandbox للعمل غير الموثوق (شوف [أدوات مساحة العمل](/ar/workspace-tools)).
+اختبار، بلا flags) و`git status`. ومع ذلك تظل الـkits تشغّل الاختبارات التي
+يكتب الـagent الكود لها، أي أن كود الـagent يعمل بصلاحيات مستخدمك. استخدم shell
+داخل sandbox للعمل غير الموثوق (راجع [أدوات مساحة العمل](/ar/workspace-tools)).
 والـsub-agent الخاص بالبرمجة من Pi في kit الـ`coding-pi` له أدواته الخاصة،
 وهذه القواعد لا تغطيها.
 
@@ -62,14 +62,14 @@ lousho add --list --registry none       # fails: the registry is disabled
 | الخيار | المعنى |
 | ---- | ------- |
 | `--registry <url-or-path>` | الـindex: رابط `http(s)` أو مسار محلي (`LOUSHO_REGISTRY` إذا لم يُعطَ، وإلا الـregistry الافتراضي). القيمة `none` تعطّل الـregistry. |
-| `--dir <agent-dir>` | الـagent directory الذي يُكتب فيه (الافتراضي: المجلد الحالي). لازم يكون موجودًا، إلا مع `kit` فهو ينشئه. ومع أي عنصر آخر، المجلد الذي ليس فيه `agent.*` أو `instructions.md` يعطي تحذيرًا: فقط الـagent directory يحمّل `tools/` و`skills/` (مشروع `lousho init` يستورد الـtools في `src/agent.ts` بدلًا من ذلك). |
-| `--yes`, `-y` | لا يسأل عن تأكيد. مطلوب لما stdin ما يكون terminal. لا يمنح الصلاحيات المرتفعة بنفسه (شوف `--allow`). الخياران يُفحصان قبل طباعة أي شيء: التشغيل غير التفاعلي بدونهما يفشل بسطر واحد يسمّي الخيارات التي يحتاجها العنصر بالضبط، مثل `pass --yes --allow exec,fs-write`. |
-| `--allow <list>` | مع `--yes`، الصلاحيات المرتفعة التي تمنحها، مفصولة بفواصل: `exec` و`fs-write` و`network` و`env`. العنصر الذي يطلب واحدة ما سمّيتها يُرفض. |
+| `--dir <agent-dir>` | الـagent directory الذي يُكتب فيه (الافتراضي: المجلد الحالي). يجب أن يكون موجودًا، إلا مع `kit` فهو ينشئه. ومع أي عنصر آخر، المجلد الذي ليس فيه `agent.*` أو `instructions.md` يعطي تحذيرًا: فقط الـagent directory يحمّل `tools/` و`skills/` (مشروع `lousho init` يستورد الـtools في `src/agent.ts` بدلًا من ذلك). |
+| `--yes`, `-y` | لا يسأل عن تأكيد. مطلوب عندما لا يكون stdin terminal. لا يمنح الصلاحيات المرتفعة بنفسه (راجع `--allow`). الخياران يُفحصان قبل طباعة أي شيء: التشغيل غير التفاعلي بدونهما يفشل بسطر واحد يسمّي الخيارات التي يحتاجها العنصر بالضبط، مثل `pass --yes --allow exec,fs-write`. |
+| `--allow <list>` | مع `--yes`، الصلاحيات المرتفعة التي تمنحها، مفصولة بفواصل: `exec` و`fs-write` و`network` و`env`. العنصر الذي يطلب واحدة لم تسمّها يُرفض. |
 | `--overwrite` | يستبدل الملفات الموجودة (بدونه الملف الموجود يعطي `LOUSHO_REGISTRY_FILE_EXISTS`). |
 | `--dry-run` | يطبع الـmanifest والملفات، لا يكتب شيئًا، ويخرج 0. |
 | `--list` | يطبع عناصر الـregistry ويخرج. |
 
-قبل ما يكتب أي شيء، `lousho add` يطبع الـmanifest والملفات التي سيكتبها، ويفحص
+قبل أن يكتب أي شيء، يطبع `lousho add` الـmanifest والملفات التي سيكتبها، ويفحص
 كود العنصر مقابل الـmanifest، ثم يسأل `[y/N]`. بعد الكتابة يسجّل العنصر في
 `lousho-registry.json`.
 
@@ -115,34 +115,34 @@ lousho add --list --registry none       # fails: the registry is disabled
 ```
 
 استضف الاثنين كملفات ثابتة في أي مكان: مجلد في repo، أو object store، أو web
-server. `name` و`type` في المستند لازم يطابقا مدخلهما في الـindex. الاسم يبدأ
-بحرف أو رقم، وبعدها أحرف وأرقام و`.` و`_` و`-`. المستند الذي لا يطابق الصيغة
-يرجع `LOUSHO_REGISTRY_INVALID` مع ذكر الحقول.
+server. يجب أن يطابق `name` و`type` في المستند مدخلهما في الـindex. يبدأ الاسم
+بحرف أو رقم، ثم أحرف وأرقام و`.` و`_` و`-`. المستند الذي لا يطابق الصيغة
+يُرجع `LOUSHO_REGISTRY_INVALID` مع ذكر الحقول.
 
 لتساهم بعنصر في الـregistry الافتراضي، أضف مجلد `registry/<name>/` في مستودع
 الـSDK: ملف `item.json` (فيه `name` و`type` و`description` و`permissions`
-و`dependencies`) وملفات العنصر مرتبة كما لازم توصل في الـagent directory
+و`dependencies`) وملفات العنصر مرتبة كما يجب أن تصل في الـagent directory
 (`tools/x.ts` و`skills/<name>/SKILL.md` و`channels/x.ts`؛ وملفات الـ`kit`
 تكوّن agent directory كامل، مثل `agent.json` و`instructions.md` و`hooks.ts`
 و`tools/` و`subagents/<name>/`). الأمر `npm run registry:build` يتحقق من كل
-عنصر بنفس القواعد التي يفرضها `lousho add` (الـschema والمسارات وفحص الكود
-مقابل الـmanifest) ويعيد بناء `registry/dist/`؛ اعمل commit للنتيجة. الـCI
+عنصر بالقواعد نفسها التي يفرضها `lousho add` (الـschema والمسارات وفحص الكود
+مقابل الـmanifest) ويعيد بناء `registry/dist/`؛ أجرِ commit للنتيجة. الـCI
 يشغّل `npm run registry:check` ويفشل إذا كانت `registry/dist/` قديمة.
 
 ## بيان الصلاحيات
 
-`permissions` يصرّح بما يقدر العنصر يعمله، فتقرر قبل ما تثبّته. كله اختياري؛
-الذي يغيب يظهر كـ"none" / "no".
+`permissions` يصرّح بما يستطيع العنصر فعله، فتقرر قبل أن تثبّته. كله اختياري؛
+وما يغيب يظهر كـ"none" / "no".
 
 | الحقل | المعنى |
 | ----- | ------- |
-| `network` | الـhosts التي يناديها. |
+| `network` | الـhosts التي يستدعيها. |
 | `env` | متغيرات البيئة التي يقرأها. |
 | `filesystem` | `none` أو `read` أو `write`. |
 | `exec` | `true` إذا كان يشغّل أوامر. |
-| `needsApproval` | `true` إذا كانت أدواته تطلب [approval](/ar/approvals) قبل ما تشتغل. |
+| `needsApproval` | `true` إذا كانت أدواته تطلب [approval](/ar/approvals) قبل أن تعمل. |
 
-ما يفرضه `lousho add` قبل ما يكتب أي شيء:
+ما يفرضه `lousho add` قبل أن يكتب أي شيء:
 
 - **الكود يطابق الـmanifest.** كل ملف JavaScript وTypeScript في العنصر يُفحص،
   بعد حذف التعليقات، عما يصل إليه بشكل ظاهر:
@@ -157,62 +157,62 @@ server. `name` و`type` في المستند لازم يطابقا مدخلهما
   - `network` غير فارغ عند `fetch(` أو استخدام `createHttpTool` من الـSDK أو
     import لـ`http` أو `https` أو `http2` أو `net` أو `tls` أو `dgram` أو
     `undici` أو `axios` أو `node-fetch` أو `ws`، وكل host بصيغة `http(s)://`
-    أو `ws(s)://` داخل string لازم يطابق أحد مدخلات `network` (الـhost الذي
+    أو `ws(s)://` داخل string يجب أن يطابق أحد مدخلات `network` (الـhost الذي
     يُبنى وقت التشغيل، مثل `` `https://${host}/` ``، يحتاج `network` غير فارغ
     ويُطبع كملاحظة، لأنه لا يمكن فحصه)؛
-  - كل `process.env.NAME` و`process.env['NAME']` لازم يكون مدرجًا في `env`.
+  - كل `process.env.NAME` و`process.env['NAME']` يجب أن يكون مدرجًا في `env`.
 
   تُرفض دائمًا `eval(` و`new Function(` و`process.env[name]` المحسوب
   و`process.env` مستخدمة كاملة، وأي `import()` أو `require()` لغير string
-  literal، و`require` مستخدمة كقيمة (`const r = require`). عدم المطابقة يرجع
+  literal، و`require` مستخدمة كقيمة (`const r = require`). عدم المطابقة يُرجع
   `LOUSHO_REGISTRY_MANIFEST_MISMATCH` مع كل ملاحظة بالشكل `<file>:<line>:
   <what> (<fix>)`؛ و`--dry-run` يبلّغ عنها أيضًا. ملفات Markdown وغيرها مما
-  ليس كود (مثل `SKILL.md` في الـskill) لا تُفحص. مدخلات `network` لازم تكون
+  ليس كود (مثل `SKILL.md` في الـskill) لا تُفحص. يجب أن تكون مدخلات `network`
   أسماء host أو wildcards تبدأ بـ`*.` (`api.example.com` و`*.example.com` —
   الـwildcard يطابق الـsubdomains فقط، لا الـhost المجرّد)، ومدخلات `env`
-  أسماء متغيرات (`SEARCH_KEY`)؛ أي شيء آخر يرجع `LOUSHO_REGISTRY_INVALID`.
+  أسماء متغيرات (`SEARCH_KEY`)؛ أي شيء آخر يُرجع `LOUSHO_REGISTRY_INVALID`.
 - **الموافقة تغطي الصلاحيات المرتفعة.** `exec: true` و`filesystem: "write"`
   و`network` غير الفارغ و`env` غير الفارغ تُوسم `[elevated: ...]` في
-  الـmanifest المطبوع. السؤال التفاعلي يسردها قبل `[y/N]`. ومع `--yes` لازم
-  تسمّي كل واحدة في `--allow` (`--allow network,env` للمثال أعلاه)، لأن
+  الـmanifest المطبوع. السؤال التفاعلي يسردها قبل `[y/N]`. ومع `--yes` يجب
+  أن تسمّي كل واحدة في `--allow` (`--allow network,env` للمثال أعلاه)، لأن
   `--yes` هو الطريقة التي تشغّل بها السكربتات والـagents الأمر `lousho add`،
-  وما ينبغي يمنح تنفيذ أوامر بصمت.
+  ولا ينبغي أن يمنح تنفيذ أوامر بصمت.
 - **إيصال بما ثُبِّت.** بعد الكتابة، `lousho add` يحدّث `lousho-registry.json`
   في جذر الـagent directory (بجانب `instructions.md`). مدخل كل عنصر فيه
   `type` و`registry` الذي جاء منه و`installedAt` و`permissions` و`path`
-  و`sha256` لكل ملف، فتقدر لاحقًا تعرف إذا اتعدّل ملف. `--overwrite` يستبدل
+  و`sha256` لكل ملف، فتستطيع لاحقًا معرفة ما إذا عُدّل ملف. `--overwrite` يستبدل
   المدخل؛ `--dry-run` لا يكتب شيئًا. الإيصال غير الصالح كـJSON يوقف التثبيت
   قبل كتابة أي ملف. والإيصال هو ما يفرضه `loadAgentDir` عند التحميل ووقت
   التشغيل (أدناه).
 
-وما يفرضه `loadAgentDir`، انطلاقًا من الإيصال، لما الـagent يُحمَّل وأدوات
-العنصر تشتغل:
+وما يفرضه `loadAgentDir`، انطلاقًا من الإيصال، عندما يُحمَّل الـagent وتعمل أدوات
+العنصر:
 
-- **السلامة.** كل ملف يسرده الإيصال يُعاد حساب هاشه. الملف الذي اتعدّل أو
-  انحذف منذها يجعل عنصره *unattested* (غير مُصدَّق): تحذير يذكر العنصر
-  والملفات المتغيرة، و`resolveAgentDir()` يبلّغ عن نفس الشيء في
+- **السلامة.** كل ملف يسرده الإيصال يُعاد حساب هاشه. الملف الذي عُدّل أو
+  حُذف منذ ذلك الحين يجعل عنصره *unattested* (غير مُصدَّق): تحذير يذكر العنصر
+  والملفات المتغيرة، و`resolveAgentDir()` يبلّغ عن الشيء نفسه في
   `manifest.registry` (`status: 'attested' | 'unattested'`، إضافة إلى مسارات
   `modified` و`missing`). التحميل لا يُرفض — الملفات ملكك تعدّلها — والإيصال
-  الذي يتعذّر قراءته تحذير، مو خطأ.
+  الذي يتعذّر قراءته تحذير، لا خطأ.
 - **الـapproval.** أدوات العنصر المصرِّح فيه بـ`exec: true` أو
   `needsApproval: true` — وأدوات أي عنصر unattested لم يعد إيصاله القديم
   يشهد للكود المعدَّل — تنتظر [approval](/ar/approvals) دائمًا؛ و`deny` من
   `needsApproval` الخاصة بالأداة نفسها يظل رافضًا. ولا شيء داخل الـagent
-  directory يقدر يتجاوزها: [قاعدة صلاحيات](/ar/approvals#سياسات-الصلاحيات)
+  directory يستطيع تجاوزها: [قاعدة صلاحيات](/ar/approvals#سياسات-الصلاحيات)
   من نوع `allow` و[وضع صلاحيات](/ar/permission-modes) (`acceptEdits`) لا يشغّلان الاستدعاء
   (قاعدة `deny` أو `plan` أو `dontAsk` تظل ترفضه)، وملف `approve` الخاص
   بالمجلد نفسه يؤجّله. الذي يقرر فقط هو شخص يحلّ التوقف
   (`agent.approvals.resolve()`) أو callback `approve` يمرّره كودك إلى
   `loadAgentDir(dir, { approve })`.
 - **الـsub-agents.** مجلد الـsub-agent داخل العنصر المثبَّت (`subagents/<name>/`
-  في الـkit) يخضع لنفس الإيصال: أدواته مقيّدة مثل باقي أدوات العنصر، وملف
+  في الـkit) يخضع للإيصال نفسه: أدواته مقيّدة مثل باقي أدوات العنصر، وملف
   `approve` الخاص به يؤجّل استدعاءاتها المفروضة أيضًا. توقف الـsub-agent ليس
   له مقبض `approvals.resolve()`، فالذي يقرر فيها هو callback `approve` الذي
-  يمرّره كودك إلى `loadAgentDir()`؛ وبدونه لا يشتغل الاستدعاء المفوَّض، ويُبلَّغ
+  يمرّره كودك إلى `loadAgentDir()`؛ وبدونه لا يعمل الاستدعاء المفوَّض، ويُبلَّغ
   الوكيل الرئيسي أن الـsub-agent توقف بانتظار approval.
 - **الشبكة.** أثناء عمل أداة لعنصر له إيصال، `fetch` يقتصر على الـhosts التي
   يصرّح بها `network`: الـhost غير المدرج في الـmanifest يُرفض، والعنصر الذي
-  لا يصرّح بأي `network` لا يقدر يعمل fetch أصلًا.
+  لا يصرّح بأي `network` لا يستطيع إجراء fetch أصلًا.
 - **البيئة.** وأثناء عملها، `process.env` يعرض للأداة فقط الأسماء التي يصرّح
   بها `env`.
 - **أدوات الـsandbox.** الأداة التي تعلن `requiresSandbox` تحصل على adapter
@@ -226,7 +226,7 @@ server. `name` و`type` في المستند لازم يطابقا مدخلهما
 ويصدّقها من جديد.
 
 ما لا يفعله: فحص وقت التثبيت يقرأ الكود كما هو مكتوب، وتقييد وقت التشغيل يغطي
-فقط ما يقدر الـSDK يعترضه — استدعاءات `fetch` وقراءات `process.env` أثناء عمل
+فقط ما يستطيع الـSDK اعتراضه — استدعاءات `fetch` وقراءات `process.env` أثناء عمل
 الأداة، والـadapter المسلَّم لأداة sandbox. الطلبات عبر `http`/`net`/`axios`،
 والوصول للملفات، ومرجع محفوظ في module scope (`const f = fetch`)، والعمل
 المنفَّذ عند استيراد الملف، وسياسة الشبكة الخاصة بالحاوية نفسها (`{ allow }`
@@ -237,14 +237,14 @@ server. `name` و`type` في المستند لازم يطابقا مدخلهما
 
 ## قواعد الأمان
 
-- كل `files[].path` لازم يكون نسبيًا وnormalized وبشرطات أمامية: لا `..`، لا
+- يجب أن يكون كل `files[].path` نسبيًا وnormalized وبشرطات أمامية: لا `..`، لا
   مسار مطلق، لا حرف قرص (`C:`)، لا backslashes، لا مقاطع فارغة أو `.`. وبعد
-  حل الـsymlinks لازم يظل داخل الـagent directory، ولا يُكتب أبدًا عبر symlink
+  حل الـsymlinks يجب أن يظل داخل الـagent directory، ولا يُكتب أبدًا عبر symlink
   إلى هدفه.
-- الملف لازم يكون داخل المجلد الذي يسمح به نوع عنصره: `tool` في `tools/`،
+- يجب أن يكون الملف داخل المجلد الذي يسمح به نوع عنصره: `tool` في `tools/`،
   و`skill` في `skills/<name>/`، و`channel` في `channels/`، و`schedule` في
   `schedules/`، و`memory` في `memory/`. الـ`kit` هو الاستثناء الوحيد: لأنه
-  agent directory كامل، ملفاته يمكن تجلس في أي مسار نسبي (تظل normalized
+  agent directory كامل، يمكن أن تقع ملفاته في أي مسار نسبي (تظل normalized
   وداخل الهدف حسب القاعدة أعلاه).
 - الملفات الموجودة لا تُستبدل بدون `--overwrite`. كل الملفات تُفحص قبل كتابة
   أي منها، فالعنصر المعيب لا يكتب شيئًا. كل إخفاق من هذه هو
@@ -253,7 +253,7 @@ server. `name` و`type` في المستند لازم يطابقا مدخلهما
   أقصى.
 - تُقرأ فقط روابط `http(s)` والمسارات المحلية، بمهلة 15 ثانية لكل fetch (وإلا
   `LOUSHO_REGISTRY_UNREACHABLE`).
-- `dependencies` تُطبع كسطر `npm install ...` لتشغّله إنت. الأمر لا يثبّت
+- `dependencies` تُطبع كسطر `npm install ...` لتشغّله أنت. الأمر لا يثبّت
   حزمًا أبدًا.
 
 الأخطاء مسردة في [الأخطاء](/ar/errors#السجل). والـCLI كامل في [CLI](/ar/cli).

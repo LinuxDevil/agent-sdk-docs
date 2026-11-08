@@ -3,19 +3,19 @@ title: "OAuth"
 ---
 {/* Generated from docs/oauth.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-الأدوات وخوادم MCP اللي تستدعي API بالنيابة عن أحد تحتاج access token من OAuth، وعادةً refresh token حتى تجلب اللي بعده. هذه الصفحة تغطي أين تعيش هذه الـtokens: في جزء `tokens` من `AgentStore`، مفهرسةً بالـprovider وبمالك الـcredential. وتغطي كيف تحصل الأداة على واحد: تنادي `ctx.getToken(provider)`، وإذا المستخدم ما ربط حسابه بعد يوقف الـrun إلى أن يسجّل الدخول ([أدوات تحتاج تسجيل دخول](#أدوات-تحتاج-تسجيل-دخول)). وخوادم MCP عبر HTTP تسجّل الدخول بـOAuth أيضًا ([خوادم MCP مع OAuth](#خوادم-mcp-مع-oauth)).
+الأدوات وخوادم MCP التي تستدعي API بالنيابة عن أحد تحتاج access token من OAuth، وعادةً refresh token لكي تجلب الذي يليه. هذه الصفحة تغطي أين تعيش هذه الـtokens: في جزء `tokens` من `AgentStore`، مفهرسةً بالـprovider وبمالك الـcredential. وتغطي كيف تحصل الأداة على واحد: تستدعي `ctx.getToken(provider)`، وإذا لم يربط المستخدم حسابه بعد يتوقف الـrun إلى أن يسجّل الدخول ([أدوات تحتاج تسجيل دخول](#أدوات-تحتاج-تسجيل-دخول)). وخوادم MCP عبر HTTP تسجّل الدخول بـOAuth أيضًا ([خوادم MCP مع OAuth](#خوادم-mcp-مع-oauth)).
 
 ## من يملك credential
 
 كل credential مخزَّن له provider (اسم مثل `github`، من 1 إلى 64 حرفًا من `A-Z` و`a-z` و`0-9` و`_` و`-`) ومالك:
 
 - **التطبيق** (`{ owner: 'app' }`): credential واحد يستخدمه الـagent للجميع، مثل service account أو تثبيت bot.
-- **مستخدم** (`{ owner: 'user', principalId, issuer? }`): credential واحد لكل شخص مسجّل دخوله. `principalId` هو معرّف المستخدم، و`issuer` اسم مزوّد الهوية اللي أصدره. يعني `alice` من issuer و`alice` من issuer آخر مالكان مختلفان. مع [مصادقة المسارات](/ar/auth) ينعكس principal الطلب عليه هكذا: `{ owner: 'user', principalId: principal.id,
-  issuer: principal.issuer }`. وcredential المستخدم يحتاج هذا الـprincipal، لأن بدونه لا يوجد مستخدم يملكه. والـprincipal اللي ما له `issuer` (مستخدم Slack أو GitHub أو Telegram أو Discord، أو `basic()`، أو `apiToken()`) يأخذ `issuer: 'authenticator:<name>'`، فنفس المعرّف من authenticatorين مختلفين (Slack `U04ABCDEF` ودخول GitHub باسم `U04ABCDEF`) مالكان اثنان، ولا يتشاركان token أبدًا.
+- **مستخدم** (`{ owner: 'user', principalId, issuer? }`): credential واحد لكل شخص مسجّل دخوله. `principalId` هو معرّف المستخدم، و`issuer` اسم مزوّد الهوية الذي أصدره. أي أن `alice` من issuer و`alice` من issuer آخر مالكان مختلفان. مع [مصادقة المسارات](/ar/auth) ينعكس principal الطلب عليه هكذا: `{ owner: 'user', principalId: principal.id,
+  issuer: principal.issuer }`. وcredential المستخدم يحتاج هذا الـprincipal، لأن بدونه لا يوجد مستخدم يملكه. والـprincipal الذي ليس له `issuer` (مستخدم Slack أو GitHub أو Telegram أو Discord، أو `basic()`، أو `apiToken()`) يأخذ `issuer: 'authenticator:<name>'`، فنفس المعرّف من authenticatorين مختلفين (Slack `U04ABCDEF` ودخول GitHub باسم `U04ABCDEF`) مالكان اثنان، ولا يتشاركان token أبدًا.
 
 ### نقل الـtokens المخزَّنة قبل namespace الـauthenticator
 
-الـtokens المخزَّنة لـprincipal بدون issuer موجودة تحت المفتاح القديم (`<provider>|user||<id>`). هذا المفتاح كان مشتركًا بين كل الـauthenticators، لذلك الـSDK لا يقرأه كبديل احتياطي: لو فعل لسلّم token الخاص بـauthenticator إلى authenticator آخر. والمستخدمون اللي ما يُعثر على الـtoken حقهم يسجّلون الدخول من جديد. وللاحتفاظ بالـtoken، المشغّل اللي يعرف لأي authenticator تنتمي الـtokens القديمة ينقلها مرة واحدة:
+الـtokens المخزَّنة لـprincipal بدون issuer موجودة تحت المفتاح القديم (`<provider>|user||<id>`). هذا المفتاح كان مشتركًا بين كل الـauthenticators، لذلك الـSDK لا يقرأه كبديل احتياطي: لو فعل لسلّم token الخاص بـauthenticator إلى authenticator آخر. والمستخدمون الذين لا يُعثر على الـtoken الخاص بهم يسجّلون الدخول من جديد. وللاحتفاظ بالـtoken، ينقلها المشغّل الذي يعرف لأي authenticator تنتمي الـtokens القديمة مرة واحدة:
 
 ```ts
 import { fileStore } from 'lousho';
@@ -30,9 +30,9 @@ if (token) {
 }
 ```
 
-ورابط تسجيل الدخول اللي صدر قبل الترقية يُرفض عند الـcallback الخاص به؛ والمستخدم يطلب رابطًا جديدًا.
+ورابط تسجيل الدخول الذي صدر قبل الترقية يُرفض عند الـcallback الخاص به؛ والمستخدم يطلب رابطًا جديدًا.
 
-`tokenStoreKey(provider, owner)` هو مفتاح سجل الـcredential: `<provider>|app`، أو `<provider>|user|<issuer>|<principalId>` مع percent-encoding للـissuer والمعرّف (الـissuer الغائب جزء فارغ). الترميز يجعل المفتاح واضحًا: معرّف principal فيه `|` ما يقدر يتصادم مع مالك آخر.
+`tokenStoreKey(provider, owner)` هو مفتاح سجل الـcredential: `<provider>|app`، أو `<provider>|user|<issuer>|<principalId>` مع percent-encoding للـissuer والمعرّف (الـissuer الغائب جزء فارغ). الترميز يجعل المفتاح واضحًا: معرّف principal فيه `|` لا يمكن أن يتصادم مع مالك آخر.
 
 ```ts
 import { tokenStoreKey } from 'lousho';
@@ -59,8 +59,8 @@ await tokens.delete('github', alice); // disconnect
 ```
 
 - `get` و`set` و`delete` تقرأ وتكتب (تستبدل) وتحذف credential واحد.
-- `list({ provider?, owner? })` ترجع metadata فقط: الـprovider والمالك ونوع الـtoken وانتهاء الصلاحية والـscope وهل فيه refresh token مخزَّن ومتى كُتب السجل. ولا ترجع أبدًا access token ولا refresh token.
-- `putPending(state, value, ttlMs)` و`takePending(state)` تحفظان تسجيل دخول جاري (الـPKCE verifier ومكان العودة) بين الـredirect والـcallback. `takePending` ترجعه مرة واحدة وتحذفه، وبعد `ttlMs` يختفي. `state` من 16 إلى 128 حرفًا من `A-Z` و`a-z` و`0-9` و`_` و`-`؛ وأي `state` مشوَّه يُمرَّر إلى `takePending` ببساطة لا تجد شيئًا.
+- `list({ provider?, owner? })` تعيد metadata فقط: الـprovider والمالك ونوع الـtoken وانتهاء الصلاحية والـscope وهل يوجد refresh token مخزَّن ومتى كُتب السجل. ولا تعيد أبدًا access token ولا refresh token.
+- `putPending(state, value, ttlMs)` و`takePending(state)` تحفظان تسجيل دخول جاريًا (الـPKCE verifier ومكان العودة) بين الـredirect والـcallback. `takePending` تعيده مرة واحدة وتحذفه، وبعد `ttlMs` يختفي. `state` من 16 إلى 128 حرفًا من `A-Z` و`a-z` و`0-9` و`_` و`-`؛ وأي `state` مشوَّه يُمرَّر إلى `takePending` ببساطة لا تجد شيئًا.
 - `setClient(provider, client)` و`getClient(provider)` تحفظان client مسجَّل لدى authorization server (dynamic client registration). والسجل يمكن أن يحتوي client secret، لذلك يُشفَّر مثل الـtoken.
 
 كل store جاهز فيه `tokens`:
@@ -72,7 +72,7 @@ await tokens.delete('github', alice); // disconnect
 | `new SqliteStore(path, { tokenKey })` | الجدولان `oauth_tokens` و`oauth_pending` | نعم |
 | `new KVStore(kv, { tokenKey })` | `<prefix>oauth/tokens/<key>`، `<prefix>oauth/pending/<state>` (مع انتهاء صلاحية) | نعم |
 
-**المفتاح.** الـstores الدائمة تشفّر كل سجل بـAES-256-GCM بمفتاح 32 بايت تمرّره إنت بصيغة base64: إما خيار `tokenKey`، وإلا متغير البيئة `LOUSHO_TOKEN_KEY`. لا يوجد مفتاح افتراضي، ولا شيء يُشتق من كلمة مرور. ولّد واحدًا بـ`generateTokenKey()` أو من الـshell:
+**المفتاح.** الـstores الدائمة تشفّر كل سجل بـAES-256-GCM بمفتاح 32 بايت تمرّره أنت بصيغة base64: إما خيار `tokenKey`، وإلا متغير البيئة `LOUSHO_TOKEN_KEY`. لا يوجد مفتاح افتراضي، ولا شيء يُشتق من كلمة مرور. ولّد واحدًا بـ`generateTokenKey()` أو من الـshell:
 
 ```bash
 node -e "console.log(Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64'))"
@@ -86,22 +86,22 @@ console.log(generateTokenKey()); // store it as a secret, e.g. LOUSHO_TOKEN_KEY
 const agent = createAgent({ provider, store: fileStore('./.lousho', { tokenKey: process.env.LOUSHO_TOKEN_KEY }) });
 ```
 
-في Cloudflare Workers لا يوجد `process.env`: أضف المفتاح كـsecret (`wrangler secret put LOUSHO_TOKEN_KEY`) ومرّر `env.LOUSHO_TOKEN_KEY` في `tokenKey`. والـWorker اللي يولّده `lousho build --target=cloudflare-worker` يعمل هذا عنك.
+في Cloudflare Workers لا يوجد `process.env`: أضف المفتاح كـsecret (`wrangler secret put LOUSHO_TOKEN_KEY`) ومرّر `env.LOUSHO_TOKEN_KEY` في `tokenKey`. والـWorker الذي يولّده `lousho build --target=cloudflare-worker` يفعل هذا عنك.
 
-- إذا المفتاح ليس 32 بايت base64 بالضبط، يظهر `ConfigurationError` عند بناء الـstore.
-- بدون مفتاح، الـagent اللي ما يخزّن token أبدًا يشتغل كالمعتاد: القراءات لا تجد شيئًا. وأول `set` أو `setClient` أو `putPending` يرمي [`LOUSHO_TOKEN_KEY_MISSING`](/ar/errors#lousho_token_key_missing)، وكذلك قراءة سجل موجود.
+- إذا لم يكن المفتاح 32 بايت base64 بالضبط، يظهر `ConfigurationError` عند بناء الـstore.
+- دون مفتاح، الـagent الذي لا يخزّن token أبدًا يعمل كالمعتاد: القراءات لا تجد شيئًا. وأول `set` أو `setClient` أو `putPending` يرمي [`LOUSHO_TOKEN_KEY_MISSING`](/ar/errors#lousho_token_key_missing)، وكذلك قراءة سجل موجود.
 - كل كتابة تستخدم IV عشوائي جديد من 12 بايت، فنفس الـtoken المكتوب مرتين يعطي ciphertext مختلفين. ومفتاح السجل مُوثَّق مع الـIV: الـciphertext المنسوخ إلى صف مالك آخر لا ينجح فكّ تشفيره. الصيغة المخزَّنة: `v1.<base64 iv>.<base64 ciphertext>`.
 - سجل مكتوب بمفتاح آخر، أو تغيّر على القرص، يفشل بـ[`LOUSHO_TOKEN_DECRYPT_FAILED`](/ar/errors#lousho_token_decrypt_failed) — والخطأ يسمّي الـprovider ولا يذكر الـtoken أبدًا.
 
-**تدوير المفتاح.** مرّر أكثر من مفتاح، الأحدث أولًا: `tokenKey: [newKey, oldKey]` أو `LOUSHO_TOKEN_KEY="<new>,<old>"`. الكتابة تستخدم المفتاح الأول، والقراءة تجرّب كل واحد بالترتيب، فالـtokens تنتقل للمفتاح الجديد كلما جُدِّدت. لا يوجد أمر يعيد تشفير كل السجلات؛ وبمجرد ما تُسقط المفتاح القديم، الـtokens اللي ما زالت مكتوبة فيه لم تعد تُقرأ، ومستخدموها يسجّلون الدخول من جديد (احذف تلك السجلات).
+**تدوير المفتاح.** مرّر أكثر من مفتاح، الأحدث أولًا: `tokenKey: [newKey, oldKey]` أو `LOUSHO_TOKEN_KEY="<new>,<old>"`. الكتابة تستخدم المفتاح الأول، والقراءة تجرّب كل واحد بالترتيب، فالـtokens تنتقل للمفتاح الجديد كلما جُدِّدت. لا يوجد أمر يعيد تشفير كل السجلات؛ وبمجرد أن تُسقط المفتاح القديم، لم تعد الـtokens التي لا تزال مكتوبة به تُقرأ، ومستخدموها يسجّلون الدخول من جديد (احذف تلك السجلات).
 
-**لا شيء يسجّل الـtoken.** الـstores لا تضع أبدًا access token ولا refresh token ولا PKCE verifier ولا client secret في رسالة خطأ ولا سطر log ولا `cause` لخطأ. وقيم الـtokens ليست جزءًا من أحداث الـagent ولا الـtranscripts ولا الـcheckpoints ولا الـtraces ولا الـcassettes المسجَّلة، إلا إذا رجّعتها أداة بنفسها. والأداة اللي تستخدم token ترجع جواب الـAPI، ليس الـtoken.
+**لا شيء يسجّل الـtoken.** الـstores لا تضع أبدًا access token ولا refresh token ولا PKCE verifier ولا client secret في رسالة خطأ ولا سطر log ولا `cause` لخطأ. وقيم الـtokens ليست جزءًا من أحداث الـagent ولا الـtranscripts ولا الـcheckpoints ولا الـtraces ولا الـcassettes المسجَّلة، إلا إذا أعادتها أداة بنفسها. والأداة التي تستخدم token تعيد جواب الـAPI، لا الـtoken.
 
 **الاتساق.** SQLite يأخذ تسجيل الدخول المعلّق في transaction واحدة، والـfile store يحجزه بإنشاء ملف حصري، فيحصل عليه مستدعٍ واحد بالضبط. أما Workers KV فلا transactions فيه: `takePending` تقرأ ثم تحذف، فيمكن أن يقرأ callbackان في موقعَي edge مختلفَين، ضمن تأخير انتشار KV (حتى دقيقة تقريبًا)، نفس الـstate. والـstate قيمة عشوائية 256-bit لا يحملها إلا متصفح المستخدم، فإعادة استخدامها لا تمنح شيئًا لمن لا يملكها أصلًا. و`tokens.list()` في `KVStore` تحتاج `list()` الخاصة بالـbinding (الـKV namespace الحقيقي فيها؛ نسخة fake مصنوعة يدويًا يمكن ألا تملكها). و`prune()` في `SqliteStore` تحذف أيضًا تسجيلات الدخول المعلّقة المنتهية؛ والـfile store يسقطها عند بدء تسجيل الدخول التالي، وKV ينهيها بنفسه.
 
 ## أدوات تحتاج تسجيل دخول
 
-عرّف الـprovider مرة واحدة، على مستوى الـmodule بجانب الأدوات اللي تستخدمه، بـ`defineOAuthProvider()`. والأداة تطلب الـtoken بـ`ctx.getToken(provider)`:
+عرّف الـprovider مرة واحدة، على مستوى الـmodule بجانب الأدوات التي تستخدمه، بـ`defineOAuthProvider()`. والأداة تطلب الـtoken بـ`ctx.getToken(provider)`:
 
 ```ts
 import { createAgent, defineOAuthProvider, defineTool, memoryStore } from 'lousho';
@@ -134,14 +134,14 @@ const listRepos = defineTool({
 const agent = createAgent({ provider, tools: [listRepos], store: memoryStore() });
 ```
 
-- `getToken()` تقرأ من `store.tokens` الـtoken الخاص بـprincipal الـrun ([principal](/ar/auth)) (`credentialOwner: 'user'`، وهو الافتراضي) أو الخاص بالتطبيق (`credentialOwner: 'app'`). والـtoken اللي تنتهي صلاحيته خلال 60 ثانية وفيه refresh token يُجدَّد أولًا على `tokenUrl` ويُحفظ. والاستدعاءات المتزامنة في نفس الـprocess اللي تحتاج نفس التجديد تتشارك request واحدًا، فالـprovider اللي يدوّر الـrefresh tokens (استخدام واحد) لا يستلم نفس الـrefresh token مرتين. وإذا رفض الخادم التجديد يُحذف الـtoken، إلا إذا صار في الـstore خلال ذلك token مختلف (process آخر جدّده)؛ وقتها يُستخدم ذلك بدلًا منه.
-- بدون token صالح الـrun **يوقف**، بالضبط مثل [approval](/ar/approvals): `finishReason: 'awaiting-approval'`، وapproval معلّق بـ`kind: 'sign-in'`، durable في مخازن الـagent. وبعد تسجيل المستخدم وقبول الـapproval، يعمل الـtool call من جديد **من البداية**. استدعِ `getToken()` قبل أي شيء له side effect: أي شغل مُنجز قبلها يتكرر مرتين.
+- `getToken()` تقرأ من `store.tokens` الـtoken الخاص بـprincipal الـrun ([principal](/ar/auth)) (`credentialOwner: 'user'`، وهو الافتراضي) أو الخاص بالتطبيق (`credentialOwner: 'app'`). والـtoken الذي تنتهي صلاحيته خلال 60 ثانية ومعه refresh token يُجدَّد أولًا على `tokenUrl` ويُحفظ. والاستدعاءات المتزامنة في الـprocess نفسه التي تحتاج التجديد نفسه تتشارك request واحدًا، فالـprovider الذي يدوّر الـrefresh tokens (استخدام واحد) لا يستلم الـrefresh token نفسه مرتين. وإذا رفض الخادم التجديد يُحذف الـtoken، إلا إذا أصبح في الـstore خلال ذلك token مختلف (جدّده process آخر)؛ وعندئذٍ يُستخدم ذلك بدلًا منه.
+- دون token صالح **يتوقف** الـrun، بالضبط مثل [approval](/ar/approvals): `finishReason: 'awaiting-approval'`، وapproval معلّق بـ`kind: 'sign-in'`، durable في مخازن الـagent. وبعد تسجيل المستخدم وقبول الـapproval، يعمل الـtool call من جديد **من البداية**. استدعِ `getToken()` قبل أي شيء له side effect: أي عمل يُنجز قبلها يتكرر مرتين.
 - `ctx.requireAuth(provider)` لرمز رفضته الـAPI (استجابة 401): تحذف الـtoken المخزَّن وتوقف لتسجيل دخول جديد.
-- credential المستخدم تحتاج principal: في run بدون واحد (لا route auth ولا channel) تُفشل `getToken()` الاستدعاء بـ[`LOUSHO_OAUTH_PRINCIPAL_REQUIRED`](/ar/errors#lousho_oauth_principal_required) ولا يتوقف شيء.
+- credential المستخدم تحتاج principal: في run ليس له principal (لا route auth ولا channel) تُفشل `getToken()` الاستدعاء بـ[`LOUSHO_OAUTH_PRINCIPAL_REQUIRED`](/ar/errors#lousho_oauth_principal_required) ولا يتوقف شيء.
 - الـagent يحتاج token store (`store` فيه `tokens`)؛ وبدونه يتوقف الـrun بـ[`LOUSHO_OAUTH_STORE_MISSING`](/ar/errors#lousho_oauth_store_missing).
-- الـprovider يُسجَّل باسمه `name` على مستوى الـprocess، فيقدر الـcallback يكمل تسجيل دخول بدأ في request آخر أو قبل restart. وتعريف نفس الاسم مرة أخرى يستبدله.
+- الـprovider يُسجَّل باسمه `name` على مستوى الـprocess، فيستطيع الـcallback أن يكمل تسجيل دخول بدأ في request آخر أو قبل restart. وتعريف الاسم نفسه مرة أخرى يستبدله.
 
-**credentials التطبيق.** الـprovider اللي له `credentialOwner: 'app'` يحمل token واحد للجميع (تثبيت bot، service account). ومستخدم الدردشة لا يُرسَل له رابط تسجيل الدخول أبدًا، لأن اللي يفتحه سيربط حسابه هو كـcredential للـagent لكل المستخدمين: وبدون الـtoken يفشل الاستدعاء بـ[`LOUSHO_OAUTH_APP_SIGNIN_REQUIRED`](/ar/errors#lousho_oauth_app_signin_required). والمشغّل يسجّل دخول التطبيق مرة واحدة بـ`agent.oauth.signInUrl(provider)`:
+**credentials التطبيق.** الـprovider الذي له `credentialOwner: 'app'` يحمل token واحدًا للجميع (تثبيت bot، service account). ومستخدم الدردشة لا يُرسَل له رابط تسجيل الدخول أبدًا، لأن من يفتحه سيربط حسابه هو كـcredential للـagent لكل المستخدمين: ودون الـtoken يفشل الاستدعاء بـ[`LOUSHO_OAUTH_APP_SIGNIN_REQUIRED`](/ar/errors#lousho_oauth_app_signin_required). والمشغّل يسجّل دخول التطبيق مرة واحدة بـ`agent.oauth.signInUrl(provider)`:
 
 ```ts
 import { createAgent, defineOAuthProvider, fileStore } from 'lousho';
@@ -163,30 +163,30 @@ const agent = createAgent({ provider, store: fileStore('./.lousho', { tokenKey: 
 console.log('Open this to connect the app:', await agent.oauth.signInUrl(slackBot));
 ```
 
-الرابط يشتغل 10 دقائق؛ ومسار الـcallback في الـagent المنشور (اللي يشارك نفس الـstore) يخزّن الـtoken، وكل run يستخدمه بعدها، بـprincipal أو بدونه.
+الرابط صالح 10 دقائق؛ ومسار الـcallback في الـagent المنشور (الذي يشارك الـstore نفسه) يخزّن الـtoken، ويستخدمه كل run بعد ذلك، بـprincipal أو بدونه.
 
 ## ما يراه المستخدم
 
-الإيقاف يوصل مثل أي approval، ومعه الرابط المطلوب فتحه:
+يصل الإيقاف مثل أي approval، ومعه الرابط المطلوب فتحه:
 
-- حدث `approval.requested` (و`run.done` اللي بعده بـ`finishReason: 'awaiting-approval'`) فيه `kind: 'sign-in'` و`signIn: { provider, displayName?, url }`. و`agent.approvals.list()` ترجع نفس السجل. اعرض `url`؛ وحين يرجع المستخدم، وافق على الإيقاف ("I've signed in") بـ`agent.approvals.resolve({ id, approved: true })` أو `POST /chat/:id/approvals/:approvalId { "approved": true }`. الموافقة قبل ما الـcallback يخزّن token ترمي [`LOUSHO_SIGNIN_PENDING`](/ar/errors#lousho_signin_pending) (HTTP 409 على المسار) ويبقى الـrun موقوفًا. أما `approved: false` فتلغي: يستلم الـmodel خطأ أداة بـ`kind: 'denied'` نصه "Sign-in to GitHub was cancelled.".
+- حدث `approval.requested` (و`run.done` الذي يليه بـ`finishReason: 'awaiting-approval'`) فيه `kind: 'sign-in'` و`signIn: { provider, displayName?, url }`. و`agent.approvals.list()` تعيد السجل نفسه. اعرض `url`؛ وحين يعود المستخدم، وافق على الإيقاف ("I've signed in") بـ`agent.approvals.resolve({ id, approved: true })` أو `POST /chat/:id/approvals/:approvalId { "approved": true }`. الموافقة قبل أن يخزّن الـcallback الـtoken ترمي [`LOUSHO_SIGNIN_PENDING`](/ar/errors#lousho_signin_pending) (HTTP 409 على المسار) ويبقى الـrun موقوفًا. أما `approved: false` فتلغي: يستلم الـmodel خطأ أداة بـ`kind: 'denied'` نصه "Sign-in to GitHub was cancelled.".
 - الـ`approve` callback لا يُسأل عن تسجيل دخول أبدًا: المستخدم وحده يستطيع تسجيل الدخول.
 - تطبيقات React وVue وSvelte تستلمه كـ`pendingApproval.kind === 'sign-in'` مع `pendingApproval.signIn`: اعرض الرابط واستدعِ `approve()` حين يقول المستخدم إنه انتهى (`reject()` تلغي). وجزء `data-lousho-approval` من stream الـAI SDK يحمل `kind` و`signIn` أيضًا.
-- [القنوات](/ar/channels) تنشر الرسالة الافتراضية "Sign in to GitHub to continue: &lt;url>" بلا أزرار Approve / Deny. وSlack يرسلها بـ`chat.postEphemeral` للمستخدم اللي بدأ الـturn، وDiscord كرسالة ephemeral متابعة، فلا أحد غيره في الـthread يرى الرابط. أما Teams وTelegram فليس لديهما رسالة يراها مستخدم واحد فقط، لذلك يرسلان الرابط فقط في محادثة 1:1 مع الـbot؛ وفي محادثة جماعية أو قناة ينشران بدلًا منه "please sign in from a private chat with me". وGitHub لا ينشرها في thread عام أبدًا. وخلف `createDeployedServer()` و`lousho dev` يكمل الـcallback دورة القناة الموقوفة بنفسه، وتُنشر الإجابة في نفس مكان السؤال.
+- [القنوات](/ar/channels) تنشر الرسالة الافتراضية "Sign in to GitHub to continue: &lt;url>" بلا أزرار Approve / Deny. وSlack يرسلها بـ`chat.postEphemeral` للمستخدم الذي بدأ الـturn، وDiscord كرسالة ephemeral متابعة، فلا أحد غيره في الـthread يرى الرابط. أما Teams وTelegram فليس لديهما رسالة يراها مستخدم واحد فقط، لذلك يرسلان الرابط فقط في محادثة 1:1 مع الـbot؛ وفي محادثة جماعية أو قناة ينشران بدلًا منه "please sign in from a private chat with me". وGitHub لا ينشرها في thread عام أبدًا. وخلف `createDeployedServer()` و`lousho dev` يكمل الـcallback دورة القناة الموقوفة بنفسه، وتُنشر الإجابة في مكان السؤال نفسه.
 - صفحة الدردشة في `lousho dev` تعرض الرابط مع "I've signed in" و"Cancel"؛ و`lousho chat` و`lousho acp` يعرضان الرابط ويسألان من جديد إلى أن يسجّل المستخدم الدخول.
 
 ## مسار callback
 
-`redirectUri` لازم يشير إلى `GET /oauth/callback` في الـagent المخدَّم، بالضبط كما سُجّل لدى الـprovider:
+يجب أن يشير `redirectUri` إلى `GET /oauth/callback` في الـagent المخدَّم، بالضبط كما سُجّل لدى الـprovider:
 
 | Host | Callback |
 | --- | --- |
 | `lousho dev` وخادم node وصورة Docker والـWorker | `GET /oauth/callback` |
 | `createRouteHandler(agent, { basePath })` | `GET <basePath>/oauth/callback` (مثل `/api/agent/oauth/callback`) |
 
-المسار **ليس** خلف route auth ولا bearer token: الـredirect من المتصفح لا يحمل API token. وحمايته هي `state`: 32 بايت عشوائية، استخدام واحد، صالحة 10 دقائق. ينادي `agent.oauth.complete({ state, code, error })` ويرد بصفحة HTML صغيرة ("Signed in to GitHub. You can close this tab."، أو نص الإلغاء إذا أرسل الـprovider `error`)، مع `cache-control: no-store`، وبدون script، وبدون أن يعكس أي قيمة من الـquery. و`state` غير المعروفة أو المستخدمة أو المنتهية يُجاب بـ400؛ ورفض تبادل الـcode يُجاب بـ502 ([`LOUSHO_OAUTH_TOKEN_EXCHANGE_FAILED`](/ar/errors#lousho_oauth_token_exchange_failed)). وإذا اجتاز طلب الـcallback مصادقة المسار (كوكي session تقبلها دالة المصادقة عندك، مثلًا)، يُرفض تسجيل دخول بدأ لمستخدم آخر.
+المسار **ليس** خلف route auth ولا bearer token: الـredirect من المتصفح لا يحمل API token. وحمايته هي `state`: 32 بايت عشوائية، استخدام واحد، صالحة 10 دقائق. يستدعي `agent.oauth.complete({ state, code, error })` ويرد بصفحة HTML صغيرة ("Signed in to GitHub. You can close this tab."، أو نص الإلغاء إذا أرسل الـprovider `error`)، مع `cache-control: no-store`، وبدون script، وبدون أن يعكس أي قيمة من الـquery. و`state` غير المعروفة أو المستخدمة أو المنتهية يُجاب بـ400؛ ورفض تبادل الـcode يُجاب بـ502 ([`LOUSHO_OAUTH_TOKEN_EXCHANGE_FAILED`](/ar/errors#lousho_oauth_token_exchange_failed)). وإذا اجتاز طلب الـcallback مصادقة المسار (كوكي session تقبلها دالة المصادقة الخاصة بك، مثلًا)، يُرفض تسجيل دخول بدأ لمستخدم آخر.
 
-`agent.oauth.complete()` تخزّن الـtoken فقط: الـclient اللي عرض الرابط يكمل الـrun بالموافقة على الإيقاف. وإذا كنت تخدم مسارًا خاصًا بك، افعل الشيء نفسه:
+`agent.oauth.complete()` تخزّن الـtoken فقط: الـclient الذي عرض الرابط يكمل الـrun بالموافقة على الإيقاف. وإذا كنت تخدم مسارًا خاصًا بك، افعل الشيء نفسه:
 
 ```ts
 import { createAgent } from 'lousho';
@@ -204,25 +204,25 @@ export async function GET(request: Request): Promise<Response> {
 }
 ```
 
-إذا رفض المستخدم عند الـprovider، ترجع `complete()` القيمة `outcome: 'declined'`، والموافقة على الإيقاف وقتها تلغي الاستدعاء مثل `approved: false`.
+إذا رفض المستخدم عند الـprovider، تعيد `complete()` القيمة `outcome: 'declined'`، وعندئذٍ تلغي الموافقة على الإيقاف الاستدعاء مثل `approved: false`.
 
 ## approval وتسجيل الدخول معًا
 
-الأداة اللي فيها `needsApproval` تسأل أولًا: بوابة الـapproval تعمل قبل `execute` الخاصة بالأداة. وبعد القبول يبدأ الاستدعاء، فلا تجد `getToken()` token ويوقف الـrun مرة أخرى، هذه المرة لتسجيل الدخول. وبعد تسجيل الدخول، الموافقة على هذا الإيقاف تنفّذ الاستدعاء مرة واحدة؛ ولا يُعرض على المراجع ثانيةً. والاستدعاء اللي يحتاج تسجيل دخول لدى اثنين من الـproviders يتوقف مرة لكل واحد منهما، بالتتابع.
+الأداة التي فيها `needsApproval` تسأل أولًا: بوابة الـapproval تعمل قبل `execute` الخاصة بالأداة. وبعد القبول يبدأ الاستدعاء، فلا تجد `getToken()` token ويتوقف الـrun مرة أخرى، هذه المرة لتسجيل الدخول. وبعد تسجيل الدخول، الموافقة على هذا الإيقاف تنفّذ الاستدعاء مرة واحدة؛ ولا يُعرض على المراجع ثانيةً. والاستدعاء الذي يحتاج تسجيل دخول لدى اثنين من الـproviders يتوقف مرة لكل واحد منهما، بالتتابع.
 
-وإذا احتاجت عدة استدعاءات في turn واحد للـmodel إلى تسجيل دخول، يوقف الـrun عند الأول؛ والباقي يعمل بعد ما يُبتّ فيه، مثل بقية turn توقف على approval.
+وإذا احتاجت عدة استدعاءات في turn واحد للـmodel إلى تسجيل دخول، يتوقف الـrun عند الأول؛ والباقي يعمل بعد أن يُبتّ فيه، مثل بقية turn توقف على approval.
 
 ## الأمان
 
 - **PKCE والـstate.** كل تسجيل دخول يستخدم PKCE مع S256 (verifier من 32 بايت) و`state` عشوائية من 32 بايت. الـverifier يُحفظ فقط في السجل المعلّق المشفَّر (`store.tokens.putPending`) — أبدًا في snapshot الـapproval ولا checkpoint ولا حدث. و`state` لاستخدام واحد وتنتهي بعد 10 دقائق. ورابط التفويض يحمل `state` والـchallenge، وكلاهما آمن للعرض؛ أما authorization code فلا يُسجَّل أبدًا.
 - **التشفير.** الـtokens وتسجيلات الدخول المعلّقة تُشفَّر في التخزين عبر الـstores الدائمة ([تخزين الـtokens](#تخزين-tokens)).
-- **ربط الـprincipal.** token المستخدم يُخزَّن للـprincipal اللي الـrun الموقوف يتصرف نيابةً عنه، من كان اللي يكمّل الـcallback، والـrun لا يقرأ إلا token الـprincipal الخاص به. وtokens مستخدمَين لا تختلط أبدًا؛ ونفس الـid من issuer آخر هو مستخدم آخر. أما credential التطبيق فلا يسجّل دخولها إلا المشغّل.
-- **من يرى الرابط.** اللي يفتح رابط تسجيل دخول يربط حسابه هو بالمستخدم اللي طلبه. اعرضه لذلك المستخدم فقط: في stream الـrun نفسه، أو رسالة ephemeral في قناة مشتركة (Slack وDiscord)، أو محادثة 1:1 (Telegram وTeams)، ولا في محادثة جماعية أو thread عام أبدًا.
-- **لا ترجع token من أداة أبدًا.** ارجع جواب الـAPI. وكشبكة أمان: إذا كانت نتيجة أداة أو خطأ مرميّ منها فيه token سلّمته `getToken()` أثناء ذلك الاستدعاء، يُستبدل بـ`[REDACTED]` قبل تسجيله، وتحذير يسمّي الأداة. النتيجة تُفحص بصيغتها JSON (القيم والمفاتيح و`URL` وحقول instance من class)، والخطأ في رسالته والـstack وسلسلة `cause`، والـtoken يُطابَق حرفيًا وبترميز base64 أو base64url (header `Basic`). وهذا الحجب شبكة أمان، لا ضمان: الـtoken اللي يُعمل له hash أو يُقسَّم أو يُحوَّل بأي طريقة أخرى لا يُكتشف. والـtokens لا تدخل أبدًا في أحداث الـagent ولا transcripts ولا checkpoints ولا سجلات الـapproval ولا trace spans ولا cassettes مسجَّلة.
+- **ربط الـprincipal.** token المستخدم يُخزَّن للـprincipal الذي يتصرف الـrun الموقوف نيابةً عنه، أيًّا كان من يكمّل الـcallback، والـrun لا يقرأ إلا token الـprincipal الخاص به. وtokens مستخدمَين لا تختلط أبدًا؛ والـid نفسه من issuer آخر هو مستخدم آخر. أما credential التطبيق فلا يسجّل دخولها إلا المشغّل.
+- **من يرى الرابط.** من يفتح رابط تسجيل دخول يربط حسابه هو بالمستخدم الذي طلبه. اعرضه لذلك المستخدم فقط: في stream الـrun نفسه، أو رسالة ephemeral في قناة مشتركة (Slack وDiscord)، أو محادثة 1:1 (Telegram وTeams)، ولا في محادثة جماعية أو thread عام أبدًا.
+- **لا تُعِد token من أداة أبدًا.** أعِد جواب الـAPI. وكشبكة أمان: إذا كانت نتيجة أداة أو خطأ مرميّ منها يحتوي token سلّمته `getToken()` أثناء ذلك الاستدعاء، يُستبدل بـ`[REDACTED]` قبل تسجيله، وتحذير يسمّي الأداة. النتيجة تُفحص بصيغتها JSON (القيم والمفاتيح و`URL` وحقول instance من class)، والخطأ في رسالته والـstack وسلسلة `cause`، والـtoken يُطابَق حرفيًا وبترميز base64 أو base64url (header `Basic`). وهذا الحجب شبكة أمان، لا ضمان: الـtoken الذي يُحسب له hash أو يُقسَّم أو يُحوَّل بأي طريقة أخرى لا يُكتشف. والـtokens لا تدخل أبدًا في أحداث الـagent ولا transcripts ولا checkpoints ولا سجلات الـapproval ولا trace spans ولا cassettes مسجَّلة.
 
 ## خوادم MCP مع OAuth
 
-خوادم MCP المستضافة مثل Linear وGitHub وAtlassian وNotion تتطلب OAuth 2.1 كما تعرّفه مواصفة تفويض MCP. أعطِ مدخل HTTP في `mcpServers` حقل `oauth` والـSDK يتولى البروتوكول: يقرأ metadata المورد المحمي للخادم (RFC 9728) ليجد authorization server الخاص به، ويقرأ metadata ذلك الخادم (RFC 8414)، ويسجّل client إذا ما كان عندك واحد (dynamic client registration، RFC 7591)، ويسجّل الدخول بـPKCE (S256) وresource indicator (RFC 8707). والـtokens تُحفظ في token store الـagent (مشفَّرة في الـstores الدائمة) تحت اسم provider `mcp-<server>`، ويجدّدها MCP SDK حين يرفض الخادم واحدًا منتهيًا.
+خوادم MCP المستضافة مثل Linear وGitHub وAtlassian وNotion تتطلب OAuth 2.1 كما تعرّفه مواصفة تفويض MCP. أعطِ مدخل HTTP في `mcpServers` حقل `oauth` والـSDK يتولى البروتوكول: يقرأ metadata المورد المحمي للخادم (RFC 9728) ليجد authorization server الخاص به، ويقرأ metadata ذلك الخادم (RFC 8414)، ويسجّل client إذا لم يكن لديك واحد (dynamic client registration، RFC 7591)، ويسجّل الدخول بـPKCE (S256) وresource indicator (RFC 8707). والـtokens تُحفظ في token store الـagent (مشفَّرة في الـstores الدائمة) تحت اسم provider `mcp-<server>`، ويجدّدها MCP SDK حين يرفض الخادم واحدًا منتهيًا.
 
 ```ts
 import { createAgent } from 'lousho';
@@ -246,19 +246,19 @@ console.log('Open this to connect Linear:', await agent.oauth.mcpSignInUrl('line
 الحقل `oauth` يقبل:
 
 - `redirectUri` (مطلوب): عنوان الـcallback للـagent، أي [مسار الـcallback](#مسار-callback) في الـagent المنشور.
-- `clientId`، و`clientSecret` لـconfidential client: client سجّلته بنفسك لدى authorization server. وبدون `clientId`، الـSDK يسجّل واحدًا عند أول تسجيل دخول (باسم `clientName`، والافتراضي `lousho`، و`redirectUri` هو الـredirect URI الوحيد له) ويحتفظ به في الـtoken store.
+- `clientId`، و`clientSecret` لـconfidential client: client سجّلته بنفسك لدى authorization server. ودون `clientId`، يسجّل الـSDK واحدًا عند أول تسجيل دخول (باسم `clientName`، والافتراضي `lousho`، و`redirectUri` هو الـredirect URI الوحيد له) ويحتفظ به في الـtoken store.
 - `scopes`: تُطلب حين لا تسمّي metadata الخادم أيًّا منها.
 
-**تسجيل الدخول.** الـgrant للتطبيق، مثل [credentials التطبيق](#أدوات-تحتاج-تسجيل-دخول): تسجيل دخول واحد للـagent كله، يجريه المشغّل. `agent.oauth.mcpSignInUrl('<server>')` (آخر سطر في المثال فوق) ترجع رابط التفويض؛ المشغّل يفتحه ويوافق، ومسار الـcallback في الـagent المنشور، اللي يشارك نفس الـstore، يخزّن الـtoken. والرابط يشتغل مرة واحدة، لمدة 10 دقائق. و`mcpSignInUrl()` تصنع رابطًا جديدًا دائمًا، حتى لو فيه token مخزَّن، فهي أيضًا تعيد ربط التطبيق بحساب آخر. وأول `ready()` أو tool call بعدها يتصل بالـtoken الجديد؛ ولا شيء يحتاج restart.
+**تسجيل الدخول.** الـgrant للتطبيق، مثل [credentials التطبيق](#أدوات-تحتاج-تسجيل-دخول): تسجيل دخول واحد للـagent كله، يجريه المشغّل. `agent.oauth.mcpSignInUrl('<server>')` (آخر سطر في المثال أعلاه) تعيد رابط التفويض؛ يفتحه المشغّل ويوافق، ومسار الـcallback في الـagent المنشور، الذي يشارك الـstore نفسه، يخزّن الـtoken. والرابط يعمل مرة واحدة، لمدة 10 دقائق. و`mcpSignInUrl()` تصنع رابطًا جديدًا دائمًا، حتى لو كان هناك token مخزَّن، فهي أيضًا تعيد ربط التطبيق بحساب آخر. وأول `ready()` أو tool call بعدها يتصل بالـtoken الجديد؛ ولا شيء يحتاج restart.
 
-**`needs-auth`.** إلى أن يُسجَّل دخول التطبيق، أو بعد إلغاء الـgrant (الـtoken مرفوض ومعه الـrefresh token)، تكون حالة الخادم `'needs-auth'` والاتصال يفشل بـ[`LOUSHO_MCP_AUTH_REQUIRED`](/ar/errors#lousho_mcp_auth_required): `ready()` وأول `send()` يرفضان به (أو، مع `connectMcp(servers, { onError: 'skip' })`، يُترك الخادم خارجًا). وtool call مرفوض أثناء run يصير نتيجة خطأ للـmodel، بنفس الرمز؛ والـrun لا يتوقف، لأن مستخدم الدردشة لا يسجّل الدخول عن التطبيق أبدًا. والاتصال لا يسجّل client ولا يبدأ تسجيل دخول من نفسه: `mcpSignInUrl()` وحدها تفعل.
+**`needs-auth`.** إلى أن يُسجَّل دخول التطبيق، أو بعد إلغاء الـgrant (الـtoken مرفوض ومعه الـrefresh token)، تكون حالة الخادم `'needs-auth'` والاتصال يفشل بـ[`LOUSHO_MCP_AUTH_REQUIRED`](/ar/errors#lousho_mcp_auth_required): `ready()` وأول `send()` يرفضان به (أو، مع `connectMcp(servers, { onError: 'skip' })`، يُترك الخادم خارجًا). وtool call مرفوض أثناء run يصبح نتيجة خطأ للـmodel، بالرمز نفسه؛ والـrun لا يتوقف، لأن مستخدم الدردشة لا يسجّل الدخول عن التطبيق أبدًا. والاتصال لا يسجّل client ولا يبدأ تسجيل دخول من نفسه: `mcpSignInUrl()` وحدها تفعل.
 
 **الأمان.**
 
-- `oauth` يحتاج url بـ`https`؛ و`http` العادي مسموح فقط لـ`localhost` و`127.0.0.1` و`[::1]`. و`headers` تظل تشتغل بجانب `oauth` (header بمفتاح API مثلًا) وتُرسَل فقط إلى origin خادم MCP نفسه، ولا تُرسَل إلى authorization server أبدًا؛ وheader `Authorization` مع `oauth` يُرفض.
-- الـtoken يُرسَل فقط إلى الـ`url` اللي أُخذ له. وإذا تغيّر `url` المدخل، الـgrant المخزَّن وأي client مسجَّل لا يُستخدمان، والخادم يحتاج تسجيل دخول جديد. والـSDK يرفض أيضًا metadata المورد المحمي إذا `resource` فيها لا يطابق عنوان الخادم.
+- `oauth` يحتاج url بـ`https`؛ و`http` العادي مسموح فقط لـ`localhost` و`127.0.0.1` و`[::1]`. و`headers` تظل تعمل بجانب `oauth` (header بمفتاح API مثلًا) وتُرسَل فقط إلى origin خادم MCP نفسه، ولا تُرسَل إلى authorization server أبدًا؛ وheader `Authorization` مع `oauth` يُرفض.
+- الـtoken يُرسَل فقط إلى الـ`url` الذي أُخذ له. وإذا تغيّر `url` المدخل، لا يُستخدم الـgrant المخزَّن ولا أي client مسجَّل، ويحتاج الخادم إلى تسجيل دخول جديد. والـSDK يرفض أيضًا metadata المورد المحمي إذا كان `resource` فيها لا يطابق عنوان الخادم.
 - الـtokens وauthorization codes وPKCE verifiers وclient secret لا تظهر أبدًا في رسائل الأخطاء ولا أسطر الـlogs ولا `status()` ولا أحداث الـagent ولا نتائج الأدوات؛ وخطأ authorization server يُبلَّغ عنه برمز `error` الخاص بـOAuth فقط.
 
 **الحدود.** grants الـMCP يملكها التطبيق: اتصال واحد وtoken واحد لكل خادم لكل مستخدمي الـagent. أما grants MCP لكل مستخدم (كل مستخدم يسجّل الدخول بحسابه وبقائمة أدوات خاصة به) فغير مدعومة بعد. وOAuth يشمل خوادم HTTP فقط، لا stdio. ووثائق Client ID metadata ومصادقة الـclient بـ`private_key_jwt` غير مدعومة.
 
-لاستخدام `connectMcp()` بدون agent، مرّر الـstore هكذا: `connectMcp(servers, { tokens: store.tokens })`. هي تستخدم الـtoken المخزَّن، وتسجيل الدخول يمر عبر `agent.oauth.mcpSignInUrl()` في agent على نفس الـstore.
+لاستخدام `connectMcp()` بدون agent، مرّر الـstore هكذا: `connectMcp(servers, { tokens: store.tokens })`. هي تستخدم الـtoken المخزَّن، وتسجيل الدخول يمر عبر `agent.oauth.mcpSignInUrl()` في agent على الـstore نفسه.

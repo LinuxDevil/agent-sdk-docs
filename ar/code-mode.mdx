@@ -3,14 +3,14 @@ title: "Code mode"
 ---
 {/* Generated from docs/code-mode.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-مع code mode يحصل الموديل على tool إضافية: `run_code`. بدل ما ينادي الـ tools
-وحدة وحدة، مع round trip للموديل بعد كل call، يكتب برنامج JavaScript قصير
-ينادي tools الـ agent كدوال async، ويعمل loop وfilter ويجمع نتائجها، ثم يرجّع
-قيمة واحدة. وهكذا تصير عدة tool calls بـ round trip واحد للموديل، والنتائج
-الوسيطة الكبيرة ما تدخل الـ context أصلًا: فقط قيمة إرجاع البرنامج تدخل.
+مع code mode يحصل الموديل على tool إضافية: `run_code`. بدلًا من أن يستدعي الـ tools
+واحدة تلو الأخرى، مع round trip للموديل بعد كل call، يكتب برنامج JavaScript قصيرًا
+يستدعي tools الـ agent كدوال async، ويُجري loop وfilter ويجمع نتائجها، ثم يُرجع
+قيمة واحدة. وهكذا تصبح عدة tool calls بـ round trip واحد للموديل، والنتائج
+الوسيطة الكبيرة لا تدخل الـ context أصلًا: فقط قيمة إرجاع البرنامج تدخل.
 
-البرنامج يشتغل داخل QuickJS WebAssembly isolate داخل العملية نفسها، لا داخل
-Docker. وكل tool call يجريها يمر بنفس الفحوص التي يمر بها call مباشر من
+يعمل البرنامج داخل QuickJS WebAssembly isolate داخل العملية نفسها، لا داخل
+Docker. وكل tool call يجريها يمر بالفحوص نفسها التي يمر بها call مباشر من
 الموديل: التحقق من الوسائط، hooks، قواعد الصلاحيات وأوضاعها، guardrails،
 و`needsApproval`.
 
@@ -18,11 +18,11 @@ Docker. وكل tool call يجريها يمر بنفس الفحوص التي يم
 
 - الجواب يحتاج عدة calls تعتمد مدخلاتها على نتائج سابقة (ابحث عن ثلاثة
   أسعار، ثم حوّل مجموعها).
-- tool ترجّع أكثر بكثير مما يحتاجه الموديل (قائمة طويلة تحتاج filter،
-  أو تقرير تحتاج تعدّه).
-- نفس الـ call تتكرر على قائمة عناصر.
+- tool تُرجع أكثر بكثير مما يحتاجه الموديل (قائمة طويلة تحتاج filter،
+  أو تقرير تحتاج إلى عدّه).
+- الـ call نفسها تتكرر على قائمة عناصر.
 
-أما لو كان call واحد، أو كل خطوة تحتاج حكم الموديل، فالـ tool calls المباشرة
+أما إذا كان call واحدًا، أو كانت كل خطوة تحتاج حكم الموديل، فالـ tool calls المباشرة
 أبسط، والموديل أفضل فيها.
 
 ## شغّله
@@ -65,7 +65,7 @@ const agent = createAgent({
 const { text } = await agent.send('What do an apple, a pear and a plum cost together in EUR?');
 ```
 
-سكربت ممكن يكتبه الموديل لهذا السؤال:
+سكربت قد يكتبه الموديل لهذا السؤال:
 
 ```js
 let usd = 0;
@@ -76,7 +76,7 @@ const eur = await tools.convert({ amount: usd, to: 'EUR' });
 return { usd, eur: eur.amount };
 ```
 
-`run_code` ترجّع `{ result, logs, toolCalls }`: قيمة إرجاع السكربت، والأسطر
+`run_code` تُرجع `{ result, logs, toolCalls }`: قيمة إرجاع السكربت، والأسطر
 التي سجّلها بـ `console.log()` (و`console.error()` / `warn()`، مسبوقة
 بمستواها)، وعدد الـ tool calls التي أجراها.
 
@@ -85,27 +85,27 @@ return { usd, eur: eur.amount };
 
 ## الخيارات
 
-`codeMode: true` تعني الإعدادات الافتراضية. ولو مرّرت object تقدر تضبط أي
-خيار من التالي:
+`codeMode: true` تعني الإعدادات الافتراضية. وإذا مرّرت object يمكنك ضبط أي
+خيار مما يلي:
 
 | الخيار | الافتراضي | المعنى |
 | --- | --- | --- |
-| `tools` | انظر تحت | أسماء الـ tools التي يُسمح للسكربت يناديها. اسم بلا tool مقابلة في الـ run يُتخطّى. و`run_code` نفسها مرفوضة. |
-| `exclusive` | `false` | `true` تسحب تلك الـ tools من قائمة tools الموديل، فما يقدر يناديها إلا عبر `run_code`. والسكربتات تظل قادرة تناديها. |
+| `tools` | انظر أدناه | أسماء الـ tools التي يُسمح للسكربت باستدعائها. الاسم الذي ليس له tool مقابلة في الـ run يُتخطّى. و`run_code` نفسها مرفوضة. |
+| `exclusive` | `false` | `true` تسحب تلك الـ tools من قائمة tools الموديل، فلا يستطيع استدعاءها إلا عبر `run_code`. وتظل السكربتات قادرة على استدعائها. |
 | `timeoutMs` | `30000` | مهلة السكربت كله، بما فيها الـ tool calls التي ينتظرها. |
 | `memoryLimitBytes` | `67108864` (64 MiB) | ذاكرة الـ isolate. |
 | `maxToolCalls` | `50` | الـ tool calls في السكربت الواحد. |
 | `maxOutputChars` | `20000` | أحرف قيمة الإرجاع (كـ JSON) زائد الـ logs. |
 
-بدون `tools`، يقدر السكربت ينادي كل tools الـ run ما عدا `run_code`
+بدون `tools`، يستطيع السكربت استدعاء كل tools الـ run ما عدا `run_code`
 و`ask_question` وtools الـ sub-agents (`task` و`agent_status` و`agent_await`
 و`agent_cancel` و`delegate_to_*`) و`tool_search` و`load_skill` والأدوات التي
 يؤجّلها [tool search](/ar/tool-search). سمِّ tool في `tools` لتسمح بها رغم
-ذلك: الـ deferred tool المذكورة هناك تصير قابلة للنداء من السكربتات وتوقيعها
-يظهر في وصف `run_code` (يعني ما عادت محجوبة عن الـ context في code mode)،
+ذلك: الـ deferred tool المذكورة هناك تصبح قابلة للاستدعاء من السكربتات ويظهر توقيعها
+في وصف `run_code` (أي أنها لم تعد محجوبة عن الـ context في code mode)،
 لكنها تظل خارج قائمة tools الموديل نفسه إلى أن تحمّلها `tool_search`.
 
-الموديل يعرف ما يقدر يناديه من وصف `run_code`: signature بأسلوب TypeScript
+يعرف الموديل ما يستطيع استدعاءه من وصف `run_code`: signature بأسلوب TypeScript
 لكل tool مسموحة، مبني من input schema الخاصة بها، ووصفها يظهر كتعليق:
 
 ```text
@@ -114,60 +114,60 @@ tools.get_price(args: { item: string }): Promise<unknown>
 ```
 
 ليس للنتائج نوع معلَن، فإذا فشل السكربت يسرد الخطأ أول خمس tool calls أجراها
-مع وسائطها ونتائجها (كل منها مقصوصة عند 200 حرف). والموديل يقدر يقرأ الأشكال
-من هناك ويصلّح السكربت.
+مع وسائطها ونتائجها (كل منها مقصوصة عند 200 حرف). ويستطيع الموديل قراءة الأشكال
+من هناك وإصلاح السكربت.
 
-## ما يقدر السكربت يعمله وما لا
+## ما يستطيع السكربت فعله وما لا يستطيع
 
-الكود هو جسم دالة `async`. يقدر يستخدم لغة JavaScript ودوالها المدمجة (`JSON`
-و`Math` و`Date` و`Promise` والمصفوفات والـ maps والتعابير النمطية)، ينادي
-tools، يسجّل، ويرجّع قيمة.
+الكود هو جسم دالة `async`. يستطيع استخدام لغة JavaScript ودوالها المدمجة (`JSON`
+و`Math` و`Date` و`Promise` والمصفوفات والـ maps والتعابير النمطية)، واستدعاء
+tools، والتسجيل، وإرجاع قيمة.
 
-- `await tools.<name>(args)` ترجع بنتيجة الـ tool، أو ترمي `Error`
+- `await tools.<name>(args)` تعود بنتيجة الـ tool، أو ترمي `Error`
   (`name: 'ToolError'`) رسالته هي رسالة خطأ الـ tool نفسها. و`tools` فيها
   فقط الـ tools المسموحة ولا يمكن تغييرها.
-- الوسائط والنتائج تعبر الحدود نسخَ JSON: `Date` توصل كـ string، الدوال
-  والحقول `undefined` تُحذف، وتغيير نتيجة داخل السكربت ما يغيّر شيئًا خارجها.
-- `Promise.all` تشغّل الـ calls بنفس الوقت، بحد أقصى `toolConcurrency`
+- الوسائط والنتائج تعبر الحدود نسخَ JSON: `Date` تصل كـ string، الدوال
+  والحقول `undefined` تُحذف، وتغيير نتيجة داخل السكربت لا يغيّر شيئًا خارجها.
+- `Promise.all` تشغّل الـ calls في الوقت نفسه، بحد أقصى `toolConcurrency`
   (إعداد الـ agent) لكل سكربت.
-- قيمة الإرجاع لازم تكون JSON-serializable؛ و`undefined` تصير `null`.
+- يجب أن تكون قيمة الإرجاع JSON-serializable؛ و`undefined` تصبح `null`.
 
 لا يوجد `require` ولا `import` ولا `process` ولا `fetch` ولا نظام ملفات ولا
-شبكة ولا `setTimeout` ولا أي مؤقّت آخر، ولا أي host object. والسكربت يوصل
-للعالم الخارجي فقط عبر الـ tools المُعطاة له.
+شبكة ولا `setTimeout` ولا أي مؤقّت آخر، ولا أي host object. ويصل السكربت
+إلى العالم الخارجي فقط عبر الـ tools المُعطاة له.
 
 ## نموذج الأمان
 
 - **العزل.** كل سكربت يحصل على QuickJS runtime وcontext جديدين في
   WebAssembly، ولا يوجد فيهما شيء من الـ host غير دالتين (واحدة لـ tool call
   وواحدة لسطر log) ينزعهما كود الإعداد الخاص بالـ SDK من الـ global object
-  قبل ما يشتغل السكربت. و`node:vm` لا يُستخدم هنا، لأنه ليس حدًّا أمنيًا.
+  قبل أن يعمل السكربت. و`node:vm` لا يُستخدم هنا، لأنه ليس حدًّا أمنيًا.
 - **الحدود.** الـ isolate يفرض حد الذاكرة وحد الـ stack البالغ 512 KiB.
   والموعد النهائي يفحصه interrupt handler بينما السكربت يحسب، فأي loop لا
-  نهائية تُوقَف عند `timeoutMs` — `try` / `catch` لا يقدر يلتقط هذا الإيقاف —
+  نهائية تُوقَف عند `timeoutMs` — `try` / `catch` لا يستطيع التقاط هذا الإيقاف —
   ويفحصه مؤقّت بينما السكربت ينتظر tool. وكثرة الـ tool calls توقّف السكربت
   أيضًا، حتى لو التقط الخطأ.
 - **البوابة لكل call.** كل `tools.x(args)` هو inner tool call داخل الـ run:
   يُتحقق منه مقابل schema الـ tool، ثم pre-tool hooks وقواعد الصلاحيات
   و[وضع الصلاحيات](/ar/permission-modes) و[tool guardrails](/ar/guardrails)
-  و`needsApproval`، ثم تشتغل الـ tool (عبر sandbox الـ run إذا كانت
+  و`needsApproval`، ثم تعمل الـ tool (عبر sandbox الـ run إذا كانت
   `requiresSandbox`) بـ principal الـ run، ثم post-tool hooks. والـ call
   المرفوضة ترمي خطأ داخل السكربت مع سبب الرفض. والـ guardrail التي تمنع
   inner call توقّف الـ run كله، كما تفعل مع call مباشرة.
-- **Plan mode.** `run_code` معلَّمة read-only: ما تغيّر شيئًا بنفسها. وفي
-  plan mode كل inner call يُفحص على حدة، فيقدر السكربت ينادي tools قراءة
+- **Plan mode.** `run_code` معلَّمة read-only: لا تغيّر شيئًا بنفسها. وفي
+  plan mode يُفحص كل inner call على حدة، فيستطيع السكربت استدعاء tools القراءة
   فقط، وأي call لـ tool أخرى ترمي `denied by plan mode`.
-- **الأخطاء.** خطأ الـ tool يوصل للسكربت كرسالة فقط، ولا يصل معه stack trace
+- **الأخطاء.** خطأ الـ tool يصل إلى السكربت كرسالة فقط، ولا يصل معه stack trace
   من الـ host أبدًا. والـ tokens التي أخذتها الـ tool من `ctx.getToken()`
   تُحجب من نتيجتها، كما في call مباشرة.
 
-السكربت الذي يحسب بدون انتظار يشتغل على thread عمليتك: يحجب الـ event loop
-إلى أن ينتهي أو يوقفه `timeoutMs`. وعلى سيرفر يعالج طلبات أخرى، خلّي
-`timeoutMs` منخفض.
+السكربت الذي يحسب دون انتظار يعمل على thread عمليتك: يحجب الـ event loop
+إلى أن ينتهي أو يوقفه `timeoutMs`. وعلى سيرفر يعالج طلبات أخرى، أبقِ
+`timeoutMs` منخفضًا.
 
 ## الموافقات وتسجيل الدخول والتوقفات الأخرى
 
-السكربت ما يقدر يتوقف. الـ QuickJS isolate لا يمكن حفظه واستئنافه لاحقًا،
+السكربت لا يستطيع التوقف. الـ QuickJS isolate لا يمكن حفظه واستئنافه لاحقًا،
 فأي inner call كان سيوقّف الـ run يرمي خطأ داخل السكربت بدلًا من ذلك، والـ
 run لا يتوقف:
 
@@ -177,9 +177,9 @@ run لا يتوقف:
 | يحتاج تسجيل دخول (`ctx.getToken()` بدون token) | `Tool x needs the user to sign in to <provider>; call it directly, not from run_code.` |
 | يشغّل sub-agent يحتاج approval | `Tool x started a sub-agent that needs approval; call it directly, not from run_code.` |
 
-الموديل يقدر بعدها ينادي تلك الـ tool مباشرة، فيتوقف الـ run كالمعتاد.
-و`run_code` نفسها ممكن تحتاج approval (مثلًا مع `permissions: [ask('*')]`):
-الـ run يتوقف قبل ما يشتغل السكربت، والسكربت يشتغل بعد قرار الموافقة، مع فحص
+يستطيع الموديل بعد ذلك استدعاء تلك الـ tool مباشرة، فيتوقف الـ run كالمعتاد.
+و`run_code` نفسها قد تحتاج approval (مثلًا مع `permissions: [ask('*')]`):
+يتوقف الـ run قبل أن يعمل السكربت، ويعمل السكربت بعد قرار الموافقة، مع فحص
 كل inner call.
 
 ## الأحداث والـ tracing
@@ -202,8 +202,8 @@ calls بدأها شغّالة، يُلغى `abortSignal` الخاص بها وت�
 ## القيود والـ durability
 
 - **لا تقدّم جزئي.** حالة السكربت تعيش فقط داخل الـ isolate. بعد crash،
-  الـ run المستأنف ينادي `run_code` من جديد والسكربت كله يشتغل مرة أخرى،
-  بما فيه الـ tool calls التي كان أجراها. خلّي الـ tools التي يناديها
+  يستدعي الـ run المستأنف `run_code` من جديد ويعمل السكربت كله مرة أخرى،
+  بما فيه الـ tool calls التي كان أجراها. اجعل الـ tools التي يستدعيها
   السكربت idempotent — `ctx.toolCallId` لكل inner call هو نفسه عند إعادة
   التشغيل، فاستخدمه كـ idempotency key — أو نادِ الـ tools التي لها
   side effects مباشرة.
@@ -213,8 +213,8 @@ calls بدأها شغّالة، يُلغى `abortSignal` الخاص بها وت�
   sessions والاستئناف والموافقات، على Node. وهدف `cloudflare-worker` في
   `lousho build` لا يضمّ QuickJS، فالـ run المفعَّل فيه `codeMode` يفشل هناك
   من بدايته. والـ agent الذي يُشغَّل كـ sub-agent (عبر أداة `task` أو
-  delegate tool) يشتغل بدون code mode، و`codeMode` الخاص بالـ lead لا يوصل
+  delegate tool) يعمل دون code mode، و`codeMode` الخاص بالـ lead لا يصل
   إلى tools الـ sub-agent.
 - **الأخطاء نتائج.** خطأ في السكربت، timeout، بلوغ حد الذاكرة، كثرة tool
-  calls، أو قيمة إرجاع تتجاوز `maxOutputChars` — كلها تصير tool error في
+  calls، أو قيمة إرجاع تتجاوز `maxOutputChars` — كلها تصبح tool error في
   `run_code` يسمّي السبب؛ يستلمه الموديل والـ run يكمل.

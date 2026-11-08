@@ -3,40 +3,40 @@ title: "Agent Forge"
 ---
 {/* Generated from docs/agent-forge.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-Agent Forge (`apps/agent-forge`، واسمه الثاني الـ Studio) هو الـ dashboard
+Agent Forge (`apps/agent-forge`، واسمه الآخر الـ Studio) هو الـ dashboard
 المرافق لهذه الـ SDK: تطبيق واحد فيه navigation على اليسار تبني منه الـ
-agents وتشغّلها، وتجرّب الـ prompts، وتقرأ اللي سوّته الـ agents حقتك من
+agents وتشغّلها، وتجرّب الـ prompts، وتقرأ ما فعلته الـ agents الخاصة بك من
 الـ observe daemon. تبني فيه graph الـ agent على canvas (لوحة الرسم)،
-تشغّله، تحاوره، وتكتب pre/post hooks تشتغل داخل sandbox (بيئة معزولة)
-(وكل هذا يقرأ ويكتب نفس ملف `AgentSpec` YAML اللي يستخدمه `lousho dev`
+وتشغّله، وتحاوره، وتكتب pre/post hooks تعمل داخل sandbox (بيئة معزولة)
+(وكل هذا يقرأ ويكتب ملف `AgentSpec` YAML نفسه الذي يستخدمه `lousho dev`
 و`lousho build`)، وتجرّب الـ prompts في playground، وتقرأ من
 [الـ observe daemon](/ar/observability#الـ-observe-daemon) الـ traces والـ
 threads ومراقبة الـ fleet ودرجات الـ evals والـ datasets وطوابير التعليق
 (annotation queues) وسجل الـ prompts والـ context hub. تشغّله بأمر واحد:
 `lousho studio`، ويأتي ضمن حزمة npm للـ SDK نفسها.
 
-هذه الصفحة تغطي: التثبيت، الـ quickstart مع `lousho studio`،
-[الـ navigation والشاشات](#الـ-navigation)، جولة أول agent، كتابة hooks، الـ
-time travel (إعادة run من خطوة سابقة)، الـ endpoint حق الـ playground،
-وكيف تشتغل إعدادات الـ secrets والـ deploy.
+تغطي هذه الصفحة: التثبيت، والـ quickstart مع `lousho studio`،
+و[الـ navigation والشاشات](#الـ-navigation)، وجولة أول agent، وكتابة hooks، والـ
+time travel (إعادة run من خطوة سابقة)، والـ endpoint الخاص بالـ playground،
+وكيف تعمل إعدادات الـ secrets والـ deploy.
 
 ![شاشة Agents: الـ navigation، شريط الـ agents، الـ canvas معروض كامل والـ Inspector مطوي، والـ drawer السفلي](/images/studio-agents.png)
 
 ## التثبيت
 
-Agent Forge يأتي داخل `lousho` نفسه — ما في حزمة منفصلة
+يأتي Agent Forge داخل `lousho` نفسه — لا توجد حزمة منفصلة
 تثبّتها:
 
 ```bash
 npm install lousho
 ```
 
-هذا كل شي. `lousho studio` (تحت) يشغّل نسخة جاهزة من التطبيق، فما تحتاج
-كود `apps/agent-forge` المصدري ولا الـ devDependencies الخاصة به (Vite،
-`tsx`، غيرها) حتى تستخدمه.
+هذا كل شيء. يشغّل `lousho studio` (أدناه) نسخة جاهزة من التطبيق، فلا تحتاج إلى
+كود `apps/agent-forge` المصدري ولا إلى الـ devDependencies الخاصة به (Vite،
+و`tsx`، وغيرها) لكي تستخدمه.
 
-إذا كنت تشتغل داخل الـ monorepo الخاص بالـ SDK نفسها (تساهم في Agent Forge
-ذاته)، انظر [وضع التطوير](#وضع-التطوير) تحت.
+إذا كنت تعمل داخل الـ monorepo الخاص بالـ SDK نفسها (تساهم في Agent Forge
+ذاته)، فانظر [وضع التطوير](#وضع-التطوير) أدناه.
 
 ## البدء السريع
 
@@ -44,24 +44,24 @@ npm install lousho
 npx lousho studio
 ```
 
-الأمر يشغّل سيرفر محلي واحد ويطبع الرابط (الافتراضي
+يشغّل الأمر سيرفرًا محليًا واحدًا ويطبع الرابط (الافتراضي
 `http://127.0.0.1:4750/?token=<random>`). افتح هذا الرابط بالضبط في المتصفح.
 يفتح على شاشة Agents (`#/agents`): الـ navigation على اليسار، وشريط
-أدوات البناء (اسم الـ agent وحالة الـ run، وشارة الـ model، وبعدها Debug
+أدوات البناء (اسم الـ agent وحالة الـ run، وشارة الـ model، ثم Debug
 وStop وRun وImport وExport وSave)، وشريط الـ agents (الـ agents
-المحفوظين + لوحة nodes وhooks)، والـ canvas، والـ Inspector على اليمين،
-وdrawer سفلي فيه tabs Chat وLogs وTrace وOutput وHistory وSettings. الـ
-agent ينفتح بدون أي شي محدد والـ graph كامل معروض في الشاشة؛ الـ
-Inspector يبقى مطوي لين تحدد node، أو تضغط زر **Inspector** في الزاوية
+المحفوظة + لوحة nodes وhooks)، والـ canvas، والـ Inspector على اليمين،
+وdrawer سفلي فيه tabs Chat وLogs وTrace وOutput وHistory وSettings. يُفتح الـ
+agent دون تحديد أي شيء والـ graph معروض كاملًا في الشاشة؛ ويبقى الـ
+Inspector مطويًا حتى تحدد node، أو تضغط زر **Inspector** في الزاوية
 العلوية اليمنى للـ canvas (اسمه للـ accessibility هو "Show inspector")،
-وهذا الاختيار ينحفظ. باقي الشاشات على بعد ضغطة في الـ navigation؛ انظر
+ويُحفظ هذا الاختيار. بقية الشاشات على بعد ضغطة في الـ navigation؛ انظر
 [Navigation](#الـ-navigation).
 
-لما يكون العرض أقل من 860px، الـ navigation يصير drawer تفتحه من زر
-**Navigation** (القائمة) فوق؛ اختيار شاشة أو الضغط على الخلفية المعتمة
-أو Esc يسكّره. في شاشة Agents، شريط الـ agents والـ Inspector يصيرون
-لوحات منزلقة تفتحها من الشريط العلوي؛ Run (أو Stop) وSave يبقون في
-الشريط، وDebug وImport وExport وشارة الـ model ينتقلون لقائمة **More
+عندما يكون العرض أقل من 860px، يصبح الـ navigation drawer تفتحه من زر
+**Navigation** (القائمة) في الأعلى؛ ويغلقه اختيار شاشة أو الضغط على الخلفية المعتمة
+أو Esc. في شاشة Agents، يصبح شريط الـ agents والـ Inspector
+لوحات منزلقة تفتحها من الشريط العلوي؛ ويبقى Run (أو Stop) وSave في
+الشريط، وتنتقل Debug وImport وExport وشارة الـ model إلى قائمة **More
 actions** (`⋯`) فيه.
 
 flags مفيدة:
@@ -75,100 +75,100 @@ npx lousho studio --dev             # force dev mode (monorepo only)
 
 ### رمز الوصول
 
-الـ studio يقدر يخزّن مفاتيح الـ providers، ويبدأ runs، وينفّذ كود الـ
-hooks، فالـ API الخاص به مقفول على tab المتصفح اللي فتحته من الرابط
+يستطيع الـ studio تخزين مفاتيح الـ providers، وبدء runs، وتنفيذ كود الـ
+hooks، لذا فإن الـ API الخاص به مقفل على tab المتصفح الذي فتحته من الرابط
 المطبوع:
 
-- كل تشغيل يولّد token عشوائي ويطبعه في الرابط (`?token=...`). الصفحة
-  تحتفظ به لهذا الـ tab (يبقى بعد الـ reload) وترسله مع كل استدعاء API
+- يولّد كل تشغيل token عشوائيًا ويطبعه في الرابط (`?token=...`). تحتفظ
+  الصفحة به لهذا الـ tab (يبقى بعد الـ reload) وترسله مع كل استدعاء API
   (header `x-lousho-studio-token`) ومع الـ WebSocket (query `?token=`).
-  أي طلب بدونه يرجع `401`. لو فتحت `http://127.0.0.1:4750` بدون token
-  في tab جديد، الصفحة تنفتح لكن استدعاءات الـ API فيها تفشل لين تستخدم
+  وأي طلب بدونه يُرجع `401`. إذا فتحت `http://127.0.0.1:4750` بدون token
+  في tab جديد، تُفتح الصفحة لكن استدعاءات الـ API فيها تفشل حتى تستخدم
   الرابط المطبوع.
-- السيرفر ما يرسل أي CORS headers، ويرفض (`403`) أي طلب `Origin` حقه
-  مو origin الـ studio نفسه، أو `Host` حقه مو اسم loopback
-  (`localhost`، `127.0.0.1`، `[::1]`) ولا الـ `--host` اللي ربطت عليه. مع
-  `--host 0.0.0.0` أي `Host` ينقبل، والـ token يصير الحماية الوحيدة.
-- `GET /health` والـ client الـ static ما يحتاجون token.
+- لا يرسل السيرفر أي CORS headers، ويرفض (`403`) أي طلب لا يكون `Origin` الخاص به
+  هو origin الـ studio نفسه، أو لا يكون `Host` الخاص به اسم loopback
+  (`localhost`، `127.0.0.1`، `[::1]`) ولا الـ `--host` الذي ربطت عليه. ومع
+  `--host 0.0.0.0` يُقبل أي `Host`، ويصبح الـ token الحماية الوحيدة.
+- لا يحتاج `GET /health` والـ client الـ static إلى token.
 
 من `curl`، مرّر الـ token: `curl -H "x-lousho-studio-token: $TOKEN" localhost:4750/agents`.
 
-`lousho studio` يمرّر هذي القيم للعمليات اللي يشغّلها عبر متغيرات بيئة؛
-ما تحتاج تضبطها بنفسك إلا لما تشغّل سيرفر الـ studio بدون الـ CLI:
+يمرّر `lousho studio` هذه القيم إلى العمليات التي يشغّلها عبر متغيرات بيئة؛
+ولا تحتاج إلى ضبطها بنفسك إلا عندما تشغّل سيرفر الـ studio بدون الـ CLI:
 
 | المتغير | يقرؤه | المعنى |
 | --- | --- | --- |
-| `LOUSHO_STUDIO_TOKEN` | API server الخاص بالـ studio | رمز الوصول. إذا ما انضبط، السيرفر يولّد واحد عشوائي لكل تشغيل. |
-| `LOUSHO_STUDIO_ALLOWED_ORIGINS` | API server الخاص بالـ studio | origins إضافية مفصولة بفواصل تنقبل غير origin الـ studio نفسه (وضع dev يضبطها على origin الـ Vite dev server). |
-| `LOUSHO_STUDIO_API_URL` | الـ Vite dev server (وضع dev) | وين يمرّر استدعاءات الـ API (الافتراضي `http://127.0.0.1:4750`). |
+| `LOUSHO_STUDIO_TOKEN` | API server الخاص بالـ studio | رمز الوصول. إذا لم يُضبط، يولّد السيرفر رمزًا عشوائيًا لكل تشغيل. |
+| `LOUSHO_STUDIO_ALLOWED_ORIGINS` | API server الخاص بالـ studio | origins إضافية مفصولة بفواصل تُقبل إلى جانب origin الـ studio نفسه (يضبطها وضع dev على origin الـ Vite dev server). |
+| `LOUSHO_STUDIO_API_URL` | الـ Vite dev server (وضع dev) | إلى أين يمرّر استدعاءات الـ API (الافتراضي `http://127.0.0.1:4750`). |
 
-### وين تعيش الـ agents
+### أين تعيش الـ agents
 
-`lousho studio` يحفظ ملفات specs الـ agents وحالة الـ runs تحت `.lousho/`
-في المجلد اللي شغّلته منه: ملفات YAML للـ agents تحت `.lousho/agents/`،
-وبجانبها الـ checkpoints (نقاط الحفظ) والـ approvals. نفس ترتيب `.lousho/`
-اللي يستخدمه `lousho dev` و`lousho build`. ملفات الـ YAML هذي مستندات
-[Agent spec v2](/ar/agent-spec)، والصفحة هذيك تشرحها حقل حقل.
+يحفظ `lousho studio` ملفات specs الـ agents وحالة الـ runs تحت `.lousho/`
+في المجلد الذي شغّلته منه: ملفات YAML للـ agents تحت `.lousho/agents/`،
+وبجانبها الـ checkpoints (نقاط الحفظ) والـ approvals. وهو ترتيب `.lousho/` نفسه
+الذي يستخدمه `lousho dev` و`lousho build`. وملفات الـ YAML هذه مستندات
+[Agent spec v2](/ar/agent-spec)، وتلك الصفحة تشرحها حقلًا حقلًا.
 
-شريط الـ agents في شاشة Agents يعرض بالضبط الـ agents الموجودة في `.lousho/agents/` هذا:
-أي ملف YAML تضيفه هناك يظهر، وأي agent تنشئه في الـ studio ينكتب هناك
-فورًا (الـ autosave و**Save** الاثنين يكتبون الملف)، فتقدر تحاوره على
-طول. مشروع ثاني، مفتوح في `lousho studio` خاص به، يعرض الـ agents حقته
-فقط. المتصفح ما يحتفظ بشي إلا مسودة لتعديل ما قدر يوصل للسيرفر (تنرسل
-في التحميل الجاي)، محفوظة لكل مجلد workspace على حدة. أي ملف في
-`.lousho/agents/` ما عاد ينقرأ صح يتم تخطيه مع تحذير في سجل السيرفر.
+يعرض شريط الـ agents في شاشة Agents بالضبط الـ agents الموجودة في `.lousho/agents/` هذا:
+أي ملف YAML تضيفه هناك يظهر، وأي agent تنشئه في الـ studio يُكتب هناك
+فورًا (الـ autosave و**Save** كلاهما يكتبان الملف)، فتستطيع محاورته
+مباشرة. والمشروع الآخر، المفتوح في `lousho studio` خاص به، لا يعرض إلا الـ agents الخاصة به.
+ولا يحتفظ المتصفح بشيء سوى مسودة لتعديل لم يستطع الوصول إلى السيرفر (تُرسل
+في التحميل التالي)، محفوظة لكل مجلد workspace على حدة. وأي ملف في
+`.lousho/agents/` لم تعد قراءته ممكنة بشكل صحيح يُتخطّى مع تحذير في سجل السيرفر.
 
 ### وضع production ووضع dev
 
-`lousho studio` عنده وضعين ويختار المناسب منهم تلقائيًا:
+لدى `lousho studio` وضعان ويختار المناسب منهما تلقائيًا:
 
-- **Production** (الافتراضي بعد ما يُبنى Agent Forge): سيرفر Express واحد
+- **Production** (الافتراضي بعد بناء Agent Forge): سيرفر Express واحد
   يقدّم الـ REST/WebSocket API *و* الـ client الجاهز (تطبيق React) كملفات
-  static على port واحد. هذا اللي يشتغل لما تثبّت الحزمة المنشورة بـ
-  `npm install` — ما في Vite dev server منفصل ولا TypeScript loader.
-- **Dev** (يرجع له إذا البناء ما صار بعد، يعني داخل نسخة source من هذا الـ
-  monorepo): الـ API server يشتغل مباشرة من كود TypeScript عن طريق `tsx`،
-  ومعه Vite dev server حقيقي (مع hot-module reload) يمرّر له طلبات الـ
-  API. عمليتين، portين داخليًا، أمر واحد.
+  static على port واحد. هذا ما يعمل عندما تثبّت الحزمة المنشورة بـ
+  `npm install` — لا يوجد Vite dev server منفصل ولا TypeScript loader.
+- **Dev** (يعود إليه إذا لم يحدث البناء بعد، أي داخل نسخة source من هذا الـ
+  monorepo): يعمل الـ API server مباشرة من كود TypeScript عن طريق `tsx`،
+  ومعه Vite dev server حقيقي (مع hot-module reload) يمرّر إليه طلبات الـ
+  API. عمليتان، وportان داخليًا، وأمر واحد.
 
-`--prod` و`--dev` يفرضون واحد من الوضعين. شغّل بدون أي flag منهم
-و`lousho studio` يكتشف الوضع بنفسه حسب وجود
+يفرض `--prod` و`--dev` أحد الوضعين. شغّل بدون أي منهما
+وسيكتشف `lousho studio` الوضع بنفسه حسب وجود
 `apps/agent-forge/dist-server`.
 
 ## الـ Navigation
 
-الـ navigation على اليسار يعرض كل الشاشات، مقسّمة لمجموعات:
+يعرض الـ navigation على اليسار كل الشاشات، مقسّمة إلى مجموعات:
 
 | المجموعة | العنصر | الشاشة |
 | --- | --- | --- |
-| Build | **Agents** | الـ builder: الـ canvas والـ Inspector والـ drawer السفلي. شريط أدوات البناء (Run وStop وDebug وImport وExport وSave وشارة الـ model) يظهر هنا فقط. |
-| Build | **Playground** | جرّب رسائل على model بدون ما تعدّل agent. |
-| Observe | **Traces** | كل run موجود عند الـ observe daemon، مفلتر ومرتب؛ الضغط على صف يفتح الـ trace. |
+| Build | **Agents** | الـ builder: الـ canvas والـ Inspector والـ drawer السفلي. يظهر شريط أدوات البناء (Run وStop وDebug وImport وExport وSave وشارة الـ model) هنا فقط. |
+| Build | **Playground** | جرّب رسائل على model بدون تعديل agent. |
+| Observe | **Traces** | كل run موجود لدى الـ observe daemon، مفلترًا ومرتبًا؛ والضغط على صف يفتح الـ trace. |
 | Observe | **Threads** | الـ sessions (المحادثات): صف لكل session، وturn لكل run. |
-| Observe | **Monitoring** | صحة الـ fleet ورسومات بيانية على فترة زمنية. |
+| Observe | **Monitoring** | صحة الـ fleet ورسوم بيانية على فترة زمنية. |
 | Evaluate | **Evaluations** | tabs لـ Scores وDatasets وEvaluators وAnnotation queues. |
-| Assets | **Prompts** | سجل الـ prompts: الإصدارات، الـ labels، الفروقات. |
-| Assets | **Context Hub** | قيم key-value مشتركة تنشرها الـ agents للـ daemon. |
-| | **Settings** | المظهر، مفاتيح الـ providers، profiles الإعدادات، الـ deploy، الـ collector، والاختصارات. |
+| Assets | **Prompts** | سجل الـ prompts: الإصدارات، والـ labels، والفروقات. |
+| Assets | **Context Hub** | قيم key-value مشتركة تنشرها الـ agents إلى الـ daemon. |
+| | **Settings** | المظهر، ومفاتيح الـ providers، وprofiles الإعدادات، والـ deploy، والـ collector، والاختصارات. |
 
-برّا شاشة Agents، في header للصفحة يسمّي الشاشة ويحط pill حالة الـ run
-الحي في آخر سطر العنوان، بعد أي chips تضيفها الشاشة (مثلًا labels الـ
-prompt). تحت Settings، بطاقة صغيرة تعرض حالة الـ collector (انظر
-[الـ collector](#الـ-collector-الـ-observe-daemon)). الزر اللي جنب اسم
-**Agent Forge** أعلى الـ nav (**Collapse navigation**) يصغّره لشريط
-أيقونات؛ مرّر الماوس على أيقونة حتى تشوف اسمها. الاختيار ينحفظ بعد الـ
-reload. لما يكون العرض أقل من 860px، الـ nav دائمًا يكون الـ drawer
+خارج شاشة Agents، يوجد header للصفحة يسمّي الشاشة ويضع pill حالة الـ run
+الحي في آخر سطر العنوان، بعد أي chips تضيفها الشاشة (مثل labels الـ
+prompt). وتحت Settings، توجد بطاقة صغيرة تعرض حالة الـ collector (انظر
+[الـ collector](#الـ-collector-الـ-observe-daemon)). والزر الذي بجانب اسم
+**Agent Forge** أعلى الـ nav (**Collapse navigation**) يصغّره إلى شريط
+أيقونات؛ مرّر الماوس على أيقونة لكي ترى اسمها. ويُحفظ الاختيار بعد الـ
+reload. وعندما يكون العرض أقل من 860px، يكون الـ nav دائمًا الـ drawer
 الكامل.
 
 ### الـ Routes والروابط المباشرة
 
-كل شاشة لها hash route، وفلاتر الشاشة تعيش في الـ query string حق الـ
-URL، فالـ reload أو الـ bookmark أو رابط تلصقه يفتح نفس الشاشة بنفس
-الفلاتر. القيم الافتراضية ما تنكتب أبدًا (`#/traces` لوحده هو القائمة
-الافتراضية لآخر 24 ساعة). تعديلات الفلتر والترتيب والصفحة تستبدل الإدخال
-الحالي في الـ history، وفتح صف يضيف إدخال جديد، فزر Back في المتصفح يرجّعك
-من trace للقائمة بدل ما يمشي على تعديلات الفلاتر وحدة وحدة. الـ hash
-الفارغ أو غير المعروف يروح لـ `#/agents` (والـ `?token=` يبقى).
+لكل شاشة hash route، وتعيش فلاتر الشاشة في الـ query string الخاص بالـ
+URL، فيفتح الـ reload أو الـ bookmark أو الرابط الذي تلصقه الشاشة نفسها بالفلاتر
+نفسها. ولا تُكتب القيم الافتراضية أبدًا (`#/traces` وحده هو القائمة
+الافتراضية لآخر 24 ساعة). وتستبدل تعديلات الفلتر والترتيب والصفحة الإدخال
+الحالي في الـ history، ويضيف فتح صف إدخالًا جديدًا، فيعيدك زر Back في المتصفح
+من trace إلى القائمة بدلًا من المرور على تعديلات الفلاتر واحدًا تلو الآخر. والـ hash
+الفارغ أو غير المعروف يذهب إلى `#/agents` (ويبقى `?token=`).
 
 | الـ Route | الشاشة | مفاتيح الـ query |
 | --- | --- | --- |
@@ -181,43 +181,43 @@ URL، فالـ reload أو الـ bookmark أو رابط تلصقه يفتح ن�
 | `#/monitoring` | Monitoring | `window` (`1h`، `24h`، `7d`، `30d`؛ الافتراضي `24h`)، `agent` |
 | `#/evals/scores` | Scores | `eval` (قائمة مفصولة بفواصل)، `agent`، `source` (`eval`، `judge`، `human`، `online`)، `range` (الافتراضي `30d`)، `open` (الـ eval الموسّع) |
 | `#/evals/datasets`, `#/evals/datasets/<name>` | Datasets، dataset واحد | `offset` |
-| `#/evals/evaluators`, `#/evals/evaluators/<rule id>` | Evaluators، شاشة تعديل rule واحدة | `kind` (`code`، `judge`)، `enabled` (`true`، `false`)، `offset`؛ وعلى rule: `trace` (يعبّي Test on trace مسبقًا) |
+| `#/evals/evaluators`, `#/evals/evaluators/<rule id>` | Evaluators، شاشة تعديل rule واحدة | `kind` (`code`، `judge`)، `enabled` (`true`، `false`)، `offset`؛ وعلى rule: `trace` (يعبّئ Test on trace مسبقًا) |
 | `#/evals/queues`, `#/evals/queues/<queue id>` | Annotation queues، مراجعة queue واحد | `offset` (للقائمة) |
 | `#/prompts` | سجل الـ prompts | |
 | `#/prompts/<name>`, `#/prompts/<name>@<version or label>` | prompt واحد (أحدث إصدار افتراضيًا) | `diff=<a>,<b>` |
 | `#/hub`, `#/hub/<namespace>` | Context Hub | `agent` (الـ agent في "Viewing as")، `scope` (`private`، `fleet`) |
 | `#/settings` | Settings | |
 
-الفترة الزمنية اللي تختارها من preset غير الافتراضي تنكتب كحدود `from`/`to`
-مطلقة، فالـ reload يعرض نفس الصفوف بالضبط. القائمة الكاملة للـ routes في
+تُكتب الفترة الزمنية التي تختارها من preset غير الافتراضي كحدود `from`/`to`
+مطلقة، فيعرض الـ reload الصفوف نفسها بالضبط. والقائمة الكاملة للـ routes في
 `apps/agent-forge/src/screens/routeTable.ts`.
 
 ### لوحة المفاتيح
 
 | المفاتيح | وظيفتها |
 | --- | --- |
-| `Ctrl+K` / `Cmd+K` | تفتح (أو تسكّر) الـ command palette، من أي مكان، حتى وأنت تكتب. |
-| `?` | تعرض اختصارات لوحة المفاتيح (مو وأنت تكتب في حقل). |
+| `Ctrl+K` / `Cmd+K` | تفتح (أو تغلق) الـ command palette، من أي مكان، حتى أثناء الكتابة. |
+| `?` | تعرض اختصارات لوحة المفاتيح (ليس أثناء الكتابة في حقل). |
 | `j` / `k` | الصف التالي / السابق في جدول عليه الـ focus. |
 | `Enter` | تفتح الصف المحدد. |
-| `Esc` | تسكّر الـ palette، أو قائمة الاختصارات، أو dialog في الـ header، أو drawer الـ nav في العرض الضيق. |
+| `Esc` | تغلق الـ palette، أو قائمة الاختصارات، أو dialog في الـ header، أو drawer الـ nav في العرض الضيق. |
 
-الـ command palette يعرض **Go to** لكل شاشة في الـ nav، و**Open agent**
-لكل agent محفوظ، و**Toggle theme** (فاتح/داكن، ينحفظ في المتصفح)؛ اكتب
-حتى تفلتر. الصق trace id (8 أو أكثر من أرقام hex وشرطات) وأول عنصر يصير
-**Open trace** له. الأسهم تتنقل، وEnter ينفّذ.
+يعرض الـ command palette **Go to** لكل شاشة في الـ nav، و**Open agent**
+لكل agent محفوظ، و**Toggle theme** (فاتح/داكن، ويُحفظ في المتصفح)؛ اكتب
+لكي تفلتر. الصق trace id (8 أو أكثر من أرقام hex وشرطات) فيصبح أول عنصر
+**Open trace** له. تتنقل الأسهم، وينفّذ Enter.
 
 ![الـ command palette فوق شاشة Traces](/images/studio-command-palette.png)
 
-في مراجعة annotation queue، Enter يرسل الدرجات و`S` يتخطى العنصر (انظر
+في مراجعة annotation queue، يرسل Enter الدرجات ويتخطى `S` العنصر (انظر
 [Annotation queues](#annotation-queues)).
 
 ### كلمات الحالة
 
-كل حالة في الـ Studio هي نفس الـ pill:
+كل حالة في الـ Studio هي الـ pill نفسه:
 
-- الـ Runs: `ok`، `error`، `running`، `interrupted` (عملية الـ agent ماتت
-  في نص الـ run؛ انظر [الـ observe daemon](/ar/observability#الـ-observe-daemon)).
+- الـ Runs: `ok`، `error`، `running`، `interrupted` (توقفت عملية الـ agent
+  في منتصف الـ run؛ انظر [الـ observe daemon](/ar/observability#الـ-observe-daemon)).
 - الـ Agents: `healthy`، `stale` (فاتته heartbeats)، `down`، `stopped`.
 - الـ Threads: `active`، `ended` (خامل، انظر
   [الـ sessions الخاملة](/ar/observability#الجلسات-الخاملة))، `interrupted`.
@@ -227,75 +227,75 @@ URL، فالـ reload أو الـ bookmark أو رابط تلصقه يفتح ن�
 
 ### الـ collector (الـ observe daemon)
 
-كل شي تحت Observe وEvaluate وAssets يقرأ من الـ observe daemon
-(`lousho observe start`) عبر الـ proxy `/observe` في سيرفر الـ Studio. الـ
-proxy يقرأ `LOUSHO_OBSERVE_URL` فقط (الافتراضي `http://127.0.0.1:7777`)؛
-`LOUSHO_OBSERVE` ما يغيّر المكان اللي تقرأ منه الشاشات (هو بس يحدد وين
-تبلّغ runs الـ builder، انظر [الجولة](#جولة-أول-agent)). لما يكون
-`LOUSHO_OBSERVE_TOKEN` مضبوط، الـ proxy يرسله للـ daemon كـ bearer token
-مع كل قراءة وكتابة (مثل ما يسوّي تبليغ الـ runs والـ judge evaluators)،
-فالشاشات تشتغل كمان مع daemon مشغّل بـ `--require-token`. بدونه، هذا
-الـ daemon يرد بـ `401` على كل قراءة `/api/` والشاشات تعرض هذا الخطأ بدل
-البيانات (`/health` يبقى يرد، فبطاقة الـ collector تقول إنه شغال). الـ
-credentials حقت المتصفح نفسه (token الـ Studio، الـ cookies،
-`Authorization`) ما تنمرّر أبدًا. الـ proxy يمرّر القراءات فقط مع
-الكتابات اللي تسوّيها الشاشات (درجات الـ feedback، إصدارات prompts جديدة
-من الـ Playground، نقل labels الـ prompts، تعديلات عناصر الـ hub، كتابات
-الـ datasets والأمثلة، كتابات الـ annotation queues، كتابات rules الـ
-evaluators)؛ أي كتابة ثانية، وأولها الـ ingest، تنرفض بـ `405`. ودائمًا
-يستدعي الـ daemon على `LOUSHO_OBSERVE_URL`، مهما كان الـ host المذكور في
+كل شيء تحت Observe وEvaluate وAssets يقرأ من الـ observe daemon
+(`lousho observe start`) عبر الـ proxy `/observe` في سيرفر الـ Studio. ولا يقرأ الـ
+proxy إلا `LOUSHO_OBSERVE_URL` (الافتراضي `http://127.0.0.1:7777`)؛
+ولا يغيّر `LOUSHO_OBSERVE` المكان الذي تقرأ منه الشاشات (فهو يحدد فقط إلى أين
+تبلّغ runs الـ builder، انظر [الجولة](#جولة-أول-agent)). وعندما يكون
+`LOUSHO_OBSERVE_TOKEN` مضبوطًا، يرسله الـ proxy إلى الـ daemon كـ bearer token
+مع كل قراءة وكتابة (كما يفعل تبليغ الـ runs والـ judge evaluators)،
+فتعمل الشاشات أيضًا مع daemon مشغّل بـ `--require-token`. وبدونه، يرد هذا
+الـ daemon بـ `401` على كل قراءة `/api/` وتعرض الشاشات هذا الخطأ بدلًا من
+البيانات (يبقى `/health` يرد، فتُظهر بطاقة الـ collector أنه يعمل). أما
+credentials المتصفح نفسه (token الـ Studio، والـ cookies،
+و`Authorization`) فلا تُمرَّر أبدًا. يمرّر الـ proxy القراءات فقط مع
+الكتابات التي تجريها الشاشات (درجات الـ feedback، وإصدارات prompts جديدة
+من الـ Playground، ونقل labels الـ prompts، وتعديلات عناصر الـ hub، وكتابات
+الـ datasets والأمثلة، وكتابات الـ annotation queues، وكتابات rules الـ
+evaluators)؛ وأي كتابة أخرى، وأولها الـ ingest، تُرفض بـ `405`. ويستدعي
+الـ daemon دائمًا على `LOUSHO_OBSERVE_URL`، مهما كان الـ host المذكور في
 سطر الطلب.
 
-بطاقة الـ collector أسفل الـ nav تقول إذا الـ daemon يرد:
-**Checking collector…** لين أول فحص، وبعدها **Collector running** أو
-**Collector unreachable**، مع URL الـ daemon تحتها. الفحص يستمر بشكل
-دوري. طالما الـ daemon واقف، كل شاشة تعتمد عليه تعرض الأمر اللي يشغّله
-بدل خطأ، وتحتفظ بالـ URL حقها، وترجّع البيانات بنفسها أول ما الـ daemon
-يرد. شاشة Agents وruns الـ Playground ما تحتاج الـ daemon.
+توضح بطاقة الـ collector أسفل الـ nav ما إذا كان الـ daemon يرد:
+**Checking collector…** حتى أول فحص، ثم **Collector running** أو
+**Collector unreachable**، مع URL الـ daemon تحتها. ويستمر الفحص بشكل
+دوري. وما دام الـ daemon متوقفًا، تعرض كل شاشة تعتمد عليه الأمر الذي يشغّله
+بدلًا من خطأ، وتحتفظ بالـ URL الخاص بها، وتستعيد البيانات بنفسها بمجرد أن يرد
+الـ daemon. ولا تحتاج شاشة Agents وruns الـ Playground إلى الـ daemon.
 
 ## الشاشات
 
 ### Agents
 
 الـ builder: انظر [جولة أول agent](#جولة-أول-agent).
-`#/agents/<id>` يفتح هذا الـ agent؛ إذا طلعت من الشاشة (أو بدّلت agent)
-وعندك تعديلات ما انحفظت، يسألك أول. الـ runs اللي تبدأها هنا تبلّغ الـ
-observe daemon، ورابط **Open trace** في pill حالة الـ Run يفتح الـ run في
+يفتح `#/agents/<id>` هذا الـ agent؛ وإذا غادرت الشاشة (أو بدّلت الـ agent)
+ولديك تعديلات لم تُحفظ، فإنه يسألك أولًا. والـ runs التي تبدأها هنا تبلّغ الـ
+observe daemon، ويفتح رابط **Open trace** في pill حالة الـ Run الـ run في
 شاشة Trace.
 
 ### Playground
 
-`#/playground` (Build > Playground) يجرّب رسائل على model بدون ما تعدّل
+يجرّب `#/playground` (Build > Playground) رسائل على model بدون تعديل
 agent:
 
 ![الـ Playground، محمّل من model call في trace](/images/studio-playground.png)
 
-- **Messages**: بطاقات رسائل system وuser وassistant. كل placeholder
-  `{name}` في أي رسالة ياخذ حقل إدخال في **Variables** ضمن بطاقة
+- **Messages**: بطاقات رسائل system وuser وassistant. يحصل كل placeholder
+  `{name}` في أي رسالة على حقل إدخال في **Variables** ضمن بطاقة
   الإعدادات على اليسار، بترتيب أول ظهور للأسماء.
-- **Model**: provider (اللي لهم مفتاح تحت Settings > Provider keys، زائد
-  `ollama` و`mock`؛ و`mock` لما ما في شي مضبوط) واسم model، ينرسلون كـ
+- **Model**: provider (من لديهم مفتاح تحت Settings > Provider keys، إضافةً إلى
+  `ollama` و`mock`؛ و`mock` عندما لا يكون شيء مضبوطًا) واسم model، يُرسلان كـ
   `provider/model`.
-- **Tools**: اختر agent محفوظ حتى تستعير الـ tools حقته، وبعدها شغّل أو
-  طفّ كل واحدة.
-- **Run** (أو Ctrl/Cmd+Enter في الرسائل) يبث الرد أول بأول؛ **Stop**
-  يلغيه. الـ tool calls تظهر كبطاقات تنفتح على الـ arguments حقتها. لما
-  الـ run يخلص، المخرجات تعرض الـ tokens الداخلة والخارجة والـ latency
-  والتكلفة (لما يكون سعر الـ model معروف)، و**Open trace** يروح للـ trace
-  حقه.
-- **Save prompt** (في header الصفحة) يفتح بطاقة فيها **Save as new
-  prompt version** يدفع رسالة الـ system (والـ variables حقتها) لسجل الـ
-  prompts، تحت اسم الـ prompt المحمّل أو اسم تكتبه. يكون معطّل طالما ما
-  في رسالة system.
+- **Tools**: اختر agent محفوظًا لكي تستعير الـ tools الخاصة به، ثم فعّل أو
+  عطّل كل واحدة.
+- يبث **Run** (أو Ctrl/Cmd+Enter في الرسائل) الرد أولًا بأول؛ ويلغيه **Stop**.
+  تظهر الـ tool calls كبطاقات تنفتح على الـ arguments الخاصة بها. وعندما
+  ينتهي الـ run، تعرض المخرجات الـ tokens الداخلة والخارجة والـ latency
+  والتكلفة (عندما يكون سعر الـ model معروفًا)، وينقلك **Open trace** إلى الـ trace
+  الخاص به.
+- يفتح **Save prompt** (في header الصفحة) بطاقة فيها **Save as new
+  prompt version** يدفع رسالة الـ system (والـ variables الخاصة بها) إلى سجل الـ
+  prompts، تحت اسم الـ prompt المحمّل أو اسم تكتبه. ويكون معطّلًا ما دامت لا
+  توجد رسالة system.
 
-في رابطين يعبّونه مسبقًا. **Open in Playground** على model call
+يوجد رابطان يعبّئانه مسبقًا. **Open in Playground** على model call
 (generation) في trace يفتح `#/playground?trace=<traceId>&fromObs=<obsId>`،
-ويحمّل رسائل هذا الـ generation والـ model حقه. `#/playground?prompt=<name>[@<label or
+ويحمّل رسائل هذا الـ generation والـ model الخاص به. و`#/playground?prompt=<name>[@<label or
 version>]` (زر **Open in Playground** في شاشة Prompts) يحمّل prompt من
 السجل (الأحدث افتراضيًا) كرسالة system ويسجّله على trace الـ run.
-الاثنين يقرؤون من الـ observe daemon: لما يكون واقف، الـ Playground يقول
-هذا ويبقي المحرر فاضي، والـ runs تشتغل عادي. الـ runs تمر عبر
-[الـ endpoint حق تشغيل الـ playground](#الـ-endpoint-حق-تشغيل-الـ-playground) وتبلّغ
+كلاهما يقرأ من الـ observe daemon: عندما يكون متوقفًا، يذكر الـ Playground
+ذلك ويُبقي المحرر فارغًا، وتعمل الـ runs بشكل طبيعي. وتمر الـ runs عبر
+[الـ endpoint الخاص بتشغيل الـ playground](#الـ-endpoint-الخاص-بتشغيل-الـ-playground) وتبلّغ
 كـ agent `playground`.
 
 ### Traces
@@ -304,324 +304,323 @@ version>]` (زر **Open in Playground** في شاشة Prompts) يحمّل prompt
 
 ![قائمة الـ Traces بالثيم الداكن](/images/studio-traces-dark.png)
 
-نفس القائمة بالثيم الداكن (Settings > Appearance، أو **Toggle theme** في
+القائمة نفسها بالثيم الداكن (Settings > Appearance، أو **Toggle theme** في
 الـ command palette).
 
-`#/traces` يعرض runs الـ daemon، الأحدث أول: الحالة، الاسم، الـ agent،
-معاينة المدخلات والمخرجات، رسالة الخطأ، الـ model، البداية، المدة، الـ
-tokens والتكلفة (النوافذ الضيقة تخفي الأعمدة الأقل أهمية). فلتر بمربع
+يعرض `#/traces` runs الـ daemon، الأحدث أولًا: الحالة، والاسم، والـ agent،
+ومعاينة المدخلات والمخرجات، ورسالة الخطأ، والـ model، والبداية، والمدة، والـ
+tokens والتكلفة (تُخفي النوافذ الضيقة الأعمدة الأقل أهمية). فلتر بمربع
 البحث (الاسم أو المدخلات أو المخرجات)، والـ facets **Agent** و**Status**
 و**Model** و**Project**، وفترة زمنية (15m أو 1h أو 24h أو 7d أو 30d أو
 Custom؛ الافتراضي آخر 24 ساعة). اضغط **Duration** أو **Tokens** أو
-**Cost** حتى ترتب عليه. 50 صف في الصفحة. أيقونة التحديث في header الصفحة
-(**Refresh**) تجيب القائمة من جديد الحين، و**Live** (toggle) يحدّثها كل 5
-ثواني لين تطفّيه أو يوقف الـ daemon. فلتر `prompt` (يضبطه رابط "Runs
-using this version" في شاشة Prompts) يظهر كـ chip تقدر تشيله.
+**Cost** لكي ترتب عليه. 50 صفًا في الصفحة. أيقونة التحديث في header الصفحة
+(**Refresh**) تجلب القائمة من جديد الآن، و**Live** (toggle) يحدّثها كل 5
+ثوانٍ حتى تعطّله أو يتوقف الـ daemon. ويظهر فلتر `prompt` (يضبطه رابط "Runs
+using this version" في شاشة Prompts) كـ chip تستطيع إزالته.
 
 ### Trace
 
-`#/traces/<trace id>` هو run واحد. الـ header فيه اسمه، حالته، الـ agent
-(رابط لـ traces الـ agent)، الـ model، البداية، المدة، الـ tokens،
-التكلفة والـ session (رابط للـ thread حقه)، زائد **Copy link** و**Add to
-dataset** و**Add to queue**، و**Open in Playground** لما يكون في الـ run
-model call. **All traces** في header الصفحة يرجّعك للقائمة.
+`#/traces/<trace id>` هو run واحد. يحتوي الـ header على اسمه، وحالته، والـ agent
+(رابط إلى traces الـ agent)، والـ model، والبداية، والمدة، والـ tokens،
+والتكلفة والـ session (رابط إلى الـ thread الخاص به)، إضافةً إلى **Copy link** و**Add to
+dataset** و**Add to queue**، و**Open in Playground** عندما يحتوي الـ run على
+model call. ويعيدك **All traces** في header الصفحة إلى القائمة.
 
 ![run فاشل: banner الخطأ فوق الـ inspector](/images/studio-trace.png)
 
-تحته الـ trace viewer اللي يستخدمه كمان tab Trace في الـ builder ومراجعة
+تحته الـ trace viewer الذي يستخدمه أيضًا tab Trace في الـ builder ومراجعة
 الـ queue: الخطوات كـ **Tree** أو **Waterfall** (switch بخيارين فوق
-الخطوات)، وinspector للخطوة المحددة (الخطوة الفاشلة تنحدد افتراضيًا،
-وإلا الجذر). الخطوة المحددة هي `?obs=` في الـ URL. الـ inspector يعرض،
+الخطوات)، وinspector للخطوة المحددة (تُحدَّد الخطوة الفاشلة افتراضيًا،
+وإلا فالجذر). والخطوة المحددة هي `?obs=` في الـ URL. ويعرض الـ inspector،
 بالترتيب:
 
-1. **Error**: رسالة الفشل، لما تكون الخطوة فشلت.
-2. **Input** و**Output**: الرسائل تنعرض كفقاعات chat والـ tool calls
-   كـ chips؛ بدّل بين **Rendered** و**Raw** و**JSON** (للمحتوى اللي هو
-   JSON)، وانسخ أي واحد من الاثنين.
+1. **Error**: رسالة الفشل، عندما تكون الخطوة قد فشلت.
+2. **Input** و**Output**: تُعرض الرسائل كفقاعات chat والـ tool calls
+   كـ chips؛ بدّل بين **Rendered** و**Raw** و**JSON** (للمحتوى الذي هو
+   JSON)، وانسخ أيًّا من الاثنين.
 3. **Feedback**: درجات الخطوة، وإعجاب / عدم إعجاب مع تعليق اختياري،
-   ينحفظ كدرجة `feedback` (`1` أو `0`، المصدر `human`). على خطوة الجذر
-   يقيّم الـ trace كامل.
+   يُحفظ كدرجة `feedback` (`1` أو `0`، والمصدر `human`). وعلى خطوة الجذر
+   يقيّم الـ trace كاملًا.
 4. **الـ tokens والتكلفة والـ model**.
 5. **Attributes**: الـ attributes الخام للخطوة كشجرة JSON.
 
-صفوف الـ model calls فيها **Open in Playground**.
+تحتوي صفوف الـ model calls على **Open in Playground**.
 
-**Add to dataset** ينسخ مدخلات الـ run (ومخرجاته، كقيمة متوقعة) إلى
-dataset تختاره، أو dataset جديد تسمّيه. **Add to queue** يحط الـ trace في
+ينسخ **Add to dataset** مدخلات الـ run (ومخرجاته، كقيمة متوقعة) إلى
+dataset تختاره، أو dataset جديد تسمّيه. ويضع **Add to queue** الـ trace في
 annotation queue للمراجعة.
 
 ### Threads
 
 ![قائمة الـ Threads](/images/studio-threads.png)
 
-`#/threads` يعرض الـ sessions: الحالة، الـ session id، الـ agent، آخر
-مدخل، الـ turns، البداية، المدة، الـ tokens والتكلفة، مفلترة بالـ agent
-والحالة والفترة الزمنية (الافتراضي 30 يوم). الـ session يظهر أول ما
-تحمل runs الـ agent `sessionId`. `#/threads/<session id>` يعرض المحادثة:
-كل turn (run) من الأقدم للأحدث، مع مدخلاته ومخرجاته (أو الخطأ) ورابط
+يعرض `#/threads` الـ sessions: الحالة، والـ session id، والـ agent، وآخر
+مدخل، والـ turns، والبداية، والمدة، والـ tokens والتكلفة، مفلترة بالـ agent
+والحالة والفترة الزمنية (الافتراضي 30 يومًا). تظهر الـ session بمجرد أن
+تحمل runs الـ agent قيمة `sessionId`. ويعرض `#/threads/<session id>` المحادثة:
+كل turn (run) من الأقدم إلى الأحدث، مع مدخلاته ومخرجاته (أو الخطأ) ورابط
 **Open trace**.
 
 ### Monitoring
 
-![Monitoring: الـ fleet فوق الرسومات البيانية](/images/studio-monitoring.png)
+![Monitoring: الـ fleet فوق الرسوم البيانية](/images/studio-monitoring.png)
 
-`#/monitoring` هي شاشة "هل الـ fleet حقي شغال" وتحدّث نفسها كل 15 ثانية.
-جدول الـ fleet يعرض كل agent بلّغ: الحالة، آخر heartbeat، runs اليوم،
-نسبة الأخطاء، الـ p95 latency على 24 ساعة، عدد الأحداث اللي أسقطها الـ
-reporter، ورابط للـ traces حقته. تحته، اختر window (1h، 24h، 7d، 30d)
-وagent، واقرأ خمس رسومات: **Runs** و**Latency p95** و**Error rate** (لكل
-agent)، و**Cost** و**Tokens**. اضغط على bucket في رسمة حتى تفتح Traces
+`#/monitoring` هي شاشة "هل الـ fleet الخاص بي يعمل" وتحدّث نفسها كل 15 ثانية.
+يعرض جدول الـ fleet كل agent أبلغ: الحالة، وآخر heartbeat، وruns اليوم،
+ونسبة الأخطاء، والـ p95 latency على 24 ساعة، وعدد الأحداث التي أسقطها الـ
+reporter، ورابطًا إلى الـ traces الخاصة به. وتحته، اختر window (1h، 24h، 7d، 30d)
+وagent، واقرأ خمسة رسوم: **Runs** و**Latency p95** و**Error rate** (لكل
+agent)، و**Cost** و**Tokens**. اضغط على bucket في رسم لكي تفتح Traces
 مفلترة على وقت هذا الـ bucket (والـ agent).
 
 ### Evaluations
 
-**Evaluations** في الـ nav يفتح `#/evals/scores`. sub-navigation أعلى كل
+يفتح **Evaluations** في الـ nav الـ `#/evals/scores`. ويتنقل sub-navigation أعلى كل
 شاشة Evaluations (**Scores** و**Datasets** و**Evaluators** و**Annotation
-queues**) يتنقل بينها.
+queues**) بينها.
 
 #### Scores
 
 ![Scores، مع eval واحد موسّع](/images/studio-scores.png)
 
-صف لكل eval: نسبة نجاح الدرجات، عدد الدرجات، متوسط الدرجة وآخر ظهور، على
-كل درجات الـ eval (صف الـ eval لكل run زائد صفوف الـ checks حقته). فلتر
+صف لكل eval: نسبة نجاح الدرجات، وعدد الدرجات، ومتوسط الدرجة وآخر ظهور، على
+كل درجات الـ eval (صف الـ eval لكل run إضافةً إلى صفوف الـ checks الخاصة به). فلتر
 بالـ eval والـ agent والمصدر (`eval`، `judge`، `human`، `online`)
-والفترة الزمنية (الافتراضي 30 يوم). اضغط على eval حتى توسّعه: عدد الـ
-runs ونسبة نجاح الـ runs، اتجاه نسبة النجاح، نسبة نجاح كل check (الأسوأ
-أول) وآخر حالات الفشل، وكل وحدة فيها رابط للـ trace حقها (والخطوة).
-الدرجة تُحسب نجاح لما تكون قيمتها 1 بالضبط. درجات `eval` و`judge` (الـ
-assertions حقت الـ eval والـ checks `llmJudge` / `t.judge()`، اللي تكتب
-تعليق بس لما تفشل) تنجح كمان لما ما يكون عندها تعليق فشل. درجات `human`
-و`online` يحكم عليها بالقيمة وحدها، فالـ 0 (عدم إعجاب، أو rule رجّعت 0)
-أو 0.9 أو قيمة فاضية تُعتبر فشل. الجدول والتفاصيل الموسّعة يستخدمون نفس
-القاعدة. من وين تجي درجات الـ eval: [Evals](/ar/evals#lousho-eval).
+والفترة الزمنية (الافتراضي 30 يومًا). اضغط على eval لكي توسّعه: عدد الـ
+runs ونسبة نجاح الـ runs، واتجاه نسبة النجاح، ونسبة نجاح كل check (الأسوأ
+أولًا) وآخر حالات الفشل، وكل منها فيه رابط إلى الـ trace الخاص بها (والخطوة).
+تُحتسب الدرجة نجاحًا عندما تكون قيمتها 1 بالضبط. وتنجح درجات `eval` و`judge` (الـ
+assertions الخاصة بالـ eval والـ checks `llmJudge` / `t.judge()`، التي تكتب
+تعليقًا فقط عند الفشل) أيضًا عندما لا يكون لها تعليق فشل. أما درجات `human`
+و`online` فيُحكم عليها بالقيمة وحدها، فتُعتبر القيمة 0 (عدم إعجاب، أو rule أرجعت 0)
+أو 0.9 أو القيمة الفارغة فشلًا. ويستخدم الجدول والتفاصيل الموسّعة القاعدة
+نفسها. من أين تأتي درجات الـ eval: [Evals](/ar/evals#lousho-eval).
 
 #### Datasets
 
 ![أمثلة dataset واحد](/images/studio-datasets.png)
 
-`#/evals/datasets` يعرض الـ datasets مع عدد الأمثلة في كل واحد، وفيه
-فورم **New dataset** (اسم ووصف اختياري). افتح واحد حتى تشوف أمثلته
-(المدخل، القيمة المتوقعة، الـ trace المصدر)؛ افتح مثال حتى تشوفه كامل،
-أو **Delete** حتى تحذفه (يسألك أول). الأمثلة تجي من **Add to dataset** في
-trace، أو يدويًا عبر [الـ datasets API](/ar/observability#مجموعات-البيانات-datasets). الـ
-eval يشتغل على dataset بـ `defineEval({ dataset: 'name' })` (انظر
+يعرض `#/evals/datasets` الـ datasets مع عدد الأمثلة في كل منها، وفيه
+نموذج **New dataset** (اسم ووصف اختياري). افتح واحدًا لكي ترى أمثلته
+(المدخل، والقيمة المتوقعة، والـ trace المصدر)؛ وافتح مثالًا لكي تراه كاملًا،
+أو **Delete** لكي تحذفه (يسألك أولًا). تأتي الأمثلة من **Add to dataset** في
+trace، أو يدويًا عبر [الـ datasets API](/ar/observability#مجموعات-البيانات-datasets). ويعمل الـ
+eval على dataset بـ `defineEval({ dataset: 'name' })` (انظر
 [Datasets](/ar/evals#من-الـ-daemon)).
 
 #### Evaluators
 
-![قائمة الـ Evaluators: الـ rules مع الـ switch حقها وأعداد آخر تشغيل](/images/studio-evaluators.png)
+![قائمة الـ Evaluators: الـ rules مع الـ switch الخاص بها وأعداد آخر تشغيل](/images/studio-evaluators.png)
 
-`#/evals/evaluators` يدير [rules الـ evaluators
-الأونلاين](/ar/observability#قواعد-التقييم-الحي-online-evaluator-rules): rules تعطي درجات
-للـ traces الجديدة أول ما تخلص. درجاتها تحمل اسم الـ rule وتظهر في Scores
+يدير `#/evals/evaluators` [rules الـ evaluators
+الأونلاين](/ar/observability#قواعد-التقييم-الحي-online-evaluator-rules): وهي rules تعطي درجات
+للـ traces الجديدة بمجرد انتهائها. تحمل درجاتها اسم الـ rule وتظهر في Scores
 بالمصدر `online`.
 
-القائمة تعرض لكل rule اسمها، نوعها (`code` أو `judge`)، الفلتر (أو "All
-traces")، الـ sample rate، switch **Enabled** (يشغّل الـ rule أو يطفّيها
+تعرض القائمة لكل rule اسمها، ونوعها (`code` أو `judge`)، والفلتر (أو "All
+traces")، والـ sample rate، وswitch **Enabled** (يفعّل الـ rule أو يعطّلها
 فورًا)، و**Last run** و**Runs (24h)**، محسوبة من أحدث 1000 درجة أونلاين
-(`+` بعد العدد يعني إن القراءة كانت ممتلية، فالعدد حد أدنى). فلتر بـ
+(`+` بعد العدد يعني أن القراءة كانت ممتلئة، فالعدد حد أدنى). فلتر بـ
 **Kind** و**State** (`?kind=`، `?enabled=`)، 50 rule في الصفحة.
 
-**New evaluator** يفتح الفورم؛ افتح rule (`#/evals/evaluators/<rule
-id>`) حتى تعدّلها في نفس الفورم، وهناك **Save changes** يرسل بس الحقول
-اللي غيّرتها، و**Delete** يشيل الـ rule بعد تأكيد (درجاتها السابقة
-تبقى). الفورم فيه اسم، sample rate (0-1)، مربع enabled، الفلتر (الـ
-agent، الحالة `ok` أو `error`، الاسم يحتوي على)، والنوع:
+يفتح **New evaluator** النموذج؛ وافتح rule (`#/evals/evaluators/<rule
+id>`) لكي تعدّلها في النموذج نفسه، وهناك يرسل **Save changes** الحقول
+التي غيّرتها فقط، ويزيل **Delete** الـ rule بعد تأكيد (تبقى درجاتها
+السابقة). يحتوي النموذج على اسم، وsample rate (0-1)، ومربع enabled، والفلتر (الـ
+agent، والحالة `ok` أو `error`، والاسم يحتوي على)، والنوع:
 
 - rule من نوع **code** هي دالة `(trace) => number | { value, comment }`،
-  معبّأة مسبقًا بمثال شغال. الـ observe daemon يشغّلها في الـ isolate
-  sandbox حقه، فالـ code rules تشتغل سواء الـ Studio مفتوح أو لا (انظر
+  معبّأة مسبقًا بمثال يعمل. يشغّلها الـ observe daemon في الـ isolate
+  sandbox الخاص به، فتعمل الـ code rules سواء كان الـ Studio مفتوحًا أم لا (انظر
   [الـ evaluators الأونلاين](/ar/observability#التقييم-الحي-online-evaluators)).
-- rule من نوع **judge** هي provider وmodel وrubric. الـ daemon ما عنده
-  مفاتيح providers، فالـ Studio هو اللي يشغّل الـ judges، بمفتاح محفوظ في
-  Settings أو بمتغير البيئة حق الـ provider في المكان اللي يشتغل فيه الـ
-  Studio (المفتاح المحفوظ يغلب)؛ قائمة الـ providers تعرض اللي عندهم واحد
-  من الاثنين، زائد `ollama` و`mock`. بدون أي مفتاح، خيار الـ judge يكون
-  معطّل، مع رابط لـ Settings. الـ judges تشتغل بس طالما `lousho studio`
-  شغال؛ لين ذاك الوقت الـ jobs حقتها تنتظر في الـ daemon (انظر
+- rule من نوع **judge** هي provider وmodel وrubric. لا يملك الـ daemon
+  مفاتيح providers، لذا فإن الـ Studio هو الذي يشغّل الـ judges، بمفتاح محفوظ في
+  Settings أو بمتغير البيئة الخاص بالـ provider في المكان الذي يعمل فيه الـ
+  Studio (المفتاح المحفوظ يغلب)؛ وتعرض قائمة الـ providers من لديهم واحد
+  من الاثنين، إضافةً إلى `ollama` و`mock`. وبدون أي مفتاح، يكون خيار الـ judge
+  معطّلًا، مع رابط إلى Settings. ولا تعمل الـ judges إلا ما دام `lousho studio`
+  يعمل؛ وحتى ذلك الحين تنتظر الـ jobs الخاصة بها في الـ daemon (انظر
   [Judge rules](/ar/observability#قواعد-الحَكَم-عبر-agent-forge)). اضبط
-  `LOUSHO_STUDIO_JUDGE=0` على سيرفر الـ Studio حتى تطفّي حلقة الـ judge
-  حقه.
+  `LOUSHO_STUDIO_JUDGE=0` على سيرفر الـ Studio لكي تعطّل حلقة الـ judge
+  الخاصة به.
 
-**Test on trace** في صفحة الـ rule يجرّبها تجربة جافة على trace id واحد
-(`?trace=` يعبّيه مسبقًا) ويعرض القيمة والتعليق؛ ما تنكتب أي درجة. الـ
-Studio يشغّل rule الـ judge بنفسه ويمرّر rule الـ code للـ daemon. الـ
-trace غير المعروف يعرض "Trace not found".
+يجرّب **Test on trace** في صفحة الـ rule الـ rule تجربة جافة على trace id واحد
+(يعبّئه `?trace=` مسبقًا) ويعرض القيمة والتعليق؛ ولا تُكتب أي درجة. يشغّل الـ
+Studio الـ rule من نوع judge بنفسه ويمرّر الـ rule من نوع code إلى الـ daemon. ويعرض الـ
+trace غير المعروف "Trace not found".
 
 #### Annotation queues
 
-![مراجعة عنصر: الـ trace جنب الـ rubric](/images/studio-queue-review.png)
+![مراجعة عنصر: الـ trace بجانب الـ rubric](/images/studio-queue-review.png)
 
-`#/evals/queues` يعرض الـ queues (pending، done، skipped) وفيه فورم **New
-annotation queue**: اسم وrubric، صف لكل درجة (الاسم، وصف اختياري، min وmax
-اختياريين). أضف traces من **Add to queue** في trace (أو مجموعة مرة وحدة
-عبر [الـ queue API](/ar/observability#طوابير-المراجعة-annotation-queues)). افتح queue حتى
-تراجعه: trace العنصر الـ pending التالي في الـ trace viewer، وجنبه حقل
+يعرض `#/evals/queues` الـ queues (pending، done، skipped) وفيه نموذج **New
+annotation queue**: اسم وrubric، وصف لكل درجة (الاسم، ووصف اختياري، وmin وmax
+اختياريان). أضف traces من **Add to queue** في trace (أو مجموعة دفعة واحدة
+عبر [الـ queue API](/ar/observability#طوابير-المراجعة-annotation-queues)). افتح queue لكي
+تراجعه: trace العنصر الـ pending التالي في الـ trace viewer، وبجانبه حقل
 رقم واحد (ضمن حدود الـ rubric) وتعليق اختياري لكل عنصر في الـ rubric.
-**Submit** (Enter) يحفظ الدرجات المعبّأة كدرجات human على الـ trace وينتقل
-للعنصر التالي؛ **Skip** (`S`) يتخطاه. الحقل الفاضي ما ينحسب كدرجة. لما
-ما يكون في شي pending، الشاشة تقول إن الـ queue فاضي.
+يحفظ **Submit** (Enter) الدرجات المعبّأة كدرجات human على الـ trace وينتقل
+إلى العنصر التالي؛ ويتخطاه **Skip** (`S`). ولا يُحتسب الحقل الفارغ درجة. وعندما
+لا يوجد شيء pending، تذكر الشاشة أن الـ queue فارغ.
 
 ### Prompts
 
-![prompt: الـ labels حقته، الإجراءات، وdiff بين إصدارين](/images/studio-prompts.png)
+![prompt: الـ labels الخاصة به، والإجراءات، وdiff بين إصدارين](/images/studio-prompts.png)
 
-`#/prompts` يعرض السجل، صف لكل prompt: أحدث إصدار، الـ labels، عدد
-الإصدارات، الـ runs اللي استخدمته، ومتى تحدّث؛ مربع البحث يفلتر القائمة
-بالاسم. افتح واحد (`#/prompts/<name>`، أو `@<version>` /
-`@<label>` حتى تحدد إصدار):
+يعرض `#/prompts` السجل، صفًا لكل prompt: أحدث إصدار، والـ labels، وعدد
+الإصدارات، والـ runs التي استخدمته، ومتى حُدّث؛ ويفلتر مربع البحث القائمة
+بالاسم. افتح واحدًا (`#/prompts/<name>`، أو `@<version>` /
+`@<label>` لكي تحدد إصدارًا):
 
 - الـ header: اسم الـ prompt مع labels الإصدار المحدد، و**Runs using
   this version** (Traces مفلترة بـ `prompt=<name>@<version>`) و**Open in
   Playground**.
 - نص الإصدار المحدد، مع أرقام الأسطر، و**Move `<label>`
-  here** لكل label من labels الـ prompt يشير لمكان ثاني: الـ label يشير
-  لإصدار واحد بالضبط، فهذا ينقله (نفس `lousho prompt label`، انظر
+  here** لكل label من labels الـ prompt يشير إلى مكان آخر: يشير الـ label
+  إلى إصدار واحد بالضبط، فهذا ينقله (مثل `lousho prompt label`، انظر
   [CLI](/ar/cli#lousho-prompt)).
 - **Compare versions**: اختر إصدارين لـ diff (`?diff=a,b`)، يُعرض
   **Unified** أو **Side by side**.
-- تاريخ الإصدارات، timeline جنب النص؛ اختر إصدار حتى تحدده (`j`/`k`
-  يتنقلون بين الإصدارات).
+- تاريخ الإصدارات، timeline بجانب النص؛ اختر إصدارًا لكي تحدده (`j`/`k`
+  يتنقلان بين الإصدارات).
 
 ### Context Hub
 
-`#/hub` يعرض namespaces الـ [context hub](/ar/observability#الـ-observe-daemon).
-الـ daemon يقدّم عناصر الـ hub بس نيابة عن agent، فاختر أنت مين في
+يعرض `#/hub` namespaces الـ [context hub](/ar/observability#الـ-observe-daemon).
+لا يقدّم الـ daemon عناصر الـ hub إلا نيابة عن agent، فاختر أنت من في
 **Viewing as** (الافتراضي أول agent بالاسم)، واختياريًا scope (`private`
-أو `fleet`). افتح namespace حتى تشوف عناصره كبطاقات (المفتاح، الـ scope،
-معاينة القيمة، اللي كتبه، آخر تحديث والـ TTL)؛ افتح بطاقة حتى تشوف القيمة
-كاملة (الـ JSON كشجرة) جنب القائمة. عنصر الـ fleet فيه زر **Edit** يعيد
-نشره (وهذا يعيد بداية الـ TTL حقه).
+أو `fleet`). افتح namespace لكي ترى عناصره كبطاقات (المفتاح، والـ scope،
+ومعاينة القيمة، ومن كتبه، وآخر تحديث والـ TTL)؛ وافتح بطاقة لكي ترى القيمة
+كاملة (الـ JSON كشجرة) بجانب القائمة. ولعنصر الـ fleet زر **Edit** يعيد
+نشره (وهذا يعيد بدء الـ TTL الخاص به).
 
 ### Settings
 
 `#/settings` عمود واحد من البطاقات: **Appearance** (الثيم Light أو Dark
-أو System، وكثافة الجداول Compact أو Comfortable، والاثنين ينحفظون في
-هذا المتصفح؛ لين تختار كثافة، كل جدول يبقى على الافتراضي حق شاشته)،
+أو System، وكثافة الجداول Compact أو Comfortable، ويُحفظ الاثنان في
+هذا المتصفح؛ وإلى أن تختار كثافة، يبقى كل جدول على الافتراضي الخاص بشاشته)،
 و**Provider keys**، و**Settings profile**، و**Deploy target**، و**Collector**
-(هل الـ observe daemon يرد، عنوانه، و`lousho observe start` لما يكون
-واقف) و**Keyboard shortcuts** (نفس قائمة الـ `?`). tab **Settings** في
-drawer الـ builder يعرض بس بطاقات مفاتيح الـ providers والـ profile والـ
-deploy؛ انظر [الإعدادات وsecrets وربط الـ deploy](#الإعدادات-وsecrets-وربط-الـ-deploy).
+(هل يرد الـ observe daemon، وعنوانه، و`lousho observe start` عندما يكون
+متوقفًا) و**Keyboard shortcuts** (قائمة الـ `?` نفسها). ويعرض tab **Settings** في
+drawer الـ builder بطاقات مفاتيح الـ providers والـ profile والـ
+deploy فقط؛ انظر [الإعدادات وsecrets وربط الـ deploy](#الإعدادات-وsecrets-وربط-الـ-deploy).
 
 ## جولة أول agent
 
-1. **أنشئ agent.** في tab **Agents** بشريط الـ agents، اضغط **New agent**، سمّه،
+1. **أنشئ agent.** في tab **Agents** في شريط الـ agents، اضغط **New agent**، وسمّه،
    واختر قالب بداية. أسرع طريق للتجربة بدون مفاتيح API هو **Blank
-   graph** — node `llm` واحد يستخدم الـ `mock` provider المدمج. Agent
-   Forge ينشئ الـ agent بهذا الاسم (`.lousho/agents/<name>.yaml`، مع
-   `name: <name>` في الـ spec) ويفتحه على الـ canvas. بطاقة الـ agent
-   المفتوح فيها **Rename** و**Delete**. الـ Rename ينقل الـ spec للاسم
-   الجديد؛ المحادثات والـ traces والـ checkpoints السابقة تبقى تحت الاسم
+   graph** — node `llm` واحد يستخدم الـ `mock` provider المدمج. ينشئ Agent
+   Forge الـ agent بهذا الاسم (`.lousho/agents/<name>.yaml`، مع
+   `name: <name>` في الـ spec) ويفتحه على الـ canvas. وتحتوي بطاقة الـ agent
+   المفتوح على **Rename** و**Delete**. ينقل الـ Rename الـ spec إلى الاسم
+   الجديد؛ وتبقى المحادثات والـ traces والـ checkpoints السابقة تحت الاسم
    القديم.
-2. **شوف الـ graph.** الـ agent الفارغ هو node `llm` واحد. اسحب nodes
+2. **انظر إلى الـ graph.** الـ agent الفارغ هو node `llm` واحد. اسحب nodes
    إضافية من tab **Nodes** في الشريط (**Trigger**، **LLM step**، **Tool
    call**، **Approval gate**، **Response / output**)، أو اضغط على عنصر في
-   Nodes (أو اضغط Enter عليه) حتى تضيفه في وسط الـ canvas، ووصّلهم ببعض
-   بالسحب بين الـ handles. كل بطاقة node تعرض اسمه، وchip الـ
-   `provider/model` وعدد الـ tools لو كان node من نوع LLM، وحالة الـ node في
-   الـ run الحالي (`idle` لين يوصله run). اضغط على node لتعدّل إعداداته
+   Nodes (أو اضغط Enter عليه) لكي تضيفه في وسط الـ canvas، وصِل بينها
+   بالسحب بين الـ handles. تعرض كل بطاقة node اسمه، وchip الـ
+   `provider/model` وعدد الـ tools إذا كان node من نوع LLM، وحالة الـ node في
+   الـ run الحالي (`idle` حتى يصل إليه run). اضغط على node لتعدّل إعداداته
    (prompt، provider/model، tools، breakpoints) في الـ Inspector على
-   اليمين؛ أقسامه **Node** و**Debug** و**Hooks** تنطوي، وكل قسم يبقى على
-   الحالة اللي تركته عليها. الـ agent اللي الـ canvas حقه ما فيه nodes
-   يعرض القوالب على الـ canvas: اختيار واحد يعبّي الـ canvas (بدون حفظ لين
-   يصير autosave، مثل أي تعديل) ويحتفظ باسم الـ agent.
-3. **شغّله.** اضغط **Run** في الشريط العلوي. مع الـ `mock` provider ما
-   في شي يحتاج إعداد — يرجّع مخرجات جاهزة وثابتة، وهذا بالضبط المطلوب
-   حتى تجرب باقي الواجهة بدون مفتاح API لـ LLM حقيقي. الـ status pill في
-   الشريط العلوي يتتبع الـ run (`running` → `done`، أو `stopped` بعد ما
-   تضغط **Stop**، أو `error`، أو `awaiting approval`)، وأول ما يكون trace
-   id حق الـ run معروف، يظهر جنبه رابط **Open trace** يفتح الـ run على
-   `#/traces/<traceId>` (في العرض الضيق يكون في قائمة **More**). runs الـ
-   builder تبلّغ الـ observe daemon كـ agent `<agent id>`، بنفس طريقة الـ
-   Playground: لما يكون `LOUSHO_OBSERVE` مضبوط، الـ reporter حقه هو اللي
-   ينستخدم (ما في شي يتبلّغ مرتين)، والـ daemon الواقف بس يسقط الأحداث
-   وأبدًا ما يفشّل الـ run، ومحتوى الرسائل ينرسل بس لـ daemon على
-   loopback (أبدًا لملفات الـ trace ولا لـ tab Trace الحي). الـ Run يرسل
-   prompt ثابت، وtab الـ Chat يعرضه كفقاعة **Run input** بدل ما يعرضه كرسالة
-   منك. إذا سيرفر الـ studio وقف، يظهر banner يقول إن الاتصال انقطع،
-   والـ studio يرجع يتصل لما السيرفر يرجع.
+   اليمين؛ وأقسامه **Node** و**Debug** و**Hooks** قابلة للطي، ويبقى كل قسم على
+   الحالة التي تركته عليها. والـ agent الذي لا يحتوي الـ canvas الخاص به على nodes
+   يعرض القوالب على الـ canvas: اختيار واحد منها يعبّئ الـ canvas (بدون حفظ حتى
+   يحدث autosave، مثل أي تعديل) ويحتفظ باسم الـ agent.
+3. **شغّله.** اضغط **Run** في الشريط العلوي. مع الـ `mock` provider لا
+   يوجد ما يحتاج إلى إعداد — فهو يُرجع مخرجات جاهزة وثابتة، وهذا بالضبط المطلوب
+   لكي تجرب بقية الواجهة بدون مفتاح API لـ LLM حقيقي. يتتبع الـ status pill في
+   الشريط العلوي الـ run (`running` → `done`، أو `stopped` بعد أن
+   تضغط **Stop**، أو `error`، أو `awaiting approval`)، وبمجرد أن يصبح trace
+   id الخاص بالـ run معروفًا، يظهر بجانبه رابط **Open trace** يفتح الـ run على
+   `#/traces/<traceId>` (في العرض الضيق يكون في قائمة **More**). تبلّغ runs الـ
+   builder الـ observe daemon كـ agent `<agent id>`، بالطريقة نفسها التي يتبعها الـ
+   Playground: عندما يكون `LOUSHO_OBSERVE` مضبوطًا، يُستخدم الـ reporter الخاص به
+   (فلا يُبلَّغ عن شيء مرتين)، والـ daemon المتوقف يُسقط الأحداث فقط
+   ولا يُفشل الـ run أبدًا، ولا يُرسل محتوى الرسائل إلا إلى daemon على
+   loopback (ولا يُرسل أبدًا إلى ملفات الـ trace ولا إلى tab Trace الحي). يرسل الـ Run
+   prompt ثابتًا، ويعرضه tab الـ Chat كفقاعة **Run input** بدلًا من عرضه كرسالة
+   منك. وإذا توقف سيرفر الـ studio، يظهر banner يذكر أن الاتصال انقطع،
+   ويعيد الـ studio الاتصال عندما يعود السيرفر.
 4. **تابعه في الـ debug console.** افتح tab **Logs** في الـ drawer
-   السفلي لسجل حي تقدر تفلتره لأحداث الـ run
+   السفلي للحصول على سجل حي تستطيع فلترته حسب أحداث الـ run
    (trigger/llm/tool/sandbox/checkpoint/approval)، أو **Trace** لخطوات الـ
-   run في نفس الـ trace viewer اللي تستخدمه شاشة Traces (شجرة أو
+   run في الـ trace viewer نفسه الذي تستخدمه شاشة Traces (شجرة أو
    waterfall (مخطط شلالي)، مع inspector للخطوة المحددة). فعّل **Debug** من الشريط العلوي —
-   أو ضع breakpoint على node في الـ Inspector — حتى توقّف الـ run عند
+   أو ضع breakpoint على node في الـ Inspector — لكي توقف الـ run عند
    حدود الـ LLM والـ tool وتتقدم فيه خطوة خطوة بأزرار **Step** و
    **Continue** في شريط الـ debug. وسّع "Live message array" هناك لتفحص
-   قائمة الرسائل الجارية. tab **Output** يعرض `ExecutionResult` كامل
-   (messages، tool calls، usage، steps) كشجرة JSON قابلة للطي أول ما الـ
-   run يخلص أو يتوقف. اسحب الحافة العلوية للـ drawer (أو حط عليها الـ
-   focus واستخدم الأسهم) حتى تغيّر حجمه؛ والارتفاع ينحفظ.
+   قائمة الرسائل الجارية. ويعرض tab **Output** الـ `ExecutionResult` كاملًا
+   (messages، tool calls، usage، steps) كشجرة JSON قابلة للطي بمجرد أن
+   ينتهي الـ run أو يتوقف. اسحب الحافة العلوية للـ drawer (أو ضع عليها الـ
+   focus واستخدم الأسهم) لكي تغيّر حجمه؛ ويُحفظ الارتفاع.
 
-   **سجل الـ traces.** كل run ينحفظ كملف trace، فtab **Trace** يحتفظ بـ
-   runs الـ agent حتى بعد reload للصفحة أو إعادة تشغيل السيرفر. قائمة
-   على اليسار تعرض الـ runs السابقة للـ agent، الأحدث أول (وقت البداية،
-   المدة، model calls، tokens داخلة وخارجة، التكلفة، الحالة)، وفوقها
-   عنصر **Live** طالما في run شغال. اختر واحد وتشوف خطواته في نفس الـ
-   viewer: نوع كل خطوة (model call أو tool call أو span)، والـ model،
+   **سجل الـ traces.** يُحفظ كل run كملف trace، فيحتفظ tab **Trace** بـ
+   runs الـ agent حتى بعد reload للصفحة أو إعادة تشغيل السيرفر. تعرض قائمة
+   على اليسار الـ runs السابقة للـ agent، الأحدث أولًا (وقت البداية،
+   والمدة، وmodel calls، والـ tokens الداخلة والخارجة، والتكلفة، والحالة)، وفوقها
+   عنصر **Live** ما دام هناك run يعمل. اختر واحدًا لترى خطواته في الـ
+   viewer نفسه: نوع كل خطوة (model call أو tool call أو span)، والـ model،
    والـ tokens، والمدة، والخطوات الفاشلة بلون الخطأ مع رسالة الفشل في الـ
-   inspector، والخطوات اللي لسا شغالة تتحدث مباشرة. تحديد خطوة يظلّل الـ
-   node حقها على الـ canvas. القائمة تتحدث لما run يخلص. الملفات هي
-   نفسها اللي يقرأها `lousho traces`، في
+   inspector، والخطوات التي لا تزال تعمل تتحدث مباشرة. ويظلّل تحديد خطوة الـ
+   node الخاص بها على الـ canvas. وتتحدث القائمة عندما ينتهي run. والملفات هي
+   نفسها التي يقرؤها `lousho traces`، في
    `.lousho/agents/<agent id>/traces/<day>/<trace id>.jsonl` تحت المجلد
-   اللي بدأت `lousho studio` منه (انظر
+   الذي بدأت `lousho studio` منه (انظر
    [التتبّعات المحلية](/ar/observability#local-traces)):
-   `npx lousho traces --dir .lousho/agents/<agent id>/traces` يعرض نفس
-   الـ runs في الـ terminal، وحذف مجلد الـ agent يحذف الـ traces الخاصة
-   به. الـ tab يعرض محتوى الـ spans: أسماء الـ models والـ tools، أعداد
-   الـ tokens، التكلفة، المدد، ورسائل الخطأ؛ وفي أقسام Input وOutput
-   وAttributes بالـ inspector تطلع الـ attributes اللي تحمل محتوى الـ
-   prompt والـ tools. السيرفر
-   يقرأ الـ traces من هذا المجلد فقط (id فيه فاصل مسار = 400)، وأبدًا ما
-   يرسل مسار الملف للمتصفح. خلّ `.lousho/` خارج الـ version control.
+   يعرض `npx lousho traces --dir .lousho/agents/<agent id>/traces` الـ runs
+   نفسها في الـ terminal، وحذف مجلد الـ agent يحذف الـ traces الخاصة
+   به. يعرض الـ tab محتوى الـ spans: أسماء الـ models والـ tools، وأعداد
+   الـ tokens، والتكلفة، والمدد، ورسائل الخطأ؛ وفي أقسام Input وOutput
+   وAttributes في الـ inspector تظهر الـ attributes التي تحمل محتوى الـ
+   prompt والـ tools. ولا يقرأ السيرفر
+   الـ traces إلا من هذا المجلد (id فيه فاصل مسار = 400)، ولا
+   يرسل مسار الملف إلى المتصفح أبدًا. أبقِ `.lousho/` خارج الـ version control.
 5. **حاوره.** tab **Chat** هو transport محادثة منفصل (`POST
-   /agents/:id/message`، والرد يوصل streaming عبر نفس الـ WebSocket اللي
-   يخدم كل شي ثاني) — أرسل له رسالة ويرد لك في الـ thread، مستقل عن زر
-   "Run" للـ graph فوق. كل agent يحتفظ بتاريخ محادثاته (`+ New chat`
-   يبدأ session (جلسة) جديدة، والقديمة تبقى قابلة للتصفح).
-6. **وافق على tool call متوقف.** أضف node **Tool call**، افتحه في الـ
+   /agents/:id/message`، ويصل الرد streaming عبر الـ WebSocket نفسه الذي
+   يخدم كل شيء آخر) — أرسل إليه رسالة فيرد عليك في الـ thread، مستقلًا عن زر
+   "Run" الخاص بالـ graph في الأعلى. ويحتفظ كل agent بتاريخ محادثاته (يبدأ `+ New chat`
+   session (جلسة) جديدة، وتبقى القديمة قابلة للتصفح).
+6. **وافق على tool call متوقف.** أضف node **Tool call**، وافتحه في الـ
    Inspector، واختر tool — بعض الـ tools (أو policy الـ agent نفسه)
-   تقدر تطلب approval (موافقة بشرية) قبل التشغيل. لما run أو chat يوصل
-   لواحدة، تظهر بطاقة approval مدمجة — في الشريط العلوي إذا كان run من
+   قد تطلب approval (موافقة بشرية) قبل التشغيل. عندما يصل run أو chat
+   إلى واحدة منها، تظهر بطاقة approval مدمجة — في الشريط العلوي إذا كان run من
    الـ graph، أو كفقاعة رسالة في الـ chat — تعرض اسم الـ tool والـ
-   arguments الخاصة به. اضغط **Approve** حتى يكمل أو **Reject** حتى
-   تلغي هذا الـ call، والـ run يرجع يكمل تلقائيًا في الحالتين.
+   arguments الخاصة به. اضغط **Approve** لكي يكمل أو **Reject** لكي
+   تلغي هذا الـ call، ويستأنف الـ run تلقائيًا في الحالتين.
 
 ## Hooks
 
-الـ hooks دوال صغيرة تشتغل داخل sandbox، وتشتغل مباشرة قبل أو بعد tool
-call أو `generate` لـ LLM — نفس الآلية اللي يعرضها قلب الـ SDK باسم
+الـ hooks دوال صغيرة تعمل داخل sandbox، وتعمل مباشرة قبل tool
+call أو `generate` لـ LLM أو بعده — وهي الآلية نفسها التي يعرضها قلب الـ SDK باسم
 `HookRegistry`/`AgentHook` (انظر [نظرة عامة على الـ
-API](/ar/api-overview))، بس مكتوبة بشكل مرئي ومرتبطة بـ node محدد على الـ
+API](/ar/api-overview))، لكنها مكتوبة بشكل مرئي ومرتبطة بـ node محدد على الـ
 canvas.
 
 لإرفاق hook:
 
-1. اختر node `llm` أو `tool` على الـ canvas — الـ hooks تنطبق على هذين
-   النوعين فقط، لأنهما النقطتان الوحيدتان اللي `AgentExecutor` يستدعي
-   فيهما الخارج فعليًا.
+1. اختر node `llm` أو `tool` على الـ canvas — تنطبق الـ hooks على هذين
+   النوعين فقط، لأنهما النقطتان الوحيدتان اللتان يستدعي فيهما `AgentExecutor`
+   الخارج فعليًا.
 2. افتح قسم **Hooks** في الـ Inspector. اسحب **Pre-hook** أو
    **Post-hook** من tab **Nodes** في الشريط وأفلته على الـ node — أو أفلته
    مباشرة في قسم Hooks — أو اضغط على العنصر في اللوحة والـ node محدد،
-   لإرفاق hook جديد. يعطيك اختيار من قوالب بداية
+   لإرفاق hook جديد. يتيح لك ذلك الاختيار من قوالب بداية
    (`redact-pii`، `rate-limit`، `audit-log`، `inject-context`) تبدأ منها
-   وتعدلها.
+   وتعدّلها.
 3. اضغط على chip الـ hook لتحدده، وعدّل كوده في محرر CodeMirror. الكود
-   هو **جسم** دالة async، والسيرفر يستدعيها بـ `hook(ctx)` داخل
-   subprocess معزولة (`server/hookSandbox.ts`) — أبدًا في المتصفح ولا في
+   هو **جسم** دالة async، ويستدعيها السيرفر بـ `hook(ctx)` داخل
+   subprocess معزولة (`server/hookSandbox.ts`) — ولا يستدعيها أبدًا في المتصفح ولا في
    عملية الـ API server نفسها:
    - لـ hook خاص بـ tool call: `ctx` هو `{ toolName, args, result?,
-     error? }`. الـ pre-hook يقدر يعدّل `ctx.args`، والـ post-hook يقدر
-     يفحص أو يعدّل `ctx.result` و`ctx.error`. رجّع `ctx`.
+     error? }`. يستطيع الـ pre-hook تعديل `ctx.args`، ويستطيع الـ post-hook
+     فحص `ctx.result` و`ctx.error` أو تعديلهما. أرجِع `ctx`.
    - لـ hook خاص بـ `generate` لـ LLM: `ctx` هو `{ messages, model }`.
-     عدّل `ctx.messages` أو أضف عليها، ورجّع `ctx`.
-   - **رمي exception يلغي الخطوة** — hook الـ rate-limit مثلًا يرمي
-     exception حتى يمنع الـ tool call نهائيًا بدل ما يخليه ينفذ.
+     عدّل `ctx.messages` أو أضف إليها، وأرجِع `ctx`.
+   - **رمي exception يلغي الخطوة** — فـ hook الـ rate-limit مثلًا يرمي
+     exception لكي يمنع الـ tool call نهائيًا بدلًا من تركه يُنفَّذ.
 4. بدّل الـ switch على chip الـ hook لتفعيله أو تعطيله بدون إزالته، أو
-   اضغط **x** لإزالته كليًا. الـ hooks المفعّلة فقط هي اللي تدخل في الـ
-   run.
+   اضغط **x** لإزالته كليًا. ولا تدخل في الـ run إلا الـ hooks المفعّلة.
 
 مثال: pre-hook يخفي الـ PII على node من نوع tool — وهذا قالب البداية
 `redact-pii`:
@@ -636,55 +635,55 @@ for (const key of Object.keys(ctx.args || {})) {
 return ctx;
 ```
 
-لما تحفظ الـ agent، هذي الـ hooks تنخزن كـ `spec.policy.hooks` في ملف الـ
-YAML الخاص به، والسيرفر يعمل compile للـ hooks المفعّلة إلى
-`HookRegistry` حقيقي للـ run (`server/compileHooks.ts`)، ويوجّهها عبر نفس
-الـ `SandboxAdapter` اللي تستخدمه الـ tool داخل sandbox.
+عندما تحفظ الـ agent، تُخزَّن هذه الـ hooks كـ `spec.policy.hooks` في ملف الـ
+YAML الخاص به، ويعمل السيرفر compile للـ hooks المفعّلة إلى
+`HookRegistry` حقيقي للـ run (`server/compileHooks.ts`)، ويوجّهها عبر
+الـ `SandboxAdapter` نفسه الذي تستخدمه الـ tool داخل sandbox.
 
 ## Time travel
 
-Agent Forge يحتفظ بكل الـ checkpoints لكل run، لا الأخيرة فقط. الـ file
-store الخاص به (`server/checkpointStore.ts`) يحتفظ بنفس السجل المحدود اللي
+يحتفظ Agent Forge بكل الـ checkpoints لكل run، لا بالأخيرة فقط. ويحتفظ الـ file
+store الخاص به (`server/checkpointStore.ts`) بالسجل المحدود نفسه الذي
 يحتفظ به `LocalStorageCheckpointStore` في الـ SDK — أحدث 50 حفظة لكل run،
 تحت `.lousho/agents/<id>/checkpoint-history/` (انظر [سجل الـ
-checkpoints](/ar/durable-execution#checkpoint-history)). من هذا
-السجل تقدر تعمل fork (تفريع) لـ run عند أي خطوة، تغيّر اللي صار فيها،
+checkpoints](/ar/durable-execution#checkpoint-history)). ومن هذا
+السجل تستطيع أن تعمل fork (تفريع) لـ run عند أي خطوة، وتغيّر ما حدث فيها،
 وتعيد تشغيله بجانب الأصل —
 [`AgentExecutor.fork()`](/ar/durable-execution#fork-و-replay)
-و`compareTrajectories()` هما اللي يقومون بالشغل.
+و`compareTrajectories()` هما اللتان تؤديان العمل.
 
 ### tab History
 
 1. شغّل الـ agent — زر **Run** في الشريط العلوي أو رسالة في الـ Chat.
 2. افتح tab **History** في الـ drawer السفلي. يسرد خطوات الـ run: رقم
-   الخطوة، الحالة، سبب إنهاء الـ model، الـ tool calls اللي صارت، وعدد
-   الـ tokens وتكلفة استدعاء الـ model في الخطوة لما تكون معروفة.
+   الخطوة، والحالة، وسبب إنهاء الـ model، والـ tool calls التي حدثت، وعدد
+   الـ tokens وتكلفة استدعاء الـ model في الخطوة عندما تكون معروفة.
 3. اضغط **Edit and replay from here** على خطوة. اختر **Append a user
-   message** واكتب رسالة، أو اختر واحد من الـ tool calls في الخطوة وعدّل
-   نتيجته — الحقل يكون معبّأ مسبقًا بالنتيجة المسجلة، وإذا النص يصلح
-   JSON يُرسل كـ JSON.
-4. اضغط **Fork and replay**. النظام يعمل fork للـ run عند تلك الخطوة مع
+   message** واكتب رسالة، أو اختر أحد الـ tool calls في الخطوة وعدّل
+   نتيجته — يكون الحقل معبّأً مسبقًا بالنتيجة المسجلة، وإذا كان النص JSON
+   صالحًا يُرسل كـ JSON.
+4. اضغط **Fork and replay**. يعمل النظام fork للـ run عند تلك الخطوة مع
    تعديلك ويبدأه كـ run جديد باسم `<id>.fork-<n>`.
-5. الـ fork ينفتح بجانب الأصل في عرض trajectory جنبًا إلى جنب: كل model
-   turn من الـ runين — النص، الـ tool calls ونتائجها — وأول turn
+5. يُفتح الـ fork بجانب الأصل في عرض trajectory جنبًا إلى جنب: كل model
+   turn من الـ runين — النص، والـ tool calls ونتائجها — وأول turn
    يختلفان فيه مظلّل بوسم **diverged**، وتحته عناصر الـ drift (ترتيب الـ
-   tools، الـ arguments، عدد الخطوات، سبب الإنهاء). العرض يتحدث لما الـ
-   fork يخلص.
+   tools، والـ arguments، وعدد الخطوات، وسبب الإنهاء). ويتحدث العرض عندما
+   ينتهي الـ fork.
 
 ### Routes
 
 معرّف الـ run هو الـ checkpoint session id الخاص به: id الـ agent للـ
 runs الخاصة بالـ agent نفسه، و`<id>.fork-<n>` لـ fork من الـ run `<id>`.
-سيرفر التحكم بالـ runtime عنده ثلاث routes لها (tab History يستخدمها)،
-ورouteين ثانيين للـ traces المحفوظة للـ agent (tab Trace يستخدمهم):
+لدى سيرفر التحكم بالـ runtime ثلاث routes لها (يستخدمها tab History)،
+وroutان آخران للـ traces المحفوظة للـ agent (يستخدمهما tab Trace):
 
 | Route | وظيفته |
 | --- | --- |
-| `GET /runs/:id/history` | `{ runId, steps }`: مدخل لكل خطوة من آخر تنفيذ للـ run — أحدث checkpoint محفوظة عند تلك الخطوة — مرتبة من الأقدم للأحدث، مع `status` و`savedAt` و`finishReason` و`toolCalls` (`{ id, name, args, result? }`)، و`tokens`/`costUsd` لاستدعاء الـ model في الخطوة إذا معروفة. يرجع 404 إذا الـ run ما عنده checkpoints. |
-| `POST /runs/:id/fork` | الـ body هو `{ fromStep, patch? }`، و`patch` يكون `{ toolResult?: { toolCallId, result }, appendInput?, businessState? }`. يعمل fork للـ run عند `fromStep`، ثم يبدأ الـ fork عبر الـ run registry بنفس spec الـ run الأصلي. يرجع 202 `{ runId, fromStep, status }`. الـ fork يبث على `WS /agents/<runId>/stream` ويبلّغ عن حالته على `GET /agents/<runId>/status` مثل أي run ثاني. يرجع 400 إذا الـ body غلط أو `toolCallId` غير معروف، و404 لـ run غير معروف أو خطوة بدون checkpoint. |
-| `GET /agents/:id/traces?limit=N` | `{ traces }`: الـ runs المحفوظة للـ agent من `.lousho/agents/<id>/traces`، الأحدث أول. `limit` افتراضيًا 20 وأقصى قيمة 200. كل عنصر فيه `traceId` و`name` و`startTime` و`durationMs` و`status` و`modelCalls` و`toolCalls` و`inputTokens` و`outputTokens` و`costUsd` إذا معروفة. agent بدون runs يرجع قائمة فارغة، وagent غير معروف يرجع 404. |
-| `GET /agents/:id/traces/:traceId` | `{ traceId, spans }`: الـ spans لـ run محفوظ واحد مرتبة بوقت البداية، وكل span فيه `id` و`parentId` و`name` و`kind` و`status` و`startTime` و`endTime` و`attributes`. `traceId` يجوز يكون prefix فريد. يرجع 400 لـ id فيه غير حروف وأرقام وشرطات، أو prefix يطابق أكثر من run، و404 لـ agent أو trace غير معروف. |
-| `GET /runs/compare?a=&b=` | ناتج `compareTrajectories(a, b)` على أحدث checkpoint لكل من الـ runين: الـ model turns لكل run، و`divergedAt` (أول turn يختلف) وعناصر `drift`. يرجع 404 إذا واحد من الـ runين ما عنده checkpoint. |
+| `GET /runs/:id/history` | `{ runId, steps }`: مدخل لكل خطوة من آخر تنفيذ للـ run — أحدث checkpoint محفوظة عند تلك الخطوة — مرتبة من الأقدم إلى الأحدث، مع `status` و`savedAt` و`finishReason` و`toolCalls` (`{ id, name, args, result? }`)، و`tokens`/`costUsd` لاستدعاء الـ model في الخطوة إذا كانت معروفة. يُرجع 404 إذا لم يكن للـ run checkpoints. |
+| `POST /runs/:id/fork` | الـ body هو `{ fromStep, patch? }`، و`patch` يكون `{ toolResult?: { toolCallId, result }, appendInput?, businessState? }`. يعمل fork للـ run عند `fromStep`، ثم يبدأ الـ fork عبر الـ run registry بـ spec الـ run الأصلي نفسه. يُرجع 202 `{ runId, fromStep, status }`. يبث الـ fork على `WS /agents/<runId>/stream` ويبلّغ عن حالته على `GET /agents/<runId>/status` مثل أي run آخر. يُرجع 400 إذا كان الـ body غير صالح أو كان `toolCallId` غير معروف، و404 لـ run غير معروف أو خطوة بدون checkpoint. |
+| `GET /agents/:id/traces?limit=N` | `{ traces }`: الـ runs المحفوظة للـ agent من `.lousho/agents/<id>/traces`، الأحدث أولًا. `limit` افتراضيًا 20 وأقصى قيمة 200. يحتوي كل عنصر على `traceId` و`name` و`startTime` و`durationMs` و`status` و`modelCalls` و`toolCalls` و`inputTokens` و`outputTokens` و`costUsd` إذا كانت معروفة. الـ agent بدون runs يُرجع قائمة فارغة، والـ agent غير المعروف يُرجع 404. |
+| `GET /agents/:id/traces/:traceId` | `{ traceId, spans }`: الـ spans لـ run محفوظ واحد مرتبة بوقت البداية، ويحتوي كل span على `id` و`parentId` و`name` و`kind` و`status` و`startTime` و`endTime` و`attributes`. يجوز أن يكون `traceId` prefix فريدًا. يُرجع 400 لـ id يحتوي على غير الحروف والأرقام والشرطات، أو لـ prefix يطابق أكثر من run، و404 لـ agent أو trace غير معروف. |
+| `GET /runs/compare?a=&b=` | ناتج `compareTrajectories(a, b)` على أحدث checkpoint لكل من الـ runين: الـ model turns لكل run، و`divergedAt` (أول turn يختلف) وعناصر `drift`. يُرجع 404 إذا لم يكن لأحد الـ runين checkpoint. |
 
 التسلسل لـ agent اسمه `weather` شغّلته مرة واحدة:
 
@@ -701,13 +700,13 @@ curl -H "x-lousho-studio-token: $TOKEN" 'localhost:4750/runs/compare?a=weather&b
 # {"a":[...],"b":[...],"divergedAt":2,"drift":[{"field":"steps","committed":"1","current":"2"}]}
 ```
 
-الـ fork هو run مستقل بذاته: checkpoints وحالة وchat الـ run الأصلي تبقى
-مثل ما هي.
+الـ fork هو run مستقل بذاته: تبقى checkpoints الـ run الأصلي وحالته والـ chat الخاص به
+كما هي.
 
-## الـ endpoint حق تشغيل الـ playground
+## الـ endpoint الخاص بتشغيل الـ playground
 
-`POST /playground/run` يشغّل prompt لمرة واحدة على model ويبث الرد كـ
-server-sent events. يحمل نفس رمز الوصول اللي يحمله باقي الـ API. الـ body:
+يشغّل `POST /playground/run` prompt لمرة واحدة على model ويبث الرد كـ
+server-sent events. ويتطلب رمز الوصول نفسه الذي يتطلبه بقية الـ API. الـ body:
 
 ```json
 {
@@ -719,79 +718,79 @@ server-sent events. يحمل نفس رمز الوصول اللي يحمله با
 }
 ```
 
-- `messages` (مطلوب): من 1 إلى 200 `{ role, content }`، و`role` واحد من
-  `system` أو `user` أو `assistant`. تنرسل مثل ما هي مكتوبة؛ السيرفر ما
-  يضيف أي system prompt من عنده.
-- `variables`: قيم نصية. كل `{name}` في محتوى أي رسالة ينستبدل بـ
-  `variables.name`؛ الـ placeholder اللي ما له variable يبقى مثل ما هو.
-- `model` (مطلوب): `provider/model`، أو provider لوحده (`mock`). مفتاح الـ
-  provider يجي من Settings > Provider keys، وبعدها من البيئة، بنفس الطريقة
-  اللي تحلّه فيها runs الـ agents.
+- `messages` (مطلوب): من 1 إلى 200 `{ role, content }`، و`role` أحد
+  `system` أو `user` أو `assistant`. تُرسل كما هي مكتوبة؛ ولا يضيف السيرفر
+  أي system prompt من عنده.
+- `variables`: قيم نصية. يُستبدل كل `{name}` في محتوى أي رسالة بـ
+  `variables.name`؛ ويبقى الـ placeholder الذي ليس له variable كما هو.
+- `model` (مطلوب): `provider/model`، أو provider وحده (`mock`). يأتي مفتاح الـ
+  provider من Settings > Provider keys، ثم من البيئة، بالطريقة نفسها
+  التي تحلّه بها runs الـ agents.
 - `tools`: أسماء tools يحلّها الـ Studio للـ agents (`current-date`،
-  `day-name`، `http`، `web-fetch`، `demo-approval`). الـ tool اللي تحتاج
-  approval تنهي الـ run بـ `finishReason: "awaiting-approval"`؛ الـ
-  playground ما فيه مسار approval.
-- `promptRef`: الـ prompt من السجل اللي جت منه الرسائل (`name`،
-  `name@label` أو `name@3`). ينسجّل بس على الـ trace؛ السيرفر ما يجيب الـ
+  `day-name`، `http`، `web-fetch`، `demo-approval`). والـ tool التي تحتاج
+  approval تنهي الـ run بـ `finishReason: "awaiting-approval"`؛ إذ لا يوجد في الـ
+  playground مسار approval.
+- `promptRef`: الـ prompt من السجل الذي جاءت منه الرسائل (`name`،
+  `name@label` أو `name@3`). يُسجَّل على الـ trace فقط؛ ولا يجلب السيرفر الـ
   prompt.
 
-الـ body الغلط ياخذ `400 { error }`. غير كذا الرد يكون `200` مع
+الـ body غير الصالح يحصل على `400 { error }`. وفي غير ذلك يكون الرد `200` مع
 `content-type: text/event-stream`، وframe واحد `data: <json>` لكل event:
 
 | الـ Event | الحقول |
 | --- | --- |
-| `delta` | `text`: قطعة من الرد. |
-| `tool_call` | `id`، `name`، `args`: الـ model استدعى tool. |
-| `done` | `finishReason`، `text` (الرد كامل)، `traceId` (trace الـ run في الـ observe daemon)، `usage` لما يكون معروف. آخر event في run خلص. |
-| `error` | `message`، و`code` لما يكون خطأ من الـ SDK (`LOUSHO_PROVIDER_UNKNOWN` لـ provider غير معروف، `LOUSHO_PROVIDER_MISSING_API_KEY`، ...). آخر event في run فشل أو ما بدأ أصلًا. |
+| `delta` | `text`: جزء من الرد. |
+| `tool_call` | `id`، `name`، `args`: استدعى الـ model أداة tool. |
+| `done` | `finishReason`، `text` (الرد كاملًا)، `traceId` (trace الـ run في الـ observe daemon)، `usage` عندما يكون معروفًا. آخر event في run انتهى. |
+| `error` | `message`، و`code` عندما يكون الخطأ من الـ SDK (`LOUSHO_PROVIDER_UNKNOWN` لـ provider غير معروف، `LOUSHO_PROVIDER_MISSING_API_KEY`، ...). آخر event في run فشل أو لم يبدأ أصلًا. |
 
-كل stream ينتهي بـ `done` أو `error` واحد بالضبط، حتى الـ run اللي يوقف
-بدون نتيجة. `usage` له نفس شكل الـ usage في event `run.done`
+ينتهي كل stream بـ `done` أو `error` واحد بالضبط، حتى الـ run الذي يتوقف
+بدون نتيجة. ولـ `usage` شكل الـ usage نفسه في event `run.done`
 (`AgentEventUsage`).
 
-إغلاق الاتصال يلغي الـ run. كل run يبلّغ الـ observe daemon اللي يقرأ منه
+إغلاق الاتصال يلغي الـ run. يبلّغ كل run الـ observe daemon الذي يقرأ منه
 الـ Studio (`LOUSHO_OBSERVE_URL`، الافتراضي `http://127.0.0.1:7777`، أو
-`LOUSHO_OBSERVE` لما يكون مضبوط) كـ agent `playground`، مع
-`lousho.prompt.ref` على الـ root span حق الـ run لما يكون `promptRef`
-موجود. `LOUSHO_OBSERVE_TOKEN` ينرسل كـ bearer token، لـ daemon مربوط على
-أبعد من loopback. الـ daemon الواقف ما يبطّئ الـ run ولا يفشّله.
+`LOUSHO_OBSERVE` عندما يكون مضبوطًا) كـ agent `playground`، مع
+`lousho.prompt.ref` على الـ root span الخاص بالـ run عندما يكون `promptRef`
+موجودًا. ويُرسل `LOUSHO_OBSERVE_TOKEN` كـ bearer token، لـ daemon مربوط على
+ما هو أبعد من loopback. والـ daemon المتوقف لا يبطئ الـ run ولا يُفشله.
 
 ## الإعدادات وsecrets وربط الـ deploy
 
-شاشة Settings (`#/settings`، آخر شاشة في الـ nav) وtab **Settings** في
-drawer الـ builder يتشاركون ثلاث أجزاء: مفاتيح API للـ providers (OpenAI
-وAnthropic) — Agent Forge يخزنها مشفّرة تحت `.lousho/` وما يعرضها ثانية
-أبدًا؛ كل مفتاح يعرض **Set** مع آخر حروفه مخفية جزئيًا، أو **From
-environment** لما يكون بس `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` مضبوط،
-أو **Not set** — وprofiles إعدادات مسمّاة (provider، deploy
-adapter، timeout للـ hook، toggle لـ OpenTelemetry، تُحفظ في
-`.lousho/settings.json` اللي ما فيه secrets)، وقسم **Deploy** يختار
+تتشارك شاشة Settings (`#/settings`، آخر شاشة في الـ nav) وtab **Settings** في
+drawer الـ builder ثلاثة أجزاء: مفاتيح API للـ providers (OpenAI
+وAnthropic) — يخزنها Agent Forge مشفّرة تحت `.lousho/` ولا يعرضها مرة أخرى
+أبدًا؛ يعرض كل مفتاح **Set** مع آخر حروفه مخفية جزئيًا، أو **From
+environment** عندما يكون `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` وحده مضبوطًا،
+أو **Not set** — وprofiles إعدادات مسمّاة (provider، وdeploy
+adapter، وtimeout للـ hook، وtoggle لـ OpenTelemetry، تُحفظ في
+`.lousho/settings.json` الذي لا يحتوي على secrets)، وقسم **Deploy** يختار
 adapter — `node-server` أو `docker` أو `cloudflare-worker` — ويشغّل
-`lousho build` للـ agent المحدد. باقي الـ providers يقرؤون الـ env vars
-الخاصة بهم، نفس طريقة `lousho dev` و`lousho build` (انظر
-[الإعداد](/ar/configuration))، والـ `mock` provider ما يحتاج credentials.
+`lousho build` للـ agent المحدد. وتقرأ بقية الـ providers الـ env vars
+الخاصة بها، بطريقة `lousho dev` و`lousho build` نفسها (انظر
+[الإعداد](/ar/configuration))، ولا يحتاج الـ `mock` provider إلى credentials.
 
-المفاتيح المخزّنة مشفّرة بـ AES-256-GCM في `.lousho/secrets.json`. مفتاح
-التشفير يتولّد أول مرة تحتاجه وينحفظ جنبه في `.lousho/secrets.key`
-(الاثنين بصلاحية `0600` على POSIX). هذا يبعد المفاتيح عن أي شي ينسخ النص
+المفاتيح المخزّنة مشفّرة بـ AES-256-GCM في `.lousho/secrets.json`. ويُولَّد مفتاح
+التشفير أول مرة تحتاج إليه ويُحفظ بجانبه في `.lousho/secrets.key`
+(كلاهما بصلاحية `0600` على POSIX). وهذا يُبعد المفاتيح عن أي شيء ينسخ النص
 المشفّر وحده — backup، أو zip للمشروع، أو YAML لـ agent تشاركه — لكن أي
-أحد يقدر يقرأ الملفين باسم مستخدمك يقدر يفك تشفيرهم. هذا مو keychain
-النظام. خلّ `.lousho/` خارج الـ version control وخارج الأرشيفات اللي
+شخص يستطيع قراءة الملفين باسم مستخدمك يستطيع فك تشفيرهما. هذا ليس keychain
+النظام. أبقِ `.lousho/` خارج الـ version control وخارج الأرشيفات التي
 تشاركها، وفضّل متغيرات البيئة على الأجهزة المشتركة.
 
-الـ agent اللي الـ provider حقه ما عنده مفتاح (لا مفتاح مخزّن ولا متغير
-بيئة) ما يشتغل. **Run** و**Chat** يفشلون بـ
-`LOUSHO_PROVIDER_MISSING_API_KEY` ورسالة تقول الحل: أضف المفتاح في
-Settings، أو اضبط متغير البيئة، أو غيّر provider الـ agent إلى `mock`. الـ
-studio أبدًا ما يبدّل للـ mock provider من نفسه. الـ provider pill في
-الشريط العلوي يعرض الـ `provider/model` اللي الـ agent يشتغل عليه فعليًا،
-والـ agent اللي يستخدم mock عليه شارة **MOCK**.
+الـ agent الذي ليس للـ provider الخاص به مفتاح (لا مفتاح مخزّن ولا متغير
+بيئة) لا يعمل. يفشل **Run** و**Chat** بـ
+`LOUSHO_PROVIDER_MISSING_API_KEY` ورسالة تذكر الحل: أضف المفتاح في
+Settings، أو اضبط متغير البيئة، أو غيّر provider الـ agent إلى `mock`. ولا
+يبدّل الـ studio أبدًا إلى الـ mock provider من تلقاء نفسه. ويعرض الـ provider pill في
+الشريط العلوي الـ `provider/model` الذي يعمل عليه الـ agent فعليًا،
+وعلى الـ agent الذي يستخدم mock شارة **MOCK**.
 
 ## وضع التطوير
 
-إذا كنت تشتغل داخل الـ monorepo الخاص بالـ SDK نفسها — تساهم في Agent
-Forge ذاته، لا تستخدمه فقط — `lousho studio` يرجع لوضع dev تلقائيًا طالما
-`apps/agent-forge/dist-server` ما بُني بعد:
+إذا كنت تعمل داخل الـ monorepo الخاص بالـ SDK نفسها — تساهم في Agent
+Forge ذاته، لا تستخدمه فقط — فإن `lousho studio` يعود إلى وضع dev تلقائيًا ما دام
+`apps/agent-forge/dist-server` لم يُبنَ بعد:
 
 ```bash
 git clone https://github.com/LinuxDevil/agent-sdk.git
@@ -800,11 +799,11 @@ npm install
 npx lousho studio --dev   # or just `npx lousho studio` before building
 ```
 
-هذا يشغّل الـ API server مباشرة من TypeScript (`tsx`)، ومعه Vite dev
+يشغّل هذا الـ API server مباشرة من TypeScript (`tsx`)، ومعه Vite dev
 server حقيقي مع hot-module reload لـ `apps/agent-forge/src/**`، كعمليتين
-تشتغلان جنب بعض. افتح الرابط المطبوع `http://localhost:5173/?token=...`؛
-Vite مثبّت على port 5173 والـ API server يقبل هذا الـ origin. وحتى تبني حزمة الـ production اللي يستخدمها الباقي —
-وتتحقق من اللي يُشحن فعلًا:
+تعملان جنبًا إلى جنب. افتح الرابط المطبوع `http://localhost:5173/?token=...`؛
+Vite مثبّت على port 5173 والـ API server يقبل هذا الـ origin. ولكي تبني حزمة الـ production التي يستخدمها الآخرون —
+وتتحقق مما يُشحن فعلًا:
 
 ```bash
 npm run build:studio   # builds apps/agent-forge/dist (client) and
@@ -812,62 +811,61 @@ npm run build:studio   # builds apps/agent-forge/dist (client) and
 npx lousho studio       # now runs in production mode
 ```
 
-`npm run build:studio` يشتغل تلقائيًا أيضًا ضمن سكربت `prepublishOnly` في
-جذر الـ repo، فـ `npm publish` ما يقدر يشحن studio قديم أو غير مبني
-أبدًا.
+يعمل `npm run build:studio` تلقائيًا أيضًا ضمن سكربت `prepublishOnly` في
+جذر الـ repo، فلا يستطيع `npm publish` أبدًا شحن studio قديم أو غير مبني.
 
 ## E2E smoke test
 
 `apps/agent-forge/e2e/studio.spec.ts` هو اختبار Playwright headless يقود
-`lousho studio` الحقيقي المبني — نفس سيرفر الـ production
+`lousho studio` الحقيقي المبني — سيرفر الـ production نفسه
 `dist-server/index.cjs`، لا Vite dev server — عبر متصفح. ينشئ agent من
-قالب "Support bot"، يوجّه الـ tool node فيه لـ tool اسمها
+قالب "Support bot"، ويوجّه الـ tool node فيه إلى tool اسمها
 `demo-approval` محلية على السيرفر (`needsApproval: true` دائمًا — انظر
 تعليق التوثيق في `server/buildAgent.ts` لتعرف سبب وجودها، لأن أي tool
-مدمجة في الـ SDK قابلة للتحديد من الـ spec ما تطلب approval)، يرسل له
-رسالة chat تفعّل الـ tool-call heuristic في الـ `mock` provider، ينتظر
-توقف الـ run عند الـ approval gate، يوافق عليه من بطاقة الـ approval
-المدمجة في tab Chat، وثم يتحقق إن الـ run يكتمل. شغّله بالأمر:
+مدمجة في الـ SDK قابلة للتحديد من الـ spec لا تطلب approval)، ويرسل إليه
+رسالة chat تفعّل الـ tool-call heuristic في الـ `mock` provider، وينتظر
+توقف الـ run عند الـ approval gate، ويوافق عليه من بطاقة الـ approval
+المدمجة في tab Chat، ثم يتحقق من أن الـ run يكتمل. شغّله بالأمر:
 
 ```bash
 npm run test:e2e:studio   # from the repo root, or apps/agent-forge/
 ```
 
-هذا يبني Agent Forge أول (`build:studio`)، ثم يشغّل Playwright عليه:
-`studio.spec.ts` اللي فوق زائد باقي الـ specs في `apps/agent-forge/e2e/`،
-ومنها `revamp.spec.ts` (فحوصات القبول حقت الـ revamp: خطأ run فاشل يبان
-خلال تفاعلين، وكل route يصمد بعد الـ reload مع فلاتره) و`a11y.spec.ts`
-(فحص axe لكل route في `routeTable.ts`). شاشات الـ daemon تشتغل على
-daemon وهمي (`e2e/observeStub.ts` و`e2e/fixtures/seedObserve.ts`)، فما
-تحتاج `lousho observe`.
+يبني هذا Agent Forge أولًا (`build:studio`)، ثم يشغّل Playwright عليه:
+`studio.spec.ts` المذكور أعلاه إضافةً إلى بقية الـ specs في `apps/agent-forge/e2e/`،
+ومنها `revamp.spec.ts` (فحوصات القبول الخاصة بالـ revamp: يظهر خطأ الـ run الفاشل
+خلال تفاعلين، ويصمد كل route بعد الـ reload مع فلاتره) و`a11y.spec.ts`
+(فحص axe لكل route في `routeTable.ts`). وتعمل شاشات الـ daemon على
+daemon وهمي (`e2e/observeStub.ts` و`e2e/fixtures/seedObserve.ts`)، فلا
+تحتاج إلى `lousho observe`.
 
 ### لقطات شاشة التوثيق
 
-لقطات الشاشة في هذي الصفحة تجي من `apps/agent-forge/e2e/docShots.spec.ts`،
-واللي يتخطى نفسه إلا إذا كان `LOUSHO_DOC_SHOTS` مضبوط. بعد `npm run
+تأتي لقطات الشاشة في هذه الصفحة من `apps/agent-forge/e2e/docShots.spec.ts`،
+الذي يتخطى نفسه ما لم يكن `LOUSHO_DOC_SHOTS` مضبوطًا. بعد `npm run
 build:studio`، أعد توليدها من جذر الـ repo بالأمر:
 
 ```bash
 LOUSHO_DOC_SHOTS=1 npx playwright test -c apps/agent-forge/playwright.config.ts docShots
 ```
 
-يكتب `docs/images/studio-<screen>.png` (1280x800، الثيم الفاتح) من نفس
-الـ daemon الوهمي. الصور مو جزء من حزمة npm. الأمثلة الداكنة
-(`studio-{agents,traces,trace,monitoring}-dark.png`) تجي من نفس الأمر مع
+يكتب `docs/images/studio-<screen>.png` (1280x800، الثيم الفاتح) من الـ daemon
+الوهمي نفسه. والصور ليست جزءًا من حزمة npm. وتأتي الأمثلة الداكنة
+(`studio-{agents,traces,trace,monitoring}-dark.png`) من الأمر نفسه مع
 الـ scheme الداكن:
 
 ```bash
 LOUSHO_DOC_SHOTS=1 LOUSHO_DOC_SHOTS_SCHEME=dark npx playwright test -c apps/agent-forge/playwright.config.ts docShots
 ```
 
-في `docs/images` الـ spec يتخطى لقطات المراجعة `x-` حقته، والتشغيل الداكن
-يكتب بس هذي الأربع.
+في `docs/images` يتخطى الـ spec لقطات المراجعة `x-` الخاصة به، ولا يكتب التشغيل الداكن
+إلا هذه الأربع.
 
-في متغيرين اختياريين يساعدون تراجع إعادة تصميم قبل وبعد:
-`LOUSHO_DOC_SHOTS_OUT=<dir>` يكتب الـ PNGs في مجلد ثاني (مسار مطلق، أو
-نسبي للمكان اللي تشغّل منه الأمر)، و`LOUSHO_DOC_SHOTS_SCHEME=dark` يصوّر
-الثيم الداكن (`light` هو الافتراضي؛ أي قيمة ثانية تفشّل التشغيل). مع مجلد
-مخرجات، كل لقطة تنكتب باسمها، ولقطات المراجعة `x-` معها.
+يوجد متغيران اختياريان يساعدان على مراجعة إعادة تصميم قبلها وبعدها:
+يكتب `LOUSHO_DOC_SHOTS_OUT=<dir>` الـ PNGs في مجلد آخر (مسار مطلق، أو
+نسبي إلى المكان الذي تشغّل منه الأمر)، ويصوّر `LOUSHO_DOC_SHOTS_SCHEME=dark`
+الثيم الداكن (`light` هو الافتراضي؛ وأي قيمة أخرى تُفشل التشغيل). ومع مجلد
+مخرجات، تُكتب كل لقطة باسمها، ومعها لقطات المراجعة `x-`.
 
 ```bash
 LOUSHO_DOC_SHOTS=1 LOUSHO_DOC_SHOTS_OUT=/tmp/shots-dark LOUSHO_DOC_SHOTS_SCHEME=dark npx playwright test -c apps/agent-forge/playwright.config.ts docShots

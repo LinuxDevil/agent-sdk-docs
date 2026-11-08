@@ -3,7 +3,7 @@ title: "أوضاع الصلاحيات"
 ---
 {/* Generated from docs/permission-modes.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-وضع الصلاحيات يحط الـ agent في حالة لها اسم، بدل ما تكتب rules: ينظر بس ما يلمس (`plan`)، يعدّل الملفات بدون سؤال (`acceptEdits`)، أو ما يوقف أبدًا (`dontAsk`). بدّله في نص الـ session، نفس الطريقة اللي تشتغل فيها مع coding agent: خطّط أول، بعدين خلّيه يعدّل.
+وضع الصلاحيات يضع الـ agent في حالة لها اسم، بدلًا من أن تكتب rules: ينظر فقط دون أن يلمس شيئًا (`plan`)، أو يعدّل الملفات دون سؤال (`acceptEdits`)، أو لا يتوقف أبدًا (`dontAsk`). بدّله في منتصف الـ session، بالطريقة نفسها التي تعمل بها مع coding agent: خطّط أولًا، ثم دعه يعدّل.
 
 ```ts
 import { createAgent, createFsTools, MemoryWorkspace } from 'lousho';
@@ -22,48 +22,48 @@ session.setPermissionMode('acceptEdits');
 await session.send('Apply the plan.'); // write_file and edit_file run without asking
 ```
 
-الأوضاع presets فوق [قواعد الصلاحيات](/ar/approvals#سياسات-الصلاحيات) و`needsApproval`، ما هي نظام ثاني. تنطبق في النهاية، على اللي قرّرته الـ rules والـ guardrails و`needsApproval` الخاص بالـ tool.
+الأوضاع presets فوق [قواعد الصلاحيات](/ar/approvals#سياسات-الصلاحيات) و`needsApproval`، وليست نظامًا آخر. تنطبق في النهاية، على ما قرّرته الـ rules والـ guardrails و`needsApproval` الخاص بالـ tool.
 
 ## الأوضاع
 
-| الوضع | read-only tools | تعديل الملفات | tools ثانية تسأل | tools ثانية ما تسأل |
+| الوضع | read-only tools | تعديل الملفات | tools أخرى تسأل | tools أخرى لا تسأل |
 | --- | --- | --- | --- | --- |
-| `'default'` | فحص عادي | فحص عادي | يوقف لطلب موافقة | يشتغل |
-| `'plan'` | فحص عادي (وممكن تسأل) | مرفوضة | مرفوضة | مرفوضة |
-| `'acceptEdits'` | فحص عادي | تشتغل بدون سؤال | يوقف لطلب موافقة | يشتغل |
-| `'dontAsk'` | فحص عادي، بس الـ call اللي كان سيسأل يُرفض | مرفوضة إذا كانت ستسأل | مرفوضة | يشتغل |
+| `'default'` | فحص عادي | فحص عادي | يتوقف لطلب موافقة | يعمل |
+| `'plan'` | فحص عادي (وقد تسأل) | مرفوضة | مرفوضة | مرفوضة |
+| `'acceptEdits'` | فحص عادي | تعمل دون سؤال | يتوقف لطلب موافقة | يعمل |
+| `'dontAsk'` | فحص عادي، لكن الـ call الذي كان سيسأل يُرفض | مرفوضة إذا كانت ستسأل | مرفوضة | يعمل |
 
-- **`plan`**: أي call لـ tool ما هي read-only يُرفض بـ `kind: 'denied'` والسبب
+- **`plan`**: أي call لـ tool ليست read-only يُرفض بـ `kind: 'denied'` والسبب
   `The agent is in plan mode: it may read but not change anything. Describe the
-  change instead.` — حتى لو طابقته rule من نوع `allow`. والـ run اللي يبدأ في
-  plan mode ياخذ فقرة وحدة في الـ system prompt تقول للـ model إنه في plan mode.
-  أما الـ call لـ tool غير موجودة فيرجع خطأ not-found المعتاد، فيشوف الـ model
+  change instead.` — حتى لو طابقته rule من نوع `allow`. والـ run الذي يبدأ في
+  plan mode يأخذ فقرة واحدة في الـ system prompt تخبر الـ model بأنه في plan mode.
+  أما الـ call لـ tool غير موجودة فيعيد خطأ not-found المعتاد، فيرى الـ model
   المشكلة الحقيقية.
-- **`acceptEdits`**: الـ call اللي كان سيتوقف لطلب موافقة يشتغل بدون سؤال إذا
-  كانت الـ tool تعديل ملفات (`editsFiles`، تحت). الباقي ما يتغيّر.
-- **`dontAsk`**: الـ call اللي كان سيتوقف لطلب موافقة — rule من نوع `ask`، أو
+- **`acceptEdits`**: الـ call الذي كان سيتوقف لطلب موافقة يعمل دون سؤال إذا
+  كانت الـ tool تعدّل الملفات (`editsFiles`، أدناه). الباقي لا يتغيّر.
+- **`dontAsk`**: الـ call الذي كان سيتوقف لطلب موافقة — rule من نوع `ask`، أو
   `needsApproval`، أو `ask_question` — يُرفض بالسبب `The agent is in dontAsk
-  mode: calls that need approval are refused.` الـ calls اللي وافقت عليها rule
-  `allow` واللي ما تحتاج موافقة تشتغل عادي. وما في شيء يوقف، فما يُستدعى أي
+  mode: calls that need approval are refused.` الـ calls التي وافقت عليها rule
+  `allow` والتي لا تحتاج موافقة تعمل كالمعتاد. ولا يتوقف شيء، فلا يُستدعى أي
   `approve` callback أبدًا.
 
 ### أي الـ tools read-only
 
-وضع plan يشغّل الـ tool بس إذا قالت بنفسها إنها ما تغيّر شيء. الـ tool اللي ما قالت شيء تُعامل كأداة لها side effects وتُرفض.
+وضع plan لا يشغّل الـ tool إلا إذا صرّحت بنفسها بأنها لا تغيّر شيئًا. الـ tool التي لم تصرّح بشيء تُعامل كأداة لها side effects وتُرفض.
 
-- tool عندها `annotations: { readOnlyHint: true }`. من الجاهزة: `read_file`،
+- tool لديها `annotations: { readOnlyHint: true }`. من الجاهزة: `read_file`،
   `list_dir`، `glob`، `grep`، `todo_read`، `current_date`، `day_name`،
   `web_fetch`، `load_skill`، وكل memory tool بصيغة `recall_<name>`،
-  و`agent_status` / `agent_await` (تراقب الـ sub-agents الشغالة في الخلفية).
-  الـ [OpenAPI tool](/ar/openapi-tools) لعملية `GET` عندها نفس الـ hint. أما الـ
-  [MCP tool](/ar/mcp-integration) فما تُحسب read-only إلا لو مدخل خادمها في
-  الإعدادات ضابط `approval: 'annotations'`: الـ hint كلام الخادم بس، ما هو
-  ضمان، فافتراضيًا وضع plan يرفض كل MCP tool.
-- الـ `ask_question` الجاهزة (هي بس تسأل؛ والـ call يظل واقف بانتظار الجواب)
-  و`task` (الـ sub-agent الخاص بها يرث plan mode، شوف تحت).
-- الـ [hosted provider tools](/ar/hosted-tools) تشتغل داخل طلب الـ provider،
-  فما يُرفض أي call. وضع plan يرسل `webSearch()` و`fileSearch()` (لأنهما
-  يقرآن بس) ويترك `codeInterpreter()` وكل `hostedTool()` خارج طلب الـ model؛
+  و`agent_status` / `agent_await` (تراقب الـ sub-agents العاملة في الخلفية).
+  الـ [OpenAPI tool](/ar/openapi-tools) لعملية `GET` لديها الـ hint نفسه. أما الـ
+  [MCP tool](/ar/mcp-integration) فلا تُحسب read-only إلا إذا كان مدخل خادمها في
+  الإعدادات يضبط `approval: 'annotations'`: الـ hint مجرد كلام من الخادم، وليس
+  ضمانًا، لذا يرفض وضع plan افتراضيًا كل MCP tool.
+- الـ `ask_question` الجاهزة (هي تسأل فقط؛ ويظل الـ call متوقفًا بانتظار الجواب)
+  و`task` (الـ sub-agent الخاص بها يرث plan mode، انظر أدناه).
+- الـ [hosted provider tools](/ar/hosted-tools) تعمل داخل طلب الـ provider،
+  فلا يُرفض أي call. وضع plan يرسل `webSearch()` و`fileSearch()` (لأنهما
+  يقرآن فقط) ويترك `codeInterpreter()` وكل `hostedTool()` خارج طلب الـ model؛
   الأوضاع الأخرى ترسلها كلها.
 
 عرّف tool read-only خاصة بك هكذا:
@@ -81,11 +81,11 @@ const lookUpOrder = defineTool({
 });
 ```
 
-الـ hint وعد تقطعه على الـ tool الخاصة بك: plan mode يثق فيه.
+الـ hint وعد تقطعه على الـ tool الخاصة بك: plan mode يثق به.
 
 ### تعديل الملفات: علامة `editsFiles`
 
-`acceptEdits` يوافق بس على الـ tools المعلَّمة كتعديل ملفات: `write_file` و`edit_file` من `createFsTools()`، وأي tool معرَّفة بـ `editsFiles: true` (تُخزَّن كـ `metadata.editsFiles`). الـ tool ما تُحسب تعديل ملفات من اسمها بس، فلو سمّيت tool من صنعك `write_file` ما يُوافَق عليها بصمت.
+`acceptEdits` لا يوافق إلا على الـ tools المعلَّمة بأنها تعدّل الملفات: `write_file` و`edit_file` من `createFsTools()`، وأي tool معرَّفة بـ `editsFiles: true` (تُخزَّن كـ `metadata.editsFiles`). لا تُحسب الـ tool معدِّلة للملفات من اسمها وحده، فإذا سمّيت tool من صنعك `write_file` فلن يُوافَق عليها بصمت.
 
 ```ts
 import { defineTool } from 'lousho';
@@ -105,29 +105,29 @@ const appendLine = defineTool({
 
 لكل tool call، بهذا الترتيب:
 
-1. validation للـ arguments، بعدين [hooks](/ar/hooks) الـ `preToolCall`. رفض الـ hook يوقف هنا.
-2. قواعد الصلاحيات (`permissions`). rule من نوع `deny` توقف هنا.
+1. validation للـ arguments، ثم [hooks](/ar/hooks) الـ `preToolCall`. رفض الـ hook يتوقف هنا.
+2. قواعد الصلاحيات (`permissions`). rule من نوع `deny` تتوقف هنا.
 3. [guardrails](/ar/guardrails) الـ tool. أي block ينهي الـ run.
-4. `needsApproval` الخاص بالـ tool. الرفض يوقف هنا؛ وrule من نوع `allow` أو `ask` تحل محل سؤاله.
+4. `needsApproval` الخاص بالـ tool. الرفض يتوقف هنا؛ وrule من نوع `allow` أو `ask` تحل محل سؤاله.
 5. وضع الصلاحيات، على الباقي.
 
-يعني ما في وضع يحوّل الرفض إلى run: رفض الـ hook، وrule `deny`، ورفض `needsApproval` يظلون رفض في كل وضع. و`acceptEdits` ما يوافق أبدًا على call حجبه guardrail.
+أي أنه لا يوجد وضع يحوّل الرفض إلى تشغيل: رفض الـ hook، وrule `deny`، ورفض `needsApproval` تظل رفضًا في كل وضع. و`acceptEdits` لا يوافق أبدًا على call حجبه guardrail.
 
 ## ضبط الوضع وتبديله
 
-- `createAgent({ permissionMode })`: وضع الـ agent. لو مرّرت function، تُقرأ
-  عند كل tool call، فالوضع اللي تبدّله والـ run شغّال ينطبق على الـ call
+- `createAgent({ permissionMode })`: وضع الـ agent. إذا مرّرت function، تُقرأ
+  عند كل tool call، فالوضع الذي تبدّله أثناء تشغيل الـ run ينطبق على الـ call
   التالي.
 - `agent.send(message, { permissionMode })` / `agent.stream(...)`: الوضع لهذا
   الـ run فقط.
-- `agent.session({ permissionMode })`، بعدين `session.setPermissionMode(mode)`
+- `agent.session({ permissionMode })`، ثم `session.setPermissionMode(mode)`
   والـ getter `session.permissionMode`. الـ session تقرأ وضعها عند كل tool
-  call في الـ turn، فلو استدعيت `setPermissionMode()` وأنت داخل turn (من
-  listener على `tool.start` مثلًا — يعني listener مسجّلة بـ `session.on()` أو
-  loop على `stream()`) ينطبق التبديل من الـ tool call التالي في نفس الـ turn.
+  call في الـ turn، فإذا استدعيت `setPermissionMode()` وأنت داخل turn (من
+  listener على `tool.start` مثلًا — أي listener مسجّلة بـ `session.on()` أو
+  loop على `stream()`) ينطبق التبديل ابتداءً من الـ tool call التالي في الـ turn نفسها.
   والـ session تأخذ وضع الـ agent افتراضيًا.
 
-التبديل دائمًا استدعاء صريح لـ `setPermissionMode()`. وكل تبديل يروح لـ `onPermissionModeChange` مع `{ sessionId, from, to, at }`:
+التبديل دائمًا استدعاء صريح لـ `setPermissionMode()`. وكل تبديل يُرسل إلى `onPermissionModeChange` مع `{ sessionId, from, to, at }`:
 
 ```ts
 import { createAgent } from 'lousho';
@@ -140,20 +140,20 @@ const agent = createAgent({
 });
 ```
 
-الـ system prompt يُبنى عند بداية الـ run: الـ model ما ينقال له عن الوضع إلا لو الـ run (أو الـ turn في session) بدأ في plan mode. والتبديل في نص الـ run يفرضه فحص الـ tool calls لوحده، وهذا يكفي لأن سبب الرفض في الـ call المرفوض يوصل للـ model.
+الـ system prompt يُبنى عند بداية الـ run: لا يُخبَر الـ model بالوضع إلا إذا بدأ الـ run (أو الـ turn في session) في plan mode. والتبديل في منتصف الـ run يفرضه فحص الـ tool calls وحده، وهذا يكفي لأن سبب الرفض في الـ call المرفوض يصل إلى الـ model.
 
 ## الـ audit log
 
-طالما فيه وضع غير `'default'` مفعّل، قرار كل tool call يتسجّل — حتى لو الـ agent ما ضبط `permissions` ولا `onPermissionDecision`. القرار يروح لـ `onPermissionDecision` (إذا مضبوط) ويطلع في الـ stream كـ event اسمه `permission.decision`. وحقل `mode` في الـ entry ينضبط بس لما الوضع يغيّر نتيجة الـ call: `'plan'` أو `'dontAsk'` مع `decision: 'deny'` والـ `reason` الخاص بالوضع، و`'acceptEdits'` مع `decision: 'allow'`. ولو الوضع رفض call طابقته rule `allow`، يحتفظ الـ entry بـ `rule.index` الخاص بتلك القاعدة. تبديلات الوضع تروح لـ `onPermissionModeChange`. وثاني argument في `onPermissionDecision` هو `{ principal }`، يعني من يشتغل الـ run بالنيابة عنه؛ الـ entry والـ event ما يحملون هوية الـ caller (شوف [auth](/ar/auth#principals-in-tools-and-approvals)).
+ما دام هناك وضع غير `'default'` مفعّل، يُسجَّل قرار كل tool call — حتى لو لم يضبط الـ agent `permissions` ولا `onPermissionDecision`. يُرسل القرار إلى `onPermissionDecision` (إذا كان مضبوطًا) ويظهر في الـ stream كـ event اسمه `permission.decision`. ولا يُضبط حقل `mode` في الـ entry إلا عندما يغيّر الوضع نتيجة الـ call: `'plan'` أو `'dontAsk'` مع `decision: 'deny'` والـ `reason` الخاص بالوضع، و`'acceptEdits'` مع `decision: 'allow'`. وإذا رفض الوضع call طابقته rule `allow`، يحتفظ الـ entry بـ `rule.index` الخاص بتلك القاعدة. تبديلات الوضع تُرسل إلى `onPermissionModeChange`. والـ argument الثاني في `onPermissionDecision` هو `{ principal }`، أي من يعمل الـ run بالنيابة عنه؛ الـ entry والـ event لا يحملان هوية الـ caller (انظر [auth](/ar/auth#principals-in-tools-and-approvals)).
 
 ## الـ sub-agents
 
-الـ sub-agent (أداة `task` أو task في الخلفية) يشتغل بوضع الـ lead طالما وضع الـ lead ما هو `'default'`، وإلا يشتغل بالـ `permissionMode` الخاص فيه. والـ sub-agent اللي أنشأته بـ `permissionMode: 'plan'` يبقى في plan mode مهما كان وضع الـ lead. الوضع يُقرأ عند كل tool call من الـ sub-agent، فلو بدّلت وضع session الـ lead ينطبق التبديل على sub-agent شغّال. وهذا اللي يخلي `task` آمنة في plan mode: الـ sub-agent هو أيضًا ما يقدر يغيّر شيء.
+الـ sub-agent (أداة `task` أو task في الخلفية) يعمل بوضع الـ lead ما دام وضع الـ lead ليس `'default'`، وإلا يعمل بالـ `permissionMode` الخاص به. والـ sub-agent الذي أنشأته بـ `permissionMode: 'plan'` يبقى في plan mode مهما كان وضع الـ lead. يُقرأ الوضع عند كل tool call من الـ sub-agent، فإذا بدّلت وضع session الـ lead ينطبق التبديل على sub-agent قيد التشغيل. وهذا ما يجعل `task` آمنة في plan mode: الـ sub-agent أيضًا لا يستطيع تغيير شيء.
 
-أما الـ [remote sub-agent](/ar/sub-agents) (`remoteAgent()`) فيشتغل على خادم ثاني وبصلاحيات ذلك الخادم، فما تقدر تلزمه بوضع الـ lead: في plan mode يُرفض الـ `task` call الموجّه له بدون حتى الاتصال فيه، وفي `dontAsk` الـ approval البعيد يفشّل الـ task بدل ما يوقّف الـ lead.
+أما الـ [remote sub-agent](/ar/sub-agents) (`remoteAgent()`) فيعمل على خادم آخر وبصلاحيات ذلك الخادم، فلا تستطيع إلزامه بوضع الـ lead: في plan mode يُرفض الـ `task` call الموجّه إليه دون الاتصال به أصلًا، وفي `dontAsk` يُفشل الـ approval البعيد الـ task بدلًا من أن يوقف الـ lead.
 
 ## الاستئناف بعد approval
 
-الـ checkpoints وsnapshots الـ approvals ما تحفظ الوضع. الـ run اللي يكمّله `agent.approvals.resolve()` يستخدم الوضع الحالي للـ session المتوقفة لو كان الـ run المتوقف تابعًا لـ session، وإلا يستخدم وضع الـ agent (مش الوضع اللي مرّرته لـ `send()`). يعني turn توقفت في `'default'` وحُسمت بعد `session.setPermissionMode('dontAsk')` تشغّل الـ call الموافَق عليه، بعدين ترفض الـ calls اللي بعدها واللي كانت ستسأل. وفي plan mode ينرفض الـ call الموافَق عليه نفسه أيضًا لو الـ tool ما كانت read-only.
+الـ checkpoints وsnapshots الـ approvals لا تحفظ الوضع. الـ run الذي يكمله `agent.approvals.resolve()` يستخدم الوضع الحالي للـ session المتوقفة إذا كان الـ run المتوقف تابعًا لـ session، وإلا يستخدم وضع الـ agent (لا الوضع الذي مرّرته إلى `send()`). أي أن turn توقفت في `'default'` وحُسمت بعد `session.setPermissionMode('dontAsk')` تشغّل الـ call الموافَق عليه، ثم ترفض الـ calls التالية التي كانت ستسأل. وفي plan mode يُرفض الـ call الموافَق عليه نفسه أيضًا إذا لم تكن الـ tool read-only.
 
-الاستئناف في process ثانية يستخدم الوضع اللي عند الـ agent أو الـ session اللي تستأنف.
+الاستئناف في process أخرى يستخدم الوضع الموجود لدى الـ agent أو الـ session التي تستأنف.

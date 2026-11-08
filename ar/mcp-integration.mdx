@@ -4,7 +4,7 @@ sidebarTitle: "MCP"
 ---
 {/* Generated from docs/mcp.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-MCP يشتغل في الاتجاهين. الـ agent يستطيع مناداة tools موجودة في سيرفرات MCP،
+MCP يعمل في الاتجاهين. الـ agent يستطيع استدعاء tools موجودة في سيرفرات MCP،
 أو يكون هو نفسه سيرفر MCP يناديه Claude Code وCursor وغيرهما من MCP clients.
 الاتجاهان موجودان في الـ subpath `lousho/mcp`، وحزمة
 `@modelcontextprotocol/sdk` هي peer dependency اختيارية: ثبّتها لاستخدام أي اتجاه منهما.
@@ -79,7 +79,7 @@ resources تحتفظ بكل الأجزاء، و`structuredContent` يُستخد�
 في resource) تبقى على الجزء للكود، لكن الـ model يستلم بدلها نصًا مؤقتًا مثل
 `[image: image/png, 400000 base64 characters, not sent to the model]`. وكما في
 كل نتيجة tool، الباقي محدود بـ`maxToolResultChars` (انظر
-[الـ Tools](/ar/tools#ماذا-يحدث-لما-الـ-model-يستدعي-tool))، ووصف الـ tool
+[الـ Tools](/ar/tools#ماذا-يحدث-عندما-يستدعي-الـ-model-أداة-tool))، ووصف الـ tool
 الأطول من 2,000 حرف يُقص، لأنه يُرسَل مع كل
 طلب.
 
@@ -118,11 +118,11 @@ tools الخاصة به من جديد: `tools` يتحدّث في مكانه (ت�
 القائمة الجديدة من نداء الـ model التالي.
 
 `tools` هي `Record<string, ToolDescriptor>` بمفتاح `<server>__<tool>` —
-يعني map، وليست الـ array التي تنتجها `defineTool()`. و`createAgent({ tools })`
+أي map، وليست الـ array التي تنتجها `defineTool()`. و`createAgent({ tools })`
 يقبل الشكلين ويجمعهما: `tools: [myTool, mcp.tools]` تسجّل عناصر الـ array
 بأسمائها وعناصر الـ record بمفاتيحها، فتجتمع الـ tools الخاصة بك وtools MCP
 في قائمة واحدة. (النشر داخل record واحد، `tools: { ...mcp.tools, my_tool: myTool }`،
-يشتغل أيضًا.)
+يعمل أيضًا.)
 
 ```ts
 import { createAgent } from 'lousho';
@@ -177,11 +177,11 @@ const mcpServers = {
 سيرفرات MCP تصف كل tool بـ annotations: `readOnlyHint` و
 `destructiveHint` و`idempotentHint` و`openWorldHint` و`title`. هي
 كلام السيرفر نفسه، وليست ضمانًا، لذلك الـ SDK لا يثق بها إلا إذا اخترت ذلك صراحةً
-عبر `approval: 'annotations'`: عندها الـ tool مع `readOnlyHint: true` يشتغل
-(ويمكن أن يشتغل في [plan mode](/ar/permission-modes))؛ والـ tool مع
+عبر `approval: 'annotations'`: عندها الـ tool مع `readOnlyHint: true` يعمل
+(ويمكن أن يعمل في [plan mode](/ar/permission-modes))؛ والـ tool مع
 `destructiveHint: true`، أو الذي لا يرسل `destructiveHint` أصلًا (الافتراضي في
 spec MCP أنه destructive)، يوقف الـ run حتى يوافق إنسان؛
-و`destructiveHint: false` يشتغل. الـ annotations الخام تبقى في
+و`destructiveHint: false` يعمل. الـ annotations الخام تبقى في
 `descriptor.metadata.mcp.annotations` في كل الأحوال، و`title` يصبح
 `displayName`.
 
@@ -199,7 +199,7 @@ spec MCP أنه destructive)، يوقف الـ run حتى يوافق إنسان�
   `execute({ operation })` حسب arguments الخاصة به، لأن hints السيرفر ليست دائمًا
   صحيحة. في الكود فقط؛ أما ملف spec فيأخذ السلاسل الثلاث.
 
-[قواعد الصلاحيات](/ar/approvals#سياسات-الصلاحيات) تشتغل أولًا، ولا يزال بإمكانها
+[قواعد الصلاحيات](/ar/approvals#سياسات-الصلاحيات) تعمل أولًا، ولا يزال بإمكانها
 `allow` أو `deny` أو `ask`.
 
 ```ts

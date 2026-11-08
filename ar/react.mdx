@@ -3,9 +3,9 @@ title: "React"
 ---
 {/* Generated from docs/react.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-`useLoushoAgent()` يحط agent وراء واجهة محادثة. يشغّل turn، يقرأ الـ [typed event stream](/ar/streaming) أول ما يوصل، ويحوّله إلى state جاهز للـ render: رسائل بنصها وtool calls، و`status` لحقل كتابة الرسالة، والـ tool call الواقف على approval إذا فيه واحد.
+`useLoushoAgent()` يضع agent خلف واجهة محادثة. يشغّل turn، ويقرأ الـ [typed event stream](/ar/streaming) فور وصوله، ويحوّله إلى state جاهزة للـ render: رسائل بنصها وtool calls، و`status` لحقل كتابة الرسالة، والـ tool call المتوقف على approval إن وُجد.
 
-موجود على الـ subpath `lousho/react`. و`react` (18 أو 19) peer dependency اختيارية: ثبّتها في التطبيق اللي يستخدم الـ hook.
+موجود على الـ subpath `lousho/react`. و`react` (18 أو 19) peer dependency اختيارية: ثبّتها في التطبيق الذي يستخدم الـ hook.
 
 ```tsx
 import { useLoushoAgent } from 'lousho/react';
@@ -47,51 +47,51 @@ export function Chat() {
 
 ## المصادر
 
-أول argument يحدد مكان تشغيل الـ agent.
+الـ argument الأول يحدد مكان تشغيل الـ agent.
 
 | المصدر | ما يفعله الـ hook |
 | ------ | ------------------ |
-| `{ url, sessionId?, headers?, fetch? }` | **Remote.** `send(input)` ترسل `{ "input": "...", "sessionId": "..." }` بـ POST كـ JSON إلى `url` وتقرا الـ response body كـ event stream: SSE (أسطر `data: {...}`؛ وممكن JSON الحدث الواحد يمتد على أكثر من سطر `data:`) أو JSON مفصول بأسطر، حدث واحد كل سطر. السيرفر اللي تحت يكتب نفس الشيء بالضبط. الـ hook يولّد `sessionId` واحد لكل محادثة ويرسله مع كل turn، فالسيرفر اللي يعرف الـ sessions (`createRouteHandler`) يحفظ المحادثة؛ مرّر `sessionId` خاص بك لتستأنف session محفوظة. و`reset()` يبدأ محادثة بـ id جديد. |
-| `{ agent }` | **داخل الـ process.** `send(input)` تنادي `agent.stream(input)`. كل turn هو run جديد بدون history، مثل `agent.send()`. |
-| `{ agent, sessionId }` | **داخل الـ process، multi-turn.** الـ hook ينشئ `agent.session({ id: sessionId })` مرة واحدة ويعمل stream لكل turn بـ `session.stream()`، فكل turn يشوف المحادثة اللي قبله. |
+| `{ url, sessionId?, headers?, fetch? }` | **Remote.** `send(input)` ترسل `{ "input": "...", "sessionId": "..." }` بـ POST كـ JSON إلى `url` وتقرأ الـ response body كـ event stream: SSE (أسطر `data: {...}`؛ وقد يمتد JSON الحدث الواحد على أكثر من سطر `data:`) أو JSON مفصول بأسطر، حدث واحد في كل سطر. الخادم أدناه يكتب الشيء نفسه بالضبط. يولّد الـ hook `sessionId` واحدًا لكل محادثة ويرسله مع كل turn، فيحفظ الخادم الذي يعرف الـ sessions (`createRouteHandler`) المحادثة؛ مرّر `sessionId` خاصًا بك لتستأنف session محفوظة. و`reset()` يبدأ محادثة بـ id جديد. |
+| `{ agent }` | **داخل الـ process.** `send(input)` تستدعي `agent.stream(input)`. كل turn هو run جديد دون history، مثل `agent.send()`. |
+| `{ agent, sessionId }` | **داخل الـ process، multi-turn.** ينشئ الـ hook `agent.session({ id: sessionId })` مرة واحدة ويُجري stream لكل turn بـ `session.stream()`، فيرى كل turn المحادثة التي سبقته. |
 
-وضع داخل الـ process لكود React اللي يشتغل في مكان يقدر الـ agent يشتغل فيه (Electron، React Native، الاختبارات). في المتصفح استخدم الـ remote mode: مفاتيح API للـ models مكانها السيرفر.
+وضع داخل الـ process مخصص لكود React الذي يعمل في مكان يستطيع الـ agent أن يعمل فيه (Electron، React Native، الاختبارات). في المتصفح استخدم الـ remote mode: مكان مفاتيح API الخاصة بالـ models هو الخادم.
 
 ## الـ state المُرجَعة
 
 | الحقل | ما هو |
 | ----- | ---------- |
-| `messages` | `UIMessage[]`: `{ id, role: 'user' \| 'assistant', text, toolCalls, reasoning?, finishReason?, object? }`. نص كل step من الـ model يبدأ فقرة جديدة (`\n\n`)؛ وفي run فيه `output` schema يكون هو الرد النهائي، و`object` فيه القيمة بعد التحقق منها. كل `send()` يضيف رسالة user ورسالة assistant تمتلي مع وصول `text.delta` وأحداث الـ tools. و`reasoning` يجمع نص `reasoning.delta` اللي يبثه الـ model إذا بث شيء. |
-| `toolCalls[i]` | `{ id, name, args, status, result?, error?, partial? }`، و`status` وحدة من `'running'`، `'awaiting-approval'`، `'done'`، `'error'`، `'rejected'`. `partial` هو آخر snapshot `tool.partial` لـ [streaming tool](/ar/tools#streaming-للنتائج-الجزئية) شغالة، وينحذف لما الـ call يستقر أو يتوقف مؤقتًا. |
+| `messages` | `UIMessage[]`: `{ id, role: 'user' \| 'assistant', text, toolCalls, reasoning?, finishReason?, object? }`. نص كل step من الـ model يبدأ فقرة جديدة (`\n\n`)؛ وفي run له `output` schema يكون هو الرد النهائي، و`object` يحتوي القيمة بعد التحقق منها. كل `send()` يضيف رسالة user ورسالة assistant تمتلئ مع وصول `text.delta` وأحداث الـ tools. و`reasoning` يجمع نص `reasoning.delta` الذي يبثه الـ model إذا بث شيئًا. |
+| `toolCalls[i]` | `{ id, name, args, status, result?, error?, partial? }`، و`status` واحدة من `'running'`، `'awaiting-approval'`، `'done'`، `'error'`، `'rejected'`. `partial` هو آخر snapshot `tool.partial` لـ [streaming tool](/ar/tools#streaming-للنتائج-الجزئية) قيد التشغيل، ويُحذف عندما يستقر الـ call أو يتوقف مؤقتًا. |
 | `status` | `'idle'`، `'streaming'`، `'awaiting-approval'` أو `'error'`. |
-| `pendingApproval` | `{ id, toolCallId, toolName, args }` للـ tool call اللي توقف عنده الـ run، وإلا `null`. لـ call من نوع `ask_question` فيه كمان `kind: 'question'` و`question: { text, options?, allowFreeText? }`. والـ tool اللي مستنية تسجيل دخول OAuth فيها `kind: 'sign-in'` و`signIn: { provider, displayName?, url }` (شوف [ما يراه المستخدم](/ar/oauth#ما-يراه-المستخدم)). |
-| `error` | `{ name, message }` لآخر حدث `error` أو لطلب فشل، وإلا `null`. إذا انتهى remote stream قبل `run.done` حقه (timeout في الـ proxy، أو إعادة تشغيل السيرفر) يصير `status: 'error'` مع error اسمه `StreamEndedError`، أو يبقى حدث `error` من السيرفر إذا وصل قبله. |
-| `usage` | استهلاك الـ tokens في آخر run خلص (من `run.done`)، وإلا `null`. |
-| `finishReason` | كيف انتهى آخر run (`run.done`): `'stop'`، `'max-steps'`، `'output-invalid'`، `'budget-exceeded'`، `'guardrail'`، ...؛ و`null` قبل ما يخلص أول run. الأربعة اللي بعد `stop` كمان يضبطون `status: 'error'` و`error` اسمه `RunEndedError` (إلا إذا حدث `error` سبقهم وضبطه)، عشان ما تبان المحادثة كأنها خلصت بشكل طبيعي. |
-| `todos` | قائمة الـ todos للـ agent (`{ id, content, status }[]`)، يضبطها كل حدث `todo.updated` من [todo tools](/ar/tools#todo-tools). `[]` لحد ما يوصل أول حدث. تبقى معك عبر الـ turns؛ شوف [Todos](#todos). |
-| `partialObject` | لـ agent عنده `output` schema: الرد المُحلَّل لحد الآن، من آخر حدث `object.delta` (أفضل محاولة، بدون تحقق)، وبعدين الـ `object` المتحقق منه من `run.done`. يكون `null` لحد أول `object.delta` في الـ run، و`send()` يرجّعه للبداية. |
-| `lastEvent` | آخر حدث وصل، لأي شي الـ projection ما يغطيه. |
-| `send(input)` | يبدأ turn. إذا فيه turn شغالة لسه، تنلغي أولًا. `input` تكون string أو content parts أو `Message[]` (يعني `AgentInput`). فقاعة الـ user تعرض النص مع علامة `[image]` / `[file]` لكل جزء ثاني، والـ remote mode يرسلها بـ POST كـ `{ "input": ... }`. |
-| `reset()` | يلغي الـ run، وينسى الـ session اللي داخل الـ process، ويمسح المحادثة (والـ remote mode يبدأ محادثة بـ id جديد)، مثل `reset()` في bindings حق Vue و Svelte. |
-| `stop()` | يلغي الـ turn الجارية عن طريق `AbortSignal`، و`status` ترجع `'idle'`. |
-| `approve(note?)`, `reject(note?)` | يحسما الـ `pendingApproval` (شوف تحت). |
-| `answer(text)` | يجاوب على سؤال (`pendingApproval.kind === 'question'`). نفس `approve(text)`. `reject()` يرفض السؤال. |
+| `pendingApproval` | `{ id, toolCallId, toolName, args }` للـ tool call الذي توقف عنده الـ run، وإلا `null`. والـ call من نوع `ask_question` يحتوي أيضًا `kind: 'question'` و`question: { text, options?, allowFreeText? }`. والـ tool التي تنتظر تسجيل دخول OAuth تحتوي `kind: 'sign-in'` و`signIn: { provider, displayName?, url }` (انظر [ما يراه المستخدم](/ar/oauth#ما-يراه-المستخدم)). |
+| `error` | `{ name, message }` لآخر حدث `error` أو لطلب فشل، وإلا `null`. إذا انتهى remote stream قبل `run.done` الخاص به (timeout في الـ proxy، أو إعادة تشغيل الخادم) تصبح `status: 'error'` مع error اسمه `StreamEndedError`، أو يبقى حدث `error` من الخادم إذا وصل قبله. |
+| `usage` | استهلاك الـ tokens في آخر run انتهى (من `run.done`)، وإلا `null`. |
+| `finishReason` | كيف انتهى آخر run (`run.done`): `'stop'`، `'max-steps'`، `'output-invalid'`، `'budget-exceeded'`، `'guardrail'`، ...؛ و`null` قبل أن ينتهي أول run. القيم الأربع التي تلي `stop` تضبط أيضًا `status: 'error'` و`error` اسمه `RunEndedError` (إلا إذا سبقها حدث `error` وضبطه)، لكي لا تبدو المحادثة كأنها انتهت بشكل طبيعي. |
+| `todos` | قائمة الـ todos للـ agent (`{ id, content, status }[]`)، يضبطها كل حدث `todo.updated` من [todo tools](/ar/tools#todo-tools). `[]` إلى أن يصل أول حدث. تبقى معك عبر الـ turns؛ انظر [Todos](#todos). |
+| `partialObject` | لـ agent لديه `output` schema: الرد المُحلَّل حتى الآن، من آخر حدث `object.delta` (أفضل محاولة، دون تحقق)، ثم الـ `object` المتحقق منه من `run.done`. يكون `null` حتى أول `object.delta` في الـ run، و`send()` يعيده إلى البداية. |
+| `lastEvent` | آخر حدث وصل، لأي شيء لا يغطيه الـ projection. |
+| `send(input)` | يبدأ turn. إذا كانت هناك turn لا تزال قيد التشغيل، تُلغى أولًا. `input` تكون string أو content parts أو `Message[]` (أي `AgentInput`). فقاعة الـ user تعرض النص مع علامة `[image]` / `[file]` لكل جزء آخر، والـ remote mode يرسلها بـ POST كـ `{ "input": ... }`. |
+| `reset()` | يلغي الـ run، وينسى الـ session الموجودة داخل الـ process، ويمسح المحادثة (والـ remote mode يبدأ محادثة بـ id جديد)، مثل `reset()` في bindings الخاصة بـ Vue و Svelte. |
+| `stop()` | يلغي الـ turn الجارية عبر `AbortSignal`، وتعود `status` إلى `'idle'`. |
+| `approve(note?)`, `reject(note?)` | يحسمان الـ `pendingApproval` (انظر أدناه). |
+| `answer(text)` | يجيب عن سؤال (`pendingApproval.kind === 'question'`). مثل `approve(text)`. `reject()` يرفض السؤال. |
 
-إلغاء تركيب المكوّن (unmount) يلغي الـ turn الجارية. أحداث run تبع [sub-agent](/ar/sub-agents) (اللي تحمل `subagent`) ما تغيّر `messages` — إلا `approval.requested` من sub-agent، هو يحدّث `messages` و`pendingApproval` و`status` (التوقف قرار المستخدم). إذا أردت تعرض باقي أحداث الـ sub-agent اقرأها من `lastEvent`.
+إلغاء تركيب المكوّن (unmount) يلغي الـ turn الجارية. أحداث run الخاص بـ [sub-agent](/ar/sub-agents) (التي تحمل `subagent`) لا تغيّر `messages` — باستثناء `approval.requested` من sub-agent، فهو يحدّث `messages` و`pendingApproval` و`status` (التوقف قرار المستخدم). إذا أردت عرض بقية أحداث الـ sub-agent فاقرأها من `lastEvent`.
 
 ## Approvals
 
-لما يتنادى tool عليه `needsApproval`، الـ run يتوقف بـ `approval.requested`. `status` تصير `'awaiting-approval'` و`pendingApproval` يمسك الـ call. بعدها:
+عندما يُستدعى tool عليه `needsApproval`، يتوقف الـ run بـ `approval.requested`. تصبح `status` هي `'awaiting-approval'` ويمسك `pendingApproval` الـ call. بعد ذلك:
 
-- **داخل الـ process**، `approve(note?)` و`reject(note?)` ينادوا `agent.approvals.streamResolve({ id, approved, note }, { signal })` (شوف [Approvals](/ar/approvals)). أحداث الـ run المكمّل توصل live، فالنص يلحق برسالة الـ assistant أول بأول و`status` ترجع `'idle'`، أو `'awaiting-approval'` إذا الـ run توقف مرة ثانية.
-- **Remote**، مرّر `{ approvalsUrl }` كـ argument ثاني. الـ hook يرسل `{ "approved": true, "note": "..." }` بـ POST إلى `${approvalsUrl}/${approvalId}` ويعرض التكملة live من الـ SSE stream اللي يرد فيه الـ session API (نفس أحداث أي turn محادثة؛ توقف ثاني يوصل كـ `approval.requested`). سيرفر يرد بدلها بـ JSON من نوع `ApprovalOutcome` (زي اللي تحت) يظل شغال.
-- **Remote بدون `approvalsUrl`**، `approve()` و`reject()` ما يسووا شيء. اعرض `pendingApproval` واحسمه عبر الـ API الخاص بك، بعدين ابعث الـ turn التالية بـ `send()`.
+- **داخل الـ process**، `approve(note?)` و`reject(note?)` يستدعيان `agent.approvals.streamResolve({ id, approved, note }, { signal })` (انظر [Approvals](/ar/approvals)). أحداث الـ run المكمَّل تصل live، فيُلحق النص برسالة الـ assistant أولًا بأول وتعود `status` إلى `'idle'`، أو `'awaiting-approval'` إذا توقف الـ run مرة أخرى.
+- **Remote**، مرّر `{ approvalsUrl }` كـ argument ثانٍ. يرسل الـ hook `{ "approved": true, "note": "..." }` بـ POST إلى `${approvalsUrl}/${approvalId}` ويعرض التكملة live من الـ SSE stream الذي يرد به الـ session API (أحداث أي turn محادثة نفسها؛ والتوقف الثاني يصل كـ `approval.requested`). والخادم الذي يرد بدلًا من ذلك بـ JSON من نوع `ApprovalOutcome` (مثل الذي أدناه) يظل يعمل.
+- **Remote دون `approvalsUrl`**، لا يفعل `approve()` و`reject()` شيئًا. اعرض `pendingApproval` واحسمه عبر الـ API الخاص بك، ثم أرسل الـ turn التالية بـ `send()`.
 
-إذا أنشأت الـ agent بـ `askQuestion: true` يقدر يسأل المستخدم سؤال (شوف [سؤال المستخدم](/ar/approvals#سؤال-المستخدم)). التوقف يوصل بنفس الطريقة، مع `pendingApproval.kind === 'question'`: اعرض `pendingApproval.question.text` والـ `options` تبعه، ونادي `answer(text)`.
+إذا أنشأت الـ agent بـ `askQuestion: true` يستطيع أن يطرح سؤالًا على المستخدم (انظر [سؤال المستخدم](/ar/approvals#سؤال-المستخدم)). يصل التوقف بالطريقة نفسها، مع `pendingApproval.kind === 'question'`: اعرض `pendingApproval.question.text` والـ `options` الخاصة به، واستدعِ `answer(text)`.
 
 ## جهة السيرفر
 
-نقطة نهاية Node للـ remote mode، مع route الموافقات (بادئة `vendor/` في اسم الـ model هي اللي تختار الـ provider؛ مع OpenRouter استخدم `openrouter/<vendor>/<model>`، مثل `openrouter/openai/gpt-4o-mini`):
+نقطة نهاية Node للـ remote mode، مع route الموافقات (بادئة `vendor/` في اسم الـ model هي التي تختار الـ provider؛ مع OpenRouter استخدم `openrouter/<vendor>/<model>`، مثل `openrouter/openai/gpt-4o-mini`):
 
 ```ts
 import { createServer, type IncomingMessage } from 'node:http';
@@ -131,11 +131,11 @@ createServer(async (req, res) => {
 }).listen(3000);
 ```
 
-الـ client بعدها يستخدم `useLoushoAgent({ url: '/api/agent' }, { approvalsUrl: '/api/approvals' })`. لمحادثة multi-turn، احتفظ بـ `agent.session({ id })` لكل محادثة على السيرفر واستدعِ `session.stream()` بدل `agent.stream()`. أعطِ الـ agent `store` (`createAgent({ store: memoryStore() })` أو store من نوع durable) لما الـ sessions تنفتح مع كل request: بدون store، كل `agent.session({ id })` يحصل على transcript جديد في الذاكرة، والـ turn التالية تنسى الأولى (شوف [اختيار الـ store](/ar/sessions#choosing-a-store)).
+بعد ذلك يستخدم الـ client `useLoushoAgent({ url: '/api/agent' }, { approvalsUrl: '/api/approvals' })`. لمحادثة multi-turn، احتفظ بـ `agent.session({ id })` لكل محادثة على الخادم واستدعِ `session.stream()` بدلًا من `agent.stream()`. أعطِ الـ agent `store` (`createAgent({ store: memoryStore() })` أو store من نوع durable) عندما تُفتح الـ sessions مع كل request: دون store، يحصل كل `agent.session({ id })` على transcript جديد في الذاكرة، وتنسى الـ turn التالية الأولى (انظر [اختيار الـ store](/ar/sessions#choosing-a-store)).
 
 ## داخل الـ process
 
-الـ hook يستقبل الـ agent نفسه كمان. مثال على استدعائه من hook مخصّص:
+الـ hook يستقبل الـ agent نفسه أيضًا. مثال على استدعائه من hook مخصّص:
 
 ```ts
 import { createAgent } from 'lousho';
@@ -152,7 +152,7 @@ export function useSupportChat() {
 
 ## بدون React
 
-الـ hook مجرد wrapper رقيق. منطق الـ state هو `reduceAgentEvents(state, event)`، reducer نقي يشتغل على `AgentEvent` وشوية actions محلية (`ui.send`، `ui.decide`، `ui.resumed`، `ui.stopped`، `ui.reset`، `ui.error`). و`parseEventStream(response)` يقرأ الأحداث من response تبع fetch. الاتنين مُصدَّرين من نفس الـ subpath، عشان binding مخصّص أو client بدون React:
+الـ hook مجرد wrapper رقيق. منطق الـ state هو `reduceAgentEvents(state, event)`، reducer نقي يعمل على `AgentEvent` وعلى بضعة actions محلية (`ui.send`، `ui.decide`، `ui.resumed`، `ui.stopped`، `ui.reset`، `ui.error`). و`parseEventStream(response)` يقرأ الأحداث من response الخاص بـ fetch. كلاهما مُصدَّر من الـ subpath نفسه، لاستخدامهما في binding مخصّص أو client دون React:
 
 ```ts
 import { initialAgentUIState, parseEventStream, reduceAgentEvents } from 'lousho/react';
@@ -169,11 +169,11 @@ for await (const event of parseEventStream(response)) {
 console.log(state.status, state.messages.at(-1)?.text, state.usage?.totalTokens);
 ```
 
-`parseEventStream()` يتخطى الأسطر الفاضية وتعليقات SSE وحقول `event:`/`id:` وأي سطر ليس حدثًا معروفًا، لذلك يقرأ صيغتَي التأطير الاثنتين. الخروج من حلقته يلغي الـ response body.
+`parseEventStream()` يتخطى الأسطر الفارغة وتعليقات SSE وحقول `event:`/`id:` وأي سطر ليس حدثًا معروفًا، لذلك يقرأ صيغتَي التأطير الاثنتين. الخروج من حلقته يلغي الـ response body.
 
 ## Todos
 
-الـ agent اللي عنده [todo tools](/ar/tools#todo-tools) يطلق حدث `todo.updated` مع كل `todo_write`. الـ hook يخزن أحدث قائمة في `todos`، و`useTodos(agent)` يحوّلها إلى view فيه العدّادات والبند الجاري والتقدم. يستقبل ناتج الـ hook، فـ stream واحد يغذي المحادثة والخطة. القائمة تبقى عبر الـ turns وما يمسحها شيء غير hook جديد — ولا تُستعاد لما الصفحة ترجع تتصل بـ session موجودة.
+الـ agent الذي لديه [todo tools](/ar/tools#todo-tools) يطلق حدث `todo.updated` مع كل `todo_write`. يخزن الـ hook أحدث قائمة في `todos`، و`useTodos(agent)` يحوّلها إلى view فيه العدّادات والبند الجاري والتقدم. يستقبل ناتج الـ hook، فيغذي stream واحد المحادثة والخطة. تبقى القائمة عبر الـ turns ولا يمسحها شيء سوى hook جديد — ولا تُستعاد عندما تعيد الصفحة الاتصال بـ session موجودة.
 
 ```tsx
 import { useLoushoAgent, useTodos } from 'lousho/react';
@@ -201,4 +201,4 @@ export function Plan() {
 }
 ```
 
-`current` هو البند `in_progress`، وإذا ما فيه فهو أول بند `pending`، و`undefined` لما ما يبقى شيء. `progress` هو `completed / total` (0 لقائمة فاضية). الـ view مُخزَّن memoized على `agent.todos`. و`todoView(todos)` يحسب نفس الـ view خارج React.
+`current` هو البند `in_progress`، وإن لم يوجد فهو أول بند `pending`، و`undefined` عندما لا يبقى شيء. `progress` هو `completed / total` (0 لقائمة فارغة). الـ view مُخزَّن memoized على `agent.todos`. و`todoView(todos)` يحسب الـ view نفسه خارج React.

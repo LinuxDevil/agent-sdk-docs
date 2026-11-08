@@ -3,16 +3,16 @@ title: "CLI"
 ---
 {/* Generated from docs/cli.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-تثبيت الحزمة يثبّت معها أمر `lousho`. ينشئ مشاريع جديدة، ويفحص الإعداد عندك، ويشغّل agent محليًا، ويقدّمه عبر MCP، ويشغّل evals، ويعرض traces محفوظة، ويبني artifact جاهزًا للنشر، ويفتح لوحة Agent Forge. شغّله بـ `npx lousho <command>` داخل مشروع مثبّت فيه الـ SDK.
+تثبيت الحزمة يثبّت معها أمر `lousho`. ينشئ مشاريع جديدة، ويفحص الإعداد الخاص بك، ويشغّل agent محليًا، ويقدّمه عبر MCP، ويشغّل evals، ويعرض traces محفوظة، ويبني artifact جاهزًا للنشر، ويفتح لوحة Agent Forge. شغّله بـ `npx lousho <command>` داخل مشروع مثبّت فيه الـ SDK.
 
 | الأمر | ما يفعله | التفاصيل |
 | ------- | ------------ | ------- |
-| `lousho init [dir]` | ينشئ مشروعًا جديدًا: agent مع tool مثال، واختبار يشتغل offline، و`.env.example`؛ ويثبّت الـ dependencies ويشغّل `git init`. | [التثبيت](/ar/installation#إنشاء-مشروع-جديد) |
+| `lousho init [dir]` | ينشئ مشروعًا جديدًا: agent مع tool مثال، واختبار يعمل offline، و`.env.example`؛ ويثبّت الـ dependencies ويشغّل `git init`. | [التثبيت](/ar/installation#إنشاء-مشروع-جديد) |
 | `lousho doctor [spec\|agent-dir\|agent.ts] [--json] [--ping]` | يفحص Node وpeer packages ومفاتيح الـ providers، واختياريًا ملف spec أو مجلد agent أو module فيه agent (وعندها يصبح مفتاح الـ provider الخاص به مطلوبًا)؛ ومع `--ping` يفحص أيضًا أن كل endpoint لـ provider مضبوط يرد ويقبل المفتاح. ويطبع fix لكل مشكلة. | [التثبيت](/ar/installation#استكشاف-الأخطاء-lousho-doctor) |
 | `lousho dev <path>` | سيرفر تطوير محلي لملف spec أو مجلد agent أو agent مكتوب بـ TS: واجهة chat فيها session (جلسة) لكل تبويب وأحداث تصل streaming، مع hot reload عند الحفظ. | [أدناه](#lousho-dev) |
 | `lousho chat <path>` | REPL في الـ terminal لملف spec أو مجلد agent أو agent مكتوب بـ TS: يعرض الردود streaming، ويبيّن الـ tool calls، ويطلب approvals (موافقات) ويطرح الأسئلة. | [أدناه](#lousho-chat) |
 | `lousho acp <path>` | يقدّم ملف spec أو مجلد agent أو agent مكتوب بـ TS لمحرر (Zed وغيره من ACP clients) عبر Agent Client Protocol على stdio. | [ACP](/ar/acp) |
-| `lousho add <name>` | يثبّت tool أو skill أو channel أو schedule أو memory slot من JSON registry داخل مجلد agent، بعد ما يعرض الـ permission manifest ويفحص الكود مقابله. | [Registry](/ar/registry) |
+| `lousho add <name>` | يثبّت tool أو skill أو channel أو schedule أو memory slot من JSON registry داخل مجلد agent، بعد أن يعرض الـ permission manifest ويفحص الكود مقابله. | [Registry](/ar/registry) |
 | `lousho mcp <spec>` | يقدّم الـ agent كسيرفر MCP (stdio، أو HTTP مع `--http`). | [MCP](/ar/mcp-integration#تشغيل-agent-كسيرفر-mcp) |
 | `lousho eval [globs...]` | يشغّل ملفات `*.eval.ts` تحت vitest؛ ويطبع ملخصًا ويكتب تقارير JUnit/JSON. | [Evals](/ar/evals#lousho-eval) |
 | `lousho traces [id]` | يعرض آخر runs حفظها `fileTraceExporter()` (المدة، والـ model والـ tool calls، والـ tokens، والتكلفة)، أو يطبع run واحد كشجرة spans. | [Observability](/ar/observability#local-traces) |
@@ -42,13 +42,13 @@ lousho --version
 
 كل الأوامر تحلّل الـ flags بنفس الطريقة (`parseArgs` في Node، بالوضع strict): الصيغتان `--flag value` و`--flag=value` تعملان، وإذا تكرّر flag تُعتمد آخر قيمة (`--tag` يجمع القيم بدل ذلك)، و`--` تنهي الـ flags، و`-h` / `--help` (أو `lousho help <command>`) يطبع الـ usage الخاص بالأمر والـ flags ويخرج بـ 0. الـ flag غير المعروف، أو الـ flag بدون قيمته (لا يأخذ الـ flag التالي قيمةً له أبدًا)، أو الـ argument الزائد، يفشل بـ `LOUSHO_CONFIG_INVALID` مع سطر الـ usage. القيمة التي تبدأ بـ `-` تحتاج صيغة `=`: `--model=-x`. `--traces` هو الـ flag الوحيد الذي قيمته اختيارية: يأخذها فقط بصيغة `=` (`--traces=./t`)، فـ`--traces agent.yaml` يبقى flag متبوعًا بمسار.
 
-**Exit codes.** كل أمر يخرج بـ 0 عند النجاح، وبـ 1 إذا اشتغل وفشل (agent لا يمكن تحميله، أو خطأ في البناء، أو فشل بوابة `lousho eval`، أو عدم وجود trace مطابق، أو رفض `lousho add` لعنصر بدون `--yes`)، وبـ 2 لخطأ في الاستخدام: أمر غير معروف، أو flag غير معروف، أو قيمة ناقصة أو غير صالحة، أو argument زائد، أو غياب `--target` أو مسار الـ agent. و`lousho build` يطبع المكان الذي كتب فيه الـ build (الافتراضي `.lousho/build/<target>`) والأمر الذي تشغّله هناك.
+**Exit codes.** كل أمر يخرج بـ 0 عند النجاح، وبـ 1 إذا عمل وفشل (agent لا يمكن تحميله، أو خطأ في البناء، أو فشل بوابة `lousho eval`، أو عدم وجود trace مطابق، أو رفض `lousho add` لعنصر بدون `--yes`)، وبـ 2 لخطأ في الاستخدام: أمر غير معروف، أو flag غير معروف، أو قيمة ناقصة أو غير صالحة، أو argument زائد، أو غياب `--target` أو مسار الـ agent. و`lousho build` يطبع المكان الذي كتب فيه الـ build (الافتراضي `.lousho/build/<target>`) والأمر الذي تشغّله هناك.
 
 **`.env`.** الأوامر التي تشغّل agent (`dev` و`chat` و`acp` و`mcp`)، و`doctor`، و`eval` (الـ judge evals تحتاج مفاتيح الـ providers)، و`build` تحمّل `./.env` من مجلد العمل إذا كان موجودًا، مثل `node --env-file-if-exists=.env`: المتغير المضبوط مسبقًا في البيئة يتغلّب على الملف. وعلامة ترتيب البايتات (BOM) الخاصة بـ UTF-8 في بداية الملف (التي يكتبها `Set-Content -Encoding utf8` في PowerShell 5.1) تُتجاهل.
 
 `lousho init` هو الاستثناء: يحلّل flags بنفسه، وأي flag أو قيمة غير صالحة يفشل بـ `InitUsageError` — تُطبع رسالته كما هي ويكون exit code هو 2 — لا بمسار `LOUSHO_CONFIG_INVALID` المشترك. الـ flags القصيرة الوحيدة غير `-h` هي `-y` بدل `--yes`، في `init` وفي `add`.
 
-و`lousho eval` يقبل أيضًا `--config <file>` ليشتغل على ملف إعداد vitest الخاص بك بدل المولَّد؛ وعندها تعمل الـ globs كـ filters لـ vitest على ملفات ذلك الإعداد.
+و`lousho eval` يقبل أيضًا `--config <file>` ليعمل على ملف إعداد vitest الخاص بك بدلًا من المولَّد؛ وعندها تعمل الـ globs كـ filters لـ vitest على ملفات ذلك الإعداد.
 
 `npm create lousho my-agent` يشغّل `lousho init` بنفس الـ arguments. ولإنشاء مشروع على build غير منشور من الـ SDK، مرّر `--sdk-path` (انظر [التثبيت من build محلي](/ar/installation#التثبيت-من-build-محلي)).
 
@@ -62,7 +62,7 @@ npx lousho dev agent.yaml --port 4000 --host 0.0.0.0
 npx lousho dev ./my-agent --no-schedules   # do not fire cron schedules or a spec's cron triggers
 ```
 
-في مجلد الـ agent، تُركَّب `channels/` تحت `/channels` وتشتغل `schedules/` (وكلاهما يُستبدل عند الـ reload، بعد إيقاف الـ schedules القديمة أولًا)؛ ومع `--no-schedules` لا يشتغل أي schedule. انظر [Agent directories](/ar/agent-directories#شغّله-بـ-lousho-dev).
+في مجلد الـ agent، تُركَّب `channels/` تحت `/channels` وتعمل `schedules/` (وكلاهما يُستبدل عند الـ reload، بعد إيقاف الـ schedules القديمة أولًا)؛ ومع `--no-schedules` لا يعمل أي schedule. انظر [Agent directories](/ar/agent-directories#شغّله-بـ-lousho-dev).
 
 يقدّم chat UI على `GET /`، و`GET /health`، و`GET /dev/status`، وendpoints الـ chat أدناه (حد حجم الـ body هو 1MB). ومعنى `<path>` يُستنتج من المسار نفسه:
 
@@ -72,20 +72,20 @@ npx lousho dev ./my-agent --no-schedules   # do not fire cron schedules or a spe
 | مجلد | `loadAgentDir()` ([Agent directories](/ar/agent-directories)) |
 | `.ts`, `.mts`, `.cts`, `.js`, `.mjs`, `.cjs` | الـ default export للـ module، أو export اسمه `agent`: كائن `SimpleAgent` (ما يرجعه `createAgent()`) أو object بخيارات `createAgent()` |
 
-أي امتداد آخر، أو مسار غير موجود، أو module بلا export للـ agent، يفشل بخطأ له كود (`LOUSHO_SPEC_UNSUPPORTED_FORMAT` أو `LOUSHO_CONFIG_INVALID`) مع الـ fix. ملف `.ts` يستورده Node نفسه وقت التشغيل (الإصدار 22.18 أو أحدث يشيل الـ types، فالـ imports النسبية لازم تذكر امتداد الملف)؛ استخدم `.js` للكود الذي يحتاج transpiler.
+أي امتداد آخر، أو مسار غير موجود، أو module بلا export للـ agent، يفشل بخطأ له كود (`LOUSHO_SPEC_UNSUPPORTED_FORMAT` أو `LOUSHO_CONFIG_INVALID`) مع الـ fix. ملف `.ts` يستورده Node نفسه وقت التشغيل (الإصدار 22.18 أو أحدث يزيل الـ types، لذا يجب أن تذكر الـ imports النسبية امتداد الملف)؛ استخدم `.js` للكود الذي يحتاج transpiler.
 
-**Chat sessions.** واجهة الـ chat تحتفظ بـ session واحدة لكل تبويب في المتصفح (المعرّف في `sessionStorage`؛ وزر "New session" يبدأ واحدة أخرى) وتعرض الـ turn أثناء الـ streaming: النص فور وصوله، والـ tool calls مع arguments ونتائجها، والأخطاء، والـ tokens والتكلفة من `run.done`. الـ tool call الذي يحتاج approval يعرض زرّي Approve / Reject؛ والـ `ask_question` call يعرض خياراته كأزرار مع حقل نص حر. نفس الـ endpoints تشتغل من `curl` أو من صفحتك:
+**Chat sessions.** واجهة الـ chat تحتفظ بـ session واحدة لكل تبويب في المتصفح (المعرّف في `sessionStorage`؛ وزر "New session" يبدأ واحدة أخرى) وتعرض الـ turn أثناء الـ streaming: النص فور وصوله، والـ tool calls مع arguments ونتائجها، والأخطاء، والـ tokens والتكلفة من `run.done`. الـ tool call الذي يحتاج approval يعرض زرّي Approve / Reject؛ والـ `ask_question` call يعرض خياراته كأزرار مع حقل نص حر. الـ endpoints نفسها تعمل من `curl` أو من صفحتك:
 
 | Endpoint | ما يفعله |
 | -------- | ------------ |
 | `POST /chat` `{ "sessionId", "input" }` | يشغّل `agent.session({ id: sessionId }).stream(input)` ويرسل الـ turn كـ SSE: سطر `data: <AgentEvent JSON>` لكل event ([Streaming](/ar/streaming))، ثم `event: done`. الـ history يُحفظ لكل `sessionId` (من 1 إلى 128 حرف من `A-Za-z0-9_-`). |
-| `GET /chat/:sessionId` | الـ transcript الخاص بالـ session: `{ sessionId, messages, pending }`؛ و`pending` تكون `{ status, approvalId? }` ما دام فيه turn ينتظر approval، وإلا `null`. رسائل الـ turn تُحفظ عند انتهائه، فما دام متوقفًا لا تحتوي `messages` ذلك الـ turn بعد: استخدم `pending`. |
+| `GET /chat/:sessionId` | الـ transcript الخاص بالـ session: `{ sessionId, messages, pending }`؛ و`pending` تكون `{ status, approvalId? }` ما دام هناك turn ينتظر approval، وإلا `null`. رسائل الـ turn تُحفظ عند انتهائه، فما دام متوقفًا لا تحتوي `messages` ذلك الـ turn بعد: استخدم `pending`. |
 | `POST /chat/:sessionId/approvals/:id` `{ "approved", "note"? }` أو `{ "answer" }` | يبتّ في الـ approval المعلّق (`agent.approvals.streamResolve()`)، أو يجيب على سؤال (`agent.approvals.streamAnswer()`)، ويرسل تكملة الـ turn كـ SSE. ويمكن أن يتوقف مرة أخرى بـ `approval.requested` جديد. يعيد `404` إذا لم يكن `id` معلّقًا. وإذا توقفت خطوة الـ turn على عدة calls، يُبتّ في كل id وحده؛ والقرار الذي يترك غيره معلّقًا يرسل `run.done` مع `finishReason: 'awaiting-approval'`، وآخر قرار هو الذي يشغّل الخطوة. |
 | `POST /chat` `{ "message" }` | Deprecated: بلا session وبلا streaming. يعيد `ExecutionResult` الخاص بالـ agent كـ JSON، مع header `Deprecation: true`. |
 
 `--traces` (أو `--traces=<dir>`) يكتب كل run في ملفات traces محلية عبر `fileTraceExporter()`، في `.lousho/traces` إلا إذا سمّيت مجلدًا، فيعرض `npx lousho traces` ماذا فعل الـ agent. هو معطّل افتراضيًا لأن الملفات تحتوي محتوى الـ prompts وarguments ونتائج الـ tools، والـ flag يطبع المجلد الذي يكتب فيه. ينطبق على ملفات spec ومجلدات الـ agents والـ modules بالتساوي (الـ `exporter` الخاص بالـ module يُستبدل ما دام الـ flag مضبوطًا). انظر [Local traces](/ar/observability#local-traces).
 
-الـ sessions تعيش في `memoryStore()` داخل العملية (تختفي إذا وقّفت `lousho dev`)، أو في الـ `store` الخاص بالـ agent إذا ضبطته خيارات `createAgent()` في الـ module. تكملة الـ approval تُرسل streaming هي الأخرى: الـ endpoint يشغّلها بـ `agent.approvals.streamResolve()` (أو `streamAnswer()` إذا كان سؤالًا) ويرسل events الـ turn المكمّل — الـ tool call المبتوت فيه، والـ text deltas، وتوقفًا آخر محتملًا، و`run.done` — فور حدوثها.
+الـ sessions موجودة في `memoryStore()` داخل العملية (تختفي إذا أوقفت `lousho dev`)، أو في الـ `store` الخاص بالـ agent إذا ضبطته خيارات `createAgent()` في الـ module. تكملة الـ approval تُرسل streaming هي الأخرى: الـ endpoint يشغّلها بـ `agent.approvals.streamResolve()` (أو `streamAnswer()` إذا كان سؤالًا) ويرسل events الـ turn المكمّل — الـ tool call المبتوت فيه، والـ text deltas، وتوقفًا آخر محتملًا، و`run.done` — فور حدوثها.
 
 سيرفرات `lousho build` (`node-server` و`docker`) تقدّم نفس الـ endpoints من نفس الكود، مع sessions في store تحدده `LOUSHO_STORE` وbearer auth اختيارية: انظر [Deployment: HTTP API](/ar/deployment#http-api).
 
@@ -97,12 +97,12 @@ npx lousho dev ./my-agent --no-schedules   # do not fire cron schedules or a spe
 
 ملفات المجلدات والـ modules تُستورد مع query `?t=<time>` يكسر الـ cache، فأي ملف tool أو agent عدّلته يُعاد تقييمه، وكذلك الملفات المحلية التي يستوردها بـ specifier نسبي (مثل `./lib/helper.ts` مشترك): الـ query يُمرَّر إليها. أما الحزم تحت `node_modules` فتبقى في الـ cache؛ أعد تشغيل `lousho dev` بعد تغيير واحدة منها. الـ console يسجّل ما أُعيد تحميله. الـ agent الجديد يُبنى (وينتظر `ready()`، فتتصل سيرفرات MCP) قبل أن يحل محل القديم، ثم يُستدعى `close()` على القديم. إذا فشلت إعادة البناء، يظل آخر agent سليم يرد، والخطأ يُسجَّل ويظهر في banner على صفحة الـ chat (وفي `error` ضمن `GET /dev/status`)؛ وأول تعديل ناجح يزيله. الـ sessions تنجو من الـ reload: الـ store يعيش أكثر من تبديل الـ agent، فالرسالة التالية تكمل المحادثة على الـ agent الجديد. الـ approval الذي كان معلّقًا على الـ agent القديم لا يعرفه الجديد (`404`)؛ ابدأ session جديدة.
 
-المجلدات والـ modules هي كودك وتشتغل بصلاحياتك؛ لا تشغّل `lousho dev` إلا على ما تثق فيه.
+المجلدات والـ modules هي كودك وتعمل بصلاحياتك؛ لا تشغّل `lousho dev` إلا على ما تثق به.
 
 - `--port` - الافتراضي `3737`.
 - `--host` - الافتراضي `127.0.0.1` (localhost فقط). مرّر مثلًا `--host=0.0.0.0` لتفعّل الوصول من الـ LAN؛ و`lousho dev` بلا auth ويعرض أخطاء الـ provider الخام، فيطبع عندها تحذيرًا.
 - `--allowed-hosts a,b` - أسماء hosts إضافية مسموح أن يحملها الـ header `Host`. لمنع DNS rebinding (صفحة ويب تعيد توجيه نطاقها هي إلى جهازك)، كل route ما عدا `/health` والـ channels التي تعمل `verify` لطلباتها يرد بـ `403` (`LOUSHO_REQUEST_FORBIDDEN`) إلا إذا كان `Host` هو `localhost` أو عنوان `127.x.x.x` أو `[::1]`؛ وخارج الـ loopback تُقبل أيضًا عناوين IP واسم `--host`. القائمة تضيف إلى هذه القاعدة (اسم tunnel مثلًا)؛ و`*` تقبل أي host. الـ channel التي بلا `verify` (`httpChannel()` بدون `verify`) تُفحص مثل routes التطوير، فلا تصل إليها عبر tunnel إلا واسمه في القائمة.
-- أجسام طلبات POST لازم تكون `Content-Type: application/json` (وإلا `415`)، وطلب POST من متصفح من origin آخر يُرد بـ `403`، كما على السيرفر المنشور ([Cross-site requests](/ar/auth#الطلبات-بين-المواقع)).
+- يجب أن تكون أجسام طلبات POST `Content-Type: application/json` (وإلا `415`)، وطلب POST من متصفح من origin آخر يُرد بـ `403`، كما على السيرفر المنشور ([Cross-site requests](/ar/auth#الطلبات-بين-المواقع)).
 
 ## `lousho chat`
 
@@ -126,7 +126,7 @@ Approve send_email({"to":"sam@example.com"})? [y/N] y
 Done, the report is on its way.
 ```
 
-- النص يُكتب فور ما ينتجه الـ model. كل tool call سطر واحد باهت، `[tool_name] {args}`، يتبعه `  -> result` (أو `  -> error: ...`).
+- يُكتب النص فور أن ينتجه الـ model. كل tool call سطر واحد باهت، `[tool_name] {args}`، يتبعه `  -> result` (أو `  -> error: ...`).
 - الـ tool call الذي يحتاج approval يسأل `Approve <tool>(args)? [y/N]`: `y` أو `yes` تشغّله، وغيرهما يرفضه والـ model يكمل. الـ `ask_question` call (`askQuestion: true`) يطبع السؤال مع خيارات مرقّمة؛ أجب بالرقم أو بنص حر.
 - بعد كل turn يعرض `[usage]` الـ tokens، والتكلفة أيضًا إذا كانت أسعار كل الـ models المستخدمة معروفة (`~` تعني أن الـ tokens مقدّرة).
 - أخطاء الـ SDK تُطبع مع الكود `[LOUSHO_...]` والـ fix، والـ session تكمل. وفشل الـ provider يذكر أيضًا فئته وحالة HTTP، مثل `error: User not found. (auth-failure, HTTP 401)` لمفتاح API خاطئ.
@@ -143,7 +143,7 @@ Done, the report is on its way.
 
 | الخيار | المعنى |
 | ------ | ------- |
-| `--model provider/model` | يستخدم هذا الـ model بدل الذي يسمّيه الهدف. ينطبق على ملفات spec ومجلدات الـ agents وexports خيارات `createAgent()`؛ أما الـ module الذي يصدّر agent مبنيًا مسبقًا فيحتفظ بالـ model الخاص به. بادئة `vendor/` في الـ model تختار الـ provider؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o`). |
+| `--model provider/model` | يستخدم هذا الـ model بدلًا من الذي يسمّيه الهدف. ينطبق على ملفات spec ومجلدات الـ agents وexports خيارات `createAgent()`؛ أما الـ module الذي يصدّر agent مبنيًا مسبقًا فيحتفظ بالـ model الخاص به. بادئة `vendor/` في الـ model تختار الـ provider؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثل `openrouter/openai/gpt-4o`). |
 | `--session id` | يفتح هذه الـ session (من 1 إلى 128 حرف من `A-Za-z0-9_-`)؛ الافتراضي `chat-<id>` جديدة. |
 | `--store sqlite:<file>` | يحفظ الـ sessions في ملف SQLite ([`SqliteStore`](/ar/durable-execution))، فـ`--session id` يكمل محادثة بعد إعادة التشغيل. الافتراضي: في الذاكرة. الـ approvals المعلّقة لا تُستعاد بعد إعادة التشغيل. |
 
@@ -166,7 +166,7 @@ npx lousho studio            # prints http://127.0.0.1:4750/?token=<per-launch t
 npx lousho studio --port 5000
 ```
 
-يشغّل سيرفر محلي واحد للـ API والـ UI الخاصين بـ Agent Forge. الـ agents وحالة الـ run تُخزَّن تحت `.lousho/` في المجلد الحالي. في التطبيق قائمة تنقّل على اليسار: Agents (الـ builder) وPlayground، وبعدها Traces وThreads وMonitoring، وEvaluations (Scores وDatasets وEvaluators وAnnotation queues)، وPrompts وContext Hub وSettings؛ وكل اللي بعد الـ Playground يقرأ من الـ daemon تبع `lousho observe`. انظر [Agent Forge](/ar/agent-forge) للشاشات وللـ walkthrough.
+يشغّل سيرفرًا محليًا واحدًا للـ API والـ UI الخاصين بـ Agent Forge. الـ agents وحالة الـ run تُخزَّن تحت `.lousho/` في المجلد الحالي. في التطبيق قائمة تنقّل على اليسار: Agents (الـ builder) وPlayground، وبعدها Traces وThreads وMonitoring، وEvaluations (Scores وDatasets وEvaluators وAnnotation queues)، وPrompts وContext Hub وSettings؛ وكل ما بعد الـ Playground يقرأ من الـ daemon الخاص بـ `lousho observe`. انظر [Agent Forge](/ar/agent-forge) للشاشات وللـ walkthrough.
 
 ## `lousho observe`
 
@@ -182,13 +182,13 @@ npx lousho observe failures --traces .lousho/traces --json # the same from trace
 npx lousho observe token create --project myapp # bearer key for non-loopback auth
 ```
 
-يشغّل الـ collector المحلي اللي يبلّغ له كل agent لما يكون `LOUSHO_OBSERVE` مضبوط: الـ traces، ومراقبة الأسطول (fleet)، ونتائج الـ evals، وسجل الـ prompts، والـ context hub، كلها في ملف SQLite واحد (الافتراضي `~/.lousho/observe.db`). [شاشات الـ daemon](/ar/agent-forge#الشاشات) في Studio تقرأ منه. الأمر `start` ياخذ `--port` (أو `LOUSHO_OBSERVE_PORT`) و`--db` و`--host` و`--require-token`، و`--webhook` تقدر تكرّره لخطافات التنبيه. كل daemon يكتب ملف `<db name>.pid` خاص فيه جنب الـ db (`observe.db` يعطي `observe.pid`)، فما في db اثنين في نفس المجلد يتشاركون pidfile أبدًا. `start` يطلع بـ 1 لما يكون الـ port يخدم db ثاني أصلًا، و`stop` يرفض يرسل signal لما الـ daemon اللي على port الـ pidfile يبلّغ عن db ثاني أو الـ port يرد كخدمة ثانية، ويرجع يرسل الـ signal لما ما يقدر يتحقق (ما يوصله شيء، أو pidfile قديم من سطر واحد). `/health` يقول أي db يخدمها الـ daemon بس للمستدعين على نفس الجهاز. انظر [الـ observe daemon](/ar/observability#الـ-observe-daemon).
+يشغّل الـ collector المحلي الذي يبلّغه كل agent عندما يكون `LOUSHO_OBSERVE` مضبوطًا: الـ traces، ومراقبة الأسطول (fleet)، ونتائج الـ evals، وسجل الـ prompts، والـ context hub، كلها في ملف SQLite واحد (الافتراضي `~/.lousho/observe.db`). [شاشات الـ daemon](/ar/agent-forge#الشاشات) في Studio تقرأ منه. الأمر `start` يأخذ `--port` (أو `LOUSHO_OBSERVE_PORT`) و`--db` و`--host` و`--require-token`، و`--webhook` الذي تستطيع تكراره لخطافات التنبيه. كل daemon يكتب ملف `<db name>.pid` خاصًا به بجانب الـ db (`observe.db` يعطي `observe.pid`)، فلا تتشارك قاعدتا بيانات في المجلد نفسه pidfile أبدًا. `start` يخرج بـ 1 عندما يكون الـ port يخدم db أخرى بالفعل، و`stop` يرفض إرسال signal عندما يبلّغ الـ daemon الموجود على port الـ pidfile عن db أخرى أو يرد الـ port كخدمة أخرى، ويعود إلى إرسال الـ signal عندما لا يستطيع التحقق (لا يصل إليه شيء، أو pidfile قديم من سطر واحد). `/health` يذكر أي db يخدمها الـ daemon للمستدعين على الجهاز نفسه فقط. انظر [الـ observe daemon](/ar/observability#الـ-observe-daemon).
 
-`start --retention-days N` يحدد كم تنحفظ الـ runs المنتهية (الافتراضي 30؛ و`0` يحفظ كل شيء). مرة في اليوم الـ daemon يحذف الـ traces اللي كل الـ observations فيها خلصت قبل أكثر من N يوم. الـ trace اللي فيه أي run لسّا مفتوح، والـ session اللي لسّا `active`، تنحفظ مهما كان عمرها. الـ rollups والـ prompts ومدخلات الـ hub ما تنحذف أبدًا. `prune --older-than <N>d` (أيام كاملة، N >= 1) يسوي نفس المرور الحين، ويطبع عدد الـ observations والـ scores والـ sessions اللي حذفها، وبعدين يشغّل `VACUUM` عشان يسترجع مساحة القرص (المرور اليومي ما يسويه أبدًا). إذا فشل الـ `VACUUM` بس (مثلًا الـ db مشغولة)، الـ prune يبقى مثبّت، والخطأ يروح لـ stderr وكود الخروج 0. تشغيله آمن والـ daemon شغّال. وقيمة N غلط هي خطأ استخدام (exit 2). انظر [الاحتفاظ](/ar/observability#الاحتفاظ-بالبيانات-retention).
+`start --retention-days N` يحدد مدة حفظ الـ runs المنتهية (الافتراضي 30؛ و`0` يحفظ كل شيء). مرة في اليوم يحذف الـ daemon الـ traces التي انتهت كل الـ observations فيها قبل أكثر من N يومًا. الـ trace الذي فيه أي run لا يزال مفتوحًا، والـ session التي لا تزال `active`، تُحفظ مهما كان عمرها. الـ rollups والـ prompts ومدخلات الـ hub لا تُحذف أبدًا. `prune --older-than <N>d` (أيام كاملة، N >= 1) يجري المرور نفسه الآن، ويطبع عدد الـ observations والـ scores والـ sessions التي حذفها، ثم يشغّل `VACUUM` لكي يسترجع مساحة القرص (المرور اليومي لا يفعل ذلك أبدًا). إذا فشل `VACUUM` وحده (مثلًا لأن الـ db مشغولة)، يبقى الـ prune مثبّتًا، ويذهب الخطأ إلى stderr ويكون كود الخروج 0. تشغيله آمن والـ daemon قيد التشغيل. وقيمة N الخاطئة خطأ استخدام (exit 2). انظر [الاحتفاظ](/ar/observability#الاحتفاظ-بالبيانات-retention).
 
-`start --session-idle-minutes N` يحدد متى تنحسب المحادثة منتهية (الافتراضي 30؛ و`0` يطفيه، فالـ session تظل `active` لحد ما يطيح الـ agent تبعها). مرور الـ daemon يعلّم الـ session كـ `ended` أول ما ما يكون فيها run مفتوح (الـ run المعلّم `interrupted` ما ينحسب) وما بدأ ولا خلص فيها شيء لمدة N دقيقة؛ و`ended_at` تبعها هو وقت آخر نشاط. run جديد في session `ended` (أو `interrupted`) يرجّعها `active`. والـ sessions المنتهية تنحذف بعدين بـ `--retention-days` مثل أي session منتهية ثانية. وقيمة N غلط هي خطأ استخدام (exit 2). انظر [الـ sessions الخاملة](/ar/observability#الجلسات-الخاملة).
+`start --session-idle-minutes N` يحدد متى تُحسب المحادثة منتهية (الافتراضي 30؛ و`0` يعطّله، فتظل الـ session `active` إلى أن يتعطّل الـ agent الخاص بها). يعلّم مرور الـ daemon الـ session كـ `ended` بمجرد ألا يكون فيها run مفتوح (الـ run المعلّم `interrupted` لا يُحسب) وألا يبدأ فيها شيء أو ينتهي لمدة N دقيقة؛ و`ended_at` الخاص بها هو وقت آخر نشاط. الـ run الجديد في session `ended` (أو `interrupted`) يعيدها `active`. وتُحذف الـ sessions المنتهية لاحقًا بـ `--retention-days` مثل أي session منتهية أخرى. وقيمة N الخاطئة خطأ استخدام (exit 2). انظر [الـ sessions الخاملة](/ar/observability#الجلسات-الخاملة).
 
-`export` يكتب الـ traces كـ JSONL: سطر لكل trace، `{ trace, observations, scores }` (نفس الصفوف اللي يرجّعها trace API)، الأقدم أول، بدون حد للعدد. `--since <N>d` (أو `<N>h` و`<N>m`) يبقي الـ traces اللي بدأت داخل هذي النافذة؛ و`--agent X` يبقي agent واحد، يتطابق بـ `agent_id` أو، لما ما يكون في agent بهذا الـ id، بالاسم المسجّل تبعه (اسم يتشاركه agentين هو خطأ استخدام، exit 2). بدون `--out` الأسطر تروح لـ stdout وما يروح لها شيء ثاني (العدد يروح لـ stderr، فالـ pipe يظل نظيف)؛ و`--out file` ينشئ الملف أو يكتب فوقه ويطبع العدد على stdout. يقرأ الـ db مباشرة، فما يحتاج daemon شغّال. انظر [التصدير](/ar/observability#التصدير).
+`export` يكتب الـ traces كـ JSONL: سطر لكل trace، `{ trace, observations, scores }` (الصفوف نفسها التي يعيدها trace API)، الأقدم أولًا، دون حد للعدد. `--since <N>d` (أو `<N>h` و`<N>m`) يُبقي الـ traces التي بدأت داخل هذه النافذة؛ و`--agent X` يُبقي agent واحدًا، يتطابق بـ `agent_id` أو، عندما لا يوجد agent بهذا الـ id، بالاسم المسجّل الخاص به (الاسم الذي يتشاركه agentان خطأ استخدام، exit 2). دون `--out` تذهب الأسطر إلى stdout ولا يذهب إليه شيء آخر (يذهب العدد إلى stderr، فيظل الـ pipe نظيفًا)؛ و`--out file` ينشئ الملف أو يكتب فوقه ويطبع العدد على stdout. يقرأ الـ db مباشرة، فلا يحتاج إلى daemon قيد التشغيل. انظر [التصدير](/ar/observability#التصدير).
 
 ## `lousho prompt`
 
@@ -202,6 +202,6 @@ npx lousho prompt get mira@prod
 
 ينشر ويقرأ إصدارات الـ prompts في سجل الـ observe daemon. الـ agents تحلّها بـ `createAgent({ prompt: 'mira@latest' })` (أو بـ label، `'mira@prod'`) أو بـ `LOUSHO_PROMPT`.
 
-- `push` ينشر الملف (`-` يقرأ من stdin) كالإصدار اللي بعده. الـ push اللي نصه و`--variables` تبعه نفس آخر إصدار ما يصنع شيء ويطبع `mira@2 is unchanged` (exit 0). و`--labels prod,canary` يوجّه هذي الـ labels للإصدار الناتج، سواء الجديد أو آخر إصدار اللي ما تغيّر.
-- `get <name>[@ref]` يطبع نص الإصدار؛ و`ref` رقم صحيح، أو `latest` (الافتراضي)، أو label. و`--json` يطبع الصف، و`labels` فيه هي الـ labels اللي تشير حاليًا لهذا الإصدار.
-- `label <name> <label> <version>` ينقل label: الـ label يشير لإصدار واحد بالضبط، فهذا يشيله من الإصدار اللي كان عليه، ويطبع `mira@prod -> 3 (was 2)` (أو `(was unset)` لـ label جديد). الـ label اسم بدون مسافات ولا `@` ولا `/`، ومو `latest` ولا أرقام بس. انظر [الـ observe daemon](/ar/observability#الـ-observe-daemon).
+- `push` ينشر الملف (`-` يقرأ من stdin) كالإصدار التالي. الـ push الذي يطابق نصه و`--variables` الخاصة به آخر إصدار لا ينشئ شيئًا ويطبع `mira@2 is unchanged` (exit 0). و`--labels prod,canary` يوجّه هذه الـ labels إلى الإصدار الناتج، سواء كان الجديد أو آخر إصدار لم يتغيّر.
+- `get <name>[@ref]` يطبع نص الإصدار؛ و`ref` رقم صحيح، أو `latest` (الافتراضي)، أو label. و`--json` يطبع الصف، و`labels` فيه هي الـ labels التي تشير حاليًا إلى هذا الإصدار.
+- `label <name> <label> <version>` ينقل label: الـ label يشير إلى إصدار واحد بالضبط، فهذا يزيله من الإصدار الذي كان عليه، ويطبع `mira@prod -> 3 (was 2)` (أو `(was unset)` لـ label جديد). الـ label اسم دون مسافات ولا `@` ولا `/`، وليس `latest` ولا أرقامًا فقط. انظر [الـ observe daemon](/ar/observability#الـ-observe-daemon).

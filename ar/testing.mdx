@@ -3,7 +3,7 @@ title: "اختبار الـ agents"
 ---
 {/* Generated from docs/testing.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-`lousho/testing` يوفّر `mockModel`: ‏`LLMProvider` يشتغل بسكربت deterministic للـ unit tests. تكتب ماذا يفترض أن يقول الـ model في كل turn، تشغّل الـ agent، وبعدين تتحقق بالضبط ماذا أرسل الـ agent للـ model. بلا network، بلا API keys، بلا flakiness.
+`lousho/testing` يوفّر `mockModel`: ‏`LLMProvider` يعمل بسكربت deterministic للـ unit tests. تكتب ما يُفترض أن يقوله الـ model في كل turn، وتشغّل الـ agent، ثم تتحقق بالضبط مما أرسله الـ agent إلى الـ model. بلا network، بلا API keys، بلا flakiness.
 
 ```bash
 npm install --save-dev vitest
@@ -11,7 +11,7 @@ npm install --save-dev vitest
 
 ## رد نصي
 
-لو كتبت string بس، فهو اختصار لـ `{ text }`.
+إذا كتبت string فقط، فهو اختصار لـ `{ text }`.
 
 ```ts
 import { createAgent } from 'lousho';
@@ -29,7 +29,7 @@ model.assertExhausted();
 
 ## flow مع tool call
 
-كل عنصر في السكربت هو turn واحد للـ model. الـ turn الأول يطلب tool. الـ agent ينفّذه ويستدعي الـ model مرة ثانية. الـ turn الثاني يعطي الجواب النهائي. معرّفات الـ tool calls تتولّد بشكل deterministic ‏(`call_1`، `call_2`، ...) إلا إذا مرّرت `id`.
+كل عنصر في السكربت هو turn واحد للـ model. الـ turn الأول يطلب tool. الـ agent ينفّذه ويستدعي الـ model مرة أخرى. الـ turn الثاني يعطي الجواب النهائي. معرّفات الـ tool calls تتولّد بشكل deterministic ‏(`call_1`، `call_2`، ...) إلا إذا مرّرت `id`.
 
 ```ts
 import { describe, it, expect, vi } from 'vitest';
@@ -69,7 +69,7 @@ describe('weather agent', () => {
 
 ## turn فيه خطأ
 
-‏`{ error }` تخلي استدعاء الـ model يفشل بـ reject. يعني تقدر تختبر كيف يتصرف الـ agent لما يقع الـ provider.
+‏`{ error }` تجعل استدعاء الـ model يفشل بـ reject. أي أنك تستطيع اختبار كيف يتصرف الـ agent عندما يتعطّل الـ provider.
 
 ```ts
 import { it, expect } from 'vitest';
@@ -87,7 +87,7 @@ it('surfaces a provider failure', async () => {
 
 ## التحقق من الـ requests
 
-‏`model.calls` يحتفظ بـ snapshot مجمّدة (deep-frozen) لكل request، بالترتيب. أي تعديل لاحق من الـ agent ما يقدر يعيد كتابة اللي سُجّل. استخدم `model.lastCall` لآخر request.
+‏`model.calls` يحتفظ بـ snapshot مجمّدة (deep-frozen) لكل request، بالترتيب. أي تعديل لاحق من الـ agent لا يستطيع إعادة كتابة ما سُجّل. استخدم `model.lastCall` لآخر request.
 
 ```ts
 expect(model.calls[0].messages[0]).toMatchObject({ role: 'system' });
@@ -99,7 +99,7 @@ expect(model.calls[0].temperature).toBe(0.2);
 
 ## turns ديناميكية
 
-مرّر function تحسب الـ turn من الـ request. يمكن تكون async، وترجع string أو أي turn object.
+مرّر function تحسب الـ turn من الـ request. يمكن أن تكون async، وتعيد string أو أي turn object.
 
 ```ts
 import { mockModel } from 'lousho/testing';
@@ -116,14 +116,14 @@ console.log(result.text); // You said: ping
 | -------------- | ------------------------------------------------------------------------------ |
 | `text`         | نص رد الـ assistant (الافتراضي `''`).                                           |
 | `toolCalls`    | `[{ name, args?, id? }]`. الـ args تُرمَّز JSON؛ والـ ids الافتراضية `call_N`.   |
-| `error`        | يخلي `generate()` / `stream()` يفشلان بهذا الخطأ (rejection).                   |
-| `usage`        | `{ inputTokens, outputTokens }`؛ إذا حذفته الـ turn ما يبلّغ عن أي usage إطلاقًا (`undefined`، مثل backend يحذف عدد الـ tokens، فيقدّر الـ executor ويضع `usage.estimated`). |
-| `finishReason` | الافتراضي `'tool_calls'` إذا فيه tool calls، و`'stop'` غير ذلك.                  |
-| `delayMs`      | ينتظر قبل ما يرد (يشتغل مع `vi.useFakeTimers()`).                              |
+| `error`        | يجعل `generate()` / `stream()` يفشلان بهذا الخطأ (rejection).                   |
+| `usage`        | `{ inputTokens, outputTokens }`؛ إذا حذفته الـ turn فلا يُبلَّغ عن أي usage إطلاقًا (`undefined`، مثل backend يحذف عدد الـ tokens، فيقدّر الـ executor ويضع `usage.estimated`). |
+| `finishReason` | الافتراضي `'tool_calls'` إذا كانت هناك tool calls، و`'stop'` غير ذلك.                  |
+| `delayMs`      | ينتظر قبل أن يرد (يعمل مع `vi.useFakeTimers()`).                              |
 
-## لما تخلص الـ turns
+## عندما تنفد الـ turns
 
-إذا استدعى الـ agent الـ model أكثر مما كتبت في السكربت، يرمي `mockModel` خطأ يذكر رقم الاستدعاء غير المتوقع، ويعرض آخر message في الـ request، ويقول لك أضف turn. عشان تعيد آخر turn للأبد (مفيد في اختبارات الـ loop وحدود الخطوات)، مرّر `{ onExhausted: 'repeat-last' }`:
+إذا استدعى الـ agent الـ model أكثر مما كتبت في السكربت، يرمي `mockModel` خطأً يذكر رقم الاستدعاء غير المتوقع، ويعرض آخر message في الـ request، ويطلب منك إضافة turn. لكي تعيد آخر turn إلى ما لا نهاية (مفيد في اختبارات الـ loop وحدود الخطوات)، مرّر `{ onExhausted: 'repeat-last' }`:
 
 ```ts
 import { mockModel } from 'lousho/testing';
@@ -131,15 +131,15 @@ import { mockModel } from 'lousho/testing';
 const looping = mockModel([{ toolCalls: [{ name: 'again' }] }], { onExhausted: 'repeat-last' });
 ```
 
-في helpers ثانية: `model.reset()` ترجع السكربت للبداية وتمسح الـ calls المسجّلة، و`model.assertExhausted()` ترمي خطأ إذا بقي في السكربت turns ما استُخدمت.
+وهناك helpers أخرى: `model.reset()` تعيد السكربت إلى البداية وتمسح الـ calls المسجّلة، و`model.assertExhausted()` ترمي خطأً إذا بقيت في السكربت turns لم تُستخدم.
 
 ## Streaming
 
-‏`mockModel` ينفّذ `stream()` أيضًا: نص السكربت ينبعث على شكل `text-delta` chunks (مقسّمة على حدود الكلمات)، تتبعها أي `tool-call` chunks ثم `finish` chunk أخير. يعني تقدر تختبر مستهلكي الـ streaming أيضًا.
+‏`mockModel` ينفّذ `stream()` أيضًا: يُبث نص السكربت على شكل `text-delta` chunks (مقسّمة على حدود الكلمات)، تتبعها أي `tool-call` chunks ثم `finish` chunk أخير. أي أنك تستطيع اختبار مستهلكي الـ streaming أيضًا.
 
 ## Record و replay
 
-‏`mockModel` تكتب الـ turns يدويًا. `recordReplay` هي الأداة المكمّلة: VCR لسلوك الـ model الحقيقي. شغّل اختبارك مرة واحدة مع الـ provider الحقيقي، وكل تبادل `generate()` / `stream()` ينكتب في ملف cassette. في الـ CI نفس الاختبار يسوّي replay للـ cassette بلا network، بلا API key، وبلا تثبيت الـ peer package الخاصة بالـ provider. بادئة `vendor/` في اسم الـ model تحدد الـ provider؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثال `openrouter/openai/gpt-4o-mini`).
+‏`mockModel` تكتب الـ turns يدويًا. `recordReplay` هي الأداة المكمّلة: VCR لسلوك الـ model الحقيقي. شغّل اختبارك مرة واحدة مع الـ provider الحقيقي، وكل تبادل `generate()` / `stream()` يُكتب في ملف cassette. في الـ CI يُجري الاختبار نفسه replay للـ cassette بلا network، بلا API key، وبلا تثبيت الـ peer package الخاصة بالـ provider. بادئة `vendor/` في اسم الـ model تحدد الـ provider؛ ومع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثال `openrouter/openai/gpt-4o-mini`).
 
 ```ts
 import { createAgent, resolveProvider } from 'lousho';
@@ -152,22 +152,22 @@ const provider = recordReplay(() => resolveProvider('openai/gpt-4o-mini'), {
 const agent = createAgent({ provider, instructions: 'You handle refund requests.' });
 ```
 
-الوسيط الأول هو الـ provider الحقيقي، أو factory بشكل `() => provider` ما تُستدعى إلا وقت التسجيل (يعني الـ replay ما ينشئها أبدًا). ويمكن تكون `undefined` إذا بتسوي replay بس.
+الوسيط الأول هو الـ provider الحقيقي، أو factory بالشكل `() => provider` لا تُستدعى إلا وقت التسجيل (أي أن الـ replay لا ينشئها أبدًا). ويمكن أن تكون `undefined` إذا كنت تُجري replay فقط.
 
 ### خطوات العمل
 
 1. سجّل محليًا بمفتاح: `LOUSHO_RECORD=1 OPENAI_API_KEY=... npx vitest run`.
-2. راجع الـ cassette وسوِّ له commit (ملف JSON ثابت بإزاحة مسافتين، فالـ diffs مقروءة).
-3. الـ CI يشغّل `npx vitest run` ويسوّي replay. ما يحتاج أي شيء ثاني.
-4. لما تغيّر الـ prompt أو الـ tools أو الـ flow، يفشل الـ replay بـ `CassetteMismatchError`؛ أعد التسجيل بـ `LOUSHO_RECORD=1`.
+2. راجع الـ cassette وأجرِ له commit (ملف JSON ثابت بإزاحة مسافتين، فالـ diffs مقروءة).
+3. الـ CI يشغّل `npx vitest run` ويُجري replay. لا يحتاج إلى أي شيء آخر.
+4. عندما تغيّر الـ prompt أو الـ tools أو الـ flow، يفشل الـ replay بـ `CassetteMismatchError`؛ أعد التسجيل بـ `LOUSHO_RECORD=1`.
 
-‏`mode: 'auto'` يسوّي replay إذا ملف الـ cassette موجود، ويسجّل في الحالة الثانية.
+‏`mode: 'auto'` يُجري replay إذا كان ملف الـ cassette موجودًا، ويسجّل في الحالة الأخرى.
 
-في evals معرّفة بـ `defineEval()` ما تحتاج تغلّف الـ provider بنفسك: `lousho eval --record` يكتب cassette لكل eval case، و`--replay` يشغّل منها، و`--drift` يبيّن كيف تغيّر مسار كل case. شوف [التسجيل وإعادة التشغيل والـ drift](/ar/evals#record-replay-and-drift).
+في evals المعرّفة بـ `defineEval()` لا تحتاج إلى تغليف الـ provider بنفسك: `lousho eval --record` يكتب cassette لكل eval case، و`--replay` يشغّل منها، و`--drift` يبيّن كيف تغيّر مسار كل case. انظر [التسجيل وإعادة التشغيل والـ drift](/ar/evals#record-replay-and-drift).
 
 ### ماذا يفحص الـ replay
 
-افتراضيًا الـ call رقم N يُجاب عليها بالـ entry رقم N، لكن بشرط يكون الـ request مطابقًا للي سُجّل: الـ model، دور كل message ومحتواها والـ tool calls فيها، أسماء الـ tools والـ parameter schemas حقّها، و`temperature` و`maxTokens`. الـ tools تُقارَن بالاسم، فتسجيل نفس الـ tools بترتيب ثاني يظل مطابقًا (وهذا ينطبق برضو على الـ cassettes الأقدم اللي كانت تحفظ ترتيب التسجيل). عند عدم التطابق الخطأ يعرض أول اختلاف مع تلميح لإعادة التسجيل:
+افتراضيًا يُجاب على الـ call رقم N بالـ entry رقم N، لكن بشرط أن يكون الـ request مطابقًا لما سُجّل: الـ model، ودور كل message ومحتواها والـ tool calls فيها، وأسماء الـ tools والـ parameter schemas الخاصة بها، و`temperature` و`maxTokens`. تُقارَن الـ tools بالاسم، فتسجيل الـ tools نفسها بترتيب آخر يظل مطابقًا (وهذا ينطبق أيضًا على الـ cassettes الأقدم التي كانت تحفظ ترتيب التسجيل). عند عدم التطابق يعرض الخطأ أول اختلاف مع تلميح لإعادة التسجيل:
 
 ```text
 Call #2 does not match the recorded request in ./__cassettes__/refund-flow.json.
@@ -177,11 +177,11 @@ First difference at request.messages[1].content:
 If the change is intentional, re-record the cassette (run with LOUSHO_RECORD=1, or set mode: 'record').
 ```
 
-هذا التلميح يفترض إنك ربطت `mode` بـ `LOUSHO_RECORD` مثل ما فوق. إذا تسجّل بطريقة ثانية، مرّر `rerecordHint` مع الأمر اللي يستخدمه مشروعك؛ وتحت `lousho eval` يذكر التلميح `npx lousho eval --record` بدلًا من ذلك.
+هذا التلميح يفترض أنك ربطت `mode` بـ `LOUSHO_RECORD` كما في الأعلى. إذا كنت تسجّل بطريقة أخرى، مرّر `rerecordHint` مع الأمر الذي يستخدمه مشروعك؛ وتحت `lousho eval` يذكر التلميح `npx lousho eval --record` بدلًا من ذلك.
 
-للـ calls المتوازية أو غير المرتّبة مرّر `match: 'request'`: كل call يلاقي أول entry غير مستخدمة بطلب مطابق تمامًا، بأي ترتيب. ونفاد الـ entries برضو `CassetteMismatchError`.
+للـ calls المتوازية أو غير المرتّبة مرّر `match: 'request'`: كل call يجد أول entry غير مستخدمة بطلب مطابق تمامًا، بأي ترتيب. ونفاد الـ entries هو أيضًا `CassetteMismatchError`.
 
-القيم المتقلّبة ما تكسر المطابقة. الـ timestamps والتواريخ (`2026-10-01` و`October 1, 2026`) والـ UUIDs والمعرّفات ذات البادئات (`call_...` و`toolu_...` و`chatcmpl_...`) تُستبدل بـ placeholders على الطرفين، ومعرّفات الـ tool calls تُتجاهل (تتطابق الـ tool calls بالاسم والـ arguments). الـ parameter schema حقّة الـ tool تتطابق بما كتبته فيها (أسماء الخصائص والأنواع و`optional` وقيم الـ enum والفحوص مثل `min` أو `int` والأوصاف)، مو بطريقة طباعة major version معيّن من zod. فالـ cassette المسجّلة بـ zod 3 تشتغل replay مع zod 4 والعكس؛ وتغيير الـ schema نفسها يفشّل المطابقة. لأي شيء ثاني، مرّر `normalize`:
+القيم المتقلّبة لا تكسر المطابقة. الـ timestamps والتواريخ (`2026-10-01` و`October 1, 2026`) والـ UUIDs والمعرّفات ذات البادئات (`call_...` و`toolu_...` و`chatcmpl_...`) تُستبدل بـ placeholders على الطرفين، ومعرّفات الـ tool calls تُتجاهل (تتطابق الـ tool calls بالاسم والـ arguments). الـ parameter schema الخاصة بالـ tool تتطابق بما كتبته فيها (أسماء الخصائص والأنواع و`optional` وقيم الـ enum والفحوص مثل `min` أو `int` والأوصاف)، لا بطريقة طباعة major version معيّن من zod. فالـ cassette المسجّلة بـ zod 3 تعمل في الـ replay مع zod 4 والعكس؛ وتغيير الـ schema نفسها يُفشل المطابقة. لأي شيء آخر، مرّر `normalize`:
 
 ```ts
 import { mockModel, recordReplay } from 'lousho/testing';
@@ -199,18 +199,18 @@ const provider = recordReplay(mockModel(['ok']), {
 
 ### الأخطاء والـ streaming والـ usage
 
-- رفض الـ provider يُسجَّل ويُعاد كرفض بنفس الـ `name` والـ `message`.
-- `stream()` يسجّل الـ chunks ويعيدها كـ async iterable بلا تأخيرات؛ مرّر `replayTiming: true` عشان تسترجع التوقيت بين الـ chunks. وأثناء التسجيل يُقرأ الـ stream الحقيقي للنهاية قبل ما يُرجَع.
-- استهلاك الـ tokens يُسجَّل ويُعاد بالكامل (بما فيه الـ cached-input tokens والـ reasoning tokens، والتكلفة اللي يبلّغ عنها الـ provider)، فميزات التكلفة والـ usage تتصرف نفس الشيء في الـ replay.
-- الـ reasoning blocks حقّة استدعاء `generate()` ‏(`result.reasoning`، مع الـ signatures حقّتها) تُسجَّل وتُعاد؛ والـ stream يحتفظ بالـ reasoning داخل الـ chunks المسجّلة. والـ cassettes المسجّلة قبل ما نصير نحتفظ بهذي البيانات تشتغل replay عادي، بس بدونها.
+- رفض الـ provider يُسجَّل ويُعاد كرفض بالـ `name` والـ `message` نفسيهما.
+- `stream()` يسجّل الـ chunks ويعيدها كـ async iterable بلا تأخيرات؛ مرّر `replayTiming: true` لكي تسترجع التوقيت بين الـ chunks. وأثناء التسجيل يُقرأ الـ stream الحقيقي حتى نهايته قبل أن يُعاد.
+- استهلاك الـ tokens يُسجَّل ويُعاد بالكامل (بما في ذلك الـ cached-input tokens والـ reasoning tokens، والتكلفة التي يبلّغ عنها الـ provider)، فتتصرف ميزات التكلفة والـ usage بالطريقة نفسها في الـ replay.
+- الـ reasoning blocks الخاصة باستدعاء `generate()` ‏(`result.reasoning`، مع الـ signatures الخاصة بها) تُسجَّل وتُعاد؛ والـ stream يحتفظ بالـ reasoning داخل الـ chunks المسجّلة. والـ cassettes المسجّلة قبل أن نبدأ بالاحتفاظ بهذه البيانات تعمل في الـ replay كالمعتاد، لكن دونها.
 
 ### متى تُكتب الـ cassette
 
-التسجيل يكتب الـ cassette بشكل atomic (ملف مؤقت ثم rename) بعد كل call. يعني الاختبار اللي يفشل بنص الطريق يترك cassette صالحة فيها كل الـ calls اللي صارت، مو cassette نص مكتوبة. `await provider.save()` يفرض الكتابة. ما فيه hook عند خروج الـ process. وكل session تسجيل تبدأ cassette جديدة وتستبدل الملف القديم. وإذا كان التسجيل الجديد فيه نفس التبادلات بالضبط اللي في الملف القديم، تنحفظ قيم `recordedAt` و`sdkVersion` القديمة، فإعادة التسجيل بلا تغيير تترك الملف نفسه byte بـ byte وما يظهر أي diff.
+يكتب التسجيل الـ cassette بشكل atomic (ملف مؤقت ثم rename) بعد كل call. أي أن الاختبار الذي يفشل في منتصف الطريق يترك cassette صالحة فيها كل الـ calls التي حدثت، لا cassette مكتوبة نصفها. `await provider.save()` يفرض الكتابة. لا يوجد hook عند خروج الـ process. وكل session تسجيل تبدأ cassette جديدة وتستبدل الملف القديم. وإذا كان التسجيل الجديد يحتوي التبادلات نفسها بالضبط الموجودة في الملف القديم، تُحفظ قيم `recordedAt` و`sdkVersion` القديمة، فإعادة التسجيل دون تغيير تترك الملف كما هو byte بـ byte ولا يظهر أي diff.
 
 ### تنقيح البيانات (اقرأ هذا قبل الـ commit)
 
-الـ cassettes مفروض تدخل الـ repo، فالـ wrapper يكتب بس مجموعة ثابتة من حقول الـ request (أبدًا مو headers ولا option bags الخاصة بالـ provider)، وما يكتب `rawResponse` أبدًا، ويستبدل الـ strings اللي تشبه API keys ‏(`sk-...` و`sk-ant-...` ورموز `Bearer ...` وصيغ شائعة ثانية) بـ `[REDACTED]`. هذا safety net، مو ضمانة: الـ prompts وردود الـ model تُخزَّن حرفيًا، يعني البيانات الشخصية والـ URLs الداخلية ونصوص العملاء تنتهي في الملف. مرّر `redact` عشان تنقّيها (تشتغل على كل string مسجّلة، في الـ requests والـ responses مع بعض، والـ replay يطبّقها عند المطابقة):
+يُفترض أن تدخل الـ cassettes إلى الـ repo، لذا يكتب الـ wrapper مجموعة ثابتة فقط من حقول الـ request (لا headers ولا option bags الخاصة بالـ provider أبدًا)، ولا يكتب `rawResponse` أبدًا، ويستبدل بالـ strings التي تشبه API keys ‏(`sk-...` و`sk-ant-...` ورموز `Bearer ...` وصيغ شائعة أخرى) القيمة `[REDACTED]`. هذا safety net، وليس ضمانة: الـ prompts وردود الـ model تُخزَّن حرفيًا، أي أن البيانات الشخصية والـ URLs الداخلية ونصوص العملاء ينتهي بها المطاف في الملف. مرّر `redact` لكي تنقّيها (تعمل على كل string مسجّلة، في الـ requests والـ responses معًا، ويطبّقها الـ replay عند المطابقة):
 
 ```ts
 import { mockModel, recordReplay } from 'lousho/testing';
@@ -221,6 +221,6 @@ const provider = recordReplay(mockModel(['ok']), {
 });
 ```
 
-### `mockModel` ولا cassettes؟
+### `mockModel` أم cassettes؟
 
-استخدم `mockModel` للـ unit tests على منطقك إنت: تتحكم بكل turn، تقدر تحقن أخطاء وتأخيرات، وما فيه شيء يعتمد على model. استخدم الـ cassettes لما تكون النقطة هي سلوك الـ model الحقيقي (هل الـ prompt وهذي الـ tools يوصلون فعلًا للـ tool call الصح؟) ولما كتابة الـ turns يدويًا بس تثبّت افتراضاتك في الاختبار. الـ cassettes تحتاج إعادة تسجيل لما تتغيّر الـ prompts؛ واختبارات `mockModel` تتغيّر بس إذا تغيّر السلوك اللي تتحقق منه.
+استخدم `mockModel` للـ unit tests على منطقك أنت: تتحكم بكل turn، وتستطيع حقن أخطاء وتأخيرات، ولا شيء يعتمد على model. استخدم الـ cassettes عندما يكون المقصود هو سلوك الـ model الحقيقي (هل يصل الـ prompt وهذه الـ tools فعلًا إلى الـ tool call الصحيح؟) وعندما تكون كتابة الـ turns يدويًا مجرد تثبيت لافتراضاتك في الاختبار. الـ cassettes تحتاج إلى إعادة تسجيل عندما تتغيّر الـ prompts؛ واختبارات `mockModel` لا تتغيّر إلا إذا تغيّر السلوك الذي تتحقق منه.

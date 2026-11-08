@@ -4,15 +4,15 @@ title: "Skills"
 
 {/* Generated from docs/skills.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-الـ skill هي مجموعة تعليمات لها اسم (مستند markdown) يحمّلها الـ model **فقط لما يحتاجها**. هذي هي فكرة progressive disclosure: بدل ما تلصق كل playbook في الـ system prompt، تسرد الـ skills بالاسم مع وصف من سطر واحد، والـ model يجيب النص الكامل عند الطلب.
+الـ skill هي مجموعة تعليمات لها اسم (مستند markdown) يحمّلها الـ model **فقط عندما يحتاجها**. هذه هي فكرة progressive disclosure: بدلًا من لصق كل playbook في الـ system prompt، تسرد الـ skills بالاسم مع وصف من سطر واحد، ويجلب الـ model النص الكامل عند الطلب.
 
-كيف تمشي الأمور لما يكون عند الـ agent skills:
+كيف تجري الأمور عندما يملك الـ agent skills:
 
-1. ينضاف للـ system prompt قسم صغير بعنوان **Available skills**: سطر لكل skill (`- name: description`)، وجملة واحدة تقول للـ model ينادي `load_skill` قبل أي مهمة تغطيها skill.
-2. تتسجّل تلقائيًا tool باسم `load_skill` (مدخلها `{ name }`). ترجع المحتوى الكامل للـ skill كنتيجة للـ tool.
-3. نصوص الـ skills **ليست** في الـ prompt قبل ما تنحمّل. agent عنده عشرين skill طويلة يدفع تقريبًا سطر واحد لكل skill في كل طلب، وتكلفة النص الكامل بس في الـ runs التي تستخدمه.
+1. يُضاف إلى الـ system prompt قسم صغير بعنوان **Available skills**: سطر لكل skill (`- name: description`)، وجملة واحدة تطلب من الـ model استدعاء `load_skill` قبل أي مهمة تغطيها skill.
+2. تُسجَّل تلقائيًا tool باسم `load_skill` (مدخلها `{ name }`). تُرجع المحتوى الكامل للـ skill كنتيجة للـ tool.
+3. نصوص الـ skills **ليست** في الـ prompt قبل تحميلها. الـ agent الذي يملك عشرين skill طويلة يدفع تقريبًا سطرًا واحدًا لكل skill في كل طلب، ولا تُدفع تكلفة النص الكامل إلا في الـ runs التي تستخدمه.
 
-لو الاسم غير معروف، ترجع الـ tool خطأ يسرد أسماء الـ skills الصالحة، فيقدر الـ model يصحح نفسه.
+إذا كان الاسم غير معروف، تُرجع الـ tool خطأ يسرد أسماء الـ skills الصالحة، فيستطيع الـ model تصحيح نفسه.
 
 ## Skills في الكود
 
@@ -32,15 +32,15 @@ const agent = createAgent({
 });
 ```
 
-`defineSkill({ name, description, content })` تتحقق من مدخلاتها. `name` لازم يطابق `^[a-z0-9][a-z0-9-_]{0,63}$`، و`description` و`content` لازم ما يكونوا فاضيين. الأخطاء تقول لك وين المشكلة وكيف تصلحها.
+`defineSkill({ name, description, content })` تتحقق من مدخلاتها. يجب أن يطابق `name` النمط `^[a-z0-9][a-z0-9-_]{0,63}$`، ويجب ألا يكون `description` و`content` فارغين. توضّح الأخطاء موضع المشكلة وكيفية إصلاحها.
 
-`AgentExecutor.execute()` ياخذ نفس خيار `skills`؛ شوف [الـ executor API](/ar/executor-api).
+`AgentExecutor.execute()` يأخذ خيار `skills` نفسه؛ راجع [الـ executor API](/ar/executor-api).
 
-لو عندك tool مسجّلة باسم `load_skill` من قبل، تمرير `skills` يرمي خطأ: غيّر اسم الـ tool أو احذف الخيار.
+إذا كانت لديك tool مسجّلة مسبقًا باسم `load_skill`، فإن تمرير `skills` يرمي خطأ: غيّر اسم الـ tool أو احذف الخيار.
 
 ## Skills من القرص
 
-`loadSkills(dir)` يقرأ ملفات الـ skills، فيقدر غير المطورين يعدلوها بدون ما يلمسوا الكود. فيه تنسيقين مدعومين وتقدر تخلط بينهم في مجلد واحد:
+`loadSkills(dir)` يقرأ ملفات الـ skills، فيستطيع غير المطورين تعديلها دون المساس بالكود. هناك تنسيقان مدعومان ويمكنك الجمع بينهما في مجلد واحد:
 
 ```
 skills/
@@ -62,10 +62,10 @@ Use the imperative mood and link the PR.
 
 - `description` مطلوب.
 - `name` اختياري، وقيمته الافتراضية اسم المجلد (في تنسيق `SKILL.md`) أو اسم الملف بدون `.md`.
-- المجلدات اللي ما فيها `SKILL.md` نتجاهلها. ونفس الشي لأي ملف `.md` منفرد ما فيه frontmatter (مثل `README.md`): يتم تخطيه مع تحذير في الـ console بدل ما يفشل التحميل كله. أما الملف اللي فيه frontmatter بس ما فيه `description` فهو لسا خطأ.
-- الـ skill اللي بتنسيق `<name>/SKILL.md` تحفظ مجلدها في `skill.directory`. بعدها `load_skill` تضيف مسار المجلد وتسرد الملفات اللي جنب `SKILL.md` (لحد 50 ملف)، وتتسجّل tool باسم `read_skill_file` (مدخلها `{ skill, path }`) عشان تقرأها. المسار نسبي لمجلد الـ skill وما يقدر يطلع منه: `..` والمسارات المطلقة والـ symlinks اللي تطلع برا كلها مرفوضة. تقدر تقرأ ملفات نصية لحد 256 KB. `defineSkill({ directory })` يضبط نفس الحقل لـ skill تبنيها في الكود. ولو عندك tool خاصة فيك اسمها `read_skill_file` تتعارض بنفس الطريقة اللي تتعارض فيها `load_skill`.
-- الـ skills ترجع مرتبة بالاسم، فالـ prompts تطلع deterministic.
-- الأخطاء نوعها `LOUSHO_SKILL_INVALID` وتسمي الملف والمشكلة: `description` ناقص، YAML غير صالح، اسم غير صالح، مجلد ما يتقرى، أو skill-ين بنفس الاسم (والمسارين الاثنين مذكورين).
+- المجلدات التي لا تحتوي `SKILL.md` نتجاهلها. والأمر نفسه لأي ملف `.md` منفرد بلا frontmatter (مثل `README.md`): يُتخطى مع تحذير في الـ console بدلًا من أن يفشل التحميل كله. أما الملف الذي فيه frontmatter لكن بلا `description` فما زال خطأ.
+- الـ skill ذات التنسيق `<name>/SKILL.md` تحفظ مجلدها في `skill.directory`. بعد ذلك تضيف `load_skill` مسار المجلد وتسرد الملفات المجاورة لـ `SKILL.md` (حتى 50 ملفًا)، وتُسجَّل tool باسم `read_skill_file` (مدخلها `{ skill, path }`) لقراءتها. المسار نسبي لمجلد الـ skill ولا يمكنه الخروج منه: `..` والمسارات المطلقة والـ symlinks التي تشير إلى خارجه كلها مرفوضة. يمكنك قراءة ملفات نصية حتى 256 KB. `defineSkill({ directory })` يضبط الحقل نفسه لـ skill تبنيها في الكود. وإذا كانت لديك tool خاصة بك اسمها `read_skill_file` فإنها تتعارض بالطريقة نفسها التي تتعارض بها `load_skill`.
+- تُرجَع الـ skills مرتبة بالاسم، فتكون الـ prompts deterministic.
+- الأخطاء من نوع `LOUSHO_SKILL_INVALID` وتسمّي الملف والمشكلة: `description` ناقص، YAML غير صالح، اسم غير صالح، مجلد تتعذر قراءته، أو skill-ان بالاسم نفسه (مع ذكر المسارين كليهما).
 
 ```ts
 import { createAgent, loadSkills } from 'lousho';
@@ -79,4 +79,4 @@ const agent = createAgent({
 
 ## اختبار الـ skills
 
-استخدم [`mockModel`](/ar/testing) عشان تتأكد إن الـ model يشوف الأوصاف بس، مو النصوص الكاملة، لحد ما يحمّل skill: الـ system prompt في الطلب الأول يسرد الـ skills، والطلب اللي بعد استدعاء `load_skill` فيه النص الكامل في نتيجة الـ tool.
+استخدم [`mockModel`](/ar/testing) للتأكد من أن الـ model يرى الأوصاف فقط، لا النصوص الكاملة، إلى أن يحمّل skill: الـ system prompt في الطلب الأول يسرد الـ skills، والطلب الذي يلي استدعاء `load_skill` يحتوي النص الكامل في نتيجة الـ tool.
