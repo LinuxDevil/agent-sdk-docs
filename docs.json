@@ -48,7 +48,6 @@
                   "quickstart",
                   "installation",
                   "troubleshooting",
-                  "comparison",
                   "coding-agents",
                   "build-a-coding-agent"
                 ]
@@ -239,7 +238,6 @@
                   "ar/quickstart",
                   "ar/installation",
                   "ar/troubleshooting",
-                  "ar/comparison",
                   "ar/coding-agents"
                 ]
               },
@@ -378,6 +376,16 @@
       }
     ]
   },
+  "redirects": [
+    {
+      "source": "/comparison",
+      "destination": "/introduction#compared-to-other-libraries"
+    },
+    {
+      "source": "/ar/comparison",
+      "destination": "/ar/introduction"
+    }
+  ],
   "contextual": {
     "options": [
       "copy",
