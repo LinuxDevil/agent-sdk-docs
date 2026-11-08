@@ -32,10 +32,11 @@ const MARKER = '{/* pending-translation */}';
 
 const read = (file) => readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
 const hash = (text) => createHash('sha1').update(text).digest('hex').slice(0, 12);
-const slugs = readdirSync(root)
-  .filter((name) => name.endsWith('.mdx'))
-  .map((name) => name.slice(0, -4))
-  .filter((slug) => !UNTRANSLATED.has(slug));
+const pagesIn = (dir, prefix) =>
+  readdirSync(join(root, dir))
+    .filter((name) => name.endsWith('.mdx'))
+    .map((name) => `${prefix}${name.slice(0, -4)}`);
+const slugs = [...pagesIn('.', ''), ...pagesIn('examples', 'examples/')].filter((slug) => !UNTRANSLATED.has(slug));
 const manifest = existsSync(manifestPath) ? JSON.parse(read(manifestPath)) : {};
 const pending = existsSync(pendingPath) ? JSON.parse(read(pendingPath)) : [];
 if (!Array.isArray(pending) || pending.some((slug) => typeof slug !== 'string')) {

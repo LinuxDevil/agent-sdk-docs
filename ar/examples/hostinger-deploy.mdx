@@ -1,8 +1,54 @@
 ---
-title: "Hostinger deploy"
+title: "النشر على Hostinger (hostinger-deploy)"
+sidebarTitle: "النشر على Hostinger"
 ---
+{/* Generated from examples/hostinger-deploy/README.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-{/* pending-translation */}
-<Note>
-هذه الصفحة لم تُترجَم إلى العربية بعد. اقرأ [النسخة الإنجليزية](/examples/hostinger-deploy).
-</Note>
+انشر agent من Lousho على خادم VPS حقيقي: المجلد `agent/` هو مجلد agent لمساعد
+عمليات صغير (`vps-ops`)، والملف `deploy.mjs` يبنيه بالأمر
+`lousho build --target=docker`، وينقل سياق البناء عبر SSH، ويشغّل
+الحاوية على آلة افتراضية لدى Hostinger.
+
+| الجزء | ما يستخدمه |
+|---|---|
+| الـ agent | مجلد agent (`agent.json` + `instructions.md` + `tools/host.ts`) يحمّله الخادم المبني |
+| البناء | `lousho build --target=docker` (الملف المجمَّع `dist/server.js` + `Dockerfile`) |
+| اكتشاف الآلة الافتراضية | واجهة Hostinger البرمجية `GET /api/vps/v1/virtual-machines`، وهي الواجهة نفسها التي يغلّفها خادم MCP المسمّى `hostinger-vps` |
+| النقل | `tar` + `scp` + `ssh` (يتطلب وصول SSH إلى الآلة الافتراضية عبر مفتاح عام مرتبط بها) |
+| المتانة | `LOUSHO_STORE=sqlite:/data/lousho.db` على وحدة تخزين `lousho-data`، فتبقى الجلسات والموافقات بعد إعادة تشغيل الحاوية |
+| المصادقة | رمز bearer في `LOUSHO_API_TOKEN` على كل مسار باستثناء `/health` |
+
+## ما الذي ينشره
+
+يجيب `vps-ops` عن أسئلة المشغّل حول الخادم الذي يعمل عليه: تُرجع `host_status`
+حقائق حيّة (نظام التشغيل، ومدة التشغيل، والحمل، والذاكرة)، وتحفظ مساحة مسودات صغيرة
+(`write_note`/`read_note`/`list_notes`) ملاحظات المشغّل، فعمليات الكتابة تطلب
+موافقة، بينما يُسمح بالقراءة دائمًا. النموذج المستخدم هو
+`openrouter/openai/gpt-4o-mini`.
+
+## التشغيل
+
+```bash
+export HOSTINGER_API_TOKEN=...   # Hostinger API token (developers.hostinger.com)
+export OPENROUTER_API_KEY=...    # the agent's model key
+export LOUSHO_API_TOKEN=...      # bearer token protecting the deployed server
+node examples/hostinger-deploy/deploy.mjs --vm <id|hostname|ip>
+```
+
+يتحقق السكربت من أن الآلة الافتراضية تعمل، ويبني هدف docker محليًا،
+وينسخ سياق البناء إلى `/opt/lousho-agent`، ويبني الحاوية `lousho-agent` ويشغّلها (أو يعيد تشغيلها)
+على المنفذ 3000، ثم يستطلع `/health` ويرسل طلب `/chat` واحدًا ذهابًا وإيابًا. ولا يمسّ إلا
+الحاوية `lousho-agent`، أما تجهيز الآلات الافتراضية وإعادة إنشائها وعمليات الفوترة فهي خارج
+النطاق عمدًا (استخدم واجهة Hostinger البرمجية أو لوحة التحكم لذلك).
+
+بعد النشر:
+
+```bash
+curl -N http://<ip>:3000/chat \
+  -H "Authorization: Bearer $LOUSHO_API_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"sessionId": "me", "input": "What is the load?"}'
+```
+
+المنفذ 3000 يعمل بـ HTTP عادي، فضع Traefik (المثبَّت في قالب الـ VPS) أو
+أي أداة أخرى لإنهاء TLS أمامه في أي استخدام حقيقي، وفق
+[وثائق النشر](https://github.com/LinuxDevil/agent-sdk/blob/main/docs/deployment.md).
