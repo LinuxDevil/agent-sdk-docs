@@ -10,6 +10,8 @@ description: "تبحث improveAgent عن harness أفضل دون اتصال، و
 
 هي تجريبية: نتائجها حتى الآن تأتي من benchmark صغير.
 
+لمعرفة كيف يتكامل هذا مع استعادة الـ runs الفاشلة بينما يخدم الـ agent الـ traffic، راجع [التعافي الذاتي والتحسين الذاتي](/ar/self-healing).
+
 ```ts
 import { createAgent, defineTool } from 'lousho';
 import { formatImproveResult, improveAgent, renderTranscript, type Harness } from 'lousho/improve';
