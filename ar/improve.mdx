@@ -105,6 +105,19 @@ console.log(formatImproveResult(result));
 
 `db` هي قاعدة بيانات observe لديك (الافتراضي `~/.lousho/observe.db`)، تُفتَح بـ `new DatabaseSync(path)` من `node:sqlite`؛ وهي تطابق النوع المُصدَّر `SqlDatabase`. ابنِ كل transcript تُرجعه `runCase` بـ `renderTranscript`، حتى تصل نتائج الأدوات إلى المحرّرين معلَّمة بأنها غير موثوقة.
 
+## من سطر الأوامر
+
+يشغّل `lousho improve` الخطوات نفسها على مجلد agent أو module:
+
+```bash
+npx lousho improve ./my-agent --check ./check.mjs --since 7d --out proposal.md
+```
+
+يقرأ الحالات من قاعدة بيانات observe المحلية لديك فقط، ويحتاج إلى module يكون
+الـ default export فيه هو `CaseCheck` الخاص بك، ويحاكي الأدوات ما عدا تحميل
+الـ skills ما لم يسمّها `--read-only`، ثم يطبع بطاقة المراجعة. ولا يطبّق شيئًا.
+راجع [CLI](/ar/cli#lousho-improve) لكل الـ flags.
+
 ## الأمان
 
 - **الـ `probe` الخاص بك يشغّل الـ agent، فهو المسؤول عن الآثار الجانبية.** أضف

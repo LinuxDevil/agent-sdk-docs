@@ -18,6 +18,7 @@ title: "CLI"
 | `lousho traces [id]` | يعرض آخر runs حفظها `fileTraceExporter()` (المدة، والـ model والـ tool calls، والـ tokens، والتكلفة)، أو يطبع run واحد كشجرة spans. | [Observability](/ar/observability#local-traces) |
 | `lousho build --target=<t> --agent=<spec>` | يبني سيرفر Node أو Docker image أو Cloudflare Worker جاهزًا للنشر. | [النشر](/ar/deployment) |
 | `lousho studio` | يفتح Agent Forge، الـ dashboard المرئية، على port محلي واحد. | [Agent Forge](/ar/agent-forge) |
+| `lousho improve <path> --check <module>` | تجريبي. يقترح تعديلات على تعليمات الـ agent والـ skills الخاصة به انطلاقًا من الـ runs الفاشلة في قاعدة بيانات observe المحلية لديك. يطبع بطاقة مراجعة ولا يطبّق شيئًا. | [أدناه](#lousho-improve) |
 
 أي أمر يستقبل `<spec>` يقرأ ملف spec للـ agent (`.yaml` أو `.yml` أو `.json`، انظر [الإعداد](/ar/configuration#ملفات-تعريف-الـ-agent-agentspec)).
 
@@ -37,6 +38,7 @@ lousho eval [globs...] [--tag t] [--junit path] [--json path] [--strict] [--judg
 lousho traces [traceId|prefix] [--dir D] [--limit N] [--json] [--content]
 lousho observe <start|status|stop|rebuild-rollups|prune|export|failures|token> [--port N] [--db path] [--host H] [--require-token] [--project X] [--webhook URL] [--retention-days N] [--session-idle-minutes N] [--older-than <N>d] [--since <N>d|<N>h|<N>m] [--agent X] [--out file]
 lousho prompt <push <file|->|list|get <name[@version|@label]>|label <name> <label> <version>> [--url U] [--port N] [--token T] [--json] [--name N] [--labels a,b] [--variables x,y]
+lousho improve <agent-dir|agent.ts> --check <module> [--model provider/model] [--editor provider/model] [--db path] [--since <N>d|<N>h|<N>m] [--agent X] [--protect traceId]... [--read-only tool]... [--out file]
 lousho --version
 ```
 
@@ -205,3 +207,47 @@ npx lousho prompt get mira@prod
 - `push` ينشر الملف (`-` يقرأ من stdin) كالإصدار التالي. الـ push الذي يطابق نصه و`--variables` الخاصة به آخر إصدار لا ينشئ شيئًا ويطبع `mira@2 is unchanged` (exit 0). و`--labels prod,canary` يوجّه هذه الـ labels إلى الإصدار الناتج، سواء كان الجديد أو آخر إصدار لم يتغيّر.
 - `get <name>[@ref]` يطبع نص الإصدار؛ و`ref` رقم صحيح، أو `latest` (الافتراضي)، أو label. و`--json` يطبع الصف، و`labels` فيه هي الـ labels التي تشير حاليًا إلى هذا الإصدار.
 - `label <name> <label> <version>` ينقل label: الـ label يشير إلى إصدار واحد بالضبط، فهذا يزيله من الإصدار الذي كان عليه، ويطبع `mira@prod -> 3 (was 2)` (أو `(was unset)` لـ label جديد). الـ label اسم دون مسافات ولا `@` ولا `/`، وليس `latest` ولا أرقامًا فقط. انظر [الـ observe daemon](/ar/observability#الـ-observe-daemon).
+
+## `lousho improve`
+
+تجريبي، مثل [`improveAgent()`](/ar/improve) الذي يشغّله.
+
+```bash
+npx lousho improve ./my-agent --check ./check.mjs --since 7d --out proposal.md
+```
+
+```js
+export default (input, answer) => !answer.includes('I cannot help');
+```
+
+يأخذ الـ runs الفاشلة من قاعدة بيانات observe المحلية لديك (الافتراضي
+`~/.lousho/observe.db`، أو `--db`)، ويعيد تشغيل كل input مسجَّل عبر الـ agent،
+ويقيّم كل إجابة بالفحص الخاص بك، ثم يطبع بطاقة المراجعة الناتجة عن
+`formatImproveResult()`. ولا يغيّر الـ agent أبدًا: لا يُكتب أي ملف في مجلد
+الـ agent، ولا يوجد flag لتطبيق الاقتراح. راجع البطاقة وطبّق ما تقبله يدويًا.
+
+- `<path>` مجلد agent أو module للـ agent بامتداد `.ts`/`.js` تعليماته نص
+  عادي. ولا يجوز للمحرّرين (editors) تغيير شيء سوى التعليمات والـ skills.
+- `--check <module>` إلزامي. الـ default export الخاص به هو `CaseCheck`،
+  أي `(input, answer) => boolean | null`؛ وتعني `null` أن الإجابة لا يمكن تقييمها.
+  و`input` هو رسالة المستخدم في run ذي رسالة واحدة، وإلا فهو الرسائل المسجَّلة
+  بصيغة نص JSON.
+- يحدّد `--since` و`--agent` أيّ الـ runs الفاشلة تصبح حالات (cases)، كما في
+  `lousho observe export`.
+- يسمّي `--protect <traceId>` run انتهى بنجاح. ولا ينضم إلى البوابة (gate) إلا
+  بعد أن ينجح في 6 من 6 runs جديدة؛ وإلا يوضّح stderr سبب استبعاده. والـ trace
+  الذي يكون أيضًا run فاشلًا يبقى حالةً يُتعلَّم منها.
+- تُحاكى الـ tools أثناء إعادة التشغيل، باستثناء `load_skill` و
+  `read_skill_file`. ويسمح `--read-only <tool>` لـ tool يمكن استدعاؤها مرة أخرى
+  بأمان بأن تعمل فعلًا. ولا تُسجَّل traces لإعادة التشغيل: يكون `LOUSHO_OBSERVE`
+  و`exporter` و`onEvent` الخاصة بالـ agent معطّلة أثناء عمله، فلا تصل أبدًا إلى
+  قاعدة بياناتك.
+- يشغّل `--model` الـ agent على model آخر؛ ويختار `--editor` الـ model الخاص
+  بالمحرّرين (الافتراضي `--model`، وإلا فالـ model الخاص بالـ agent نفسه).
+- يكتب `--out file` البطاقة أيضًا، أو نتيجة JSON إذا كان المسار `.json`. ويجب أن
+  يكون ملفًا جديدًا، خارج ملفات الـ agent.
+
+قبل أول run يطبع الحد الأدنى لعدد الـ runs التي سيجريها. وكل run وكل استدعاء
+للمحرّرين يُحتسب على حساب الـ models الخاصة بك. ويخرج بـ 1 عند `outage`: أي حين
+يتعذّر تقييم أي run، أو حين يفشل الـ provider الخاص بالمحرّرين. ويذهب خطأ كل run
+إلى stderr. ولا يقرأ شيئًا سوى قاعدة بياناتك. راجع [تحسين الـ agent](/ar/improve#من-سطر-الأوامر).
