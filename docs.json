@@ -156,6 +156,12 @@
                 ]
               },
               {
+                "group": "Self-healing and improvement",
+                "pages": [
+                  "improve"
+                ]
+              },
+              {
                 "group": "Ship",
                 "pages": [
                   "cli",
@@ -185,7 +191,8 @@
                   "examples/phase-pipeline",
                   "examples/coding-agent-workflows",
                   "examples/connectors",
-                  "examples/hostinger-deploy"
+                  "examples/hostinger-deploy",
+                  "examples/heal-benchmark"
                 ]
               }
             ]
@@ -202,6 +209,7 @@
                   "migrating-from-ai-sdk",
                   "migrating-to-create-agent",
                   "configuration",
+                  "agent-spec",
                   "errors",
                   "utilities"
                 ]

@@ -94,6 +94,8 @@ const PAGES = {
   'docs/claude-projects.md': 'claude-projects',
   'docs/hostinger-vps.md': 'hostinger-vps',
   'docs/upgrading.md': 'upgrading',
+  'docs/improve.md': 'improve',
+  'docs/agent-spec.md': 'agent-spec',
   'CHANGELOG.md': 'changelog',
   // Example READMEs become full pages under the Examples tab.
   'examples/waves/README.md': 'examples/waves',
@@ -101,6 +103,7 @@ const PAGES = {
   'examples/coding-agent-workflows/README.md': 'examples/coding-agent-workflows',
   'examples/connectors/README.md': 'examples/connectors',
   'examples/hostinger-deploy/README.md': 'examples/hostinger-deploy',
+  'examples/heal-benchmark/README.md': 'examples/heal-benchmark',
 };
 
 /** Shorter sidebar labels where the SDK title is long. */
@@ -127,6 +130,8 @@ const SIDEBAR_TITLES = {
   'examples/coding-agent-workflows': 'Coding agent workflows',
   'examples/connectors': 'Connectors',
   'examples/hostinger-deploy': 'Hostinger deploy',
+  'examples/heal-benchmark': 'Heal benchmark',
+  'agent-spec': 'Agent spec v2',
 };
 
 /** Pages written by hand in this repository. Listed so the report can flag SDK docs with no page. */
@@ -274,12 +279,13 @@ function convert(file, slug) {
   let title = h1 >= 0 ? plain(lines[h1].slice(2)) : slug;
   let body = (h1 >= 0 ? lines.slice(h1 + 1) : lines).join('\n').replace(/^\n+/, '');
 
-  let description;
+  const frontMatter = /^---\n([\s\S]*?)\n---\n/.exec(source);
+  let description = frontMatter && /^description:\s*(.+)$/m.exec(frontMatter[1])?.[1].trim();
   if (slug === 'changelog') {
     title = 'Changelog';
     description = 'Every notable change to lousho, newest first.';
     body = body.slice(body.indexOf('## '));
-  } else {
+  } else if (!description) {
     // A short, link-free opening paragraph becomes the page's subtitle.
     const end = body.indexOf('\n\n');
     const first = end > 0 ? body.slice(0, end) : '';
