@@ -37,7 +37,8 @@ node examples/hostinger-deploy/deploy.mjs --vm <id|hostname|ip>
 - `-e LOUSHO_STORE=sqlite:/data/lousho.db -v lousho-data:/data`: الـ sessions
   والـ approvals المتوقفة مؤقتًا تبقى بعد إعادة تشغيل الحاوية (`/data` هو named volume).
 - `-e LOUSHO_API_TOKEN=...`: إلزامي، فكل route ما عدا `/health` يصبح
-  محميًا بـ bearer auth. المنفذ 3000 هو HTTP عادي؛ ضع Traefik (قالب الـ VPS
+  محميًا بـ bearer auth. الـ image يستمع على `0.0.0.0`، لذلك بدون token (أو
+  `auth.ts`) ترفض الحاوية أن تبدأ (`LOUSHO_SERVER_UNPROTECTED`). المنفذ 3000 هو HTTP عادي؛ ضع Traefik (قالب الـ VPS
   يثبّته) أو أي TLS terminator آخر أمامه.
 
 أما التجهيز (provisioning) نفسه، أي شراء VM أو إعادة إنشائه أو تغيير حجمه، فهو

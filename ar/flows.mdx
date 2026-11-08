@@ -58,7 +58,9 @@ const result = await FlowExecutor.execute(flow, { agent, provider, variables: { 
 | `sequence` | يشغّل خطوات `steps` واحدة تلو الأخرى. |
 | `parallel` | يشغّل خطواته في نفس الوقت. إذا فشلت واحدة، تُلغى البقية (راجع [إلغاء الـflow](#إلغاء-الـflow)). |
 | `llmCall` | يستدعي الـmodel بـ`prompt` فيه placeholders بصيغة `{{variable}}` (راجع [قيم القوالب](#قيم-القوالب))، و`outputVariable` يخزّن نص الرد. |
+| `agent` | يرسل `input` (بعد تعويض الـplaceholders) إلى agent من `createAgent()` مسجّل في `agents` الخاص بالـcontext (راجع [تشغيل agent داخل flow](#تشغيل-agent-داخل-flow))، و`outputVariable` يخزّن نص الرد. |
 | `toolCall` | يستدعي tool بالـ`arguments` (تتعوّض الـplaceholders فيها؛ راجع [قيم الـarguments](#قيم-الـarguments)). |
+| `approval` | يتوقف بانتظار قرار بشري على الـ`message` الخاصة به (راجع [خطوات الموافقة](#خطوات-الموافقة))؛ و`outputVariable` يأخذ `true` بعد الموافقة. |
 | `setVariable` | يضبط `variable` على `value`. |
 | `oneOf` | يأخذ أول فرع يتحقق شرطه. |
 | `forEach` | يشغّل خطوة لكل عنصر في `items`، بالتتابع. العنصر والفهرس (`itemVariable`، والافتراضي `item`؛ و`indexVariable`، والافتراضي `index`) يخصّان تلك الدورة من الحلقة فقط، فالحلقات في فروع `parallel` لا ترى عناصر بعضها أبداً؛ أما المتغيرات الأخرى التي تضبطها الخطوة فتُكتب في متغيرات الـflow. |
@@ -231,9 +233,77 @@ if (paused.status === 'awaiting-approval') {
 
 موافقات الـflow لا تظهر في الـapproval store الخاص بالـagent. احتفظ بالـ`approvalId` (أو اقرأ `checkpoint.flow.pendingApproval` من الـstore) لتتخذ القرار لاحقاً.
 
+### خطوات الموافقة
+
+خطوة `approval` هي بوابة بشرية قائمة بذاتها، دون حاجة إلى استدعاء tool. الـ`message` الخاصة بها (بعد تعويض placeholders `{{variable}}`) هي ما يُسأل عنه الموافِق، والـcallback `approve` في الـcontext هو الذي يقرّر، تماماً كما في `toolCall` تحتاج موافقة. الـcallback يرى استدعاءً `toolName` فيه هو `'flow_approval'` و`args` فيه هي `{ message, stepId }` (و`stepId` هو `id` العقدة، أو موضعها في الـflow).
+
+```ts
+import type { EditorStep } from 'lousho/flows';
+
+const steps: EditorStep = {
+  type: 'sequence',
+  steps: [
+    { type: 'approval', id: 'ship-gate', message: 'Ship {{version}} to production?', outputVariable: 'approved' },
+    { type: 'toolCall', tool: 'deploy', arguments: { version: '{{version}}' } },
+  ],
+};
+```
+
+- إذا رجّع `approve` القيمة `true` (أو ملاحظة) يكمل الـflow، و`outputVariable` يأخذ `true`. أما `false` فتفشّل الخطوة بـ`LOUSHO_FLOW_TOOL_DENIED`، وكذلك `'defer'` وغياب `approve` في run غير متين (الفشل بالإغلاق).
+- في run متين، `'defer'` أو غياب `approve` يوقف الـflow بنفس طريقة إيقاف `toolCall` ([الإيقاف بانتظار الموافقة](#الإيقاف-بانتظار-الموافقة)): `pendingApproval.toolName` هو `'flow_approval'` و`pendingApproval.args.message` هي الرسالة بعد التعويض. استأنفه بالقرار:
+
+```ts
+import { FlowExecutor, type AgentFlow } from 'lousho/flows';
+
+declare const flow: AgentFlow;
+
+const paused = await FlowExecutor.execute(flow, {
+  agent, provider, checkpointStore, variables: { version: '2.1' }, runId: 'ship-2.1',
+});
+if (paused.status === 'awaiting-approval') {
+  // paused.pendingApproval is
+  // { approvalId, nodeId: '0.0', toolName: 'flow_approval', args: { message: 'Ship 2.1 to production?', stepId: 'ship-gate' } }
+  const result = await FlowExecutor.resume(flow, {
+    agent, provider, checkpointStore, runId: 'ship-2.1',
+    approval: { approvalId: paused.approvalId!, approved: true },
+  });
+}
+```
+
 ## تشغيل agent داخل flow
 
-خطوات الـflow تعمل تحت config الـ`agent` البسيط في الـcontext (`{ name, prompt?, settings }`). تمرير agent مبني بـ`createAgent()` كـ`context.agent` يُرفض بـ`LOUSHO_CONFIG_INVALID`. لتشغيل agent من `createAgent()` كخطوة واحدة، سجّل tool تستدعي `agent.send()`، واستدعِ تلك الـtool في خطوة `toolCall`:
+خطوة `agent` تستدعي بالاسم agent من `createAgent()` مسجّلاً في خريطة `agents` الخاصة بالـcontext. الـagent يشغّل حلقته الخاصة — الـmodel والـtools والـguardrails والـapprovals الخاصة به — والخطوة تخزّن نص رده:
+
+```ts
+import { createAgent } from 'lousho';
+import { FlowExecutor, type AgentFlow } from 'lousho/flows';
+
+const writer = createAgent({ name: 'writer', model: 'openai/gpt-4o-mini', instructions: 'Draft a reply.' });
+
+const flow: AgentFlow = {
+  code: 'support',
+  name: 'Support',
+  flow: {
+    type: 'sequence',
+    steps: [
+      { type: 'agent', agent: 'writer', input: 'Write about {{topic}}', outputVariable: 'draft' },
+      { type: 'llmCall', prompt: 'Polish this draft: {{draft}}' },
+    ],
+  },
+};
+
+const result = await FlowExecutor.execute(flow, { agent, provider, variables: { topic: 'WebAssembly' }, agents: { writer } });
+```
+
+- `input` هو الرسالة المرسلة إلى الـagent، وتُعوَّض فيها placeholders `{{variable}}` (الافتراضي `'{{input}}'`، أي متغير `input` الخاص بالـflow).
+- خطوة `agent` تُطلق الـevents `llm-call` و`llm-response` وفيها `data.agent` (لا `data.model`)، وتأخذ `retry` و`timeoutMs` مثل أي خطوة أخرى. ردّها يُخزَّن كنص؛ واستهلاك الـagent موجود في نتيجة `send()` الخاصة به، لا في `result.usage` الخاص بالـflow.
+- الخطوة التي تسمّي agent غير موجود في `agents` تفشل بـ`LOUSHO_FLOW_INVALID`، وتسمّي المفاتيح المسجّلة.
+- الـagent الذي يتوقف الـrun الخاص به بانتظار موافقة (tool عليها `needsApproval` بلا موافِق) يفشّل الخطوة بـ`LOUSHO_FLOW_EXECUTION_FAILED`: خطوات الـagent لا تستطيع إيقاف flow. قرّر في tools الـagent بالصلاحيات أو بـcallback `approve` على الـagent.
+- عند التتبّع، يتداخل مقطع التتبّع (span) `invoke_agent` الخاص بالـagent تحت span `flow.node agent` الخاص بالخطوة.
+
+بقية خطوات الـflow ما زالت تعمل تحت config الـ`agent` البسيط في الـcontext (`{ name, prompt?, settings }`)؛ وتمرير agent مبني بـ`createAgent()` كـ`context.agent` يُرفض بـ`LOUSHO_CONFIG_INVALID`.
+
+بدلاً من خطوة `agent`، يمكنك تسجيل tool تستدعي `agent.send()` واستدعاؤها في خطوة `toolCall` — عندها يمر الاستدعاء عبر بوابات الصلاحيات والموافقة في الـflow، ويمكن أن تكون نتيجته قيمة typed بدلاً من نص:
 
 ```ts
 import { z } from 'zod';
@@ -261,9 +331,9 @@ const flow: AgentFlow = {
 const result = await FlowExecutor.execute(flow, { agent: { name: 'report' }, provider, toolRegistry, variables: { topic: 'WebAssembly' } });
 ```
 
-الـagent يعمل بالـmodel والـtools والـapprovals الخاصة به. استهلاكه موجود في نتيجة `send()`، لا في `result.usage` الخاص بالـflow. لاستدعاء model واحد بلا tools، خطوة `llmCall` أبسط.
+لاستدعاء model واحد بلا tools، خطوة `llmCall` أبسط.
 
-نوع العقدة `step` (`StepNode`، أي `{ type: 'step', agent, input }`) هو شكل تنتجه المحررات المرئية. `FlowExecutor` لا يشغّله: الـflow الذي يصل إلى عقدة منه يفشل بـ`LOUSHO_FLOW_INVALID`.
+نوع العقدة `step` (`StepNode`، أي `{ type: 'step', agent, input }`) هو شكل تنتجه المحررات المرئية. `FlowExecutor` لا يشغّله: الـflow الذي يصل إلى عقدة منه يفشل بـ`LOUSHO_FLOW_INVALID` — استخدم خطوة `agent`.
 
 ## flow أم sub-agent أم skill؟
 

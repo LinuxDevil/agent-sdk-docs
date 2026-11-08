@@ -49,6 +49,8 @@ const agent = createAgent({ instructions: '...', provider, tools: [weather] });
 
 `defineTool()` تفحص الاسم والوصف وzod `input` لما تستدعيها، وترمي خطأ يقول لك كيف تصلّح القيمة الغلط. تسجيل toolين بنفس الاسم يرمي خطأ يسمّي التعارض.
 
+أي خيار مو موجود في الجدول فوق يعتبر خطأ (`LOUSHO_CONFIG_INVALID`) مع اقتراح، عشان خيار أمان مكتوب غلط ما يخلّي tool يشتغل بدون approval: `requireApproval: true` يعطي `'requireApproval' is not a known option (did you mean 'needsApproval'?)`، و`inputSchema` أو `parameters` يدلّوك على `input`. الـ tool المعرّف لو رجّعته بـ spread (`defineTool({ ...tool, execute })`) يُقبل.
+
 وترفض كمان (`LOUSHO_CONFIG_INVALID`) أي `input` ما يقدر أي model يلبّيه:
 
 - **الجذر لازم يكون object.** الـ providers يرسلوا وسائط الـ tool كـ JSON object، فـ `z.string()` أو `z.array(...)` في الجذر ينرفض. لفّه: `z.object({ value: z.string() })`.
@@ -107,6 +109,24 @@ const agent = createAgent({ instructions: '...', provider, tools: [weather] });
 | `mcp` | `McpToolError` | سيرفر MCP جاوب `isError: true`؛ `message` هو نص السيرفر. |
 | `sandbox` | `SandboxRequiredError` | الـ tool فيه `requiresSandbox` بس ما فيه `sandboxExecute`، فانرفض بدل ما يشتغل بدون sandbox. |
 | `denied` | `ToolDeniedError` | [قاعدة صلاحيات](/ar/approvals#سياسات-الصلاحيات) من نوع `deny` رفضت الـ call، أو `needsApproval` حق الـ tool رجّعت `'deny'`، أو `deny` من hook `preToolCall`، أو الـ permission mode رفض الـ call؛ `execute` ما اشتغلت. يزيد `reason` لما يُعطى. |
+
+**إخفاء نص الاستثناء.** رسالة الخطأ المرمي توصل الـ model زي ما هي، فـ `new Error('DB password=hunter2 connection refused')` يوصله حرفيًا. مرّر `toolErrorMessage` لـ `createAgent` عشان تستبدل نص أخطاء `execution`:
+
+```ts
+import { createAgent } from 'lousho';
+
+const agent = createAgent({
+  instructions: 'You answer questions about orders.',
+  model: 'openai/gpt-4o-mini',
+  tools: [],
+  toolErrorMessage: (error, { toolName, toolCallId }) => {
+    console.error(`tool ${toolName} (${toolCallId}) failed`, error); // the original error stays here
+    return `${toolName} failed. Try again later or use another approach.`;
+  },
+});
+```
+
+النص يصير `message` في النتيجة اللي فوق (والـ `kind` يظل `execution`). نفس النص يوصل أحداث `tool.error` و`onToolResult` وhooks الـ `postToolCall`، فالـ stream اللي يوصل للعميل ما يحمل النص الأصلي أبد؛ بس دالتك تشوف الخطأ المرمي. الـ sub-agents يورثوه. ما يلمس أخطاء `validation` (لأنها توصف وسائط الـ model الغلط نفسه) ولا الأنواع الثانية. لو الدالة رمت خطأ أو رجّعت شي مو نص، الرسالة تصير `The tool failed.` والـ run يكمل. بدون الخيار، ما يتغير شي.
 
 **الـ validation حق الوسائط.** وسائط الـ model تتحلل بـ zod `inputSchema` الخاصة بالـ tool (للـ descriptor القديم، `tool.parameters`) قبل ما الـ tool يشتغل، فـ hooks ما قبل الـ tool و`needsApproval` و`execute` كلهم يستلموا القيمة **المتحللة** (parsed). الـ tools اللي بدون zod schema وسائطها تعدي زي ما هي. لو الوسائط ما طابقت، `execute` ما يتنادى وhooks الـ `preToolCall` تتخطى، لأنه ما في call صالح. الـ model يستلم نتيجة `validation` يقدر يسوّي منها retry:
 

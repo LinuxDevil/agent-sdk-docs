@@ -103,6 +103,21 @@ const running = startSchedules(agent, schedules);
 
 `lousho dev ./my-agent` يشغّل schedules المجلد، فينطلق cron وأنت تطوّر، والـ hot reload يوقّف الـ schedules القديمة قبل بدء الجديدة. التشغيل هو الوضع الافتراضي حتى يتصرّف `dev` مثل السيرفر المنشور؛ ولأن إطلاق الـ crons (وصرف استدعاءات الـ model) وأنت تعدّل غير مرغوب فيه غالبًا، `--no-schedules` يركّب الـ channels ولا يشغّل أي schedule.
 
+الـ `triggers` من نوع cron في ملف الـ spec تبدأ بنفس الطريقة (المعروض هنا spec من الإصدار v2؛ والصيغة
+`{ type: 'cron', cron, input, name? }` من v1 تعمل أيضًا)، و`--no-schedules` لا يشغّل
+أيًّا منها كذلك:
+
+```yaml
+triggers:
+  - id: daily-report          # the schedule's name; v1 uses name: and input:
+    type: cron
+    cron: "0 9 * * *"
+    prompt: Write the daily report.
+```
+
+أنواع الـ triggers التي لا يشغّلها `lousho dev` — `webhook` و`channel` و`agent` —
+تُسجَّل في السجل مرة واحدة لكل تحميل (Agent Forge هو من يشغّلها).
+
 ## على Cloudflare Workers
 
 الـ Worker ما فيه process طويلة العمر، فلا timers: Cloudflare تنادي الـ handler `scheduled()` في الـ Worker مرة لكل تعبير cron مدرَج تحت `[triggers] crons` في `wrangler.toml`. هدف `cloudflare-worker` يولّد الاثنين من `triggers` في ملف الـ spec الخاص بالـ agent — وفي مجلد الـ agent، من ملفات `schedules/`، وهي تتبع نفس القواعد أدناه:

@@ -1,8 +1,121 @@
 ---
-title: "Improving an agent"
+title: "تحسين الـ agent"
+description: "تبحث improveAgent عن harness أفضل دون اتصال، وتختبره مقابل الحالي، وتُرجع اقتراحًا يراجعه شخص."
 ---
+{/* Generated from docs/improve.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-{/* pending-translation */}
-<Note>
-هذه الصفحة لم تُترجَم إلى العربية بعد. اقرأ [النسخة الإنجليزية](/improve).
-</Note>
+تبحث `improveAgent()` عن مجموعة أفضل من التعليمات والمهارات (skills) للـ agent،
+مستخدمةً حالات فاشلة تعطيها لها. هي تُرجع اقتراحًا فقط: لا يُطبَّق شيء،
+ولا تستطيع تغيير الأدوات أو الصلاحيات أو الحدود.
+
+هي تجريبية: نتائجها حتى الآن تأتي من benchmark صغير.
+
+```ts
+import { createAgent, defineTool } from 'lousho';
+import { formatImproveResult, improveAgent, renderTranscript, type Harness } from 'lousho/improve';
+import { mockModel } from 'lousho/testing';
+import { z } from 'zod';
+
+const search = defineTool({
+  name: 'search',
+  description: 'Search the docs',
+  input: z.object({ query: z.string() }),
+  execute: async () => ['pricing'],
+});
+
+const harness: Harness = { instructions: 'You answer from the docs.', skills: {} };
+
+const result = await improveAgent({
+  harness,
+  cases: ['discount-question'],
+  holdout: ['refund-question'],
+  editor: { provider: mockModel(['<notes>KEEP_BASE. Nothing argues for a change.</notes>'], { onExhausted: 'repeat-last' }) },
+  probe: async (candidate, caseId) => {
+    const agent = createAgent({ provider: mockModel(['I cannot access that.']), instructions: candidate.instructions, tools: [search] });
+    const run = await agent.send(caseId);
+    return { passed: (run.text ?? '').includes('cannot'), transcript: renderTranscript(run.messages), tokens: run.usage?.totalTokens ?? 0, ended: run.finishReason };
+  },
+});
+
+console.log(result.outcome, result.reason);
+console.log(formatImproveResult(result));
+```
+
+## كيف تعمل
+
+1. تشغّل حالاتك على الـ harness الحالي. إذا نجحت كلها، تتوقف.
+2. يقترح محرّر ثوابت (invariant editor، كيف يعمل الـ agent) ومحرّر مجال
+   (domain editor، ما يعرفه) كلٌّ منهما تعديلات، ويُشغَّل كل اقتراح على الحالات نفسها.
+   يُصلح محرّر الثوابت أول نقطة انحرف فيها الـ run. ويترك محرّر المجال
+   لمحرّر الثوابت كل ما يفيد في أي مهنة.
+3. يدمج مُركِّب (composer) ما تدعمه الـ runs، أو لا يغيّر شيئًا.
+4. تشغّل الـ harness الحالي مرة أخرى على runs جديدة لحالاتك، حتى لا تقارن البوابة (gate)
+   أبدًا بالـ runs غير المحظوظة التي أطلقت التحرير. يحصل الـ probe
+   على أرقام تكرار جديدة لهذه الـ runs، من `repeats` إلى `2 × repeats − 1`،
+   وتكلّف `repeats` runs إضافية لكل حالة، فاحسب حسابها في
+   `maxTokens`. تُحكَم كل حالة تدريب وحدها. يجب أن تنجح واحدة على الأقل
+   في runين أكثر من كل 3 مقارنةً بالـ runs الجديدة، ولا يجوز أن تسوء أي حالة. ولا يُحتسَب التحسّن إلا عندما يكون لكل طرف runان مُقيَّمان على الأقل.
+   يعرض `cases` حكم كل حالة وسببه. ثم تُفحَص كل حالة محجوزة (held-out)
+   وحدها. إذا نجحت إحداها في runs أقل من قبل، يشغّلها الـ harnessان
+   3 مرات إضافية، ولا يُرفَض الناتج إلا إذا كان الانخفاض المجمَّع
+   runين على الأقل من `repeats + 3`، أي 2 من 6 مع التكرارات الثلاثة الافتراضية. اختر
+   حالات محجوزة تنجح تقريبًا دائمًا: الحالة التي
+   تنجح دائمًا لا يمكن أن ترفض تعديلًا جيدًا بالصدفة. هذه الإعادات لا تحدث
+   إلا عندما ينجح التدريب، وتستخدم أرقام التكرار من `repeats` إلى `repeats + 2`،
+   وتُحسَب ضمن `maxTokens`. يمكن أن ترتفع الـ tokens لكل run ناجح بما يصل إلى
+   `maxCostIncrease` (الافتراضي 0.5، أي ارتفاع 50%)، ويذكر `reason` التغيّر
+   في الحالتين. تُقارَن التكلفة فقط على الحالات التي تنجح تحت الـ harnessين، لأن الـ run الفاشل
+   قد يتوقف مبكرًا ويبدو رخيصًا. والارتفاع الذي يقع ضمن التفاوت بين الـ runs لا
+   يُرفَض. إذا لم تنجح أي حالة تحت الاثنين، يقول `reason` إن التكلفة لم يمكن
+   مقارنتها، لذا أضف حالة محجوزة تنجح أصلًا.
+
+إذا فشل الـ harness المُركَّب في البوابة، يُجرَّب harness كل محرّر حسّن
+حالة تدريب عبر فحوص الحالات المحجوزة والتكلفة نفسها، الأرخص
+أولًا. يسرد `gate` كل حكم بالترتيب. كل harness إضافي هو
+فرصة أخرى لأن يمر الضجيج (noise): عند معدل نجاح أساسي 20% مع 3 تكرارات، التعديل الذي
+لا يغيّر شيئًا يمر في نحو 15% من المرات، مقابل نحو 6% بدون
+البديل الاحتياطي. أكّد الاقتراح على runs جديدة قبل أن تطبّقه.
+
+يبدو الـ run الفاشل سليمًا للمحرّر عندما لا يكون الـ agent قد رأى الفحص الذي
+أخفق فيه. أرجِع `failure` من `probe` لتسمّي ذلك الفحص. سمِّ المتطلَّب،
+لا الإصلاح.
+
+يحتفظ `candidates` بـ harness كل محرّر من قبل البوابة، حتى تراجع
+أو تعيد تشغيل واحدًا رفضته البوابة.
+
+## النتائج
+
+| النتيجة | المعنى |
+| --- | --- |
+| `proposal` | نجح في البوابة. راجع `diff` و`stages`، ثم طبّقه بنفسك |
+| `keep-base` | لم يغيّر المحرّرون شيئًا، أو فشل الناتج في البوابة. يقول `reason` أيهما |
+| `no-failures` | نجحت كل حالة، فلم يعمل أي محرّر |
+| `outage` | فشل المزوّد، أو لم يمكن تقييم أي run |
+| `budget-exceeded` | نفدت `maxTokens` |
+
+## مراجعة النتيجة
+
+تحوّل `formatImproveResult(result)` النتيجة إلى Markdown للمراجعة: الـ diff، وكل حالة قبل وبعد مع pass^3، وملاحظات المحرّرين، وتنبيهات عند تعديل يقتبس فحصًا فاشلًا حرفيًا، أو يضيف نصًا يشبه حقن الموجّه (prompt injection)، أو يضيف مهارة لا تذكرها التعليمات أبدًا.
+
+## حالات من traces الخاصة بك
+
+تحوّل `casesFromFailures(db)` الـ runs الفاشلة في قاعدة بيانات الـ traces المحلية لديك إلى حالات. وتحوّل `protectedCasesFromPasses(db, traceIds)` الـ runs الجيدة إلى حالات محمية. عليك أن تقدّم الفحص الذي يقيّم الإجابة، عبر `probeCapturedCases`. اقبل الحالات المحمية بـ `admitProtectedCases` قبل أن تدخل البوابة: لا تنضم إلا الحالة التي نجحت في 6 من 6 runs جديدة. استخدم فقط traces الـ agents الخاصة بك، واحتفظ بها محليًا.
+
+`db` هي قاعدة بيانات observe لديك (الافتراضي `~/.lousho/observe.db`)، تُفتَح بـ `new DatabaseSync(path)` من `node:sqlite`؛ وهي تطابق النوع المُصدَّر `SqlDatabase`. ابنِ كل transcript تُرجعه `runCase` بـ `renderTranscript`، حتى تصل نتائج الأدوات إلى المحرّرين معلَّمة بأنها غير موثوقة.
+
+## الأمان
+
+- **الـ `probe` الخاص بك يشغّل الـ agent، فهو المسؤول عن الآثار الجانبية.** أضف
+  `createShadowHook({ readOnly: ['search'] })` إلا إذا كانت كل أداة آمنة للتشغيل:
+  الاستدعاءات الأخرى تُحاكى ولا تُنفَّذ. قد تختلف النتيجة المحاكاة عن
+  الحقيقية، فاعتبر تلك الـ runs دليلًا أضعف.
+- **لدى المحرّرين أدوات ملفات على مساحة عمل في الذاكرة** ولا shell ولا شبكة.
+- **الحالات المحجوزة لا تصل إلى المحرّرين أبدًا.** أرجِع `passed: null` للـ run الذي
+  لا تستطيع تقييمه؛ فهو يُستبعَد، ولا يُحسَب فشلًا.
+- **سجلات الـ runs قد تحتوي نصًا كتبه أي أحد.** يُطلَب من المحرّرين معاملتها
+  كبيانات، وتُرفَض التعديلات التي تضيف نصًا يشبه حقن الموجّه،
+  لكن الأساليب التقديرية (heuristics) يمكن خداعها. وهذا أحد أسباب أن يراجع شخصٌ كل
+  اقتراح.
+- **نتائج الأدوات معلَّمة بأنها غير موثوقة** فيما يقرؤه المحرّرون. أي علامة
+  مزوّرة داخل run، متداخلة أو مفصولة بمسافات، تُزال، ويُطلَب من المحرّرين
+  معاملة كل ما في الـ run على أنه غير موثوق، وليس الجزء المعلَّم فقط.

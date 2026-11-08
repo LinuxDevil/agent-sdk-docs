@@ -284,6 +284,7 @@
                 "group": "تشغيل موثوق",
                 "pages": [
                   "ar/durable-execution",
+                  "ar/pause-and-resume",
                   "ar/compaction",
                   "ar/guardrails",
                   "ar/workspace-tools"
@@ -311,6 +312,12 @@
                   "ar/testing",
                   "ar/evals",
                   "ar/observability"
+                ]
+              },
+              {
+                "group": "التعافي الذاتي والتحسين",
+                "pages": [
+                  "ar/improve"
                 ]
               },
               {
@@ -343,7 +350,8 @@
                   "ar/examples/phase-pipeline",
                   "ar/examples/coding-agent-workflows",
                   "ar/examples/connectors",
-                  "ar/examples/hostinger-deploy"
+                  "ar/examples/hostinger-deploy",
+                  "ar/examples/heal-benchmark"
                 ]
               }
             ]
@@ -360,6 +368,7 @@
                   "ar/migrating-from-ai-sdk",
                   "ar/migrating-to-create-agent",
                   "ar/configuration",
+                  "ar/agent-spec",
                   "ar/errors",
                   "ar/utilities"
                 ]

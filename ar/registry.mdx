@@ -14,11 +14,14 @@ agent directory كامل: تثبيته يوزّع `agent.*` و`instructions.md` 
 `lousho add` يشتغل بدون أي إعداد: بدون `--registry` أو `LOUSHO_REGISTRY` يقرأ
 الـregistry الافتراضي على `https://registry.lousho.com/index.json`، وهو مجلد
 `registry/dist/` في مستودع الـSDK مُقدَّم كـJSON ثابت. إذا تعذّر الوصول لهذا
-الـhost، يقرأ `lousho add` بدلًا منه نفس المجلد المحفوظ في المستودع من وسم
-الإصدار (release tag) الخاص بنسخة الـSDK المثبّتة
-(`https://raw.githubusercontent.com/LinuxDevil/agent-sdk/v<version>/registry/dist/index.json`،
-مثلًا `v1.0.0-alpha.19`)؛
-الـregistry الافتراضي وحده يرجع لهذا البديل، أما الـregistry الذي تسمّيه بنفسك فلا. `--registry`
+الـhost، يقرأ `lousho add` بدلًا منه من GitHub: من وسم الإصدار (release tag)
+الخاص بنسخة الـSDK المثبّتة
+(`https://raw.githubusercontent.com/LinuxDevil/agent-sdk/<version>/registry/dist/index.json`)،
+ثم من نفس الوسم مع البادئة `v` (للإصدارات الأقدم)، ثم من `main`.
+وإذا تعذّر الوصول إلى GitHub أيضًا (بدون اتصال، أو عطل، أو نسخة لم يُرفع وسمها
+أبدًا)، يقرأ `lousho add` نسخة `registry/dist/` المرفقة داخل الحزمة المثبّتة،
+ويطبع تنبيهًا من سطر واحد بأن هذا الـregistry المرفق قد يكون أقدم من النسخة
+المتاحة على الإنترنت. الـregistry الافتراضي وحده يرجع لهذا البديل، أما الـregistry الذي تسمّيه بنفسك فلا. `--registry`
 و`LOUSHO_REGISTRY` توجّهه إلى registry ثاني، والقيمة `none` (في أي منهما)
 تعطّل الـregistry بالكامل — ساعتها `lousho add` يفشل بـ`LOUSHO_CONFIG_INVALID`،
 وهذا يناسب الاستخدام offline أو البيئات المقفولة.

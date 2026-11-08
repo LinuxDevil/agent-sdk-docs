@@ -180,7 +180,7 @@ for (const slug of slugs) {
     problems.push(`${slug}: ${headingCount(translated)} headings, the English page has ${headingCount(english)}`);
   }
 
-  const unfixed = translated.match(new RegExp(`\\]\\(/(?!${LANG}/)(?!(${[...UNTRANSLATED].join('|')})[)#])[a-z]`, 'g'));
+  const unfixed = translated.match(new RegExp(`\\]\\(/(?!${LANG}/)(?!images/)(?!(${[...UNTRANSLATED].join('|')})[)#])[a-z]`, 'g'));
   if (unfixed) problems.push(`${slug}: ${unfixed.length} internal links not under /${LANG}/ (run --fix-links)`);
 
   for (const [, , page, anchor] of translated.matchAll(anchorLink)) {

@@ -5,6 +5,8 @@ title: "Durable execution"
 
 مرّر `store` لـ`createAgent()` ومرّر `sessionId` لـ`send()`، والـ run يكمل رغم crash، أو restart، أو abort، أو approval (موافقة) من إنسان ياخد أيام. ولا شيء هنا يعتمد على host معيّن: أي `CheckpointStore` — `memoryStore()`، أو `SqliteStore`، أو store الـ Cloudflare KV اللي يوصّله build `cloudflare-worker`، أو تنفيذك الخاص بثلاث دوال — وأي `ApprovalStore` يشتغلون بنفس الطريقة.
 
+شوف كمان: [إيقاف وإعادة تشغيل واستئناف](/ar/pause-and-resume)، دليل قصير من البداية للنهاية.
+
 ```ts
 import { createAgent } from 'lousho';
 import { SqliteStore } from 'lousho/sqlite';
@@ -175,6 +177,9 @@ console.log(charges); // 1: the completed charge step did not run again
 - `'in-progress'`: يستأنف من آخر checkpoint حقه، فالخطوات المكتملة ما تتعاد أبدًا (الـ tool اللي كانت في منتصف call تشتغل من جديد: خلّها idempotent).
 - `'awaiting-approval'` (approval لـ tool أو `ask_question`): يتركه؛ الإنسان يحسمه بـ`agent.approvals.resolve()`.
 - run الـ `lastError` حقه فيه `retryable: false`: يتركه، لأنه بيفشل بنفس الطريقة؛ و`agent.pending()` تظل تعرضه.
+- run فشل قريب: يتخطّاه لين يعدّي الـ backoff حقه، و`intervalMs` يتضاعف مع كل محاولة فاشلة ورا بعض، لحد 15 دقيقة.
+- run فشل `maxAttempts` مرة ورا بعض (الافتراضي 10): يتعزل (quarantine). الحلقة توقف استئنافه وتنادي `onQuarantined(run)` مرة وحدة. و`agent.pending()` تظل تعرضه، و`agent.resume()` تظل تشغّله. حفظ أي تقدّم يصفّر العدّاد. والفشل اللي يقتل الـ process ما يسجّل محاولة، فما ينحسب. ومع `retryWithDiagnosis: true`، الـ run (مو turn في session) ياخذ أول محاولة أخيرة: fork اسمه `<id>.heal`، يتستأنف من نفس الخطوة، مع ملاحظة تقول ليش فشل. لو الـ fork خلص، الأصلي ينحذف و`onRecovered` يبلّغ بـ id الأصلي. ولو وصل هو كمان للحد، الاثنين يتعزلون. الملاحظة تقتبس الخطأ كبيانات وتحدّ طوله، لأن الخطأ ممكن يحمل مخرجات tool. والـ store لازم يحتفظ بـ history.
+- أثناء انقطاع الـ provider: بعد 3 أخطاء provider ورا بعض، على أي runs، الحلقة توقف مؤقتًا وتنادي `onOutage(true)`. بعدها تجرّب run واحد كل مرة، على فترات تطول لحد 15 دقيقة، وأول ما واحد يعدّي الـ provider ترجع تشتغل عادي وتنادي `onOutage(false)`. وما في شيء يتعزل بسبب أخطاء الـ provider خلال الوقفة، فالانقطاع ما يستهلك محاولات الـ runs السليمة. ومفتاح API الغلط ما ينحسب انقطاع، لأن الانتظار ما يصلّحه.
 - run لسا شغّال في process ثانية، أو run الـ [run lease](#run-leases) حق الـ process اللي صار لها crash ما انتهت صلاحيته إلى الآن: استئنافه يُرفض بـ`LOUSHO_SESSION_BUSY` قبل ما يشتغل أي شيء، بصمت، وsweep لاحق يحاول مرة ثانية أول ما يتحرر الـ lease. فالـ run اللي صار له crash يكتمل خلال انتهاء lease واحد زائد `intervalMs` واحد بعد الـ crash بالأكثر، وكل replica تقدر تشغّل `recover()`: الـ leases تضمن إن وحدة بس منها تستأنف الـ run. والحلقة كمان ما تبدأ أبدًا استئناف ثاني لـ run هي أصلًا تستأنفه.
 
 `onError(error, run?)` يتبلّغ عن sweep ما قدر يقرأ قائمة الـ store (`run` بقيمة undefined) وعن استئناف فشل (`run` متعيّن)؛ والحلقة تكمل في الحالتين. و`onRecovered(run, result)` ياخذ كل run كمّلته. إلغاء `signal` (أو `stop()`) يوقف الـ polling ويسوي abort للاستئنافات الجارية (الـ checkpoints حقها تبقى للتشغيل الجاي)؛ و`done` تكتمل أول ما يستقر كل شيء. الحلقة تبقي الـ process حيّة لين توقفها. ومثل `pending()`، `recover()` ترمي `LOUSHO_CONFIG_MISSING_CHECKPOINT_STORE` لو ما في checkpoint store. ومع store مخصص ما عنده leases (`acquireLease`)، ما في شيء يمنعها من استئناف run لسا شغّال في process ثانية: شغّلها في process وحدة بس.
@@ -182,6 +187,8 @@ console.log(charges); // 1: the completed charge step did not run again
 ## Run leases
 
 خلال ما يشتغل run عنده checkpoints (turn في session، أو run من `send(msg, { sessionId })`، أو استئناف بعد approval)، يمسك lease على id الـ checkpoint حقه في الـ checkpoint store: owner id وانتهاء صلاحية بعد 30 ثانية، يتجدد كل 10 ثواني. أي process ثانية أو replica ثانية أو store object ثاني يحاول يشغّل أو يستأنف نفس الـ id خلال هالوقت — `send()` كانت بتستأنف الـ turn المعلّقة أول، أو `agent.resume()`، أو `agent.approvals.resolve()` — يفشل بـ`LOUSHO_SESSION_BUSY` قبل ما تشتغل أي tool أو ينادى أي model (والـ approval المحسومة تبقى معلّقة). فـ replicaين ورا load balancer ما يشغّلون أبدًا tool calls نفس الـ turn مرتين.
+
+هذا يصح للـ replicas على host واحد تتشارك ملف SQLite واحد على ديسك محلي، أو لـ store تنفّذه بنفسك على database مشتركة؛ أما SQLite على filesystem شبكي أو عبر أكثر من host فمو مدعوم. شوف [مشاركة ملف SQLite](/ar/sessions#مشاركة-ملف-sqlite).
 
 الـ lease اللي ماسكه مات ينأخذ أول ما تنتهي صلاحيته. انتهاء الصلاحية ينحكم عليه بساعة الـ process اللي تبغى الـ lease مقابل وقت الانتهاء اللي كتبه الماسك بساعته هو، فالـ file store وSQLite store ينتظرون فترة lease إضافية (30 ثانية) بعده: الـ run اللي تركته process صار لها crash على جهاز ثاني ينأخذ بعد 30 إلى 60 ثانية من آخر heartbeat له، والـ replicas اللي ساعاتها تختلف بأقل من 50 ثانية تقريبًا ما تاخذ أبدًا الـ runs الحية حق بعضها. خلّ ساعات الـ replicas متزامنة (NTP)؛ فرق أكبر ممكن يخلي replicaين يشغّلون نفس الـ turn.
 

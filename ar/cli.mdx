@@ -35,6 +35,8 @@ lousho mcp <agent.yaml|json|agent-dir|agent.ts> [--http --port N --host H]
 lousho doctor [agent.yaml|json|agent-dir|agent.ts] [--json] [--ping]
 lousho eval [globs...] [--tag t] [--junit path] [--json path] [--strict] [--judge] [--record | --replay | --drift [--drift-usage]] [--url <base> [--token <bearer>]] [--config vitest.config.ts] [--timeout <ms>]
 lousho traces [traceId|prefix] [--dir D] [--limit N] [--json] [--content]
+lousho observe <start|status|stop|rebuild-rollups|prune|export|failures|token> [--port N] [--db path] [--host H] [--require-token] [--project X] [--webhook URL] [--retention-days N] [--session-idle-minutes N] [--older-than <N>d] [--since <N>d|<N>h|<N>m] [--agent X] [--out file]
+lousho prompt <push <file|->|list|get <name[@version|@label]>|label <name> <label> <version>> [--url U] [--port N] [--token T] [--json] [--name N] [--labels a,b] [--variables x,y]
 lousho --version
 ```
 
@@ -57,7 +59,7 @@ npx lousho dev agent.yaml                  # a spec file
 npx lousho dev ./my-agent                  # an agent directory
 npx lousho dev src/agent.ts                # a TypeScript (or JavaScript) module
 npx lousho dev agent.yaml --port 4000 --host 0.0.0.0
-npx lousho dev ./my-agent --no-schedules   # do not fire the directory's cron schedules
+npx lousho dev ./my-agent --no-schedules   # do not fire cron schedules or a spec's cron triggers
 ```
 
 في مجلد الـ agent، تُركَّب `channels/` تحت `/channels` وتشتغل `schedules/` (وكلاهما يُستبدل عند الـ reload، بعد إيقاف الـ schedules القديمة أولًا)؛ ومع `--no-schedules` لا يشتغل أي schedule. انظر [Agent directories](/ar/agent-directories#شغّله-بـ-lousho-dev).
@@ -164,4 +166,42 @@ npx lousho studio            # prints http://127.0.0.1:4750/?token=<per-launch t
 npx lousho studio --port 5000
 ```
 
-يشغّل سيرفر محلي واحد للـ API والـ UI الخاصين بـ Agent Forge. الـ agents وحالة الـ run تُخزَّن تحت `.lousho/` في المجلد الحالي. انظر [Agent Forge](/ar/agent-forge) للـ walkthrough.
+يشغّل سيرفر محلي واحد للـ API والـ UI الخاصين بـ Agent Forge. الـ agents وحالة الـ run تُخزَّن تحت `.lousho/` في المجلد الحالي. في التطبيق قائمة تنقّل على اليسار: Agents (الـ builder) وPlayground، وبعدها Traces وThreads وMonitoring، وEvaluations (Scores وDatasets وEvaluators وAnnotation queues)، وPrompts وContext Hub وSettings؛ وكل اللي بعد الـ Playground يقرأ من الـ daemon تبع `lousho observe`. انظر [Agent Forge](/ar/agent-forge) للشاشات وللـ walkthrough.
+
+## `lousho observe`
+
+```bash
+npx lousho observe start                        # collector on http://127.0.0.1:7777
+npx lousho observe status                       # health + fleet counts
+npx lousho observe stop                         # <db>.pid + SIGTERM (checks the daemon serves --db)
+npx lousho observe rebuild-rollups              # recompute insight aggregates
+npx lousho observe prune --older-than 30d       # delete finished runs older than 30 days, then VACUUM
+npx lousho observe export --since 7d --out runs.jsonl # traces as JSONL, one per line
+npx lousho observe failures --since 7d          # recurring tool and model failures, by agent
+npx lousho observe failures --traces .lousho/traces --json # the same from trace files, no database
+npx lousho observe token create --project myapp # bearer key for non-loopback auth
+```
+
+يشغّل الـ collector المحلي اللي يبلّغ له كل agent لما يكون `LOUSHO_OBSERVE` مضبوط: الـ traces، ومراقبة الأسطول (fleet)، ونتائج الـ evals، وسجل الـ prompts، والـ context hub، كلها في ملف SQLite واحد (الافتراضي `~/.lousho/observe.db`). [شاشات الـ daemon](/ar/agent-forge#الشاشات) في Studio تقرأ منه. الأمر `start` ياخذ `--port` (أو `LOUSHO_OBSERVE_PORT`) و`--db` و`--host` و`--require-token`، و`--webhook` تقدر تكرّره لخطافات التنبيه. كل daemon يكتب ملف `<db name>.pid` خاص فيه جنب الـ db (`observe.db` يعطي `observe.pid`)، فما في db اثنين في نفس المجلد يتشاركون pidfile أبدًا. `start` يطلع بـ 1 لما يكون الـ port يخدم db ثاني أصلًا، و`stop` يرفض يرسل signal لما الـ daemon اللي على port الـ pidfile يبلّغ عن db ثاني أو الـ port يرد كخدمة ثانية، ويرجع يرسل الـ signal لما ما يقدر يتحقق (ما يوصله شيء، أو pidfile قديم من سطر واحد). `/health` يقول أي db يخدمها الـ daemon بس للمستدعين على نفس الجهاز. انظر [الـ observe daemon](/ar/observability#الـ-observe-daemon).
+
+`start --retention-days N` يحدد كم تنحفظ الـ runs المنتهية (الافتراضي 30؛ و`0` يحفظ كل شيء). مرة في اليوم الـ daemon يحذف الـ traces اللي كل الـ observations فيها خلصت قبل أكثر من N يوم. الـ trace اللي فيه أي run لسّا مفتوح، والـ session اللي لسّا `active`، تنحفظ مهما كان عمرها. الـ rollups والـ prompts ومدخلات الـ hub ما تنحذف أبدًا. `prune --older-than <N>d` (أيام كاملة، N >= 1) يسوي نفس المرور الحين، ويطبع عدد الـ observations والـ scores والـ sessions اللي حذفها، وبعدين يشغّل `VACUUM` عشان يسترجع مساحة القرص (المرور اليومي ما يسويه أبدًا). إذا فشل الـ `VACUUM` بس (مثلًا الـ db مشغولة)، الـ prune يبقى مثبّت، والخطأ يروح لـ stderr وكود الخروج 0. تشغيله آمن والـ daemon شغّال. وقيمة N غلط هي خطأ استخدام (exit 2). انظر [الاحتفاظ](/ar/observability#الاحتفاظ-بالبيانات-retention).
+
+`start --session-idle-minutes N` يحدد متى تنحسب المحادثة منتهية (الافتراضي 30؛ و`0` يطفيه، فالـ session تظل `active` لحد ما يطيح الـ agent تبعها). مرور الـ daemon يعلّم الـ session كـ `ended` أول ما ما يكون فيها run مفتوح (الـ run المعلّم `interrupted` ما ينحسب) وما بدأ ولا خلص فيها شيء لمدة N دقيقة؛ و`ended_at` تبعها هو وقت آخر نشاط. run جديد في session `ended` (أو `interrupted`) يرجّعها `active`. والـ sessions المنتهية تنحذف بعدين بـ `--retention-days` مثل أي session منتهية ثانية. وقيمة N غلط هي خطأ استخدام (exit 2). انظر [الـ sessions الخاملة](/ar/observability#الجلسات-الخاملة).
+
+`export` يكتب الـ traces كـ JSONL: سطر لكل trace، `{ trace, observations, scores }` (نفس الصفوف اللي يرجّعها trace API)، الأقدم أول، بدون حد للعدد. `--since <N>d` (أو `<N>h` و`<N>m`) يبقي الـ traces اللي بدأت داخل هذي النافذة؛ و`--agent X` يبقي agent واحد، يتطابق بـ `agent_id` أو، لما ما يكون في agent بهذا الـ id، بالاسم المسجّل تبعه (اسم يتشاركه agentين هو خطأ استخدام، exit 2). بدون `--out` الأسطر تروح لـ stdout وما يروح لها شيء ثاني (العدد يروح لـ stderr، فالـ pipe يظل نظيف)؛ و`--out file` ينشئ الملف أو يكتب فوقه ويطبع العدد على stdout. يقرأ الـ db مباشرة، فما يحتاج daemon شغّال. انظر [التصدير](/ar/observability#التصدير).
+
+## `lousho prompt`
+
+```bash
+npx lousho prompt push prompt.md --name mira    # publishes a new version
+npx lousho prompt list
+npx lousho prompt get mira@latest
+npx lousho prompt label mira prod 3             # mira@prod -> 3 (was 2)
+npx lousho prompt get mira@prod
+```
+
+ينشر ويقرأ إصدارات الـ prompts في سجل الـ observe daemon. الـ agents تحلّها بـ `createAgent({ prompt: 'mira@latest' })` (أو بـ label، `'mira@prod'`) أو بـ `LOUSHO_PROMPT`.
+
+- `push` ينشر الملف (`-` يقرأ من stdin) كالإصدار اللي بعده. الـ push اللي نصه و`--variables` تبعه نفس آخر إصدار ما يصنع شيء ويطبع `mira@2 is unchanged` (exit 0). و`--labels prod,canary` يوجّه هذي الـ labels للإصدار الناتج، سواء الجديد أو آخر إصدار اللي ما تغيّر.
+- `get <name>[@ref]` يطبع نص الإصدار؛ و`ref` رقم صحيح، أو `latest` (الافتراضي)، أو label. و`--json` يطبع الصف، و`labels` فيه هي الـ labels اللي تشير حاليًا لهذا الإصدار.
+- `label <name> <label> <version>` ينقل label: الـ label يشير لإصدار واحد بالضبط، فهذا يشيله من الإصدار اللي كان عليه، ويطبع `mira@prod -> 3 (was 2)` (أو `(was unset)` لـ label جديد). الـ label اسم بدون مسافات ولا `@` ولا `/`، ومو `latest` ولا أرقام بس. انظر [الـ observe daemon](/ar/observability#الـ-observe-daemon).

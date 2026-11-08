@@ -83,7 +83,7 @@ const paused = await AgentExecutor.execute({ agent, input, provider, toolRegistr
 | `maxFilesScanned` | 20,000                      | أكثر عدد ملفات تمرّ عليها `glob` أو `grep` أثناء البحث. |
 | `grepTimeoutMs`   | 10,000                      | عدد الميلي ثانية اللي تقدر `grep` تصرفها في مطابقة الـregex عبر كل الملفات؛ وقت قراءة الملفات ما يُحسب. النمط البطيء يتوقف بخطأ يذكر كم ملف فُحص. |
 | `ignore`          | `['.git', 'node_modules']`  | أسماء مجلدات تتخطاها `glob` و`grep`. |
-| `deny`            | `['.git']`                  | أسماء مدخلات ما تقرأها أي أداة ولا تعرضها ولا تبحث فيها ولا تكتب فيها، على أي عمق. المسار اللي يمر عبر واحد منها خطأ أداة. `[]` يوقف الفحص. راجع [نموذج الأمان](#نموذج-الأمان). |
+| `deny`            | `['.git', '.env', '.env.*']` | أسماء مدخلات ما تقرأها أي أداة ولا تعرضها ولا تبحث فيها ولا تكتب فيها، على أي عمق. الـ`*` في آخر الاسم يعني بادئة. المسار اللي يمر عبر واحد منها خطأ أداة. `[]` يوقف الفحص. راجع [نموذج الأمان](#نموذج-الأمان). |
 | `checkpoints`     | لا شيء                      | كائن `WorkspaceCheckpoints`: يحتفظ بنسخة احتياطية من كل ملف تغيّره `write_file` و`edit_file`، لتقدر ترجّع التغييرات (انظر أدناه). |
 
 `createShellTool(shell, options?)` يرجع أداة واحدة اسمها `shell`، تأخذ `command` و`timeout_ms` اختياري، وترجع `{ exitCode, stdout, stderr }`. إذا انقتل الأمر، تحمل النتيجة أيضًا `timedOut: true` أو `aborted: true` مع `note` توضح السبب.
@@ -175,13 +175,21 @@ console.log(workspace.snapshot()); // { 'notes.md': '# Notes\n' }
 
 **الكتابة ذرّية.** `NodeWorkspace` يكتب الملف (ولـ`write_file` و`edit_file` كمان) في ملف مؤقت بنفس المجلد، يعمل له flush ثم rename فوق الهدف، فالعملية اللي تنقتل نص الكتابة تترك الملف القديم أو الجديد، وما تتركه أبدًا نص مكتوب. الملف المستبدَل يحتفظ ببتات صلاحياته، والملف read-only ما زال يُرفض.
 
-**أدوات الملفات تبتعد عن `.git`.** الـcheckout غالبًا فيه credentials في `.git/config`: `actions/checkout` يحفظ token الـjob هناك كـ`http.https://github.com/.extraheader = AUTHORIZATION: basic ...`، والـmodel اللي يقدر يقراه يقدر يسرّب الـtoken في جوابه. وفي git worktree، `.git` ملف فيه مسار الـhost للـrepository الرئيسي. لذلك `read_file` و`list_dir` و`glob` و`grep` و`write_file` و`edit_file` ترفض أي مسار فيه مقطع `.git`، على أي عمق (`.git/config` و`sub/.git`)، و`glob` و`grep` و`list_dir` تستبعد مدخلات `.git` من نتائجها، حتى مع `ignore: []`. الفحص يشتغل بعد الـnormalize، فـ`./.git` و`a/../.git` و`.git\config` و`.git/` تُرفض كمان. الأسماء تُقارن بدون حساسية لحالة الأحرف (`.GIT`)، والنقاط والمسافات في آخر الاسم تُتجاهل (Windows يفتح `.git.` كـ`.git`)، وفي Windows تُرفض الأسماء القصيرة بصيغة 8.3 مثل `GIT~1`. `.gitignore` و`.github/` ما يتأثرون. أضف أسماء بخيار `deny`، مثلًا `deny: ['.git', '.env', 'secrets']` (أسماء مدخلات، مو مسارات)، أو مرّر `deny: []` لإيقاف الفحص.
+**أدوات الملفات تبتعد عن `.git`.** الـcheckout غالبًا فيه credentials في `.git/config`: `actions/checkout` يحفظ token الـjob هناك كـ`http.https://github.com/.extraheader = AUTHORIZATION: basic ...`، والـmodel اللي يقدر يقراه يقدر يسرّب الـtoken في جوابه. وفي git worktree، `.git` ملف فيه مسار الـhost للـrepository الرئيسي. لذلك `read_file` و`list_dir` و`glob` و`grep` و`write_file` و`edit_file` ترفض أي مسار فيه مقطع `.git`، على أي عمق (`.git/config` و`sub/.git`)، و`glob` و`grep` و`list_dir` تستبعد مدخلات `.git` من نتائجها، حتى مع `ignore: []`. الفحص يشتغل بعد الـnormalize، فـ`./.git` و`a/../.git` و`.git\config` و`.git/` تُرفض كمان. الأسماء تُقارن بدون حساسية لحالة الأحرف (`.GIT`)، والنقاط والمسافات في آخر الاسم تُتجاهل (Windows يفتح `.git.` كـ`.git`)، وفي Windows تُرفض الأسماء القصيرة بصيغة 8.3 مثل `GIT~1`. `.gitignore` و`.github/` ما يتأثرون.
+
+القائمة الافتراضية تشمل كمان `.env` و`.env.*` (`.env.local`،
+`.env.production`)، فالـmodel اللي تعرّض لـprompt injection ما يقدر يقرا الأسرار منها.
+`.env.example` و`.env.sample` و`.env.template` تظل قابلة للقراءة. المدخل اللي
+ينتهي بـ`*` مطابقة بادئة تستثني لواحق القوالب الثلاث هذي.
+الـ`deny` اللي تمرّره **يستبدل** القيم الافتراضية، ما يضيف عليها: اكتب
+`.git` و`.env` من جديد، مثلًا `deny: ['.git', '.env', '.env.*',
+'secrets']` (أسماء مدخلات، مو مسارات)، أو مرّر `deny: []` لإيقاف الفحص.
 
 ```ts
 import { createFsTools, NodeWorkspace } from 'lousho';
 
 const workspace = new NodeWorkspace({ root: '.' });
-const tools = createFsTools(workspace, { readOnly: true, deny: ['.git', '.env'] });
+const tools = createFsTools(workspace, { readOnly: true, deny: ['.git', '.env', '.env.*'] });
 ```
 
 الروابط إلى `.git` تُرفض كمان. مع `NodeWorkspace` (أو أي provider ينفّذ `realPath`)، الفحص يشتغل أيضًا على المكان اللي يوصل له المسار فعلًا، فالـsymlink أو الـjunction في Windows في أي مكان آخر بالـworkspace اللي يشير إلى `.git` أو لداخله (`gitj -> .git` و`hooks -> .git/hooks` و`cfg -> .git/config`) ما يمكن استخدامه لقراءة أو كتابة أو تعديل اللي وراه: `read_file gitj/config` و`edit_file gitj/config` و`write_file gitj/PWNED` أخطاء أداة، ومثلها `list_dir` و`glob` و`grep` لما يُعطى الرابط كـ`path` لها (`grep` مع `path: 'gitj'` أو `path: 'gitj/config'`). `glob` و`grep` لا تتبعان الروابط أبدًا أثناء المرور على الشجرة، فالبحث من الـroot ما يوصل لـ`.git` عبر رابط هو الآخر. الـprovider اللي ما عنده `realPath` (`MemoryWorkspace` ما فيه روابط) ياخذ فحص الاسم فقط.

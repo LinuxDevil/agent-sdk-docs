@@ -5,6 +5,8 @@ title: "الإعدادات"
 
 ## ملفات تعريف الـ agent (`AgentSpec`)
 
+> تصف هذه الصفحة الإصدار 1 من ملف المواصفات. ملفات المواصفات الجديدة تستخدم [Agent spec v2](/ar/agent-spec)؛ و`upgradeSpec()` يحوّل ملف مواصفات v1.
+
 الـ agent التصريحي (declarative) ملف YAML (`.yaml`/`.yml`) أو JSON (`.json`)،
 تتحقق منه `loadSpec()` بمكتبة zod (`src/spec/schema.ts`). هي الصيغة التي
 يخدمها `lousho dev` وينشرها `lousho build`.
@@ -19,7 +21,7 @@ title: "الإعدادات"
 | `provider.model` | `string`   | نعم      | معرّف الـ model المستخدم في كل call (الـ model المضبوط لدى الـ provider؛ و`settings.model` الخاصة بالـ agent تتجاوزه إن وُجدت). |
 | `tools`          | `string[]` | لا       | أسماء الـ tools المدمجة (انظر أدناه).                  |
 | `policy`         | `AgentSpecPolicy` | لا | الموافقات والـ guardrails والحدود وغيرها، وتُفرَض عند تحوّل الـ spec إلى agent (انظر أدناه). |
-| `triggers`       | `AgentSpecTrigger[]` | لا | ما يشغّل الـ agent من تلقاء نفسه — جداول cron (`{ type: 'cron', cron, input, name?, timezone? }`)؛ انظر [الجداول الزمنية](/ar/schedules) و[المُشغِّلات](/ar/triggers#تعابير-cron). |
+| `triggers`       | `AgentSpecTrigger[]` | لا | ما يشغّل الـ agent من تلقاء نفسه — جداول cron (`{ type: 'cron', cron, input, name?, timezone? }`)، ويشغّلها `lousho dev` كما يشغّل الجداول الزمنية لمجلد الوكيل؛ انظر [الجداول الزمنية](/ar/schedules) و[المُشغِّلات](/ar/triggers#تعابير-cron). |
 | `mcpServers`     | `Record<string, McpServerSpec>` | لا | سيرفرات MCP التي يستخدمها الـ agent، مفهرسة بالاسم (انظر أدناه). |
 
 الحقل الناقص أو غير الصالح يفشل بخطأ يسمّي الحقل نفسه، مثل
@@ -372,6 +374,7 @@ createAgent({ model: 'openai/gpt-4o-mini', subagents: { researcher }, rateLimit:
 | `codeMode` | `true` أو `CodeModeOptions`: يضيف tool اسمه `run_code` يتيح للـ model استدعاء أدوات الـ agent من script قصير واحد داخل sandbox من QuickJS. انظر [Code mode](/ar/code-mode). |
 | `guardrails` | guardrails المدخلات والمخرجات والـ tools لكل run؛ والـ sub-agents ترثها. انظر [Guardrails](/ar/guardrails). |
 | `maxToolResultChars` | أقصى عدد أحرف من نتيجة tool واحدة يحصل عليه الـ model (الافتراضي `50_000`؛ و`Infinity` تلغي السقف). انظر [الـ tools](/ar/tools). |
+| `toolErrorMessage` | `(error, { toolName, toolCallId }) => string`: يستبدل نص خطأ الـ tool المرمي قبل أن يراه الـ model والـ events والـ hooks (الافتراضي: رسالة الخطأ نفسه). انظر [الـ tools](/ar/tools#الأخطاء). |
 | `onAgentDrift` | ماذا يفعل الـ resume حين يختلف الـ agent عن الذي أوقف الـ run: `'warn'` (الافتراضي) أو `'error'` أو `'ignore'`. انظر [Durable execution](/ar/durable-execution#استئناف-run-بعد-ما-يتغير-الـ-agent). |
 | `reasoning` | مقدار تفكير الـ model قبل أن يجيب: مستوى جهد (effort)، أو `{ effort, budgetTokens, summary, force }`. انظر [Reasoning](/ar/reasoning). |
 | `promptCaching` | `'auto'` (الافتراضي) يضع نقاط `cache_control` الخاصة بـ Anthropic لـ models Claude؛ و`false` لا يضع شيئًا. انظر [Prompt caching](/ar/models-and-cost#الـ-prompt-caching). |
@@ -396,6 +399,13 @@ createAgent({ model: 'openai/gpt-4o-mini', subagents: { researcher }, rateLimit:
 (`createAgent: OPENAI_API_KEY is not set. ...`)، والبادئة غير المعروفة تسرد
 البادئات المدعومة وتقترح أقربها، والـ peer dependency الاختيارية الناقصة
 تطبع أمر `npm install` كاملًا.
+
+الخيار الذي لا تعرفه `createAgent()` يُعتبر خطأً (`LOUSHO_CONFIG_INVALID`)،
+ولا يُتجاهَل بصمت، لذلك يفشل الخطأ الإملائي من JavaScript أو YAML أيضًا.
+تقترح الرسالة أقرب خيار، أو اسم Lousho لخيار تستخدمه SDKs أخرى:
+`'maxOutputTokens' is not a known option (did you mean 'modelSettings.maxTokens'?)`،
+و`system` تشير إلى `instructions`. المفتاح المضبوط على `undefined` يُتجاهَل،
+والـ `manifest` الخاص بنتيجة `claudeProject()` المفرودة (spread) مقبول.
 
 ## إعدادات الـ model
 
