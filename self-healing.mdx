@@ -166,3 +166,25 @@ A run the first layer gives up on, quarantined or stopped with
 Fix the tool, or change the instructions. If the cause is in the instructions or
 skills, those failures can become cases for `improveAgent()`, and a person
 decides whether to apply what it proposes.
+
+## Live evidence (S29 and S30)
+
+In current SDK releases, the self-healing loop (`lousho improve` on an agent
+directory) applies an edit that passes its checks by default (auto mode), and
+manual mode queues it for a person instead.
+
+On 2026-11-09 a live run tested that loop on synthetic coding fixtures. The
+agent ran on `qwen/qwen3.7-flash`. A separate editor model,
+`stealth/crouton-alpha`, ran on the synthetic fixtures only. Each scenario ran
+once, and `planted-editor` ran three times.
+
+- Every scenario that tested something passed. `planted-editor` passed 2 of 2,
+  and one more attempt never reached the editors, so it wasn't counted.
+- The audit log verified in every attempt directory.
+- The report's verdict is **INCOMPLETE**: the go/no-go bars need 5 to 10
+  attempts per scenario.
+
+The readout (S30) keeps auto mode as the default and keeps the loop
+experimental. See
+[Self-healing harness: design and evidence](/self-healing-paper) for the
+design, every result and the limits.
