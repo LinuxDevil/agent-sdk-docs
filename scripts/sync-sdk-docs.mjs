@@ -134,7 +134,7 @@ const SIDEBAR_TITLES = {
 };
 
 /** Pages written by hand in this repository. Listed so the report can flag SDK docs with no page. */
-const HAND_WRITTEN = ['introduction', 'coding-agents', 'examples', 'self-healing-paper'];
+const HAND_WRITTEN = ['introduction', 'coding-agents', 'examples'];
 
 /** SDK docs that are deliberately not on the site. */
 const SKIPPED = new Set([]);
