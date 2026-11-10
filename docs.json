@@ -29,7 +29,7 @@
     ],
     "primary": {
       "type": "github",
-      "href": "https://github.com/LinuxDevil/agent-sdk"
+      "href": "https://github.com/LinuxDevil/lousho"
     }
   },
   "navigation": {
@@ -411,7 +411,7 @@
   },
   "footer": {
     "socials": {
-      "github": "https://github.com/LinuxDevil/agent-sdk"
+      "github": "https://github.com/LinuxDevil/lousho"
     }
   }
 }

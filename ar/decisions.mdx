@@ -1,7 +1,7 @@
 ---
 title: "Decisions"
 ---
-{/* Generated from docs/decisions.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
+{/* Generated from docs/decisions.md in LinuxDevil/lousho by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 `decide()` يستدعي OpenAI Decisions API (`POST /v1/decisions`): endpoint مصمَّم لهذا الغرض، يقيّم input مشتركًا مقابل أسئلة typed ويرجّع إجابات معايَرة (calibrated) أسرع بحوالي 10 مرات من دورة model كاملة. هو الشكل السريع والحتمي لنمط القرار الـ typed، أي التصنيف والتوجيه والبوابات والتقييم بالدرجات، دون أن تشغّل run كاملًا لـ agent.
 
@@ -114,4 +114,4 @@ const result = await decide({
 - **[المخرجات المنظَّمة](/ar/structured-output)** (`createAgent({ output })`): حين تحتاج JSON schema خاصًا بك: حقول مستخرجة، أو شرح مكتوب، أو object على شكل الـ domain عندك. يعمل مع أي provider، بما فيها endpoints المخرجات المنظَّمة الصارمة (راجع [حدود الـ schema](/ar/structured-output#حدود-الـ-schema)).
 - **[الوكلاء الفرعيون](/ar/sub-agents)** أو [مسارات العمل](/ar/flows): حين يحتاج القرار tools أو استدلالًا متعدد الخطوات قبل أن يجيب.
 
-[مثال coding-agent-workflows](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/coding-agent-workflows) يعرض نفس نمط التوجيه/الثقة/الحد الأدنى مبنيًا على schemas الخاصة بـ `output`؛ استبدل خطوة الفرز فيه بـ `decide()` إذا كنت على OpenAI وتريد الـ endpoint المخصص. وصفحة [تقنيات كتابة الموجّهات](/ar/prompting-techniques#قرارات-typed-بأسلوب-system-one) تضع الشكلين في سياق كتالوج القرارات الـ typed الأوسع.
+[مثال coding-agent-workflows](https://github.com/LinuxDevil/lousho/tree/main/examples/coding-agent-workflows) يعرض نفس نمط التوجيه/الثقة/الحد الأدنى مبنيًا على schemas الخاصة بـ `output`؛ استبدل خطوة الفرز فيه بـ `decide()` إذا كنت على OpenAI وتريد الـ endpoint المخصص. وصفحة [تقنيات كتابة الموجّهات](/ar/prompting-techniques#قرارات-typed-بأسلوب-system-one) تضع الشكلين في سياق كتالوج القرارات الـ typed الأوسع.

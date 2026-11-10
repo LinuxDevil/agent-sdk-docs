@@ -1,7 +1,7 @@
 ---
 title: "Cloudflare Workers"
 ---
-{/* Generated from docs/cloudflare-workers.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
+{/* Generated from docs/cloudflare-workers.md in LinuxDevil/lousho by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 `npx lousho build --target=cloudflare-worker --agent=agent.yaml` generates a module Worker (`worker.ts`), a `wrangler.toml` and a bundle, `dist/worker.js`, that the build checks for `node:` imports. It needs `tsup` and `wrangler` installed, and it takes an [agent spec file](/configuration) or an [agent directory](/agent-directories) (`npx lousho build ./my-agent --target=cloudflare-worker`). The Worker serves the same [HTTP API](/deployment#http-api) as the other targets. This target has the tightest limits of the three, so they come first.
 
