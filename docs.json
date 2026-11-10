@@ -391,16 +391,6 @@
       }
     ]
   },
-  "redirects": [
-    {
-      "source": "/comparison",
-      "destination": "/introduction#compared-to-other-libraries"
-    },
-    {
-      "source": "/ar/comparison",
-      "destination": "/ar/introduction"
-    }
-  ],
   "contextual": {
     "options": [
       "copy",
