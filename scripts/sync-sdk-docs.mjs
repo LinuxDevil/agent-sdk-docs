@@ -15,7 +15,7 @@ import { githubSlug, headings, mintSlug, slugList } from './anchors.mjs';
 
 const siteRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const sdkRoot = resolve(process.argv[2] ?? join(siteRoot, '..', 'agent-sdk'));
-const GITHUB = 'https://github.com/LinuxDevil/agent-sdk/blob/main/';
+const GITHUB = 'https://github.com/LinuxDevil/lousho/blob/main/';
 // The SDK's docs/images/ (Studio screenshots) is mirrored to /images on this site.
 const SDK_IMAGES = 'docs/images/';
 const SITE_IMAGES = 'images';
@@ -303,7 +303,7 @@ function convert(file, slug) {
   if (SIDEBAR_TITLES[slug]) front.push(`sidebarTitle: ${JSON.stringify(SIDEBAR_TITLES[slug])}`);
   if (description) front.push(`description: ${JSON.stringify(description)}`);
   front.push('---', '');
-  const note = `{/* Generated from ${file} in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}\n\n`;
+  const note = `{/* Generated from ${file} in LinuxDevil/lousho by scripts/sync-sdk-docs.mjs. Do not edit here. */}\n\n`;
   return `${front.join('\n')}${note}${converted.trimEnd()}\n`;
 }
 

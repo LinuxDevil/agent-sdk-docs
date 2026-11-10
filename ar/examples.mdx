@@ -3,17 +3,17 @@ title: "أمثلة"
 description: "أمثلة جاهزة للتشغيل من مستودع الـ SDK. معظمها يعمل على mock provider مدمج، فلا تحتاج مفتاح API."
 ---
 
-الأمثلة موجودة في مجلد [`examples/`](https://github.com/LinuxDevil/agent-sdk/tree/main/examples) داخل مستودع الـ SDK. اعمل clone للمستودع، ثبّت الاعتماديات، وشغّل أي مثال بالأمر المكتوب بجانبه:
+الأمثلة موجودة في مجلد [`examples/`](https://github.com/LinuxDevil/lousho/tree/main/examples) داخل مستودع الـ SDK. اعمل clone للمستودع، ثبّت الاعتماديات، وشغّل أي مثال بالأمر المكتوب بجانبه:
 
 ```bash
-git clone https://github.com/LinuxDevil/agent-sdk.git
+git clone https://github.com/LinuxDevil/lousho.git
 cd agent-sdk
 npm install
 ```
 
 ## المثال الأبرز
 
-<Card title="ops-pipeline" icon="siren" href="https://github.com/LinuxDevil/agent-sdk/tree/main/examples/ops-pipeline" horizontal>
+<Card title="ops-pipeline" icon="siren" href="https://github.com/LinuxDevil/lousho/tree/main/examples/ops-pipeline" horizontal>
   تنبيه مراقبة يصل إلى monitor agent، فيفوّض الإصلاح خلف بوابة approval (موافقة) بشرية. زر "Fix it" في Slack يستأنف الـ run المتوقف، وfixer agent يكتب patch، والـ guardrails تفحص الـ patch قبل فتح pull request على GitHub. يعمل على mocks افتراضيًا: `npm run pipeline:demo`.
 </Card>
 
@@ -21,25 +21,25 @@ npm install
 
 | المثال | ما يعرضه | الأمر |
 | ------- | ------------- | ------ |
-| [coding-harness](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/coding-harness) | coding agent بمواصفات production: أدوات workspace مع checkpoints، قواعد صلاحيات، loop guard، وسقف تكلفة، ويُشحن على شكل registry kits باسم `coding-kit` و`coding-pi` | `npx tsx examples/coding-harness/index.ts` |
-| [deep-research](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/deep-research) | نمط الـ multi-agent للبحث: coordinator يوزّع استدعاءات `task` متوازية على researcher sub-agents، ثم يجمّع تقريرًا موثّقًا بالمصادر | `npm run example:deep-research` |
-| [support-desk](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/support-desk) | agent للفرز يحوّل المحادثة بـ `handoff()` إلى متخصصين في الفوترة والتقنية، مع أداة refund محمية بـ approval | `npm run example:support-desk` |
-| [evaluator-loop](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/evaluator-loop) | نمط الكاتب/الناقد: `llmCritique()` يقيّم المسودة، والكاتب يراجعها حسب ملاحظاته حتى تنجح | `npm run example:evaluator-loop` |
-| [data-analyst](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/data-analyst) | تحويل نص إلى SQL فوق `node:sqlite` مع فرض قراءة-فقط على أكثر من طبقة — يستحيل أن تعمل `DELETE`/`DROP` | `npm run example:data-analyst` |
-| [plan-mode](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/plan-mode) | coding agent يقرأ ويقترح في وضع `plan`، ثم يطبّق التعديلات بعد `session.setPermissionMode('acceptEdits')` | `npm run example:plan-mode` |
+| [coding-harness](https://github.com/LinuxDevil/lousho/tree/main/examples/coding-harness) | coding agent بمواصفات production: أدوات workspace مع checkpoints، قواعد صلاحيات، loop guard، وسقف تكلفة، ويُشحن على شكل registry kits باسم `coding-kit` و`coding-pi` | `npx tsx examples/coding-harness/index.ts` |
+| [deep-research](https://github.com/LinuxDevil/lousho/tree/main/examples/deep-research) | نمط الـ multi-agent للبحث: coordinator يوزّع استدعاءات `task` متوازية على researcher sub-agents، ثم يجمّع تقريرًا موثّقًا بالمصادر | `npm run example:deep-research` |
+| [support-desk](https://github.com/LinuxDevil/lousho/tree/main/examples/support-desk) | agent للفرز يحوّل المحادثة بـ `handoff()` إلى متخصصين في الفوترة والتقنية، مع أداة refund محمية بـ approval | `npm run example:support-desk` |
+| [evaluator-loop](https://github.com/LinuxDevil/lousho/tree/main/examples/evaluator-loop) | نمط الكاتب/الناقد: `llmCritique()` يقيّم المسودة، والكاتب يراجعها حسب ملاحظاته حتى تنجح | `npm run example:evaluator-loop` |
+| [data-analyst](https://github.com/LinuxDevil/lousho/tree/main/examples/data-analyst) | تحويل نص إلى SQL فوق `node:sqlite` مع فرض قراءة-فقط على أكثر من طبقة — يستحيل أن تعمل `DELETE`/`DROP` | `npm run example:data-analyst` |
+| [plan-mode](https://github.com/LinuxDevil/lousho/tree/main/examples/plan-mode) | coding agent يقرأ ويقترح في وضع `plan`، ثم يطبّق التعديلات بعد `session.setPermissionMode('acceptEdits')` | `npm run example:plan-mode` |
 | [waves](/ar/examples/waves) | الموجات (waves): عمّال متوازيون بعدد محدود، وتجميع حتمي، وبوابة تحقّق مُنمَّطة، وموجات توسعة تنطلق من الثغرات التي تسمّيها تلك البوابة | `npm run example:waves` |
 | [phase-pipeline](/ar/examples/phase-pipeline) | هندسة المراحل فوق الـ flows: نقاش → spec → خطة → تنفيذ → بوابة إثبات، مع سُلّم إعادة المحاولة على شكل سلسلة `oneOf` | `npm run example:phase-pipeline` |
 | [coding-agent-workflows](/ar/examples/coding-agent-workflows) | coding agent يُوجَّه بقرار مُنمَّط (`{ route, confidence }` عبر `output`)، مع حدّ أدنى للثقة يصعّد الطلب إلى المسار الحذر | `npm run example:coding-agent-workflows` |
 | [connectors](/ar/examples/connectors) | MCP connectors (بشكل Claude connectors نفسه) تعمل بالكامل دون اتصال على خادم stdio وهمي مبني بـ `serveMcp` | `npm run example:connectors` |
 | [hostinger-deploy](/ar/examples/hostinger-deploy) | نشر agent على Hostinger VPS حقيقي: تحقّق عبر الـ API، و`docker save` عبر SSH، واختبارات smoke للـ health والـ approval | `node examples/hostinger-deploy/deploy.mjs --vm <id>` |
-| [agent-dir](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/agent-dir) | agent معرّف كمجلد (`instructions.md` و`tools/` و`skills/` و`agent.json`) ويُحمَّل بـ `loadAgentDir()` | `npm run example:agent-dir` |
-| [support-bot](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/support-bot) | أبسط agent لدعم العملاء | `npm run example:support-bot` |
-| [research-assistant](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/research-assistant) | agent للبحث يستخدم أداة `http` المدمجة | `npm run example:research-assistant` |
-| [doc-qa](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/doc-qa) | الرد على الأسئلة في حدود مستند واحد | `npm run example:doc-qa` |
-| [workflow-router](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/workflow-router) | يصنّف الطلب ضمن مجموعة ثابتة من الفئات | `npm run example:workflow-router` |
-| [slack-notifier](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/slack-notifier) | يحوّل وصف حدث خام إلى إشعار Slack قصير | `npm run example:slack-notifier` |
-| [tracing](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/tracing) | run موصول بمصدّرات trace إلى الـ console وإلى OpenTelemetry | `npm run example:tracing:console` |
-| [openrouter](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/openrouter) | `OpenRouterProvider`: توليد، streaming، tool calling، وعرض قائمة الـ models. يحتاج `OPENROUTER_API_KEY` | `npm run example:openrouter` |
+| [agent-dir](https://github.com/LinuxDevil/lousho/tree/main/examples/agent-dir) | agent معرّف كمجلد (`instructions.md` و`tools/` و`skills/` و`agent.json`) ويُحمَّل بـ `loadAgentDir()` | `npm run example:agent-dir` |
+| [support-bot](https://github.com/LinuxDevil/lousho/tree/main/examples/support-bot) | أبسط agent لدعم العملاء | `npm run example:support-bot` |
+| [research-assistant](https://github.com/LinuxDevil/lousho/tree/main/examples/research-assistant) | agent للبحث يستخدم أداة `http` المدمجة | `npm run example:research-assistant` |
+| [doc-qa](https://github.com/LinuxDevil/lousho/tree/main/examples/doc-qa) | الرد على الأسئلة في حدود مستند واحد | `npm run example:doc-qa` |
+| [workflow-router](https://github.com/LinuxDevil/lousho/tree/main/examples/workflow-router) | يصنّف الطلب ضمن مجموعة ثابتة من الفئات | `npm run example:workflow-router` |
+| [slack-notifier](https://github.com/LinuxDevil/lousho/tree/main/examples/slack-notifier) | يحوّل وصف حدث خام إلى إشعار Slack قصير | `npm run example:slack-notifier` |
+| [tracing](https://github.com/LinuxDevil/lousho/tree/main/examples/tracing) | run موصول بمصدّرات trace إلى الـ console وإلى OpenTelemetry | `npm run example:tracing:console` |
+| [openrouter](https://github.com/LinuxDevil/lousho/tree/main/examples/openrouter) | `OpenRouterProvider`: توليد، streaming، tool calling، وعرض قائمة الـ models. يحتاج `OPENROUTER_API_KEY` | `npm run example:openrouter` |
 
 ## أدلة ذات صلة
 

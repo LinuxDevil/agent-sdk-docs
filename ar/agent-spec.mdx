@@ -2,7 +2,7 @@
 title: "Agent spec v2"
 sidebarTitle: "Agent spec v2"
 ---
-{/* Generated from docs/agent-spec.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
+{/* Generated from docs/agent-spec.md in LinuxDevil/lousho by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 ملف مواصفات الـ agent بالإصدار 2 (agent spec v2) هو ملف YAML أو JSON يصف agent كاملًا كبيانات عادية: الـ model، والتعليمات، والـ tools، وخوادم MCP، والـ skills، والذاكرة، والـ sub-agents، والـ handoffs، والـ guardrails، وقواعد الصلاحيات، والـ hooks، والمخرجات المنظَّمة، والـ triggers، و flow اختياري. Agent Forge والـ Agent Author و`lousho dev` كلها تقرأ هذه الصيغة وتكتبها.
 
@@ -375,9 +375,9 @@ Templates في Agent Forge تنشئ agent من أي منها.
 
 | القالب | ما يفعله |
 | -------- | ------------ |
-| [`templates/support-triage`](https://github.com/LinuxDevil/agent-sdk/blob/main/templates/support-triage/spec.yaml) | يفرز كل تذكرة دعم جديدة حسب النوع والأولوية ويكتب مسودة رد أول يرسلها شخص. |
-| [`templates/inbox-triage`](https://github.com/LinuxDevil/agent-sdk/blob/main/templates/inbox-triage/spec.yaml) | يصنّف كل بريد وارد، ويتذكّر ما يحتاج إلى رد، ويرسل لك ملخصًا قصيرًا كل صباح يوم عمل. |
-| [`templates/incident-responder`](https://github.com/LinuxDevil/agent-sdk/blob/main/templates/incident-responder/spec.yaml) | يحوّل كل تنبيه يُطلَق إلى ملخص حادثة قصير مع الأسباب المحتملة والخطوات التالية، وينشره في Slack. |
-| [`templates/pr-reviewer`](https://github.com/LinuxDevil/agent-sdk/blob/main/templates/pr-reviewer/spec.yaml) | يراجع كل pull request جديد أو محدَّث وينشر تعليق مراجعة واحدًا بعد موافقتك عليه. |
-| [`templates/research-assistant`](https://github.com/LinuxDevil/agent-sdk/blob/main/templates/research-assistant/spec.yaml) | يجيب عن سؤال بحثي بقراءة صفحات الويب ويستشهد بكل مصدر استخدمه. |
-| [`templates/docs-qa`](https://github.com/LinuxDevil/agent-sdk/blob/main/templates/docs-qa/spec.yaml) | يجيب عن أسئلة حول توثيقك في المحادثة أو Slack ويضع روابط الصفحات التي استخدمها. |
+| [`templates/support-triage`](https://github.com/LinuxDevil/lousho/blob/main/templates/support-triage/spec.yaml) | يفرز كل تذكرة دعم جديدة حسب النوع والأولوية ويكتب مسودة رد أول يرسلها شخص. |
+| [`templates/inbox-triage`](https://github.com/LinuxDevil/lousho/blob/main/templates/inbox-triage/spec.yaml) | يصنّف كل بريد وارد، ويتذكّر ما يحتاج إلى رد، ويرسل لك ملخصًا قصيرًا كل صباح يوم عمل. |
+| [`templates/incident-responder`](https://github.com/LinuxDevil/lousho/blob/main/templates/incident-responder/spec.yaml) | يحوّل كل تنبيه يُطلَق إلى ملخص حادثة قصير مع الأسباب المحتملة والخطوات التالية، وينشره في Slack. |
+| [`templates/pr-reviewer`](https://github.com/LinuxDevil/lousho/blob/main/templates/pr-reviewer/spec.yaml) | يراجع كل pull request جديد أو محدَّث وينشر تعليق مراجعة واحدًا بعد موافقتك عليه. |
+| [`templates/research-assistant`](https://github.com/LinuxDevil/lousho/blob/main/templates/research-assistant/spec.yaml) | يجيب عن سؤال بحثي بقراءة صفحات الويب ويستشهد بكل مصدر استخدمه. |
+| [`templates/docs-qa`](https://github.com/LinuxDevil/lousho/blob/main/templates/docs-qa/spec.yaml) | يجيب عن أسئلة حول توثيقك في المحادثة أو Slack ويضع روابط الصفحات التي استخدمها. |

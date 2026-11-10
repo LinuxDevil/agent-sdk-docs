@@ -3,7 +3,7 @@ title: "البدء السريع"
 sidebarTitle: "البدء السريع"
 description: "هذه الصفحة توصلك من agent بسطر واحد إلى tools وstreaming وsessions وapproval واختبار offline. كل مثال بعد الأول يعمل كما هو دون مفتاح API، على الـ mock provider المدمج في الـ SDK."
 ---
-{/* Generated from docs/quick-start.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
+{/* Generated from docs/quick-start.md in LinuxDevil/lousho by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 ## ابدأ مشروع جديد
 
@@ -199,7 +199,7 @@ console.log('ok');
 
 ## 7. Custom provider
 
-`model: 'provider/model'` هو الطريق المختصر. مرّر `provider` بدلًا منه إذا كان عندك `LLMProvider` خاص بك أو تريد الـ mock للاختبارات. `resolveProvider('<provider>/<model>')` هي الدالة التي يستخدمها `model` من الداخل. هذا المثال يستخدم OpenAI إذا كان `OPENAI_API_KEY` موجودًا، ويرجع إلى الـ mock provider في غير ذلك. وهو نفس النمط الذي تستخدمه [الأمثلة](https://github.com/LinuxDevil/agent-sdk/blob/main/examples/README.md) الجاهزة للتشغيل.
+`model: 'provider/model'` هو الطريق المختصر. مرّر `provider` بدلًا منه إذا كان عندك `LLMProvider` خاص بك أو تريد الـ mock للاختبارات. `resolveProvider('<provider>/<model>')` هي الدالة التي يستخدمها `model` من الداخل. هذا المثال يستخدم OpenAI إذا كان `OPENAI_API_KEY` موجودًا، ويرجع إلى الـ mock provider في غير ذلك. وهو نفس النمط الذي تستخدمه [الأمثلة](https://github.com/LinuxDevil/lousho/blob/main/examples/README.md) الجاهزة للتشغيل.
 
 ```ts
 import { createAgent, createMockProvider, resolveProvider } from 'lousho';
@@ -265,4 +265,4 @@ npx lousho build --target=node-server --agent=agent.yaml
 - [الإعداد](/ar/configuration) - كل حقول ملف الـ spec، ومتغيرات بيئة الـ providers، وflags الـ CLI.
 - [النشر](/ar/deployment) - أهداف `lousho build` (سيرفر Node، وDocker، وCloudflare Workers).
 - [نظرة عامة على الـ API](/ar/api-overview) - أهم الـ exports ومكان مرجع الـ API الكامل.
-- [الأمثلة](https://github.com/LinuxDevil/agent-sdk/blob/main/examples/README.md) - agents جاهزة للتشغيل.
+- [الأمثلة](https://github.com/LinuxDevil/lousho/blob/main/examples/README.md) - agents جاهزة للتشغيل.
