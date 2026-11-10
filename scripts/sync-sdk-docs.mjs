@@ -96,6 +96,7 @@ const PAGES = {
   'docs/self-healing.md': 'self-healing',
   'docs/improve.md': 'improve',
   'docs/agent-spec.md': 'agent-spec',
+  'docs/comparison.md': 'comparison',
   'CHANGELOG.md': 'changelog',
   // Example READMEs become full pages under the Examples tab.
   'examples/waves/README.md': 'examples/waves',

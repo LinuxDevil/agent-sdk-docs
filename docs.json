@@ -47,6 +47,7 @@
                   "introduction",
                   "quickstart",
                   "installation",
+                  "comparison",
                   "troubleshooting",
                   "coding-agents",
                   "build-a-coding-agent"
@@ -239,6 +240,7 @@
                   "ar/introduction",
                   "ar/quickstart",
                   "ar/installation",
+                  "ar/comparison",
                   "ar/troubleshooting",
                   "ar/coding-agents"
                 ]
