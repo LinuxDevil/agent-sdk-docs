@@ -56,7 +56,7 @@ console.log(result.text, result.usage.hostedToolCalls); // { web_search: 1 }
 
 في OpenRouter، `webSearch()` تضيف الـ server tool الخاصة بـ OpenRouter، وهي `openrouter:web_search`، إلى الطلب. البحث يصير على جهة OpenRouter لأي model. OpenRouter هو من يختار محرك البحث: بحث الـ model نفسه إن كان عنده، وإلا Exa. ويحاسبك على كل بحث فوق الـ tokens بالأسعار الموجودة في [صفحة أسعار OpenRouter](https://openrouter.ai/pricing). راجع [دليل web search](https://openrouter.ai/docs/guides/features/server-tools/web-search) لتفاصيل المحركات. ولأن السيرفر ينفّذ البحث داخل الطلب، الـ model لا يبلّغ عن أي tool call. بدلها يبلّغ الـ SDK عن hosted call واحدة لكل model step بحث فيها، ويقرأها من ردّ OpenRouter: `name: 'web_search'`، و`args` فارغة، والروابط المستشهد بها من `url_citation` annotations تصير `sources`، و`result: { requests }` إذا بلّغ OpenRouter عن `usage.server_tool_use.web_search_requests` (وإلا `result` تكون `{}`؛ الاختبار الحي ما استلم عددًا). الاستعلام الذي بحث عنه الـ model لا يُبلَّغ عنه.
 
-أي توليفة غير مدعومة ترفض الـ run قبل أول model call بخطأ [`LOUSHO_HOSTED_TOOL_UNSUPPORTED`](/ar/errors#lousho_hosted_tool_unsupported) يذكر الـ provider والـ tool وما الذي سيشتغل.
+أي توليفة غير مدعومة ترفض الـ run قبل أول model call بخطأ [`LOUSHO_HOSTED_TOOL_UNSUPPORTED`](/ar/errors#lousho_unsupported_content) يذكر الـ provider والـ tool وما الذي سيشتغل.
 
 الـ `LLMProvider` المخصّص يعلن عمّا يقدر يرسله عبر `supportsHostedTool(type)` — قيمة `type` هي `'web_search'` أو `'code_interpreter'` أو `'file_search'` أو `'custom'` لـ `hostedTool()` — ويستلم الـ tools في `GenerateOptions.hostedTools`. الـ provider الذي لا يملك هذه الدالة ما يدعم أي hosted tool. و`withRetry()` و`withFallback()` تسألان الـ provider المغلَّف (الأول).
 

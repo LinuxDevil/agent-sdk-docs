@@ -37,7 +37,7 @@ const custom = LLMProviderRegistry.create('openai', {
 ### Vendors بدون بادئة
 
 البادئة اللي الـ SDK ما يعرفها تفشل بـ
-[`LOUSHO_PROVIDER_UNKNOWN`](/ar/errors#lousho_provider_unknown). الخطأ القريب
+[`LOUSHO_PROVIDER_UNKNOWN`](/ar/errors#lousho_provider_missing_api_key). الخطأ القريب
 (`anthopic/...`) ياخذ اقتراح "did you mean"؛ وأي vendor آخر تطلع له الطرق اللي
 توصل له فيها مع ذلك:
 
@@ -178,7 +178,7 @@ console.log(textOf(messages[0]), '->', result.text);
   | `pi` | ولا نوع (دائمًا ملاحظة نصية) | ولا نوع (دائمًا ملاحظة نصية؛ pi ما عنده file part) |
 
   أي file part آخر يرفض الـ call بـ
-  [`LOUSHO_UNSUPPORTED_CONTENT`](/ar/errors#lousho_unsupported_content)
+  [`LOUSHO_UNSUPPORTED_CONTENT`](/ar/errors#ملفات-الـ-agentspec)
   قبل ما يترسل أي شيء، فالـ model ما يجاوب أبدًا بدون الملف (وتحت
   `withFallback()` الـ call تروح للـ provider التالي). ولو تبي ملاحظة نصية
   مكانه بدل كذا (`[file report.pdf (application/pdf) not sent]`، مع تحذير

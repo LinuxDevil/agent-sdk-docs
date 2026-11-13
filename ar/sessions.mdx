@@ -441,7 +441,7 @@ store.close();
   أما الـ approvals اللي لسه ما اتحسمت وOAuth tokens فبيفضلوا، وكمان الـ turn المتوقفة على
   approval لسه ما اتحسمت (الـ checkpoint بتاعتها وسجل محادثة الـ session)،
   مهما كانت قديمة. وتقرير approval الـ turn المتوقفة بتاعتها اتمسحت على أي حال
-  بيفشل بـ [`LOUSHO_APPROVAL_ORPHANED`](/ar/errors#lousho_approval_orphaned)
+  بيفشل بـ [`LOUSHO_APPROVAL_ORPHANED`](/ar/errors#lousho_approval_decision_invalid)
   من غير ما يشغّل الـ tool.
 - ملف مش database بتاع SQLite بيفشل بـ error بيذكر المسار؛
   واستخدام الـ store بعد `close()` بيرمي error واضح.
@@ -509,7 +509,7 @@ console.log(fork.id, reply.text); // 'trip-fork-1', 'Porto has a direct flight a
 - `fork({ fromStep })` بيمسك السجل لحد آخر رسالة tool في الخطوة
   ومعاها؛ و`fromStep: 0` ما بيمسك حاجة. وخطوة برا
   `0..history().length` بتترفض بـ
-  [`LOUSHO_SESSION_STEP_NOT_FOUND`](/ar/errors#lousho_session_step_not_found)،
+  [`LOUSHO_SESSION_STEP_NOT_FOUND`](/ar/errors#lousho_remote_request_failed)،
   ورسالته بتسرد النطاق الصحيح.
 - `patch: { toolResult: { toolCallId, result } }` بيبدّل نتيجة tool call
   واحدة في السجل المحتفَظ فيه ("ماذا لو البحث ما كان لقى ولا حاجة؟")،
@@ -523,7 +523,7 @@ console.log(fork.id, reply.text); // 'trip-fork-1', 'Porto has a direct flight a
   طويل زيادة على اللاحقة دي، `<start of id>-<8 hex of its hash>-fork-<n>`، ويفضل
   في حدود 128 حرف). و`id`
   إله سجل محادثة أصلًا (أو نفس id الـ session) بيترفض بـ
-  [`LOUSHO_SESSION_EXISTS`](/ar/errors#lousho_session_exists).
+  [`LOUSHO_SESSION_EXISTS`](/ar/errors#lousho_subagent_task_not_found).
 - الـ `messages` بتاعة الـ fork بتمسك سجل محادثته أول ما `fork()` يرجع.
 - سجل محادثة الـ session الأصلية وcheckpoints بتاعتها ما بيتغيروا.
 - الـ budgets: الـ spend المسجَّل لـ `limits` بيفضل على الرسائل المحتفَظ فيها، فـ

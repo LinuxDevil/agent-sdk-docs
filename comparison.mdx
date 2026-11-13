@@ -1,63 +1,83 @@
 ---
-title: "Comparison with other agent frameworks"
+title: "How Lousho compares"
 sidebarTitle: "Comparison"
+description: "This page compares Lousho with four other TypeScript agent libraries: the Vercel AI SDK (ToolLoopAgent), the OpenAI Agents SDK for JavaScript, Mastra and LangGraph.js. Each competitor cell comes from that project's official docs."
 ---
 {/* Generated from docs/comparison.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-**As of October 2026.** This page is a short orientation, not a benchmark.
-The TypeScript agent space moves fast: most of the projects below now ship
-durable approvals, evals and coding-agent harnesses of their own, so check
-their documentation before deciding. Rows about lousho describe this
-repository and link to the page that documents each claim.
+Last checked: 9 Nov 2026. These projects move fast, so a cell may be out of
+date. Corrections welcome: [open an issue](https://github.com/LinuxDevil/lousho/issues).
 
-## Each project in one row
+## How to read the table
 
-| Project | What it is | Approvals / human-in-the-loop | Evals | Coding agents | Where it is ahead of lousho |
-| ------- | ---------- | ----------------------------- | ----- | ------------- | --------------------------- |
-| lousho (`lousho`) | Self-hosted TypeScript agent SDK, one npm package, alpha | `needsApproval` + `resumeAfterApproval()` on memory, file, SQLite or Cloudflare KV stores ([Approvals](/approvals)) | `lousho eval`: trajectory assertions, record/replay cassettes, drift reports ([Evals](/evals)) | Workspace tools, permission rules, `piAgent()`, registry kits, ACP editor server ([Build a coding agent](/build-a-coding-agent)) | - |
-| [Vercel AI SDK 7](https://ai-sdk.dev) | Model, agent and UI toolkit for TypeScript | `WorkflowAgent` tools take `needsApproval`; runs are durable through the open-source Workflow DevKit | Not built in | `HarnessAgent` (experimental) wraps existing runtimes such as Claude Code behind one API | By far the most providers and UI integrations; lousho uses it underneath for the standard providers |
-| [Mastra](https://mastra.ai) | Full-stack TypeScript framework: agents, workflows, memory, RAG, dev UI | Workflow `suspend()` / `resume()` with persisted snapshots | Scorers, datasets and experiments, with results stored | Build it from agents, tools and workflows | Postgres and many other storage adapters, a local dev playground, a larger community |
-| [LangGraph.js](https://langchain-ai.github.io/langgraphjs/) | Graph-shaped, stateful workflows with checkpointing | `interrupt()` + `Command({ resume })` on any checkpointer | Through LangSmith (hosted) | Build it as a graph | Postgres checkpointer, explicit control flow, LangSmith tracing and evals |
-| [OpenAI Agents SDK (JS)](https://openai.github.io/openai-agents-js/) | Agents around OpenAI's APIs: handoffs, guardrails, tracing | Tool approvals with run-state resume | Through OpenAI's platform | Sandbox agents (beta) that read files, run commands and apply patches | First-class OpenAI hosted tools and sandboxes, OpenAI tracing dashboard |
-| [Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/overview) | The Claude Code agent loop as a library | `canUseTool` callback, hooks, permission modes and rules | Not built in | It *is* a coding agent: file, shell and edit tools, sessions, subagents | A production coding harness out of the box; Claude models |
-| [eve](https://github.com/vercel/eve) | Vercel's filesystem-first agent framework (Apache-2.0, beta) | Human-in-the-loop prompts on durable runs | `eve eval` with `defineEval`, asserting on tool calls | Sandboxes, channels (Slack, Discord, HTTP), schedules | Deploy and operations on Vercel, AI Gateway models, channels. Its `agent/` directory layout (`instructions.md`, `tools/`, `skills/`) mirrors lousho's [agent directories](/agent-directories) |
-| [VoltAgent](https://voltagent.dev) | TypeScript framework: agents, memory, workflows | Workflow suspend/resume | Built-in evals | Build it from agents and tools | VoltOps observability console and dashboards |
-| [open-harness](https://github.com/MaxGfeller/open-harness) | MIT TypeScript SDK on the AI SDK, modelled on Claude Code and Codex | Tool permissions | Not built in | Filesystem and bash tools, subagents, skills, MCP, compaction | Small, composable harness core focused on coding agents |
+- ✅ means the official docs show the feature.
+- partial means the docs show part of it, or it needs another product. The
+  footnote says what exists.
+- ❌ means we did not find the feature in the project's official docs. The
+  footnote links the page we read.
+- unverified means the official docs did not let us confirm the cell either way.
 
-## What lousho still does differently
+Each Lousho ✅ links to the Lousho page that documents it.
 
-Each item is checkable in this repository.
+## The table
 
-- **Record/replay cassettes and trajectory drift in one CLI.** `lousho eval --record`
-  runs every case against the real provider once and writes a cassette,
-  `--replay` runs them in CI with no network and no API key, and `--drift`
-  re-records into a temp directory and reports how each case's tool-call
-  trajectory changed ([Evals](/evals#record-replay-and-drift),
-  [Testing](/testing#record-and-replay)).
-- **Durable approvals on Cloudflare Workers KV** as well as memory, file and
-  SQLite, with the same `needsApproval` / `resumeAfterApproval()` code on each
-  ([Durable execution](/durable-execution), [Cloudflare Workers](/cloudflare-workers)).
-- **Self-hosted, one package, no platform account.** Runs in your Node process,
-  Docker or a Worker; nothing calls home and there is no hosted control plane to sign up for.
-- **Spans AI SDK majors.** The `ai` peer dependency accepts `^4.3.19`, `^6` and
-  `^7`, so an existing app can adopt lousho without first upgrading the AI SDK
-  ([Installation](/installation)).
+| | Lousho | Vercel AI SDK (ToolLoopAgent) | OpenAI Agents SDK (JS) | Mastra | LangGraph.js |
+|---|---|---|---|---|---|
+| Runs in your own process | ✅ ([quick start](/quickstart)) | ✅ | ✅ | ✅ | ✅ |
+| Durable resume after a crash | ✅ ([durable execution](/durable-execution#recovering-after-a-crash)) | partial[^v-durable] | ❌[^o-durable] | ✅ | ✅ |
+| Human approval with pause/resume across processes | ✅ ([pause, restart, resume](/pause-and-resume)) | ✅ | ✅ | ✅ | ✅ |
+| Offline record/replay evals | ✅ ([evals](/evals#record-replay-and-drift)) | partial[^v-evals] | partial[^o-evals] | partial[^m-evals] | partial[^l-evals] |
+| MCP client | ✅ ([MCP](/mcp-integration#use-mcp-servers-in-an-agent)) | ✅ | ✅ | ✅ | ✅ |
+| MCP server | ✅ ([MCP](/mcp-integration#serve-an-agent-over-mcp)) | partial[^v-mcp] | ❌[^o-mcp] | ✅ | partial[^l-mcp] |
+| React/Vue/Svelte bindings | ✅ ([React](/react), [Vue](/vue), [Svelte](/svelte)) | ✅ | ❌[^o-ui] | partial[^m-ui] | ✅ |
+| OpenTelemetry | ✅ ([observability](/observability)) | ✅ | ❌[^o-otel] | ✅ | unverified[^l-otel] |
+| Local studio/debugger | ✅ ([Agent Forge](/agent-forge)) | ✅ | ❌[^o-studio] | ✅ | partial[^l-studio] |
+| Provider-agnostic | ✅ ([providers](/providers)) | ✅ | ✅ | ✅ | ✅ |
+| Licence | MIT | Apache-2.0 | MIT | Apache-2.0, with some parts under a separate licence[^m-licence] | MIT |
 
-## Where lousho is weaker
+[^v-durable]: A `ToolLoopAgent` runs in memory and loses its progress on a crash. The separate `WorkflowAgent` from `@ai-sdk/workflow` is durable and survives restarts, but it runs inside a Workflow runtime. See [WorkflowAgent](https://ai-sdk.dev/docs/agents/workflow-agent).
+[^o-durable]: The docs show a run's state saved and resumed only when it stops for an approval (`RunState`). We found no checkpointing that lets a crashed run resume. See [Human-in-the-loop](https://openai.github.io/openai-agents-js/guides/human-in-the-loop/).
+[^v-evals]: The AI SDK has mock models and stream helpers for tests. We found no way to record a real run and replay it, or to report trajectory drift. See [Testing](https://ai-sdk.dev/docs/ai-sdk-core/testing).
+[^o-evals]: `@openai/agents/testing` has a `ScriptedModel` that runs offline, and a recipe to detect workflow drift. The scripted steps are written by hand, not recorded from a real run. See [Testing](https://openai.github.io/openai-agents-js/guides/testing/).
+[^m-evals]: Experiments can mock tool outputs on dataset items, and there is a trajectory accuracy scorer. We found no recording of real model responses for offline replay. See [Experiments](https://mastra.ai/docs/evals/experiments) and [Built-in scorers](https://mastra.ai/docs/evals/built-in-scorers).
+[^l-evals]: `agentevals` can match a run against a trajectory you write by hand, with no model calls. HTTP caching for tests is documented for Python (pytest), not for the JS Vitest/Jest integration. See [Evals](https://docs.langchain.com/oss/javascript/langchain/evals) and [Vitest/Jest](https://docs.langchain.com/langsmith/vitest-jest).
+[^v-mcp]: Vercel documents a separate `mcp-handler` package for building MCP servers. It is not part of the AI SDK and has no helper to serve an agent. See [Deploy MCP servers to Vercel](https://vercel.com/docs/mcp/deploy-mcp-servers-to-vercel).
+[^o-mcp]: The MCP guide covers connecting to MCP servers. We found no API to serve an agent as an MCP server. See [MCP](https://openai.github.io/openai-agents-js/guides/mcp/).
+[^l-mcp]: Agent Server, including the local `langgraph dev` server, exposes agents at `/mcp`. We found no way to do it from the library alone. See [MCP endpoint in Agent Server](https://docs.langchain.com/langsmith/server-mcp).
+[^o-ui]: We found no React, Vue or Svelte UI hooks in the docs. See the [full docs](https://openai.github.io/openai-agents-js/llms-full.txt).
+[^m-ui]: Mastra has a first-party React package and a client SDK. Svelte works through the AI SDK's `@ai-sdk/svelte` with `@mastra/ai-sdk`. We found no Vue page. See [Mastra Client](https://mastra.ai/docs/server/mastra-client), [AI SDK UI](https://mastra.ai/integrations/agentic-ui/ai-sdk-ui) and [SvelteKit](https://mastra.ai/integrations/frameworks/sveltekit).
+[^o-otel]: Traces go to the OpenAI dashboard by default, and you can add your own trace processors. The docs do not mention OpenTelemetry. See [Tracing](https://openai.github.io/openai-agents-js/guides/tracing/).
+[^l-otel]: LangSmith accepts OpenTelemetry spans, but every setup example is in Python. We could not confirm the JS setup. See [Trace with OpenTelemetry](https://docs.langchain.com/langsmith/trace-with-opentelemetry).
+[^o-studio]: Runs are inspected in the hosted Traces dashboard. We found no local UI. See [Tracing](https://openai.github.io/openai-agents-js/guides/tracing/).
+[^l-studio]: `langgraph dev` runs a local server, and Studio connects to it. Studio is served from smith.langchain.com and needs a LangSmith account and API key. See [Studio](https://docs.langchain.com/oss/javascript/langgraph/studio) and [Local server](https://docs.langchain.com/oss/javascript/langgraph/local-server).
+[^m-licence]: Code in `ee/` folders is under the Mastra Enterprise Edition licence. It is source-available, not open source. See [LICENSE.md](https://github.com/mastra-ai/mastra/blob/main/LICENSE.md).
 
-- **Alpha, one maintainer.** The 1.0 line is still `1.0.0-alpha.*`. Expect API churn, a small community and few third-party integrations.
-- **No Postgres store.** Checkpoint and approval stores ship for memory, file, SQLite and Cloudflare KV. Mastra and LangGraph ship Postgres; here you implement the small `CheckpointStore` / `ApprovalStore` interfaces yourself.
-- **Fewer native providers.** OpenAI, Anthropic, OpenRouter, Ollama and the Pi catalog are built in; anything else goes through `fromAiSdk()` ([Providers](/providers)).
-- **No hosted dashboard.** Traces are OpenTelemetry spans you send to your own backend ([Observability](/observability)); there is no hosted equivalent of LangSmith or VoltOps. Agent Forge (`lousho studio`) is a local visual console, not a hosted service ([Agent Forge](/agent-forge)).
-- **The root entry point is not edge-safe.** Cloudflare Workers use the dedicated `worker` build and subpaths ([Cloudflare Workers](/cloudflare-workers)).
-- **Live runs are manual.** CI runs offline tests and cassette replays; live-provider checks are run by hand.
+## What the rows mean
 
-## Picking one
+- **Runs in your own process**: a library you call from your own Node process.
+  No hosted runtime is needed.
+- **Durable resume after a crash**: a run that dies part way through can carry
+  on from a checkpoint, without redoing work that already finished.
+- **Human approval with pause/resume across processes**: a tool call can wait
+  for a person, the wait can be saved, and another process can finish the run.
+- **Offline record/replay evals**: record a real run once, replay it in CI with
+  no network and no API key, and flag when the tool-call trajectory changes.
+- **MCP client / MCP server**: call tools from MCP servers, or serve your agent
+  as one.
+- **React/Vue/Svelte bindings**: first-party UI hooks or stores for those
+  frameworks.
+- **OpenTelemetry**: spans you can send to any OpenTelemetry backend.
+- **Local studio/debugger**: a UI on your machine to inspect and run agents.
+- **Provider-agnostic**: works with models from more than one vendor. Lousho resolves `vendor/model` strings for its own providers and for every official `@ai-sdk/*` package ([any AI SDK vendor](/providers#any-ai-sdk-vendor-by-name)).
 
-If you only need model calls with streaming UI, the Vercel AI SDK alone is the
-simpler choice. If you want a ready-made coding agent, start from the Claude
-Agent SDK or an AI SDK harness. If you want an all-in-one framework with a dev
-UI and Postgres, look at Mastra; if your control flow is a graph, LangGraph.js;
-if you deploy on Vercel, eve. Pick lousho when you want offline
-record/replay evals, approvals that survive a restart on your own stores
-(including Workers KV), and one self-hosted package with no platform account.
+## When not to use Lousho
+
+- **You need Python.** Lousho is TypeScript only. It needs Node 22.19 or later.
+- **You want a managed platform.** Lousho has no hosted runtime. You run and
+  host the agent, its store and the studio yourself.
+- **You need a stable 1.0 API today.** Lousho is in alpha (`1.0.0-alpha.*`).
+  The API may change before 1.0, so pin a version. See
+  [Upgrading to 1.0](/upgrading).
+- **You only need one model call or a simple tool loop.** The Vercel AI SDK on
+  its own is smaller. Lousho builds on it, so you can move over later. See
+  [Migrating from the AI SDK](/migrating-from-ai-sdk).

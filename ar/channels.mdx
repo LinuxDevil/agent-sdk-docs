@@ -224,10 +224,10 @@ await channels.resolveApproval({ id: 'the-approval-id', approved: true });
 | ------- | ------- | -------- |
 | `httpChannel({ name?, verify? })` | JSON `{ sessionKey, input }` (`input` نص أو content parts)؛ أي شيء ثاني 400. وبدون `verify`، جسم ينرسل بدون `Content-Type: application/json` ياخذ `415` (`LOUSHO_UNSUPPORTED_MEDIA_TYPE`)، فصفحة ويب ما تقدر ترسل له فورم | `200 { sessionId, text, finishReason }`؛ ولما يتوقف، `approval` كمان و`text` هو الـ prompt |
 | `webhookChannel({ secret?, auth?, name?, principal? })` | نص `input` في جسم JSON، أو الجسم كله؛ session لمرة وحدة إلا لو الجسم فيه `sessionKey` | `200` مع `ExecutionResult` تبع الـ turn |
-| `slackChannel({ signingSecret, botToken, name?, fetch?, approvers?, onError? })` | طلبات Slack Events API والتفاعلات (راجع [Slack](#slack)) | `200` فورًا؛ الردود تُنشر في الـ thread على Slack |
-| `discordChannel({ publicKey, applicationId, botToken?, name?, fetch?, approvers?, onError? })` | تفاعلات slash command والأزرار في Discord (راجع [Discord](#discord)) | ack مؤجّل فورًا؛ الرد يعدّل الرد الأصلي |
-| `telegramChannel({ botToken, secretToken, botUsername?, name?, fetch?, approvers?, onError? })` | تحديثات webhook البوت في Telegram: رسائل ونقرات على inline keyboard (راجع [Telegram](#telegram)) | `200` فورًا؛ الردود تُرسل بـ `sendMessage` كنص عادي |
-| `githubChannel({ webhookSecret, botName, token?, app?, name?, apiUrl?, fetch?, triggers?, approvers?, onError? })` | تعليقات GitHub على issues وpull requests والـ reviews اللي تذكر `@<botName>` (راجع [GitHub](#github)) | `200` فورًا؛ الردود تُنشر كتعليقات في نفس الـ thread |
+| `slackChannel({ signingSecret, botToken, name?, fetch?, approvers?, onError? })` | طلبات Slack Events API والتفاعلات (راجع [Slack](#discord)) | `200` فورًا؛ الردود تُنشر في الـ thread على Slack |
+| `discordChannel({ publicKey, applicationId, botToken?, name?, fetch?, approvers?, onError? })` | تفاعلات slash command والأزرار في Discord (راجع [Discord](#telegram)) | ack مؤجّل فورًا؛ الرد يعدّل الرد الأصلي |
+| `telegramChannel({ botToken, secretToken, botUsername?, name?, fetch?, approvers?, onError? })` | تحديثات webhook البوت في Telegram: رسائل ونقرات على inline keyboard (راجع [Telegram](#github)) | `200` فورًا؛ الردود تُرسل بـ `sendMessage` كنص عادي |
+| `githubChannel({ webhookSecret, botName, token?, app?, name?, apiUrl?, fetch?, triggers?, approvers?, onError? })` | تعليقات GitHub على issues وpull requests والـ reviews اللي تذكر `@<botName>` (راجع [GitHub](#microsoft-teams)) | `200` فورًا؛ الردود تُنشر كتعليقات في نفس الـ thread |
 | `teamsChannel({ appId, appPassword, tenantId?, name?, fetch?, approvers?, onError? })` | رسائل Microsoft Teams ونقرات أزرار Adaptive Card من Azure Bot (راجع [Microsoft Teams](#microsoft-teams)) | `200` فورًا؛ الردود تُنشر عبر Bot Framework Connector كـ Markdown |
 
 `webhookChannel({ secret })` تفحص توقيع HMAC-SHA256 للجسم الخام في

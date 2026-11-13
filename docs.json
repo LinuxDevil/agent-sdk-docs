@@ -163,6 +163,9 @@
                   "cloudflare-workers",
                   "registry",
                   "agent-forge",
+                  "forge-builder",
+                  "forge-author",
+                  "forge-lifecycle",
                   {
                     "group": "Deployment guides",
                     "pages": [

@@ -5,6 +5,8 @@ title: "Configuration"
 
 ## Agent spec files (`AgentSpec`)
 
+> This page describes spec version 1. New specs use [Agent spec v2](https://github.com/LinuxDevil/agent-sdk/blob/main/docs/agent-spec.md); `upgradeSpec()` converts a v1 spec.
+
 A declarative agent is a YAML (`.yaml`/`.yml`) or JSON (`.json`) file,
 validated with zod by `loadSpec()` (`src/spec/schema.ts`). It is the format
 `lousho dev` serves and `lousho build` deploys.
@@ -19,7 +21,7 @@ validated with zod by `loadSpec()` (`src/spec/schema.ts`). It is the format
 | `provider.model` | `string`   | yes      | Model id every call uses (the provider's configured model; an agent's own `settings.model` would override it). |
 | `tools`          | `string[]` | no       | Built-in tool names (see below).                       |
 | `policy`         | `AgentSpecPolicy` | no | Approvals, guardrails, limits and more, enforced when the spec becomes an agent (see below). |
-| `triggers`       | `AgentSpecTrigger[]` | no | What runs the agent on its own — cron schedules (`{ type: 'cron', cron, input, name?, timezone? }`); see [Schedules](/schedules) and [Triggers](/triggers#cron-expressions). |
+| `triggers`       | `AgentSpecTrigger[]` | no | What runs the agent on its own — cron schedules (`{ type: 'cron', cron, input, name?, timezone? }`), which `lousho dev` starts like a directory's schedules; see [Schedules](/schedules) and [Triggers](/triggers#cron-expressions). |
 | `mcpServers`     | `Record<string, McpServerSpec>` | no | MCP servers the agent uses, keyed by name (see below). |
 
 A missing or invalid field fails with an error naming the exact field, e.g.

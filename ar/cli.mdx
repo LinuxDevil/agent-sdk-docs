@@ -14,7 +14,7 @@ title: "CLI"
 | `lousho acp <path>` | يقدّم ملف spec أو مجلد agent أو agent مكتوب بـ TS لمحرر (Zed وغيره من ACP clients) عبر Agent Client Protocol على stdio. | [ACP](/ar/acp) |
 | `lousho add <name>` | يثبّت tool أو skill أو channel أو schedule أو memory slot من JSON registry داخل مجلد agent، بعد ما يعرض الـ permission manifest ويفحص الكود مقابله. | [Registry](/ar/registry) |
 | `lousho mcp <spec>` | يقدّم الـ agent كسيرفر MCP (stdio، أو HTTP مع `--http`). | [MCP](/ar/mcp-integration#تشغيل-agent-كسيرفر-mcp) |
-| `lousho eval [globs...]` | يشغّل ملفات `*.eval.ts` تحت vitest؛ ويطبع ملخصًا ويكتب تقارير JUnit/JSON. | [Evals](/ar/evals#lousho-eval) |
+| `lousho eval [globs...]` | يشغّل ملفات `*.eval.ts` تحت vitest؛ ويطبع ملخصًا ويكتب تقارير JUnit/JSON. | [Evals](/ar/evals#حدود-الوقت) |
 | `lousho traces [id]` | يعرض آخر runs حفظها `fileTraceExporter()` (المدة، والـ model والـ tool calls، والـ tokens، والتكلفة)، أو يطبع run واحد كشجرة spans. | [Observability](/ar/observability#local-traces) |
 | `lousho build --target=<t> --agent=<spec>` | يبني سيرفر Node أو Docker image أو Cloudflare Worker جاهزًا للنشر. | [النشر](/ar/deployment) |
 | `lousho studio` | يفتح Agent Forge، الـ dashboard المرئية، على port محلي واحد. | [Agent Forge](/ar/agent-forge) |

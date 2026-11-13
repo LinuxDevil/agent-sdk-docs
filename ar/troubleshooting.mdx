@@ -17,13 +17,13 @@ title: "حل المشاكل"
 
 - **السبب:** متغير مفتاح الـ provider (`OPENAI_API_KEY` أو `ANTHROPIC_API_KEY` أو `OPENROUTER_API_KEY`) غير موجود في بيئة العملية التي تشغّل الـ agent (`LOUSHO_PROVIDER_MISSING_API_KEY`).
 - **الحل:** اضبطه، أو مرّر instance جاهز من الـ provider. `npx lousho doctor` يطبع `set` أو `not set` لكل مفتاح، ولا يطبع القيمة أبدًا. بادئة `vendor/` في اسم الـ model هي التي تختار الـ provider؛ مع OpenRouter استخدم `openrouter/<vendor>/<model>` (مثال `openrouter/openai/gpt-4o-mini`) — `model: 'openai/gpt-4o-mini'` يحتاج `OPENAI_API_KEY` حتى لو `OPENROUTER_API_KEY` هو الوحيد المضبوط.
-- **للمزيد:** [الخطأ](/ar/errors#lousho_provider_missing_api_key).
+- **للمزيد:** [الخطأ](/ar/errors#lousho_provider_request_failed).
 
 ### "Cannot find package `@ai-sdk/openai`" أو "install the optional peer"
 
 - **السبب:** كل provider يعتمد على حزمة اختيارية تُحمَّل عند أول استخدام، بإصدار رئيسي يقابل إصدار `ai` الرئيسي عندك (`LOUSHO_PEER_MISSING`). نفس الخطأ يغطي باقي الـ peer dependencies الاختيارية، مثل `dockerode` و`@modelcontextprotocol/sdk`.
 - **الحل:** نفّذ أمر `npm install` الموجود في الرسالة (موجود أيضًا في `error.installCommand`)، أو ابحث عن إصدار `ai` الرئيسي عندك في جدول الاقتران.
-- **للمزيد:** [حزم الـ providers](/ar/installation#حزم-الـ-providers)، [الـ peer dependencies الاختيارية](/ar/installation#optional-peers)، [الخطأ](/ar/errors#lousho_peer_missing).
+- **للمزيد:** [حزم الـ providers](/ar/installation#حزم-الـ-providers)، [الـ peer dependencies الاختيارية](/ar/installation#optional-peers)، [الخطأ](/ar/errors#lousho_hosted_tool_unsupported).
 
 ### "`ai` 5 is installed"
 
@@ -73,7 +73,7 @@ title: "حل المشاكل"
 
 - **السبب:** الـ session الموقوفة على approval لا تقبل مدخل جديد (`LOUSHO_SESSION_AWAITING_APPROVAL`)؛ أو أن `session.compact()` أو `session.clear()` استُدعيت وفي turn شغّال أو في الطابور (`LOUSHO_SESSION_BUSY`).
 - **الحل:** حسم الـ approval ثم أرسل مجددًا؛ أو انتظر `send()` الخاصة بالـ turn (أو ألغِها)، ثم استدعِ من جديد.
-- **للمزيد:** [بانتظار الـ approval](/ar/errors#lousho_session_awaiting_approval)، [مشغولة](/ar/errors#lousho_session_busy).
+- **للمزيد:** [بانتظار الـ approval](/ar/errors#lousho_session_turn_pending)، [مشغولة](/ar/errors#lousho_session_step_not_found).
 
 ## Tools
 
@@ -93,7 +93,7 @@ title: "حل المشاكل"
 
 - **السبب:** الـ model أرسل arguments لا تطابق الـ input schema للـ tool. داخل الـ run ترجع له الـ issues كنتيجة ويقدر يعيد المحاولة، فنادرًا ما ينتهي run بسببه.
 - **الحل:** إذا الـ model يغلط في نفس الحقل، خلّ نص `.describe()` أوضح. وإذا إنت استدعيت الـ tool بنفسك، صحّح الـ arguments المذكورة في الرسالة.
-- **للمزيد:** [الخطأ](/ar/errors#lousho_tool_args_invalid).
+- **للمزيد:** [الخطأ](/ar/errors#الـ-approvals-والـ-sessions).
 
 ## Providers و models
 
@@ -101,7 +101,7 @@ title: "حل المشاكل"
 
 - **السبب:** الـ provider طبّق rate limit على الاستدعاء (`LOUSHO_PROVIDER_RATE_LIMITED`) أو فشل فشلًا عابرًا.
 - **الحل:** `createAgent()` أصلًا تعيد الاستدعاء الفاشل مرتين — لكن فقط لـ model مُمرّر كسلسلة `provider/model` أو محلول من البيئة؛ أما `provider` instance تمرّره إنت فلا تُعاد محاولاته إلا إذا ضبطت `retry`. ارفعها بـ `retry: { maxRetries: 3 }`، واضبط `fallbackModels` للانتقال إلى الـ model التالي إذا الاستدعاء ظل يفشل.
-- **للمزيد:** [إعادة المحاولة و fallback models](/ar/providers#retry-ونماذج-fallback)، [الخطأ](/ar/errors#lousho_provider_rate_limited).
+- **للمزيد:** [إعادة المحاولة و fallback models](/ar/providers#retry-ونماذج-fallback)، [الخطأ](/ar/errors#lousho_peer_missing).
 
 ### الـ model لا يقرأ ملفاتي
 
@@ -121,7 +121,7 @@ title: "حل المشاكل"
 
 - **السبب:** `SubprocessSandbox` مع `network: { allow }` و`broker` يحتاج الـ broker يكون المخرج الوحيد للحاوية. Docker Desktop وrootless Docker وdaemon على جهاز آخر وEngine أقدم من 25.0.5 كلها ما تقدر تعطيك هذا، فلا تبدأ أي حاوية (`LOUSHO_SANDBOX_EGRESS_UNSUPPORTED`). الرفض مقصود، بدل فتح egress مفتوح.
 - **الحل:** شغّل الـ agent على Linux host عليه Docker Engine 25.0.5 أو أحدث، أو استخدم `network: 'none'`.
-- **للمزيد:** [Sandboxed shell](/ar/workspace-tools#sandboxed-shell-sandboxshell)، [الخطأ](/ar/errors#lousho_sandbox_egress_unsupported).
+- **للمزيد:** [Sandboxed shell](/ar/workspace-tools#sandboxed-shell-sandboxshell)، [الخطأ](/ar/errors#lousho_flow_invalid).
 
 ### أدوات سيرفر MCP ما تظهر
 

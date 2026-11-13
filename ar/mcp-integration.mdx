@@ -49,9 +49,9 @@ await agent.close();
 أي متغير آخر يحتاجه السيرفر (API key، أو `NODE_ENV`، أو إعداد proxy)
 لا يُورَّث إلا إذا ذكرته: `env: { GITHUB_TOKEN: process.env.GITHUB_TOKEN }`. الـ tool call
 الفاشل (السيرفر خرج، أو انتهت مهلته، أو ردّ بخطأ في البروتوكول)
-يُرفض بـ[`LOUSHO_MCP_CALL_FAILED`](/ar/errors#lousho_mcp_call_failed) مع ذكر
+يُرفض بـ[`LOUSHO_MCP_CALL_FAILED`](/ar/errors#lousho_approval_not_found) مع ذكر
 `<server>__<tool>`. والسيرفر الذي لا يبدأ يفشل بـ
-[`LOUSHO_MCP_START_FAILED`](/ar/errors#lousho_mcp_start_failed)، ورسالته
+[`LOUSHO_MCP_START_FAILED`](/ar/errors#lousho_approval_store_missing)، ورسالته
 فيها exit code وآخر الأسطر التي كتبتها العملية على stderr.
 `stderr: 'forward'` (الافتراضي) ينسخ أيضًا stderr العملية إلى stderr العملية الحالية،
 و`'capture'` يحتفظ بآخر الأسطر فقط، و`'inherit'` / `'ignore'` لا يحتفظان بشيء.

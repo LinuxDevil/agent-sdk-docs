@@ -26,7 +26,7 @@ npx lousho eval
 الرسائل بـ `t.send()`، وبعدها اعمل assert على الـ run. لو خلّيت `mockModel`
 هو الـ provider الخاص بالـ agent، يصير الـ eval deterministic: لا شبكة، لا API key، لا
 flakiness. **هذه هي الطريقة الافتراضية لكتابة eval**؛ استخدم model حقيقي
-فقط في [judge evals](#judge-evals) بالأسفل.
+فقط في [judge evals](#lousho-eval) بالأسفل.
 
 ```ts
 // refund.eval.ts
@@ -85,7 +85,7 @@ defineEval({
 | `t.maxCostUsd(n, { unknownCost? })` | gate | تكلفة الـ run المُبلَّغ عنها `n` دولار كحد أقصى. لو الـ SDK ما بلّغ عن تكلفة (الـ model ما له سعر معروف؛ شوف `registerModel`) تفشل الـ gate، لأن الميزانية ما يمكن التحقق منها؛ ومع `unknownCost: 'skip'` تتخطّاها بدل ذلك (تنحسب ناجحة، بعلامة `skipped`، مع `console.warn`) |
 | `t.check(name, value, check)` | gate | الـ `check` ينجح على `value` |
 | `t.soft(name, value, check)` | soft | ما تفشل الـ run أبدًا (إلا مع `--strict`)؛ الدرجة تتسجّل وتظهر في التقرير |
-| `await t.judge(rubric)` | n/a | ترجع درجة من 0 إلى 1 من judge هو LLM (شوف [Judge evals](#judge-evals)) |
+| `await t.judge(rubric)` | n/a | ترجع درجة من 0 إلى 1 من judge هو LLM (شوف [Judge evals](#lousho-eval)) |
 
 الـ checks المتاحة لـ `t.check()` و`t.soft()`: `includes(text)` و`matches(regex)`
 و`equals(value)` (نعم/لا، درجة 1 أو 0)، و`atLeast(n)` و`atMost(n)`
@@ -260,7 +260,7 @@ lousho eval [globs...] [--tag t] [--junit path] [--json path] [--strict] [--judg
 | `--url base` | يشغّل كل case على الـ agent المنشور عند `base` بدل داخل العملية؛ `--token` (أو `LOUSHO_EVAL_TOKEN`) هو الـ bearer token. شوف [تشغيل evals على deployment](#تشغيل-evals-على-deployment) |
 | `--config path` | يستخدم vitest config الخاص بك بدل المولَّد |
 | `--timeout ms` | حد الوقت لكل case بالملي ثانية (`0` = بلا حد)؛ شوف [حدود الوقت](#حدود-الوقت) |
-| `--record` | يشغّل على الـ provider الحقيقي ويكتب cassette (ملف تسجيل) واحد لكل case ([بالأسفل](#record-replay-and-drift)) |
+| `--record` | يشغّل على الـ provider الحقيقي ويكتب cassette (ملف تسجيل) واحد لكل case ([بالأسفل](#تشغيل-evals-على-deployment)) |
 | `--replay` | يشغّل كل case من الـ cassette الخاص بها، بدون شبكة؛ cassette مفقودة تفشل الـ case |
 | `--drift` | يعيد التسجيل في مجلد مؤقت ويبلّغ كيف تغيّرت trajectory كل case (`--drift-usage` يقارن الـ tokens أيضًا) |
 
@@ -359,7 +359,7 @@ jobs:
 | `LOUSHO_EVAL_DRIFT_DIR` | `--drift` | مع `record`: المكان الذي يكتب فيه run الـ drift الـ cassettes بدل جنب ملف الـ eval. |
 | `LOUSHO_EVAL_CONFIG` | `--config` | مسار الـ config، حتى تكرّره تلميحات إعادة التسجيل. |
 | `LOUSHO_EVAL_TAGS` | `--tag` | tags مفصولة بفواصل؛ ما يشتغل إلا الـ cases التي فيها واحد منها. |
-| `LOUSHO_EVAL_RESULTS` | دائمًا | الملف الذي تضيف له كل case سطر نتيجتها، والذي يرجع `lousho eval` يقراه (شوف [`lousho eval`](#lousho-eval)). |
+| `LOUSHO_EVAL_RESULTS` | دائمًا | الملف الذي تضيف له كل case سطر نتيجتها، والذي يرجع `lousho eval` يقراه (شوف [`lousho eval`](#حدود-الوقت)). |
 | `LOUSHO_EVAL_URL` | `--url` | الـ base URL للـ agent المنشور الذي تشتغل عليه الـ cases. |
 | `LOUSHO_EVAL_TOKEN` | `--token` | الـ bearer token لـ `--url`. |
 | `LOUSHO_ALLOW_LLM_JUDGE` | `--judge` | يُضبط على `1` داخل runner الـ judge. بدونه، `llmJudge()` / `llmCritique()` لو انستدعت خارج ذلك الـ runner ترمي `LOUSHO_EVALS_INVALID`، حتى judge eval في غير مكانه ما يعمل أبدًا call مدفوع لـ model في test run عادي. |

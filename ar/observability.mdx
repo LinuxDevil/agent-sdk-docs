@@ -285,7 +285,7 @@ invoke_agent weather         |████████████████�
 
 `startTime` و`endTime` بالـ milliseconds منذ الـ epoch؛ `attributes` هي سمات الـ span المذكورة فوق، كاملة بدون اختصار. الـ span الذي لم ينتهِ أبدا (العملية ماتت) لا يوجد في الملف. إذا تعذّرت الكتابة في المجلد، الـ exporter يحذّر مرة واحدة والـ run يكمل. `listTraces({ dir, limit })` و`readTrace(idOrPrefix, { dir })` تقرأ الملفات من الكود.
 
-الملفات تحمل ما تحمله الـ spans. افتراضيا هذا يعني لا محتوى رسائل ولا tools: الـ attributes الـ deprecated `input` و`prompt` و`args` و`result` تُسجَّل فقط مع `redactContent: false` (شوف [Deprecated attribute names](#deprecated-attribute-names))، و`captureContent: true` يضيف محتوى `gen_ai.*`. خلّي `.lousho/` خارج الـ version control؛ المشاريع التي ينشئها `lousho init` تتجاهله.
+الملفات تحمل ما تحمله الـ spans. افتراضيا هذا يعني لا محتوى رسائل ولا tools: الـ attributes الـ deprecated `input` و`prompt` و`args` و`result` تُسجَّل فقط مع `redactContent: false` (شوف [Deprecated attribute names](#backends))، و`captureContent: true` يضيف محتوى `gen_ai.*`. خلّي `.lousho/` خارج الـ version control؛ المشاريع التي ينشئها `lousho init` تتجاهله.
 
 `lousho dev` و`lousho chat` يكتبان هذه الملفات لما تمرّر `--traces` (إلى `.lousho/traces`) أو `--traces=<dir>`، سواء لملف spec أو مجلد agent أو module. يعني agent مبني من ملف spec تقدر تتتبّعه بدون أي كود. وهي opt-in عن قصد: الملفات تحفظ توقيتات الـ spans وأعداد الـ tokens والتكاليف، ومحتوى الـ prompt والـ tools فقط إذا ضبط الـ agent `redactContent: false` أو `captureContent: true`، فلا يُكتب شيء على القرص إلا إذا طلبت. تنسيق ملف الـ spec ليس فيه إعداد للـ traces.
 

@@ -348,7 +348,7 @@ if (original && replayed) {
 - `patch` يتطبق بهذا الترتيب: `messages(messages)` يعيد كتابة الـ transcript؛ `businessState` يستبدل القيمة المحفوظة؛ `toolResult: { toolCallId, result }` يستبدل نتيجة هالـ call في مكانها — نفس الموضع ونفس الـ call id ونفس اسم الـ tool، فيبقى الـ transcript صالح لكل provider — أو يسجلها لو الـ call ما عندها نتيجة إلى الآن؛ `appendInput` يضع رسالة user في الانتظار، تترسل بعد أي tool calls ما زالت معلقة.
 - الـ fork يحتفظ بعدد خطوات الـ checkpoint المصدر و`usage` حقها، فينطبق عليه اللي باقي من ميزانية `maxSteps`. نتائج الـ tools المسجلة ما تتعاد؛ والـ tool calls اللي بدون نتيجة تشتغل أول، مثل أي استئناف (يعني fork لمدخل `'awaiting-approval'` يمر على `needsApproval` من جديد؛ و`approvalId` القديم ما ينتقل).
 - `newSessionId` يسمي الـ fork؛ الافتراضي `<sessionId>.fork-<n>`، و`n` أول رقم ما عنده checkpoint. `newSessionId` اللي عنده checkpoint أصلًا يُرفض.
-- خطوة ما هي موجودة في الـ history — الـ session غير معروفة، أو الخطوة ما اشتغلت أبدًا، أو انحذفت بعد ما تجاوزت `historyLimit` — ترمي `SDKError` بكود [`LOUSHO_CHECKPOINT_NOT_FOUND`](/ar/errors#lousho_checkpoint_not_found)، ورسالته تعدّد الخطوات المحفوظة. وstore بدون `history()` ما يقدر يسوي fork (`ConfigurationError`).
+- خطوة ما هي موجودة في الـ history — الـ session غير معروفة، أو الخطوة ما اشتغلت أبدًا، أو انحذفت بعد ما تجاوزت `historyLimit` — ترمي `SDKError` بكود [`LOUSHO_CHECKPOINT_NOT_FOUND`](/ar/errors#lousho_run_already_iterated)، ورسالته تعدّد الخطوات المحفوظة. وstore بدون `history()` ما يقدر يسوي fork (`ConfigurationError`).
 - `compareTrajectories(a, b)` تاخذ checkpointين أو transcriptين وترجع خطوات كل run — خطوة لكل turn للـ assistant: نصها وtool callsها مع نتائجها — و`divergedAt` (أول خطوة تختلف، بغض النظر عن ids الـ tool calls)، و`drift`، وهو فروق ترتيب الـ tools والـ arguments وعدد الخطوات وسبب الإنهاء، بنفس شكل `lousho eval --drift`.
 
 ## استئناف run بعد ما يتغير الـ agent
@@ -360,10 +360,10 @@ if (original && replayed) {
 | `onAgentDrift` | لو الـ model أو الـ tools أو التعليمات اختلفت |
 | -------------- | ------------------------------------------- |
 | `'warn'` (الافتراضي) | `console.warn` يسمي اللي تغير وحدث `agent.drift` (`model`، `toolsAdded`، `toolsRemoved`، `toolsChanged`، `instructions`)؛ والـ run يكمل. |
-| `'error'` | يرفض بـ[`LOUSHO_AGENT_DRIFT`](/ar/errors#lousho_agent_drift). الـ checkpoint يبقى مثل ما كان؛ والـ approval ترجع مكانها، فيقدر الـ agent الصحيح يحسمها بعدين. |
+| `'error'` | يرفض بـ[`LOUSHO_AGENT_DRIFT`](/ar/errors#lousho_schedule_invalid). الـ checkpoint يبقى مثل ما كان؛ والـ approval ترجع مكانها، فيقدر الـ agent الصحيح يحسمها بعدين. |
 | `'ignore'` | لا شيء. |
 
-tool call معلّقة الـ tool حقها ما عادت موجودة — آخر turn للـ model نادتها وما لها نتيجة إلى الآن، أو الإنسان وافق عليها — ترفض دائمًا بـ[`LOUSHO_RESUME_TOOL_MISSING`](/ar/errors#lousho_resume_tool_missing)، مهما كان الخيار.
+tool call معلّقة الـ tool حقها ما عادت موجودة — آخر turn للـ model نادتها وما لها نتيجة إلى الآن، أو الإنسان وافق عليها — ترفض دائمًا بـ[`LOUSHO_RESUME_TOOL_MISSING`](/ar/errors#lousho_schedule_run_incomplete)، مهما كان الخيار.
 
 ```ts
 import { createAgent, memoryStore } from 'lousho';

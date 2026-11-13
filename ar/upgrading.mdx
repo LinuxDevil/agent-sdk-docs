@@ -126,7 +126,7 @@ const lead = createAgent({
 | المحذوف | البديل |
 | ------- | ----------- |
 | `WebhookTriggerAdapter`, `WebhookTriggerAdapterOptions`, `WebhookTriggerHandle` | `webhookChannel()`، تُركَّب بـ`mountChannels()`؛ وتأخذ نفس خيار `auth`. شوف [Channels](/ar/channels) |
-| `SlackTriggerAdapter`, `SlackTriggerAdapterOptions` | `slackChannel()`، تُركَّب بـ`mountChannels()` - sessions (جلسات) لكل thread، وأزرار approval (موافقة). شوف [Channels](/ar/channels#slack) |
+| `SlackTriggerAdapter`, `SlackTriggerAdapterOptions` | `slackChannel()`، تُركَّب بـ`mountChannels()` - sessions (جلسات) لكل thread، وأزرار approval (موافقة). شوف [Channels](/ar/channels#discord) |
 | `CronTriggerAdapter`, `CronTriggerAdapterOptions`, `CronIntervalOptions`, `CronExpressionOptions` | `defineSchedule()` مع `startSchedules()`، أو `schedules/` في مجلد الـ agent، أو cron triggers في ملف spec. ما فيه `intervalMs`: اكتب تعبير الـ cron (`*/5 * * * *`). شوف [Schedules](/ar/schedules) |
 
 ## Deprecated لكنها ما زالت تشتغل في 1.x

@@ -1,3 +1,6 @@
 [
-  "pause-and-resume"
+  "pause-and-resume",
+  "forge-builder",
+  "forge-author",
+  "forge-lifecycle"
 ]

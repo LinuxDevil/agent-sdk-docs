@@ -28,7 +28,7 @@ const running = startSchedules(agent, [morning, cleanup]);
 await running.stop();
 ```
 
-- `cron`: خمسة حقول (`minute hour day-of-month month day-of-week`) أو `@hourly` أو `@daily` أو `@weekly` أو `@monthly`، ويُحسَب في `timezone` (اسم IANA، والافتراضي منطقة الجهاز الزمنية). إذا كان التعبير غير صالح، أو حدّدت `prompt` و`run` معًا، أو ما حدّدت أي واحد منهما، `defineSchedule()` يرمي `LOUSHO_SCHEDULE_INVALID` مباشرة — لا عند أول firing. راجع [الأخطاء](/ar/errors#lousho_schedule_invalid).
+- `cron`: خمسة حقول (`minute hour day-of-month month day-of-week`) أو `@hourly` أو `@daily` أو `@weekly` أو `@monthly`، ويُحسَب في `timezone` (اسم IANA، والافتراضي منطقة الجهاز الزمنية). إذا كان التعبير غير صالح، أو حدّدت `prompt` و`run` معًا، أو ما حدّدت أي واحد منهما، `defineSchedule()` يرمي `LOUSHO_SCHEDULE_INVALID` مباشرة — لا عند أول firing. راجع [الأخطاء](/ar/errors#السجل).
 - `run` تستقبل `{ agent, firedAt, name }`.
 
 `startSchedules(agent, schedules, { now?, setTimer?, onError?, keepAlive? })` يحتفظ بمؤقّت واحد لكل schedule. أي run يرمي خطأ يروح إلى `onError` (الافتراضي: `console.error`) ولا يوقّف باقي الـ schedules أبدًا. والـ turn الخاص بـ prompt schedule إذا انتهى بأي `finishReason` غير `'stop'` يُعتبَر run فاشلًا أيضًا: `onError` يستقبل خطأ `LOUSHO_SCHEDULE_RUN_INCOMPLETE` يذكر السبب، مثلًا `'awaiting-approval'` (مع id الـ approval المعلّقة، وتبقى معلّقة إلى أن تحسمها بـ `agent.approvals.resolve()`)، أو `'output-invalid'` أو `'max-steps'`. الـ schedule لا يتداخل مع نفسه: لو الـ firing السابق ما زال شغّالًا، يُتخطّى الإطلاق التالي ويُبلَّغ به `onError`. والـ fires التي فاتت أثناء تعليق العملية تُتخطّى بدل إعادة تشغيلها. `now` و`setTimer` قابلان للحقن حتى لا تنام الاختبارات أبدًا.
