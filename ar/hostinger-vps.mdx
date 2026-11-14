@@ -1,11 +1,11 @@
 ---
 title: "النشر على Hostinger VPS"
 ---
-{/* Generated from docs/hostinger-vps.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
+{/* Generated from docs/hostinger-vps.md in LinuxDevil/lousho by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 الـ target `docker` في [النشر](/ar/deployment) هو Dockerfile عادي مع سيرفر مُجمَّع (bundled)،
-لذلك يشتغل على أي host فيه Docker، ومنها Hostinger VPS.
-والمثال [hostinger-deploy](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/hostinger-deploy)
+لذلك يعمل على أي host فيه Docker، ومنها Hostinger VPS.
+والمثال [hostinger-deploy](https://github.com/LinuxDevil/lousho/tree/main/examples/hostinger-deploy)
 يقدّم وصفة كاملة ومُختبَرة: `deploy.mjs` يتحقق من الـ VM عبر
 Hostinger API، ويبني محليًا، وينقل الـ context عبر SSH، ويشغّل
 الحاوية، ثم يثبت أن النشر نجح عبر `/health` ودورة `/chat` حقيقية واحدة.
@@ -37,7 +37,8 @@ node examples/hostinger-deploy/deploy.mjs --vm <id|hostname|ip>
 - `-e LOUSHO_STORE=sqlite:/data/lousho.db -v lousho-data:/data`: الـ sessions
   والـ approvals المتوقفة مؤقتًا تبقى بعد إعادة تشغيل الحاوية (`/data` هو named volume).
 - `-e LOUSHO_API_TOKEN=...`: إلزامي، فكل route ما عدا `/health` يصبح
-  محميًا بـ bearer auth. المنفذ 3000 هو HTTP عادي؛ ضع Traefik (قالب الـ VPS
+  محميًا بـ bearer auth. الـ image يستمع على `0.0.0.0`، لذلك بدون token (أو
+  `auth.ts`) ترفض الحاوية أن تبدأ (`LOUSHO_SERVER_UNPROTECTED`). المنفذ 3000 هو HTTP عادي؛ ضع Traefik (قالب الـ VPS
   يثبّته) أو أي TLS terminator آخر أمامه.
 
 أما التجهيز (provisioning) نفسه، أي شراء VM أو إعادة إنشائه أو تغيير حجمه، فهو

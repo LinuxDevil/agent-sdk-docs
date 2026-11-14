@@ -1,67 +1,69 @@
 ---
-title: "مقارنة مع أُطر الـ agents الأخرى"
-sidebarTitle: "المقارنة"
+title: "مقارنة Lousho بغيرها"
+description: "تقارن هذه الصفحة Lousho بأربع مكتبات وكلاء أخرى مكتوبة بـ TypeScript: Vercel AI SDK (ToolLoopAgent)، وOpenAI Agents SDK للغة JavaScript، وMastra، وLangGraph.js. كل خانة تخص مشروعًا آخر مأخوذة من توثيقه الرسمي."
 ---
-{/* Generated from docs/comparison.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
+{/* Generated from docs/comparison.md in LinuxDevil/lousho by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-**حتى أكتوبر 2026.** هذه الصفحة توجيه سريع، لا benchmark.
-مجال الـ agents في TypeScript يتحرك بسرعة: أغلب المشاريع أدناه صارت تقدّم
-approvals متينة و evals و harnesses خاصة بها لـ coding agents، فراجع
-توثيقها قبل أن تقرر. الصفوف الخاصة بـ lousho تصف هذا المستودع، وكل ادعاء
-فيها مربوط بالصفحة التي توثّقه.
+آخر تحقق: 9 نوفمبر 2026. هذه المشاريع تتغير بسرعة، لذا قد تكون بعض الخانات قديمة.
+نرحب بالتصحيحات: [افتح issue](https://github.com/LinuxDevil/lousho/issues).
 
-## كل مشروع في صف واحد
+## كيف تقرأ الجدول
 
-| المشروع | ما هو | الـ approvals / إشراك الإنسان | الـ evals | الـ coding agents | أين يتفوّق على lousho |
-| ------- | ---------- | ----------------------------- | ----- | ------------- | --------------------------- |
-| lousho (`lousho`) | SDK للـ agents بلغة TypeScript، مستضاف عندك، حزمة npm واحدة، إصدار alpha | `needsApproval` مع `resumeAfterApproval()` على stores في الذاكرة أو ملفات أو SQLite أو Cloudflare KV ([Approvals](/ar/approvals)) | `lousho eval`: تحققات على مسار التنفيذ، و cassettes للتسجيل وإعادة التشغيل، وتقارير الانحراف ([Evals](/ar/evals)) | tools لمساحة العمل، وقواعد صلاحيات، و`piAgent()`، و kits من الـ registry، وسيرفر ACP للمحررات ([بناء coding agent](/ar/build-a-coding-agent)) | - |
-| [Vercel AI SDK 7](https://ai-sdk.dev) | مجموعة أدوات للـ models والـ agents والواجهات في TypeScript | الـ tools في `WorkflowAgent` تقبل `needsApproval`؛ والـ runs متينة عبر Workflow DevKit مفتوح المصدر | غير مدمجة | `HarnessAgent` (تجريبي) يغلّف runtimes موجودة مثل Claude Code خلف API واحد | أكبر عدد من الـ providers وتكاملات الواجهات بفارق كبير؛ و lousho يستخدمه تحت الغطاء للـ providers القياسية |
-| [Mastra](https://mastra.ai) | framework متكامل بلغة TypeScript: agents و workflows وذاكرة و RAG وواجهة تطوير | `suspend()` / `resume()` في الـ workflow مع snapshots محفوظة | scorers و datasets و experiments، مع حفظ النتائج | تبنيه من agents و tools و workflows | Postgres ومحوّلات تخزين كثيرة أخرى، وplayground محلي للتطوير، ومجتمع أكبر |
-| [LangGraph.js](https://langchain-ai.github.io/langgraphjs/) | workflows على شكل graph ولها حالة، مع checkpointing | `interrupt()` مع `Command({ resume })` على أي checkpointer | عبر LangSmith (مستضاف) | تبنيه على شكل graph | checkpointer لـ Postgres، وتحكّم صريح في التدفق، وتتبّع و evals عبر LangSmith |
-| [OpenAI Agents SDK (JS)](https://openai.github.io/openai-agents-js/) | agents مبنية حول APIs من OpenAI: handoffs و guardrails وتتبّع | approvals للـ tools مع استئناف من حالة الـ run | عبر منصة OpenAI | sandbox agents (تجريبي) تقرأ الملفات وتنفّذ أوامر وتطبّق patches | tools و sandboxes مستضافة من OpenAI كمواطن أول، ولوحة تتبّع OpenAI |
-| [Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/overview) | حلقة الـ agent في Claude Code على شكل مكتبة | callback باسم `canUseTool`، و hooks، وأوضاع وقواعد للصلاحيات | غير مدمجة | هو نفسه coding agent: tools للملفات والـ shell والتعديل، و sessions، و subagents | harness جاهز للإنتاج للبرمجة من أول يوم؛ و models من Claude |
-| [eve](https://github.com/vercel/eve) | framework من Vercel للـ agents يعتمد على نظام الملفات أولًا (Apache-2.0، تجريبي) | مطالبات لإشراك الإنسان على runs متينة | `eve eval` مع `defineEval`، يتحقق من استدعاءات الـ tools | sandboxes، و channels (Slack و Discord و HTTP)، و schedules | النشر والتشغيل على Vercel، و models عبر AI Gateway، و channels. وتنظيم مجلد `agent/` فيه (`instructions.md` و`tools/` و`skills/`) يطابق [مجلدات الوكيل](/ar/agent-directories) في lousho |
-| [VoltAgent](https://voltagent.dev) | framework بلغة TypeScript: agents وذاكرة و workflows | suspend/resume في الـ workflow | evals مدمجة | تبنيه من agents و tools | منصة المراقبة VoltOps ولوحاتها |
-| [open-harness](https://github.com/MaxGfeller/open-harness) | SDK بلغة TypeScript برخصة MIT مبني على AI SDK، على نمط Claude Code و Codex | صلاحيات الـ tools | غير مدمجة | tools لنظام الملفات و bash، و subagents، و skills، و MCP، و compaction | نواة harness صغيرة وقابلة للتركيب، مركّزة على الـ coding agents |
+- ✅ تعني أن التوثيق الرسمي يعرض الميزة.
+- partial تعني أن التوثيق يعرض جزءًا منها، أو أنها تحتاج منتجًا آخر. توضح الحاشية ما هو موجود.
+- ❌ تعني أننا لم نجد الميزة في التوثيق الرسمي للمشروع. تربط الحاشية بالصفحة التي قرأناها.
+- unverified تعني أن التوثيق الرسمي لم يسمح لنا بتأكيد الخانة في أي اتجاه.
 
-## ما يفعله lousho بشكل مختلف حتى الآن
+كل ✅ في عمود Lousho مربوطة بصفحة Lousho التي توثّق الميزة.
 
-كل بند يمكن التحقق منه في هذا المستودع.
+## الجدول
 
-- **cassettes للتسجيل وإعادة التشغيل وانحراف مسار التنفيذ في CLI واحد.** `lousho eval --record`
-  يشغّل كل حالة مرة واحدة على الـ provider الحقيقي ويكتب cassette،
-  و`--replay` يشغّلها في CI بدون شبكة ولا مفتاح API، و`--drift`
-  يعيد التسجيل في مجلد مؤقت ويوضّح كيف تغيّر مسار استدعاءات الـ tools
-  في كل حالة ([Evals](/ar/evals#تشغيل-evals-على-deployment)،
-  [Testing](/ar/testing#record-و-replay)).
-- **approvals متينة على Cloudflare Workers KV** إلى جانب الذاكرة والملفات و
-  SQLite، بنفس كود `needsApproval` / `resumeAfterApproval()` على كل منها
-  ([التنفيذ المتين](/ar/durable-execution)، [Cloudflare Workers](/ar/cloudflare-workers)).
-- **واجهات المحررات و MCP من نفس الـ agent.** `lousho acp` يقدّم أي agent
-  لـ Zed وغيره من محررات Agent Client Protocol ([ACP](/ar/acp))؛ و`serveMcp`
-  يعرضه كسيرفر MCP لـ Claude Code و Cursor وعملاء آخرين ([MCP](/ar/mcp-integration)).
-- **مستضاف عندك، حزمة واحدة، بدون حساب على منصة.** يشتغل داخل عملية Node عندك
-  أو في Worker؛ لا شيء يتصل بالخارج، ولا توجد control plane مستضافة تحتاج التسجيل فيها.
-- **يدعم عدة إصدارات رئيسية من AI SDK.** الـ peer dependency `ai` تقبل `^4.3.19` و`^6` و
-  `^7`، فيقدر تطبيق موجود يتبنّى lousho بدون أن يرقّي AI SDK أولًا
-  ([Installation](/ar/installation)).
+| | Lousho | Vercel AI SDK (ToolLoopAgent) | OpenAI Agents SDK (JS) | Mastra | LangGraph.js |
+|---|---|---|---|---|---|
+| يعمل داخل عمليتك (process) أنت | ✅ ([البدء السريع](/ar/quickstart)) | ✅ | ✅ | ✅ | ✅ |
+| الاستئناف المتين بعد انهيار | ✅ ([التنفيذ المتين](/ar/durable-execution#الاستعادة-بعد-crash)) | partial[^v-durable] | ❌[^o-durable] | ✅ | ✅ |
+| موافقة بشرية مع إيقاف واستئناف عبر عمليات مختلفة | ✅ ([الإيقاف وإعادة التشغيل والاستئناف](/ar/pause-and-resume)) | ✅ | ✅ | ✅ | ✅ |
+| تقييمات بالتسجيل وإعادة التشغيل دون اتصال | ✅ ([التقييمات](/ar/evals#record-replay-and-drift)) | partial[^v-evals] | partial[^o-evals] | partial[^m-evals] | partial[^l-evals] |
+| عميل MCP | ✅ ([MCP](/ar/mcp-integration#استخدام-سيرفرات-mcp-داخل-agent)) | ✅ | ✅ | ✅ | ✅ |
+| خادم MCP | ✅ ([MCP](/ar/mcp-integration#تشغيل-agent-كسيرفر-mcp)) | partial[^v-mcp] | ❌[^o-mcp] | ✅ | partial[^l-mcp] |
+| ربط مع React/Vue/Svelte | ✅ ([React](/ar/react)، [Vue](/ar/vue)، [Svelte](/ar/svelte)) | ✅ | ❌[^o-ui] | partial[^m-ui] | ✅ |
+| OpenTelemetry | ✅ ([المراقبة](/ar/observability)) | ✅ | ❌[^o-otel] | ✅ | unverified[^l-otel] |
+| استوديو أو أداة تصحيح محلية | ✅ ([Agent Forge](/ar/agent-forge)) | ✅ | ❌[^o-studio] | ✅ | partial[^l-studio] |
+| مستقل عن المزوّد | ✅ ([المزوّدون](/ar/providers)) | ✅ | ✅ | ✅ | ✅ |
+| الرخصة | MIT | Apache-2.0 | MIT | Apache-2.0، مع أجزاء تحت رخصة منفصلة[^m-licence] | MIT |
 
-## أين lousho أضعف
+[^v-durable]: يعمل `ToolLoopAgent` في الذاكرة ويفقد تقدّمه عند الانهيار. أما `WorkflowAgent` المنفصل من `@ai-sdk/workflow` فهو متين ويصمد أمام إعادة التشغيل، لكنه يعمل داخل بيئة تشغيل Workflow. راجع [WorkflowAgent](https://ai-sdk.dev/docs/agents/workflow-agent).
+[^o-durable]: يعرض التوثيق حفظ حالة التشغيل واستئنافها فقط عندما يتوقف التشغيل بانتظار موافقة (`RunState`). لم نجد نقاط حفظ تسمح لتشغيل منهار بالاستئناف. راجع [Human-in-the-loop](https://openai.github.io/openai-agents-js/guides/human-in-the-loop/).
+[^v-evals]: يوفّر AI SDK نماذج وهمية وأدوات مساعدة للبث في الاختبارات. لم نجد طريقة لتسجيل تشغيل حقيقي وإعادة تشغيله، أو للإبلاغ عن تغيّر مسار التنفيذ. راجع [Testing](https://ai-sdk.dev/docs/ai-sdk-core/testing).
+[^o-evals]: يوفّر `@openai/agents/testing` نموذج `ScriptedModel` يعمل دون اتصال، ووصفة لاكتشاف تغيّر مسار العمل. لكن الخطوات المبرمجة تُكتب يدويًا، ولا تُسجَّل من تشغيل حقيقي. راجع [Testing](https://openai.github.io/openai-agents-js/guides/testing/).
+[^m-evals]: يمكن للتجارب محاكاة مخرجات الأدوات على عناصر مجموعة البيانات، ويوجد مقياس لدقة مسار التنفيذ. لم نجد تسجيلًا لردود نموذج حقيقية لإعادة تشغيلها دون اتصال. راجع [Experiments](https://mastra.ai/docs/evals/experiments) و[Built-in scorers](https://mastra.ai/docs/evals/built-in-scorers).
+[^l-evals]: يستطيع `agentevals` مطابقة تشغيل مع مسار تنفيذ تكتبه يدويًا، دون أي استدعاء للنموذج. التخزين المؤقت لطلبات HTTP في الاختبارات موثّق لـ Python (pytest)، وليس لتكامل JS مع Vitest/Jest. راجع [Evals](https://docs.langchain.com/oss/javascript/langchain/evals) و[Vitest/Jest](https://docs.langchain.com/langsmith/vitest-jest).
+[^v-mcp]: توثّق Vercel حزمة منفصلة اسمها `mcp-handler` لبناء خوادم MCP. هي ليست جزءًا من AI SDK، ولا تتضمن أداة مساعدة لتقديم وكيل. راجع [Deploy MCP servers to Vercel](https://vercel.com/docs/mcp/deploy-mcp-servers-to-vercel).
+[^o-mcp]: يغطي دليل MCP الاتصال بخوادم MCP. لم نجد واجهة لتقديم وكيل كخادم MCP. راجع [MCP](https://openai.github.io/openai-agents-js/guides/mcp/).
+[^l-mcp]: يعرض Agent Server، بما فيه الخادم المحلي `langgraph dev`، الوكلاءَ على المسار `/mcp`. لم نجد طريقة لفعل ذلك من المكتبة وحدها. راجع [MCP endpoint in Agent Server](https://docs.langchain.com/langsmith/server-mcp).
+[^o-ui]: لم نجد في التوثيق خطافات واجهة لـ React أو Vue أو Svelte. راجع [التوثيق الكامل](https://openai.github.io/openai-agents-js/llms-full.txt).
+[^m-ui]: لدى Mastra حزمة React رسمية وحزمة SDK للعميل. يعمل Svelte عبر `@ai-sdk/svelte` من AI SDK مع `@mastra/ai-sdk`. لم نجد صفحة لـ Vue. راجع [Mastra Client](https://mastra.ai/docs/server/mastra-client) و[AI SDK UI](https://mastra.ai/integrations/agentic-ui/ai-sdk-ui) و[SvelteKit](https://mastra.ai/integrations/frameworks/sveltekit).
+[^o-otel]: تذهب مسارات التتبّع إلى لوحة OpenAI افتراضيًا، ويمكنك إضافة معالجات تتبّع خاصة بك. لا يذكر التوثيق OpenTelemetry. راجع [Tracing](https://openai.github.io/openai-agents-js/guides/tracing/).
+[^l-otel]: يقبل LangSmith مقاطع تتبّع (spans) من OpenTelemetry، لكن كل أمثلة الإعداد مكتوبة بـ Python. لم نستطع تأكيد الإعداد في JS. راجع [Trace with OpenTelemetry](https://docs.langchain.com/langsmith/trace-with-opentelemetry).
+[^o-studio]: تُفحص التشغيلات في لوحة Traces المستضافة. لم نجد واجهة محلية. راجع [Tracing](https://openai.github.io/openai-agents-js/guides/tracing/).
+[^l-studio]: يشغّل `langgraph dev` خادمًا محليًا، ويتصل به Studio. لكن Studio يُقدَّم من smith.langchain.com ويحتاج حسابًا ومفتاح API في LangSmith. راجع [Studio](https://docs.langchain.com/oss/javascript/langgraph/studio) و[Local server](https://docs.langchain.com/oss/javascript/langgraph/local-server).
+[^m-licence]: الشيفرة داخل مجلدات `ee/` تخضع لرخصة Mastra Enterprise Edition. هي متاحة المصدر، وليست مفتوحة المصدر. راجع [LICENSE.md](https://github.com/mastra-ai/mastra/blob/main/LICENSE.md).
 
-- **إصدار alpha ومطوّر واحد.** خط 1.0 ما زال `1.0.0-alpha.*`. توقّع تغيّرات في الـ API، ومجتمعًا صغيرًا، وتكاملات قليلة من أطراف ثالثة.
-- **لا يوجد store لـ Postgres.** stores الـ checkpoints والـ approvals متوفرة للذاكرة والملفات و SQLite و Cloudflare KV. أما Mastra و LangGraph فيوفران Postgres؛ وهنا تطبّق بنفسك الواجهتين الصغيرتين `CheckpointStore` / `ApprovalStore`.
-- **providers أصلية أقل.** OpenAI و Anthropic و OpenRouter و Ollama وكتالوج Pi مدمجة؛ وأي شيء آخر يمر عبر `fromAiSdk()` ([Providers](/ar/providers)).
-- **لا توجد لوحة مستضافة.** الـ traces عبارة عن spans وفق OpenTelemetry ترسلها إلى backend خاص بك ([Observability](/ar/observability))؛ ولا يوجد مقابل لـ LangSmith أو VoltOps أو playground الخاص بـ Mastra.
-- **نقطة الدخول الجذرية ليست آمنة للـ edge.** Cloudflare Workers تستخدم build المخصص `worker` والمسارات الفرعية ([Cloudflare Workers](/ar/cloudflare-workers)).
-- **الـ runs الحية يدوية.** الـ CI يشغّل اختبارات offline وإعادة تشغيل الـ cassettes؛ أما فحوص الـ providers الحية فتُشغَّل يدويًا.
+## ماذا تعني الصفوف
 
-## كيف تختار
+- **يعمل داخل عمليتك أنت**: مكتبة تستدعيها من عملية Node.js الخاصة بك. لا حاجة لبيئة تشغيل مستضافة.
+- **الاستئناف المتين بعد انهيار**: التشغيل الذي يتوقف في منتصفه يمكنه أن يكمل من نقطة حفظ (checkpoint)، دون إعادة عمل انتهى بالفعل.
+- **موافقة بشرية مع إيقاف واستئناف عبر عمليات مختلفة**: يمكن لاستدعاء أداة أن ينتظر شخصًا، ويمكن حفظ هذا الانتظار، ويمكن لعملية أخرى أن تكمل التشغيل.
+- **تقييمات بالتسجيل وإعادة التشغيل دون اتصال**: سجّل تشغيلًا حقيقيًا مرة واحدة، ثم أعد تشغيله في CI دون شبكة ودون مفتاح API، واعرف متى يتغير مسار استدعاءات الأدوات.
+- **عميل MCP / خادم MCP**: استدعِ أدوات من خوادم MCP، أو قدّم وكيلك كخادم MCP.
+- **ربط مع React/Vue/Svelte**: خطافات أو مخازن واجهة رسمية لهذه الأطر.
+- **OpenTelemetry**: مقاطع تتبّع يمكنك إرسالها إلى أي خادم OpenTelemetry.
+- **استوديو أو أداة تصحيح محلية**: واجهة على جهازك لفحص الوكلاء وتشغيلهم.
+- **مستقل عن المزوّد**: يعمل مع نماذج من أكثر من مزوّد.
 
-إذا كنت تحتاج فقط استدعاءات model مع واجهة streaming، فـ Vercel AI SDK وحده هو
-الخيار الأبسط. وإذا كنت تريد coding agent جاهزًا، فابدأ من Claude
-Agent SDK أو من harness مبني على AI SDK. وإذا كنت تريد framework متكاملًا مع واجهة
-تطوير و Postgres، فانظر إلى Mastra؛ وإذا كان التحكم في التدفق عندك graph، فـ LangGraph.js؛
-وإذا كنت تنشر على Vercel، فـ eve. اختر lousho عندما تريد evals تعمل offline
-بالتسجيل وإعادة التشغيل، و approvals تصمد بعد إعادة التشغيل على stores خاصة بك
-(بما فيها Workers KV)، وحزمة واحدة مستضافة عندك تقدر أيضًا تقدّمها عبر ACP
-و MCP.
+## متى لا تستخدم Lousho
+
+- **تحتاج Python.** Lousho مكتوب بـ TypeScript فقط، ويحتاج Node 22.19 أو أحدث.
+- **تريد منصة مُدارة.** لا يملك Lousho بيئة تشغيل مستضافة. أنت تشغّل الوكيل ومخزنه والاستوديو وتستضيفها بنفسك.
+- **تحتاج واجهة برمجية مستقرة بإصدار 1.0 اليوم.** Lousho في مرحلة alpha (`1.0.0-alpha.*`). قد تتغير الواجهة قبل 1.0، لذا ثبّت إصدارًا محددًا. راجع [الترقية إلى 1.0](/ar/upgrading).
+- **تحتاج استدعاء نموذج واحد فقط أو حلقة أدوات بسيطة.** Vercel AI SDK وحده أصغر. Lousho مبني عليه، لذا يمكنك الانتقال لاحقًا. راجع [الانتقال من AI SDK](/ar/migrating-from-ai-sdk).

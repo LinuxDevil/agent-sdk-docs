@@ -1,6 +1,6 @@
 # Lousho documentation
 
-The documentation site for [`lousho`](https://github.com/LinuxDevil/agent-sdk),
+The documentation site for [`lousho`](https://github.com/LinuxDevil/lousho),
 live at **[lousho.com](https://lousho.com)** in English and
 [Arabic](https://lousho.com/ar/introduction). Built with [Mintlify](https://mintlify.com).
 

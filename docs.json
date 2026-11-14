@@ -29,7 +29,7 @@
     ],
     "primary": {
       "type": "github",
-      "href": "https://github.com/LinuxDevil/agent-sdk"
+      "href": "https://github.com/LinuxDevil/lousho"
     }
   },
   "navigation": {
@@ -47,8 +47,8 @@
                   "introduction",
                   "quickstart",
                   "installation",
-                  "troubleshooting",
                   "comparison",
+                  "troubleshooting",
                   "coding-agents",
                   "build-a-coding-agent"
                 ]
@@ -156,6 +156,14 @@
                 ]
               },
               {
+                "group": "Self-healing and improvement",
+                "pages": [
+                  "self-healing",
+                  "improve",
+                  "self-healing-paper"
+                ]
+              },
+              {
                 "group": "Ship",
                 "pages": [
                   "cli",
@@ -188,7 +196,8 @@
                   "examples/phase-pipeline",
                   "examples/coding-agent-workflows",
                   "examples/connectors",
-                  "examples/hostinger-deploy"
+                  "examples/hostinger-deploy",
+                  "examples/heal-benchmark"
                 ]
               }
             ]
@@ -205,6 +214,7 @@
                   "migrating-from-ai-sdk",
                   "migrating-to-create-agent",
                   "configuration",
+                  "agent-spec",
                   "errors",
                   "utilities"
                 ]
@@ -233,8 +243,8 @@
                   "ar/introduction",
                   "ar/quickstart",
                   "ar/installation",
-                  "ar/troubleshooting",
                   "ar/comparison",
+                  "ar/troubleshooting",
                   "ar/coding-agents"
                 ]
               },
@@ -281,6 +291,7 @@
                 "group": "تشغيل موثوق",
                 "pages": [
                   "ar/durable-execution",
+                  "ar/pause-and-resume",
                   "ar/compaction",
                   "ar/guardrails",
                   "ar/workspace-tools"
@@ -308,6 +319,14 @@
                   "ar/testing",
                   "ar/evals",
                   "ar/observability"
+                ]
+              },
+              {
+                "group": "التعافي الذاتي والتحسين",
+                "pages": [
+                  "ar/self-healing",
+                  "ar/improve",
+                  "ar/self-healing-paper"
                 ]
               },
               {
@@ -340,7 +359,8 @@
                   "ar/examples/phase-pipeline",
                   "ar/examples/coding-agent-workflows",
                   "ar/examples/connectors",
-                  "ar/examples/hostinger-deploy"
+                  "ar/examples/hostinger-deploy",
+                  "ar/examples/heal-benchmark"
                 ]
               }
             ]
@@ -357,6 +377,7 @@
                   "ar/migrating-from-ai-sdk",
                   "ar/migrating-to-create-agent",
                   "ar/configuration",
+                  "ar/agent-spec",
                   "ar/errors",
                   "ar/utilities"
                 ]
@@ -383,7 +404,7 @@
   },
   "footer": {
     "socials": {
-      "github": "https://github.com/LinuxDevil/agent-sdk"
+      "github": "https://github.com/LinuxDevil/lousho"
     }
   }
 }

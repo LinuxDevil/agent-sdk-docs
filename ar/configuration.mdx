@@ -1,9 +1,11 @@
 ---
 title: "الإعدادات"
 ---
-{/* Generated from docs/configuration.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
+{/* Generated from docs/configuration.md in LinuxDevil/lousho by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 ## ملفات تعريف الـ agent (`AgentSpec`)
+
+> تصف هذه الصفحة الإصدار 1 من ملف المواصفات. ملفات المواصفات الجديدة تستخدم [Agent spec v2](/ar/agent-spec)؛ و`upgradeSpec()` يحوّل ملف مواصفات v1.
 
 الـ agent التصريحي (declarative) ملف YAML (`.yaml`/`.yml`) أو JSON (`.json`)،
 تتحقق منه `loadSpec()` بمكتبة zod (`src/spec/schema.ts`). هي الصيغة التي
@@ -19,7 +21,7 @@ title: "الإعدادات"
 | `provider.model` | `string`   | نعم      | معرّف الـ model المستخدم في كل call (الـ model المضبوط لدى الـ provider؛ و`settings.model` الخاصة بالـ agent تتجاوزه إن وُجدت). |
 | `tools`          | `string[]` | لا       | أسماء الـ tools المدمجة (انظر أدناه).                  |
 | `policy`         | `AgentSpecPolicy` | لا | الموافقات والـ guardrails والحدود وغيرها، وتُفرَض عند تحوّل الـ spec إلى agent (انظر أدناه). |
-| `triggers`       | `AgentSpecTrigger[]` | لا | ما يشغّل الـ agent من تلقاء نفسه — جداول cron (`{ type: 'cron', cron, input, name?, timezone? }`)؛ انظر [الجداول الزمنية](/ar/schedules) و[المُشغِّلات](/ar/triggers#تعابير-cron). |
+| `triggers`       | `AgentSpecTrigger[]` | لا | ما يشغّل الـ agent من تلقاء نفسه — جداول cron (`{ type: 'cron', cron, input, name?, timezone? }`)، ويشغّلها `lousho dev` كما يشغّل الجداول الزمنية لمجلد الوكيل؛ انظر [الجداول الزمنية](/ar/schedules) و[المُشغِّلات](/ar/triggers#تعابير-cron). |
 | `mcpServers`     | `Record<string, McpServerSpec>` | لا | سيرفرات MCP التي يستخدمها الـ agent، مفهرسة بالاسم (انظر أدناه). |
 
 الحقل الناقص أو غير الصالح يفشل بخطأ يسمّي الحقل نفسه، مثل
@@ -127,7 +129,7 @@ mean":
 والحقل الاختياري `approval` (`always`، وهو الافتراضي، أو `annotations` أو `never`) يحدد أي أدوات السيرفر تطلب موافقة؛ انظر [الموافقة على أدوات MCP](/ar/mcp-integration#الـ-approval-على-tools-mcp).
 والاختياري `deferLoading: true` يحجب أدوات السيرفر عن الـ model حتى يجدها بـ `tool_search`؛ انظر [Tool search](/ar/tool-search).
 والاختياري `optional: true` يستبعد السيرفر الذي يتعذّر الاتصال به (مع تحذير) بدل أن يُفشل كل send؛ انظر [استخدام سيرفرات MCP داخل agent](/ar/mcp-integration#استخدام-سيرفرات-mcp-داخل-agent).
-ومدخل HTTP يقدر يضبط `oauth` (`redirectUri`، واختياريًا `clientId` و`clientSecret` و`scopes` و`clientName`) ليسجّل الدخول للسيرفر بـ OAuth بدل header `Authorization` ثابت؛ انظر [سيرفرات MCP مع OAuth](/ar/oauth#خوادم-mcp-مع-oauth).
+ومدخل HTTP يستطيع ضبط `oauth` (`redirectUri`، واختياريًا `clientId` و`clientSecret` و`scopes` و`clientName`) ليسجّل الدخول للسيرفر بـ OAuth بدل header `Authorization` ثابت؛ انظر [سيرفرات MCP مع OAuth](/ar/oauth#خوادم-mcp-مع-oauth).
 ويتأكد `lousho doctor` أن كل `command` لسيرفر stdio يمكن الوصول إليه.
 
 ```yaml
@@ -297,7 +299,7 @@ const agent = createAgent({ instructions: 'You are helpful.', provider });
 ## حدود المعدّل (rate limits)
 
 تضع `withRateLimit(provider, limits)` استدعاءات `generate()` و`stream()`
-الخاصة بالـ provider في طابور كي تبقى تحت حدود من جهة العميل، فلا يقدر
+الخاصة بالـ provider في طابور كي تبقى تحت حدود من جهة العميل، فلا يستطيع
 تفرّع الـ sub-agents ولا موجات الـ flows ولا مجموعات الـ evals على إطلاق
 استدعاءات model بلا حد. كل حد اختياري:
 
@@ -355,7 +357,7 @@ createAgent({ model: 'openai/gpt-4o-mini', subagents: { researcher }, rateLimit:
 | `toolConcurrency` | كم tool call من turn واحد للـ model يعمل معًا: عدد صحيح موجب أو `'unbounded'` (الافتراضي). انظر [الـ tool calls المتوازية](/ar/runs#tool-calls-متوازية). |
 | `skills`   | skills من `defineSkill()` / `loadSkills()`؛ انظر [Skills](/ar/skills). |
 | `subagents`, `maxSubagentDepth` | sub-agents مسمّاة خلف tool واحد اسمه `task`، وأقصى عمق لتداخلها (الافتراضي 1)؛ انظر [الـ sub-agents](/ar/sub-agents). |
-| `handoffs`, `maxHandoffs` | agents يقدر هذا الـ agent يسلّمهم المحادثة كلها، بـ tool `transfer_to_<name>` لكل واحد، وكم handoff مسموح في الـ run الواحد (الافتراضي 5)؛ انظر [الـ handoffs](/ar/handoffs). |
+| `handoffs`, `maxHandoffs` | agents يستطيع هذا الـ agent أن يسلّمهم المحادثة كلها، بـ tool `transfer_to_<name>` لكل واحد، وكم handoff مسموح في الـ run الواحد (الافتراضي 5)؛ انظر [الـ handoffs](/ar/handoffs). |
 | `toolSearch` | يضبط [tool search](/ar/tool-search) للـ tools المعلَّمة بـ `deferLoading`: `{ thresholdPercent?, maxResults?, contextWindow?, search? }`، أو `false` لإرسال كل tool في كل call. |
 | `store`    | `AgentStore` (`SqliteStore`، أو `memoryStore()`، أو `{ sessions?, checkpoints?, approvals? }`): المخازن الافتراضية لـ `agent.session()` وللموافقات ولـ runs الـ `send(message, { sessionId })`؛ و`agent.resume(id)` يكمل run انقطع. انظر [Durable sessions](/ar/sessions#durable-sessions). |
 | `memory`   | خانات ذاكرة من `defineMemory()`: تُستحضر داخل الـ system prompt في بداية كل run، مع tools `remember_<name>` / `recall_<name>`. انظر [الذاكرة](/ar/memory). |
@@ -372,7 +374,8 @@ createAgent({ model: 'openai/gpt-4o-mini', subagents: { researcher }, rateLimit:
 | `codeMode` | `true` أو `CodeModeOptions`: يضيف tool اسمه `run_code` يتيح للـ model استدعاء أدوات الـ agent من script قصير واحد داخل sandbox من QuickJS. انظر [Code mode](/ar/code-mode). |
 | `guardrails` | guardrails المدخلات والمخرجات والـ tools لكل run؛ والـ sub-agents ترثها. انظر [Guardrails](/ar/guardrails). |
 | `maxToolResultChars` | أقصى عدد أحرف من نتيجة tool واحدة يحصل عليه الـ model (الافتراضي `50_000`؛ و`Infinity` تلغي السقف). انظر [الـ tools](/ar/tools). |
-| `onAgentDrift` | ماذا يفعل الـ resume حين يختلف الـ agent عن الذي أوقف الـ run: `'warn'` (الافتراضي) أو `'error'` أو `'ignore'`. انظر [Durable execution](/ar/durable-execution#استئناف-run-بعد-ما-يتغير-الـ-agent). |
+| `toolErrorMessage` | `(error, { toolName, toolCallId }) => string`: يستبدل نص خطأ الـ tool المرمي قبل أن يراه الـ model والـ events والـ hooks (الافتراضي: رسالة الخطأ نفسه). انظر [الـ tools](/ar/tools#الأخطاء). |
+| `onAgentDrift` | ماذا يفعل الـ resume حين يختلف الـ agent عن الذي أوقف الـ run: `'warn'` (الافتراضي) أو `'error'` أو `'ignore'`. انظر [Durable execution](/ar/durable-execution#استئناف-run-بعد-تغيّر-الـ-agent). |
 | `reasoning` | مقدار تفكير الـ model قبل أن يجيب: مستوى جهد (effort)، أو `{ effort, budgetTokens, summary, force }`. انظر [Reasoning](/ar/reasoning). |
 | `promptCaching` | `'auto'` (الافتراضي) يضع نقاط `cache_control` الخاصة بـ Anthropic لـ models Claude؛ و`false` لا يضع شيئًا. انظر [Prompt caching](/ar/models-and-cost#الـ-prompt-caching). |
 | `output` | schema للرد النهائي؛ و`send()` / `stream()` تُحلّان بـ `result.object`. انظر [Structured output](/ar/structured-output). |
@@ -397,10 +400,17 @@ createAgent({ model: 'openai/gpt-4o-mini', subagents: { researcher }, rateLimit:
 البادئات المدعومة وتقترح أقربها، والـ peer dependency الاختيارية الناقصة
 تطبع أمر `npm install` كاملًا.
 
+الخيار الذي لا تعرفه `createAgent()` يُعتبر خطأً (`LOUSHO_CONFIG_INVALID`)،
+ولا يُتجاهَل بصمت، لذلك يفشل الخطأ الإملائي من JavaScript أو YAML أيضًا.
+تقترح الرسالة أقرب خيار، أو اسم Lousho لخيار تستخدمه SDKs أخرى:
+`'maxOutputTokens' is not a known option (did you mean 'modelSettings.maxTokens'?)`،
+و`system` تشير إلى `instructions`. المفتاح المضبوط على `undefined` يُتجاهَل،
+والـ `manifest` الخاص بنتيجة `claudeProject()` المفرودة (spread) مقبول.
+
 ## إعدادات الـ model
 
 يضبط `modelSettings` خيارات الـ sampling لكل call يجريه الـ agent للـ model.
-واستدعاء `send()` أو `stream()` يقدر يمرّر إعداداته الخاصة، وهي تغلب إعدادات
+واستدعاء `send()` أو `stream()` يستطيع تمرير إعداداته الخاصة، وهي تتقدّم على إعدادات
 الـ agent مفتاحًا بمفتاح:
 
 ```ts
@@ -419,7 +429,7 @@ await agent.send('Summarize the log in one line.', { modelSettings: { maxTokens:
 و`presencePenalty` و`stop` و`seed` و`toolChoice` (`'auto'` أو `'required'` أو `'none'` أو `{ type: 'function', function: { name } }`؛ ولا يُرسَل في call بلا tools). المفتاح الذي تتركه لا يُرسَل أصلًا،
 فتسري القيمة الافتراضية للـ provider نفسه، وكذلك القيمة التي يضيفها provider
 مغلِّف إلى الطلب. الـ sub-agents وأهداف الـ handoff تستخدم `modelSettings`
-الخاصة بها، لا الخاصة بالـ lead. ومجلد الوكيل يقدر يضبط نفس الكائن كـ
+الخاصة بها، لا الخاصة بالـ lead. ومجلد الوكيل يستطيع ضبط الكائن نفسه كـ
 `modelSettings` في ملف `agent.json` الخاص به.
 
 تُفحص القيم قبل أي call للـ model، عند `createAgent()` وعند كل
@@ -433,7 +443,7 @@ await agent.send('Summarize the log in one line.', { modelSettings: { maxTokens:
 
 ### خيارات كل استدعاء
 
-إلى جانب `modelSettings`، يقدر استدعاء `send()` أو `stream()` يضبط
+إلى جانب `modelSettings`، يستطيع استدعاء `send()` أو `stream()` أن يضبط
 `maxSteps` الخاص به (بدل الخاص بالـ agent؛ عدد صحيح لا يقل عن 1، ويُفحص مثل
 الخاص بـ `createAgent`) و`instructions`، وهي تُلحَق بتعليمات الـ agent لذلك
 الـ run:
@@ -481,7 +491,7 @@ run للـ agent) أو في `AgentExecutor.execute()` / `stream()`:
 | `maxToolErrors`   | الـ tool calls التي انتهت بنتيجة خطأ (`result.toolErrors`، انظر [الـ tools](/ar/tools#الـ-calls-الفاشلة-في-النتيجة)). يتوقف الـ run قبل call الـ model التالي بمجرد أن يفشل هذا العدد. يُحتسب لكل run، وكذلك على `agent.session({ limits })` (لكل turn على حدة). |
 | `maxSteps`        | خطوات الـ model. alias للخيار `maxSteps`: إذا ضُبط الاثنان يغلب الأشد تقييدًا (وعند التعادل يُبلَّغ عن `'max-steps'` الخاص بالخيار)؛ ولوحده يحل محل الافتراضي 10. ومع ضبط `output`، نفاده يجري نفس call الإجابة الإجبارية التي يجريها `maxSteps` ([Structured output](/ar/structured-output#عند-نفاد-الخطوات))؛ ويظل الـ run ينتهي بـ `'budget-exceeded'`، ومعه `object` إذا اجتازت الإجابة التحقق. |
 
-تُفحص الحدود قبل كل call للـ model (يعني بعد كل دفعة tools) وبعد call الـ
+تُفحص الحدود قبل كل call للـ model (أي بعد كل دفعة tools) وبعد call الـ
 model التي تطلب tools؛ و`maxDurationMs` يلغي أيضًا call model أو tool
 جارية عبر signal الـ run. الحد يُستوفى فور بلوغ الـ run له. والـ run الذي
 ينتهي بنفسه داخل الخطوة التي بلغت الحد يحتفظ بسبب انتهائه هو، مثل `maxSteps`.
@@ -537,7 +547,7 @@ try {
 وحده: كل `send()`، وكل turn في session، يبدأ من صفر. ويضيف
 `agent.session({ id, limits })` حدودًا تشمل كل turns الـ session: الـ turn
 يتوقف فور أن يبلغ مجموع ما أنفقته الـ session في turnsها كلها حدًّا (وعندها
-تصير `budget.scope` تساوي `'session'`)، والـ turns اللاحقة تتوقف قبل استدعاء
+تصبح `budget.scope` مساوية لـ `'session'`)، والـ turns اللاحقة تتوقف قبل استدعاء
 الـ model. ما أنفقته الـ turns (tokens وتكلفة وخطوات وزمن run) يُحفَظ مع
 الـ transcript، في `metadata.sessionUsage` على آخر رسالة فيه، فالـ session
 التي تُستكمل من الـ store تحتفظ بميزانيتها. الاثنان يسريان معًا؛ وأول حد

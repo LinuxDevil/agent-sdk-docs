@@ -1,7 +1,7 @@
 ---
 title: "Schedules"
 ---
-{/* Generated from docs/schedules.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
+{/* Generated from docs/schedules.md in LinuxDevil/lousho by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 الـ **schedule** يشغّل الـ agent على تعبير cron، بدون أن يطلبه أحد: ملخص صباحي، تنظيف ليلي. تعرّف واحدًا بـ `defineSchedule()`، و[مجلد الـ agent](/ar/agent-directories) يلتقطها من `schedules/`، و`startSchedules()` (أو سيرفر node) يشغّلها داخل العملية. الـ schedules حلّت محل `CronTriggerAdapter` (راجع [الانتقال من الـ triggers](/ar/upgrading#الانتقال-من-الـ-triggers)).
 
@@ -31,7 +31,7 @@ await running.stop();
 - `cron`: خمسة حقول (`minute hour day-of-month month day-of-week`) أو `@hourly` أو `@daily` أو `@weekly` أو `@monthly`، ويُحسَب في `timezone` (اسم IANA، والافتراضي منطقة الجهاز الزمنية). إذا كان التعبير غير صالح، أو حدّدت `prompt` و`run` معًا، أو ما حدّدت أي واحد منهما، `defineSchedule()` يرمي `LOUSHO_SCHEDULE_INVALID` مباشرة — لا عند أول firing. راجع [الأخطاء](/ar/errors#السجل).
 - `run` تستقبل `{ agent, firedAt, name }`.
 
-`startSchedules(agent, schedules, { now?, setTimer?, onError?, keepAlive? })` يحتفظ بمؤقّت واحد لكل schedule. أي run يرمي خطأ يروح إلى `onError` (الافتراضي: `console.error`) ولا يوقّف باقي الـ schedules أبدًا. والـ turn الخاص بـ prompt schedule إذا انتهى بأي `finishReason` غير `'stop'` يُعتبَر run فاشلًا أيضًا: `onError` يستقبل خطأ `LOUSHO_SCHEDULE_RUN_INCOMPLETE` يذكر السبب، مثلًا `'awaiting-approval'` (مع id الـ approval المعلّقة، وتبقى معلّقة إلى أن تحسمها بـ `agent.approvals.resolve()`)، أو `'output-invalid'` أو `'max-steps'`. الـ schedule لا يتداخل مع نفسه: لو الـ firing السابق ما زال شغّالًا، يُتخطّى الإطلاق التالي ويُبلَّغ به `onError`. والـ fires التي فاتت أثناء تعليق العملية تُتخطّى بدل إعادة تشغيلها. `now` و`setTimer` قابلان للحقن حتى لا تنام الاختبارات أبدًا.
+`startSchedules(agent, schedules, { now?, setTimer?, onError?, keepAlive? })` يحتفظ بمؤقّت واحد لكل schedule. أي run يرمي خطأ يذهب إلى `onError` (الافتراضي: `console.error`) ولا يوقّف باقي الـ schedules أبدًا. والـ turn الخاص بـ prompt schedule إذا انتهى بأي `finishReason` غير `'stop'` يُعتبَر run فاشلًا أيضًا: `onError` يستقبل خطأ `LOUSHO_SCHEDULE_RUN_INCOMPLETE` يذكر السبب، مثلًا `'awaiting-approval'` (مع id الـ approval المعلّقة، وتبقى معلّقة إلى أن تحسمها بـ `agent.approvals.resolve()`)، أو `'output-invalid'` أو `'max-steps'`. الـ schedule لا يتداخل مع نفسه: لو الـ firing السابق ما زال شغّالًا، يُتخطّى الإطلاق التالي ويُبلَّغ به `onError`. والـ fires التي فاتت أثناء تعليق العملية تُتخطّى بدل إعادة تشغيلها. `now` و`setTimer` قابلان للحقن حتى لا تنام الاختبارات أبدًا.
 
 `stop()` يمسح المؤقّتات، فلا ينطلق شيء بعدها، ويرجع promise يُحسَم بعد أن تنتهي الـ runs الجارية فعلًا. يمكنك استدعاؤه بدون `await`.
 
@@ -103,9 +103,24 @@ const running = startSchedules(agent, schedules);
 
 `lousho dev ./my-agent` يشغّل schedules المجلد، فينطلق cron وأنت تطوّر، والـ hot reload يوقّف الـ schedules القديمة قبل بدء الجديدة. التشغيل هو الوضع الافتراضي حتى يتصرّف `dev` مثل السيرفر المنشور؛ ولأن إطلاق الـ crons (وصرف استدعاءات الـ model) وأنت تعدّل غير مرغوب فيه غالبًا، `--no-schedules` يركّب الـ channels ولا يشغّل أي schedule.
 
+الـ `triggers` من نوع cron في ملف الـ spec تبدأ بنفس الطريقة (المعروض هنا spec من الإصدار v2؛ والصيغة
+`{ type: 'cron', cron, input, name? }` من v1 تعمل أيضًا)، و`--no-schedules` لا يشغّل
+أيًّا منها كذلك:
+
+```yaml
+triggers:
+  - id: daily-report          # the schedule's name; v1 uses name: and input:
+    type: cron
+    cron: "0 9 * * *"
+    prompt: Write the daily report.
+```
+
+أنواع الـ triggers التي لا يشغّلها `lousho dev` — `webhook` و`channel` و`agent` —
+تُسجَّل في السجل مرة واحدة لكل تحميل (Agent Forge هو من يشغّلها).
+
 ## على Cloudflare Workers
 
-الـ Worker ما فيه process طويلة العمر، فلا timers: Cloudflare تنادي الـ handler `scheduled()` في الـ Worker مرة لكل تعبير cron مدرَج تحت `[triggers] crons` في `wrangler.toml`. هدف `cloudflare-worker` يولّد الاثنين من `triggers` في ملف الـ spec الخاص بالـ agent — وفي مجلد الـ agent، من ملفات `schedules/`، وهي تتبع نفس القواعد أدناه:
+لا يحتوي الـ Worker على process طويلة العمر، فلا timers: Cloudflare تنادي الـ handler `scheduled()` في الـ Worker مرة لكل تعبير cron مدرَج تحت `[triggers] crons` في `wrangler.toml`. هدف `cloudflare-worker` يولّد الاثنين من `triggers` في ملف الـ spec الخاص بالـ agent — وفي مجلد الـ agent، من ملفات `schedules/`، وهي تتبع نفس القواعد أدناه:
 
 ```yaml
 triggers:
@@ -117,6 +132,6 @@ triggers:
 
 `lousho build` يكتب التعبيرات بعد إزالة المكرر في `[triggers] crons`، و`scheduled()` في الـ Worker يشغّل كل trigger يساوي `cron` فيه التعبيرَ المستدعى، كـ turn للـ agent داخل `ctx.waitUntil()`. كل firing له session خاصة به، `schedule-<name>-<fire time>` (مثلًا `schedule-weekly-report-2026-10-05T090000Z`)، فالمهمة اليومية لا تعيد إرسال كل التقارير السابقة، ويمكن قراءة الـ run الخاص به من الـ checkpoints في KV عند ربط `AGENT_CHECKPOINTS` (راجع [الـ prompt schedules والـ sessions](#الـ-prompt-schedules-والـ-sessions)؛ وليس عبر `GET /chat/<id>`). حدّد `sharedSession: true` على prompt schedule معرَّف بـ `defineSchedule()` لتحتفظ بـ session واحدة `schedule-<name>` بدلًا من ذلك؛ وعندها تكبر محادثتها مع كل firing. الـ run يتم داخل `ctx.waitUntil()`، بعد انتهاء عمر الطلب، فأعطِ الـ agent ‏store ‏(`KVStore` على `AGENT_CHECKPOINTS`) — الـ in-memory store يحفظ sessions الـ schedule فقط إلى أن يُعاد تدوير الـ isolate. إذا فشل trigger يُسجَّل بـ `console.error` (الاسم ورمز الخطأ) ولا يوقّف الباقي أبدًا، و`scheduled()` لا يرمي أبدًا. والـ turn الذي ينتهي بـ `finishReason` غير `'stop'` يُسجَّل بنفس الطريقة، كـ `LOUSHO_SCHEDULE_RUN_INCOMPLETE`.
 
-الـ cron triggers في Cloudflare تختلف عن التي تعمل داخل العملية، لذلك يفشل البناء بـ `LOUSHO_SCHEDULE_INVALID` مع ذكر اسم الـ trigger، بدل أن يُخرج config يُنشَر ولا ينطلق أبدًا: التعبيرات بتوقيت UTC (لا `timezone`)، وخمسة حقول بالضبط (بلا ثوانٍ وبلا `@daily`)، ويوم الأسبوع لازم يكون `*` أو أسماء (`MON-FRI`)، لأن Cloudflare ترقّم الأيام من 1 إلى 7 بدءًا من الأحد. أصغر فاصل زمني ممكن دقيقة واحدة، وقد تبدأ Cloudflare الـ run متأخرةً بضع ثوانٍ.
+الـ cron triggers في Cloudflare تختلف عن التي تعمل داخل العملية، لذلك يفشل البناء بـ `LOUSHO_SCHEDULE_INVALID` مع ذكر اسم الـ trigger، بدل أن يُخرج config يُنشَر ولا ينطلق أبدًا: التعبيرات بتوقيت UTC (لا `timezone`)، وخمسة حقول بالضبط (بلا ثوانٍ وبلا `@daily`)، ويجب أن يكون يوم الأسبوع `*` أو أسماء (`MON-FRI`)، لأن Cloudflare ترقّم الأيام من 1 إلى 7 بدءًا من الأحد. أصغر فاصل زمني ممكن دقيقة واحدة، وقد تبدأ Cloudflare الـ run متأخرةً بضع ثوانٍ.
 
 لو تريد ربط نقطة دخول Worker بنفسك، راجع [Cloudflare Workers](/ar/cloudflare-workers#scheduled-runs).

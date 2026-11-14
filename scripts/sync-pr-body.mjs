@@ -8,7 +8,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
-const SDK_REPO = 'LinuxDevil/agent-sdk';
+const SDK_REPO = 'LinuxDevil/lousho';
 
 /** Lines of the sync output that are warnings rather than the "wrote N pages" summary. */
 export function parseSyncWarnings(output) {
@@ -82,7 +82,7 @@ export function buildPullRequest({ sdkSha, syncOutput, syncExitCode, translation
   if (defaultToken) {
     out.push('', '> This pull request was opened with the default `GITHUB_TOKEN`, so the `Check docs` workflow does not run on it: run the checks locally or trigger them by hand before merging.');
   }
-  out.push('', 'Source: LinuxDevil/agent-sdk#192.');
+  out.push('', 'Source: LinuxDevil/lousho#192.');
 
   return { title: `Sync with SDK docs at ${shortSha}`, body: out.join('\n') + '\n', draft };
 }

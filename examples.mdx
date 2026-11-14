@@ -3,17 +3,17 @@ title: "Examples"
 description: "Runnable examples from the SDK repository. Most use the built-in mock provider, so they need no API key."
 ---
 
-The examples live in the [`examples/`](https://github.com/LinuxDevil/agent-sdk/tree/main/examples) directory of the SDK repository. Clone it, install, and run any of them with the command shown:
+The examples live in the [`examples/`](https://github.com/LinuxDevil/lousho/tree/main/examples) directory of the SDK repository. Clone it, install, and run any of them with the command shown:
 
 ```bash
-git clone https://github.com/LinuxDevil/agent-sdk.git
+git clone https://github.com/LinuxDevil/lousho.git
 cd agent-sdk
 npm install
 ```
 
 ## Flagship
 
-<Card title="ops-pipeline" icon="siren" href="https://github.com/LinuxDevil/agent-sdk/tree/main/examples/ops-pipeline" horizontal>
+<Card title="ops-pipeline" icon="siren" href="https://github.com/LinuxDevil/lousho/tree/main/examples/ops-pipeline" horizontal>
   A monitoring alert reaches a monitor agent, which delegates a fix behind a human approval gate. A Slack "Fix it" button resumes the paused run, a fixer agent writes a patch, and guardrails check the patch before a GitHub pull request is opened. Runs against mocks by default: `npm run pipeline:demo`.
 </Card>
 
@@ -21,25 +21,25 @@ npm install
 
 | Example | What it shows | Run it |
 | ------- | ------------- | ------ |
-| [coding-harness](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/coding-harness) | A production-shaped coding agent: workspace tools with checkpoints, permission rules, a loop guard, a cost cap, and the `coding-kit` / `coding-pi` registry kits it ships as | `npx tsx examples/coding-harness/index.ts` |
-| [deep-research](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/deep-research) | The multi-agent research archetype: a coordinator fans out parallel `task` calls to researcher sub-agents, then synthesizes a cited report | `npm run example:deep-research` |
-| [support-desk](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/support-desk) | A triage agent that `handoff()`s the conversation to billing/tech specialists, with an approval-gated refund tool | `npm run example:support-desk` |
-| [evaluator-loop](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/evaluator-loop) | The writer/critic archetype: a draft is scored by `llmCritique()` and revised against its feedback until it passes | `npm run example:evaluator-loop` |
-| [data-analyst](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/data-analyst) | Text-to-SQL over `node:sqlite` with defense-in-depth read-only enforcement — `DELETE`/`DROP` can never run | `npm run example:data-analyst` |
-| [plan-mode](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/plan-mode) | A coding agent that reads and proposes in `plan` mode, then applies edits after `session.setPermissionMode('acceptEdits')` | `npm run example:plan-mode` |
+| [coding-harness](https://github.com/LinuxDevil/lousho/tree/main/examples/coding-harness) | A production-shaped coding agent: workspace tools with checkpoints, permission rules, a loop guard, a cost cap, and the `coding-kit` / `coding-pi` registry kits it ships as | `npx tsx examples/coding-harness/index.ts` |
+| [deep-research](https://github.com/LinuxDevil/lousho/tree/main/examples/deep-research) | The multi-agent research archetype: a coordinator fans out parallel `task` calls to researcher sub-agents, then synthesizes a cited report | `npm run example:deep-research` |
+| [support-desk](https://github.com/LinuxDevil/lousho/tree/main/examples/support-desk) | A triage agent that `handoff()`s the conversation to billing/tech specialists, with an approval-gated refund tool | `npm run example:support-desk` |
+| [evaluator-loop](https://github.com/LinuxDevil/lousho/tree/main/examples/evaluator-loop) | The writer/critic archetype: a draft is scored by `llmCritique()` and revised against its feedback until it passes | `npm run example:evaluator-loop` |
+| [data-analyst](https://github.com/LinuxDevil/lousho/tree/main/examples/data-analyst) | Text-to-SQL over `node:sqlite` with defense-in-depth read-only enforcement — `DELETE`/`DROP` can never run | `npm run example:data-analyst` |
+| [plan-mode](https://github.com/LinuxDevil/lousho/tree/main/examples/plan-mode) | A coding agent that reads and proposes in `plan` mode, then applies edits after `session.setPermissionMode('acceptEdits')` | `npm run example:plan-mode` |
 | [waves](/examples/waves) | Waves: bounded parallel workers, a deterministic aggregate, a typed verify gate, and extension waves seeded by the gaps it names | `npm run example:waves` |
 | [phase-pipeline](/examples/phase-pipeline) | Phase engineering on flows: discuss → spec → plan → implement → proof gate, with the retry ladder as a `oneOf` chain | `npm run example:phase-pipeline` |
 | [coding-agent-workflows](/examples/coding-agent-workflows) | A coding agent routed by a typed decision (`{ route, confidence }` via `output`), with a confidence floor escalating to the careful path | `npm run example:coding-agent-workflows` |
 | [connectors](/examples/connectors) | MCP connectors (the Claude-connectors shape) run fully offline against a mock `serveMcp` stdio server | `npm run example:connectors` |
 | [hostinger-deploy](/examples/hostinger-deploy) | Deploy an agent to a real Hostinger VPS: API verification, `docker save` over SSH, health + approval smoke tests | `node examples/hostinger-deploy/deploy.mjs --vm <id>` |
-| [agent-dir](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/agent-dir) | An agent defined as a directory (`instructions.md`, `tools/`, `skills/`, `agent.json`) and loaded with `loadAgentDir()` | `npm run example:agent-dir` |
-| [support-bot](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/support-bot) | A minimal customer-support agent | `npm run example:support-bot` |
-| [research-assistant](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/research-assistant) | A research agent with the built-in `http` tool | `npm run example:research-assistant` |
-| [doc-qa](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/doc-qa) | Question answering scoped to one document | `npm run example:doc-qa` |
-| [workflow-router](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/workflow-router) | Classifying a request into a fixed set of categories | `npm run example:workflow-router` |
-| [slack-notifier](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/slack-notifier) | Turning a raw event description into a short Slack notification | `npm run example:slack-notifier` |
-| [tracing](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/tracing) | A run wired to console and OpenTelemetry trace exporters | `npm run example:tracing:console` |
-| [openrouter](https://github.com/LinuxDevil/agent-sdk/tree/main/examples/openrouter) | `OpenRouterProvider`: generation, streaming, tool calling, model listing. Needs `OPENROUTER_API_KEY` | `npm run example:openrouter` |
+| [agent-dir](https://github.com/LinuxDevil/lousho/tree/main/examples/agent-dir) | An agent defined as a directory (`instructions.md`, `tools/`, `skills/`, `agent.json`) and loaded with `loadAgentDir()` | `npm run example:agent-dir` |
+| [support-bot](https://github.com/LinuxDevil/lousho/tree/main/examples/support-bot) | A minimal customer-support agent | `npm run example:support-bot` |
+| [research-assistant](https://github.com/LinuxDevil/lousho/tree/main/examples/research-assistant) | A research agent with the built-in `http` tool | `npm run example:research-assistant` |
+| [doc-qa](https://github.com/LinuxDevil/lousho/tree/main/examples/doc-qa) | Question answering scoped to one document | `npm run example:doc-qa` |
+| [workflow-router](https://github.com/LinuxDevil/lousho/tree/main/examples/workflow-router) | Classifying a request into a fixed set of categories | `npm run example:workflow-router` |
+| [slack-notifier](https://github.com/LinuxDevil/lousho/tree/main/examples/slack-notifier) | Turning a raw event description into a short Slack notification | `npm run example:slack-notifier` |
+| [tracing](https://github.com/LinuxDevil/lousho/tree/main/examples/tracing) | A run wired to console and OpenTelemetry trace exporters | `npm run example:tracing:console` |
+| [openrouter](https://github.com/LinuxDevil/lousho/tree/main/examples/openrouter) | `OpenRouterProvider`: generation, streaming, tool calling, model listing. Needs `OPENROUTER_API_KEY` | `npm run example:openrouter` |
 
 ## Related guides
 
