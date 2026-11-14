@@ -2,9 +2,117 @@
 title: "Changelog"
 description: "Every notable change to lousho, newest first."
 ---
-{/* Generated from CHANGELOG.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
+{/* Generated from CHANGELOG.md in LinuxDevil/lousho by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 ## [Unreleased]
+
+- New `lousho/observe` subpath: `startObserveDaemon`, `probeHealth`, `isObserveDaemon`, `defaultDbPath`, `OBSERVE_DEFAULT_PORT` and the daemon option/retention defaults, so a host process (Studio) can run and probe the collector through public exports.
+- `lousho bridge`: a new command that speaks Studio's bridge protocol (NDJSON on stdin/stdout, protocol 1) so Lousho Studio can build and run a project's agents with that project's own SDK and dependencies. It answers `hello`, `catalog`, `compile` and `shutdown`, and runs agents: `run`/`chat` start a run or chat turn, `steer`/`abort` control it, `resolveApproval`/`answerQuestion` resume a paused run, and every `AgentEvent`, trace span, steer join and run settle arrives as a pushed event (flows are refused with `LOUSHO_HOST_UNSUPPORTED`).
+- Model strings resolve any official AI SDK provider: `mistral/...`, `groq/...`, `xai/...`, `bedrock/...`, `vertex/...`, `azure/...` and 13 more load `@ai-sdk/<vendor>` on the first call, and `ai-sdk/<vendor>/<model>` loads any other `@ai-sdk/*` package. The package reads its own credentials. See [Providers](/providers#any-ai-sdk-vendor-by-name).
+
+## [1.0.0-alpha.117] - 2026-11-09
+
+## [1.0.0-alpha.116] - 2026-11-09
+
+## [1.0.0-alpha.115] - 2026-11-09
+
+## [1.0.0-alpha.114] - 2026-11-09
+
+## [1.0.0-alpha.113] - 2026-11-09
+
+## [1.0.0-alpha.112] - 2026-11-09
+
+## [1.0.0-alpha.111] - 2026-11-09
+
+## [1.0.0-alpha.110] - 2026-11-09
+
+## [1.0.0-alpha.109] - 2026-11-09
+
+## [1.0.0-alpha.108] - 2026-11-09
+
+## [1.0.0-alpha.107] - 2026-11-09
+
+## [1.0.0-alpha.106] - 2026-11-09
+
+## [1.0.0-alpha.105] - 2026-11-09
+
+## [1.0.0-alpha.104] - 2026-11-09
+
+## [1.0.0-alpha.103] - 2026-11-08
+
+## [1.0.0-alpha.102] - 2026-11-08
+
+## [1.0.0-alpha.101] - 2026-11-08
+
+## [1.0.0-alpha.100] - 2026-11-08
+
+## [1.0.0-alpha.99] - 2026-11-08
+
+## [1.0.0-alpha.98] - 2026-11-08
+
+## [1.0.0-alpha.97] - 2026-11-08
+
+## [1.0.0-alpha.96] - 2026-11-08
+
+## [1.0.0-alpha.95] - 2026-11-08
+
+## [1.0.0-alpha.94] - 2026-11-08
+
+## [1.0.0-alpha.93] - 2026-11-08
+
+## [1.0.0-alpha.92] - 2026-11-08
+
+## [1.0.0-alpha.91] - 2026-11-08
+
+## [1.0.0-alpha.90] - 2026-11-08
+
+## [1.0.0-alpha.89] - 2026-11-08
+
+## [1.0.0-alpha.88] - 2026-11-08
+
+## [1.0.0-alpha.87] - 2026-11-08
+
+## [1.0.0-alpha.86] - 2026-11-08
+
+## [1.0.0-alpha.85] - 2026-11-08
+
+## [1.0.0-alpha.84] - 2026-11-08
+
+## [1.0.0-alpha.83] - 2026-11-08
+
+## [1.0.0-alpha.82] - 2026-11-08
+
+## [1.0.0-alpha.81] - 2026-11-08
+
+## [1.0.0-alpha.80] - 2026-11-08
+
+## [1.0.0-alpha.79] - 2026-11-08
+
+## [1.0.0-alpha.78] - 2026-11-08
+
+## [1.0.0-alpha.77] - 2026-11-08
+
+## [1.0.0-alpha.76] - 2026-11-08
+
+## [1.0.0-alpha.75] - 2026-11-08
+
+## [1.0.0-alpha.74] - 2026-11-08
+
+## [1.0.0-alpha.73] - 2026-11-08
+
+## [1.0.0-alpha.72] - 2026-11-08
+
+## [1.0.0-alpha.71] - 2026-11-08
+
+## [1.0.0-alpha.70] - 2026-11-08
+
+## [1.0.0-alpha.69] - 2026-11-08
+
+## [1.0.0-alpha.68] - 2026-11-08
+
+## [1.0.0-alpha.67] - 2026-11-08
+
+## [1.0.0-alpha.66] - 2026-11-08
 
 ## [1.0.0-alpha.65] - 2026-11-08
 
