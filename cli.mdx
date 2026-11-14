@@ -3,10 +3,10 @@ title: "CLI"
 ---
 {/* Generated from docs/cli.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-Installing the package also installs the `lousho` command. It scaffolds
+Installing the package also installs the `@linuxdevil/lousho` command. It scaffolds
 projects, checks your setup, runs an agent locally, serves it over MCP, runs
-evals, shows saved traces, builds a deployable artifact and launches the Agent Forge dashboard.
-Run it with `npx lousho <command>` inside a project that has the SDK installed.
+evals, shows saved traces, builds a deployable artifact and opens Lousho Studio.
+Run it with `npx @linuxdevil/lousho <command>` inside a project that has the SDK installed.
 
 | Command | What it does | Details |
 | ------- | ------------ | ------- |
@@ -20,7 +20,10 @@ Run it with `npx lousho <command>` inside a project that has the SDK installed.
 | `lousho eval [globs...]` | Run `*.eval.ts` files under vitest; print a summary and write JUnit/JSON reports. | [Evals](/evals#lousho-eval) |
 | `lousho traces [id]` | List the recent runs saved by `fileTraceExporter()` (duration, model and tool calls, tokens, cost), or print one run as a span tree. | [Observability](/observability#local-traces) |
 | `lousho build --target=<t> --agent=<spec>` | Build a deployable Node server, Docker image or Cloudflare Worker. | [Deployment](/deployment) |
-| `lousho studio` | Launch Agent Forge, the visual dashboard, on one local port. | [Agent Forge](/agent-forge) |
+| `lousho studio` | Open Lousho Studio (the separate `@linuxdevil/studio` package) on this project. | [Lousho Studio](/agent-forge) |
+| `lousho bridge` | Speak Studio's bridge protocol on stdio; started by Studio, not run by hand. | [Below](#lousho-bridge) |
+| `lousho workspace <init\|ls\|show\|validate\|run>` | Create, inspect, validate and run a workspace from a folder or a running service. | [Workspaces](https://github.com/LinuxDevil/agent-sdk/blob/main/docs/workspaces.md) |
+| `lousho observe <sub>` | Run the local collector every agent reports to when `LOUSHO_OBSERVE` is set: `start`, `status`, `stop`, `rebuild-rollups`, `prune`, `export`, `failures`, `score`, `token`. | [Below](#lousho-observe) |
 | `lousho improve <path> --check <module>` | Experimental. Run one self-healing cycle on an agent directory: propose edits to its instructions and skills from failed runs in your local observe database, gate them, replay them on fresh runs, and apply (auto mode, the default) or queue (manual mode) one that passes. `--watch` keeps it running; `pause`, `status`, `rollback`, `approve` and the other subcommands manage it. `--dry-run` prints the review card and applies nothing. | [Below](#lousho-improve) |
 
 Every command that takes a `<spec>` reads an agent spec file (`.yaml`,
@@ -35,7 +38,9 @@ lousho chat <spec.yaml|spec.json|agent-dir|agent.ts> [--model provider/model] [-
 lousho acp <spec.yaml|spec.json|agent-dir|agent.ts> [--model provider/model]
 lousho add <name> [--registry <url-or-path>] [--dir <agent-dir>] [--yes] [--allow <list>] [--overwrite] [--dry-run]    (or --list)
 lousho build <agent-dir|spec|agent.ts> --target=<node-server|cloudflare-worker|docker> [--out=<dir>]    (or --agent=<path>)
-lousho studio [--port N] [--host H] [--prod|--dev]
+lousho studio [--port N] [--host H]
+lousho bridge
+lousho workspace <init|ls|show|validate|run> [args] [--source <dir> | --service <url>]
 lousho mcp <agent.yaml|json|agent-dir|agent.ts> [--http --port N --host H]
 lousho doctor [agent.yaml|json|agent-dir|agent.ts] [--json] [--ping]
 lousho eval [globs...] [--tag t] [--junit path] [--json path] [--strict] [--judge] [--record | --replay | --drift [--drift-usage]] [--url <base> [--token <bearer>]] [--config vitest.config.ts] [--timeout <ms>]
@@ -79,18 +84,18 @@ not the shared `LOUSHO_CONFIG_INVALID` path. The only short flags besides
 instead of the generated one; globs then narrow that config's files as vitest
 filters.
 
-`npm create lousho my-agent` runs `lousho init` with the same arguments.
+`npm create @linuxdevil/lousho my-agent` runs `lousho init` with the same arguments.
 To scaffold against an unreleased build of the SDK, pass `--sdk-path` (see
 [Installing from a local build](/installation#installing-from-a-local-build)).
 
 ## `lousho dev`
 
 ```bash
-npx lousho dev agent.yaml                  # a spec file
-npx lousho dev ./my-agent                  # an agent directory
-npx lousho dev src/agent.ts                # a TypeScript (or JavaScript) module
-npx lousho dev agent.yaml --port 4000 --host 0.0.0.0
-npx lousho dev ./my-agent --no-schedules   # do not fire cron schedules or a spec's cron triggers
+npx @linuxdevil/lousho dev agent.yaml                  # a spec file
+npx @linuxdevil/lousho dev ./my-agent                  # an agent directory
+npx @linuxdevil/lousho dev src/agent.ts                # a TypeScript (or JavaScript) module
+npx @linuxdevil/lousho dev agent.yaml --port 4000 --host 0.0.0.0
+npx @linuxdevil/lousho dev ./my-agent --no-schedules   # do not fire cron schedules or a spec's cron triggers
 ```
 
 For an agent directory, `channels/` are mounted under `/channels` and
@@ -129,7 +134,7 @@ plus a free-text field. The same endpoints work from `curl` or your own page:
 
 `--traces` (or `--traces=<dir>`) writes every run to local trace files with
 `fileTraceExporter()`, in `.lousho/traces` unless you name a directory, so
-`npx lousho traces` shows what the agent did. It is off by default because the
+`npx @linuxdevil/lousho traces` shows what the agent did. It is off by default because the
 files hold prompt, tool argument and tool result content, and the flag prints
 the directory it writes to. It applies to spec files, agent directories and
 modules alike (a module's own `exporter` is replaced while the flag is set).
@@ -192,9 +197,9 @@ Directories and modules are your code and run with your permissions; only run
 ## `lousho chat`
 
 ```bash
-npx lousho chat agent.yaml                          # a spec file
-npx lousho chat ./my-agent --model openai/gpt-4o    # an agent directory, on another model
-npx lousho chat src/agent.ts --store sqlite:.lousho/chat.db --session support
+npx @linuxdevil/lousho chat agent.yaml                          # a spec file
+npx @linuxdevil/lousho chat ./my-agent --model openai/gpt-4o    # an agent directory, on another model
+npx @linuxdevil/lousho chat src/agent.ts --store sqlite:.lousho/chat.db --session support
 ```
 
 A terminal REPL: each line you type is one turn of a session. `<path>` is
@@ -253,9 +258,9 @@ scripted lines and a `mockModel` agent and no terminal.
 ## `lousho build`
 
 ```bash
-npx lousho build --target=node-server --agent=agent.yaml        # or docker / cloudflare-worker
-npx lousho build ./my-agent --target=node-server                # an agent directory (node-server, docker)
-npx lousho build src/agent.ts --target=node-server              # an agent module (node-server, docker)
+npx @linuxdevil/lousho build --target=node-server --agent=agent.yaml        # or docker / cloudflare-worker
+npx @linuxdevil/lousho build ./my-agent --target=node-server                # an agent directory (node-server, docker)
+npx @linuxdevil/lousho build src/agent.ts --target=node-server              # an agent module (node-server, docker)
 ```
 
 Writes the artifact to `--out` (default `.lousho/build/<target>`) and prints
@@ -266,31 +271,45 @@ Workers limits are in [Deployment](/deployment).
 ## `lousho studio`
 
 ```bash
-npx lousho studio            # prints http://127.0.0.1:4750/?token=<per-launch token>
-npx lousho studio --port 5000
+npx @linuxdevil/lousho studio            # prints http://127.0.0.1:4750/?token=<per-launch token>
+npx @linuxdevil/lousho studio --port 5000
 ```
 
-Starts one local server for the Agent Forge API and UI. Agents and run state
-are stored under `.lousho/` in the current directory. The app has a left
-navigation: Agents (the builder) and Playground, then Traces, Threads and
-Monitoring, Evaluations (Scores, Datasets, Evaluators, Annotation queues),
-Prompts, Context Hub and Settings; everything past the Playground reads the
-`lousho observe` daemon. See [Agent Forge](/agent-forge) for the screens
+Opens Lousho Studio on this project. Studio is a separate package
+(`@linuxdevil/studio`): install it with `npm i -g @linuxdevil/studio` (or run
+`npx @linuxdevil/studio`); this command finds it and opens the current folder
+as a workspace. When no Studio is installed it prints
+`Studio is a separate install: npx @linuxdevil/studio` and exits.
+
+Options: `--port N` and `--host H` pass through to Studio (defaults 4750 and
+`127.0.0.1`). `--prod` and `--dev` only apply inside the SDK's own repository
+checkout. See [Lousho Studio](/agent-forge) for workspaces, the screens
 and the walkthrough.
+
+## `lousho bridge`
+
+```bash
+lousho bridge
+```
+
+Speaks Studio's bridge protocol (NDJSON) on stdin/stdout so Studio can build
+and run agents with this project's own SDK. Studio starts it for each
+workspace that has `@linuxdevil/lousho` installed; you do not run it
+yourself.
 
 ## `lousho observe`
 
 ```bash
-npx lousho observe start                        # collector on http://127.0.0.1:7777
-npx lousho observe status                       # health + fleet counts
-npx lousho observe stop                         # <db>.pid + SIGTERM (checks the daemon serves --db)
-npx lousho observe rebuild-rollups              # recompute insight aggregates
-npx lousho observe prune --older-than 30d       # delete finished runs older than 30 days, then VACUUM
-npx lousho observe export --since 7d --out runs.jsonl # traces as JSONL, one per line
-npx lousho observe failures --since 7d          # recurring tool and model failures, by agent
-npx lousho observe failures --traces .lousho/traces --json # the same from trace files, no database
-npx lousho observe score --agent support        # continuous score, pass rate and trajectory gate state
-npx lousho observe token create --project myapp # bearer key for non-loopback auth
+npx @linuxdevil/lousho observe start                        # collector on http://127.0.0.1:7777
+npx @linuxdevil/lousho observe status                       # health + fleet counts
+npx @linuxdevil/lousho observe stop                         # <db>.pid + SIGTERM (checks the daemon serves --db)
+npx @linuxdevil/lousho observe rebuild-rollups              # recompute insight aggregates
+npx @linuxdevil/lousho observe prune --older-than 30d       # delete finished runs older than 30 days, then VACUUM
+npx @linuxdevil/lousho observe export --since 7d --out runs.jsonl # traces as JSONL, one per line
+npx @linuxdevil/lousho observe failures --since 7d          # recurring tool and model failures, by agent
+npx @linuxdevil/lousho observe failures --traces .lousho/traces --json # the same from trace files, no database
+npx @linuxdevil/lousho observe score --agent support        # continuous score, pass rate and trajectory gate state
+npx @linuxdevil/lousho observe token create --project myapp # bearer key for non-loopback auth
 ```
 
 Runs the local collector every agent reports to when `LOUSHO_OBSERVE` is
@@ -341,11 +360,11 @@ no daemon needs to be running. See [Export](/observability#export).
 ## `lousho prompt`
 
 ```bash
-npx lousho prompt push prompt.md --name mira    # publishes a new version
-npx lousho prompt list
-npx lousho prompt get mira@latest
-npx lousho prompt label mira prod 3             # mira@prod -> 3 (was 2)
-npx lousho prompt get mira@prod
+npx @linuxdevil/lousho prompt push prompt.md --name mira    # publishes a new version
+npx @linuxdevil/lousho prompt list
+npx @linuxdevil/lousho prompt get mira@latest
+npx @linuxdevil/lousho prompt label mira prod 3             # mira@prod -> 3 (was 2)
+npx @linuxdevil/lousho prompt get mira@prod
 ```
 
 Publishes and reads prompt versions in the observe daemon's registry. Agents
@@ -369,7 +388,7 @@ resolve them with `createAgent({ prompt: 'mira@latest' })` (or a label,
 Experimental, like the [`improveAgent()`](https://github.com/LinuxDevil/agent-sdk/blob/main/docs/improve.md) it runs.
 
 ```bash
-npx lousho improve ./my-agent --check ./check.mjs --since 7d --out proposal.md
+npx @linuxdevil/lousho improve ./my-agent --check ./check.mjs --since 7d --out proposal.md
 ```
 
 ```js
@@ -468,9 +487,9 @@ under `.lousho/revisions/` and recorded in the hash-chained
 `.lousho/audit.jsonl`. Three subcommands read and undo that history:
 
 ```bash
-npx lousho improve revisions ./my-agent
-npx lousho improve rollback ./my-agent --by ali --reason "answers got worse"
-npx lousho improve audit ./my-agent --verify
+npx @linuxdevil/lousho improve revisions ./my-agent
+npx @linuxdevil/lousho improve rollback ./my-agent --by ali --reason "answers got worse"
+npx @linuxdevil/lousho improve audit ./my-agent --verify
 ```
 
 - `revisions <dir> [--json]` lists the saved revisions, newest first, with their
@@ -500,9 +519,9 @@ In manual mode a proposal that passed the gate waits in
 `.lousho/proposals/<id>.json` until a person decides:
 
 ```bash
-npx lousho improve pending ./my-agent
-npx lousho improve approve ./my-agent 3f9c0a1b2d4e --by ali --check ./check.mjs
-npx lousho improve reject ./my-agent 3f9c0a1b2d4e --by ali --reason "too broad"
+npx @linuxdevil/lousho improve pending ./my-agent
+npx @linuxdevil/lousho improve approve ./my-agent 3f9c0a1b2d4e --by ali --check ./check.mjs
+npx @linuxdevil/lousho improve reject ./my-agent 3f9c0a1b2d4e --by ali --reason "too broad"
 ```
 
 - `pending <dir> [--show <id>] [--json]` lists the queue, newest first, marking
@@ -539,9 +558,9 @@ npx lousho improve reject ./my-agent 3f9c0a1b2d4e --by ali --reason "too broad"
 `--watch` keeps the loop running on an agent directory:
 
 ```bash
-npx lousho improve ./my-agent --check ./check.mjs --watch --interval 15m
-npx lousho improve pause ./my-agent --reason "release freeze" --by ali
-npx lousho improve resume ./my-agent --by ali
+npx @linuxdevil/lousho improve ./my-agent --check ./check.mjs --watch --interval 15m
+npx @linuxdevil/lousho improve pause ./my-agent --reason "release freeze" --by ali
+npx @linuxdevil/lousho improve resume ./my-agent --by ali
 ```
 
 Each tick checks the kill switch (`.lousho/improve.stop`, `LOUSHO_IMPROVE=off`
