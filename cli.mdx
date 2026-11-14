@@ -1,7 +1,7 @@
 ---
 title: "CLI"
 ---
-{/* Generated from docs/cli.md in LinuxDevil/agent-sdk by scripts/sync-sdk-docs.mjs. Do not edit here. */}
+{/* Generated from docs/cli.md in LinuxDevil/lousho by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
 Installing the package also installs the `@linuxdevil/lousho` command. It scaffolds
 projects, checks your setup, runs an agent locally, serves it over MCP, runs
@@ -22,7 +22,7 @@ Run it with `npx @linuxdevil/lousho <command>` inside a project that has the SDK
 | `lousho build --target=<t> --agent=<spec>` | Build a deployable Node server, Docker image or Cloudflare Worker. | [Deployment](/deployment) |
 | `lousho studio` | Open Lousho Studio (the separate `@linuxdevil/studio` package) on this project. | [Lousho Studio](/agent-forge) |
 | `lousho bridge` | Speak Studio's bridge protocol on stdio; started by Studio, not run by hand. | [Below](#lousho-bridge) |
-| `lousho workspace <init\|ls\|show\|validate\|run>` | Create, inspect, validate and run a workspace from a folder or a running service. | [Workspaces](https://github.com/LinuxDevil/agent-sdk/blob/main/docs/workspaces.md) |
+| `lousho workspace <init\|ls\|show\|validate\|run>` | Create, inspect, validate and run a workspace from a folder or a running service. | [Workspaces](https://github.com/LinuxDevil/lousho/blob/main/docs/workspaces.md) |
 | `lousho observe <sub>` | Run the local collector every agent reports to when `LOUSHO_OBSERVE` is set: `start`, `status`, `stop`, `rebuild-rollups`, `prune`, `export`, `failures`, `score`, `token`. | [Below](#lousho-observe) |
 | `lousho improve <path> --check <module>` | Experimental. Run one self-healing cycle on an agent directory: propose edits to its instructions and skills from failed runs in your local observe database, gate them, replay them on fresh runs, and apply (auto mode, the default) or queue (manual mode) one that passes. `--watch` keeps it running; `pause`, `status`, `rollback`, `approve` and the other subcommands manage it. `--dry-run` prints the review card and applies nothing. | [Below](#lousho-improve) |
 
@@ -385,7 +385,7 @@ resolve them with `createAgent({ prompt: 'mira@latest' })` (or a label,
 
 ## `lousho improve`
 
-Experimental, like the [`improveAgent()`](https://github.com/LinuxDevil/agent-sdk/blob/main/docs/improve.md) it runs.
+Experimental, like the [`improveAgent()`](/improve) it runs.
 
 ```bash
 npx @linuxdevil/lousho improve ./my-agent --check ./check.mjs --since 7d --out proposal.md
@@ -445,17 +445,17 @@ don't live in `instructions.md`, always runs dry.
   `<id>.heal` fork from `agent.recover()` that finished and whose answer passes
   `--check`, if there is one. It's evidence only: it never counts as a run and
   never protects a case, and a fork you `--protect` is left out. See
-  [Recovery forks as evidence](https://github.com/LinuxDevil/agent-sdk/blob/main/docs/improve.md#recovery-forks-as-evidence).
+  [Recovery forks as evidence](/improve#recovery-forks-as-evidence).
 - `--approval auto|manual` sets the approval mode, over the
   `LOUSHO_IMPROVE_APPROVAL` variable, which wins over `"approval"` in
   `improve.json` beside the agent. The default is `auto`. In `manual` mode an
   edit that quotes a failed check word for word is kept and flagged on the card
   for the person who approves it; in `auto` mode it is sent back to the editor
   once and then dropped. An `improve.json` that doesn't validate stops the
-  run. See [Approval modes](https://github.com/LinuxDevil/agent-sdk/blob/main/docs/improve.md#approval-modes).
+  run. See [Approval modes](/improve#approval-modes).
 - `--proposers <1-4>`, `--mode agg|seq`, `--select` and
   `--no-parallel-editors` set the cycle's
-  [Harness² options](https://github.com/LinuxDevil/agent-sdk/blob/main/docs/improve.md#harness-options), over the `editors` block in
+  [Harness² options](/improve#harness-options), over the `editors` block in
   `improve.json`. `--select` can only turn the selector on and
   `--no-parallel-editors` can only turn parallel off. `--proposers k` runs k invariant and k domain editors (or k
   rounds with `--mode seq`), and costs about k times the editor sessions and
@@ -477,7 +477,7 @@ budget if any. Every run and every editor call is billed to your models.
 `--max-tokens` caps one cycle within `improve.json`'s daily caps.
 It exits 1 on an `outage`: no run could be scored, or the editors' provider
 failed. A `budget-exceeded` run exits 0, since you set the cap. Each run's error goes to
-stderr. It reads nothing but your own database. See [Improving an agent](https://github.com/LinuxDevil/agent-sdk/blob/main/docs/improve.md#from-the-command-line).
+stderr. It reads nothing but your own database. See [Improving an agent](/improve#from-the-command-line).
 
 ### Revisions, rollback and the audit log
 
@@ -532,7 +532,7 @@ npx @linuxdevil/lousho improve reject ./my-agent 3f9c0a1b2d4e --by ali --reason 
   [--read-only tool]... [--no-guard] [--db path]` applies the proposal through
   `applyProposal()` as that person's approval and removes it from the queue.
   With `canary.traffic` set, it starts the
-  [traffic canary](https://github.com/LinuxDevil/agent-sdk/blob/main/docs/improve.md#live-traffic-canary-opt-in) instead and writes
+  [traffic canary](/improve#live-traffic-canary-opt-in) instead and writes
   nothing yet, reading the observe database at `--db` (default
   `~/.lousho/observe.db`); the proposal is applied as that approval when the
   canary passes, and the watcher guards it then. A
@@ -574,7 +574,7 @@ the stop file and `resume` removes it; both are audited. `resume` doesn't
 undo `LOUSHO_IMPROVE=off` or `"enabled": false`. While the loop is paused, the
 monitor doesn't run either, so nothing is rolled back automatically. Only a
 watcher runs the monitor: a single `lousho improve` cycle doesn't. See
-[Running it continuously](https://github.com/LinuxDevil/agent-sdk/blob/main/docs/improve.md#running-it-continuously).
+[Running it continuously](/improve#running-it-continuously).
 
 `lousho improve status <dir> [--json]` prints the mode and active revision, the
 last 5 audit entries, pending proposals, the monitor's verdict (with a warning
@@ -613,7 +613,7 @@ defaults to `false` in manual mode.
 are unset unless you set them. With `canary.traffic` set, a proposal that
 passes the replay canary (in auto mode), or that a person approves (in manual
 mode), starts the
-[live traffic canary](https://github.com/LinuxDevil/agent-sdk/blob/main/docs/improve.md#live-traffic-canary-opt-in), which serves it
+[live traffic canary](/improve#live-traffic-canary-opt-in), which serves it
 to real sessions, instead of being written.
 `loadImproveSettings()` reads the file. See
-[Settings](https://github.com/LinuxDevil/agent-sdk/blob/main/docs/improve.md#settings) for what each key does.
+[Settings](/improve#settings) for what each key does.
