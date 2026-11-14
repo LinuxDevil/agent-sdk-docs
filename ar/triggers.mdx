@@ -91,7 +91,7 @@ webhookChannel({
 
 ## تواقيع طلبات Slack
 
-`slackChannel()` يتحقق من كل طلب نيابةً عنك (راجع [Slack في Channels](/ar/channels#slack)). أما في الـhandler الخاص بك (slash commands والتفاعلات)، فتحقّق من الـbody الخام بـ`verifySlackSignature()`: HMAC-SHA256 على `v0:{X-Slack-Request-Timestamp}:{raw body}`، يُقارَن في زمن ثابت مع `X-Slack-Signature` (`v0=<hex>`). الطلبات الأقدم من خمس دقائق، أو التي تسبق الوقت المحلي بأكثر من دقيقة، تُرفَض (الـtimestamp بالثواني، كما ترسله Slack). راجع [توثيق Slack](https://docs.slack.dev/authentication/verifying-requests-from-slack).
+`slackChannel()` يتحقق من كل طلب نيابةً عنك (راجع [Slack في Channels](/ar/channels#discord)). أما في الـhandler الخاص بك (slash commands والتفاعلات)، فتحقّق من الـbody الخام بـ`verifySlackSignature()`: HMAC-SHA256 على `v0:{X-Slack-Request-Timestamp}:{raw body}`، يُقارَن في زمن ثابت مع `X-Slack-Signature` (`v0=<hex>`). الطلبات الأقدم من خمس دقائق، أو التي تسبق الوقت المحلي بأكثر من دقيقة، تُرفَض (الـtimestamp بالثواني، كما ترسله Slack). راجع [توثيق Slack](https://docs.slack.dev/authentication/verifying-requests-from-slack).
 
 ```ts
 import { verifySlackSignature } from 'lousho/triggers';
