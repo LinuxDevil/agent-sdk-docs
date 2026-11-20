@@ -1,46 +1,87 @@
 ---
-title: "Deploying to a Hostinger VPS"
+title: "Deploying to your own server"
 ---
 {/* Generated from docs/hostinger-vps.md in LinuxDevil/lousho by scripts/sync-sdk-docs.mjs. Do not edit here. */}
 
-The `docker` [deployment](/deployment) target is a plain Dockerfile +
-bundled server, so it runs on any Docker host — including a Hostinger VPS.
-The [hostinger-deploy](https://github.com/LinuxDevil/lousho/tree/main/examples/hostinger-deploy)
-example ships a complete, tested recipe: `deploy.mjs` verifies the VM through
-the Hostinger API, builds locally, ships the context over SSH, and runs the
-container — then proves the deploy with `/health` and one real `/chat` turn.
+`lousho deploy` puts Lousho Studio and your agent folders on any Linux server
+you can reach over SSH (a Hostinger VPS, for example). The server needs Docker
+with the compose plugin. Everything is served over HTTPS:
+
+- Studio at `https://studio.<domain>`, behind a username and password;
+- each agent at `https://<agent>.<domain>`, behind its `LOUSHO_API_TOKEN` bearer.
+
+The domain defaults to `<server-ip>.sslip.io`, which resolves to the server
+without any DNS setup.
 
 ```bash
-export HOSTINGER_API_TOKEN=...   # developers.hostinger.com -> API tokens
-export OPENROUTER_API_KEY=...    # the agent's model key
-export LOUSHO_API_TOKEN=...      # bearer protecting the deployed server
-node examples/hostinger-deploy/deploy.mjs --vm <id|hostname|ip>
+npx lousho deploy
 ```
 
-What it does, step by step:
+The wizard asks for whatever it doesn't know yet:
 
-1. **Verify the VM.** `GET /api/vps/v1/virtual-machines` finds the VM by id,
-   hostname or IPv4 and refuses non-`running` machines. The
-   `hostinger-api-mcp` MCP server wraps this same API, so an agent
-   can also drive it interactively — VM lifecycle, SSH keys,
-   firewall rules, post-install scripts.
-2. **Build.** `lousho build ./agent --target=docker --out <dir>` produces a
-   self-contained context (bundled `dist/server.js`, `Dockerfile`).
-3. **Ship + run.** `tar`/`scp` the context to `/opt/lousho-agent`, then over
-   SSH: `docker build`, `docker rm -f lousho-agent` if it exists, and
-   `docker run -d --restart unless-stopped -p 3000:3000 -e ...`.
-4. **Prove it.** Poll `/health`, then POST one `/chat` turn with the bearer
-   token.
+1. the server address (SSH as `root` with your key);
+2. the Studio username (leave it empty to deploy agents only);
+3. which folders under `agents/` to deploy;
+4. each agent's model key (read from the agent's `model`, for example
+   `OPENROUTER_API_KEY`), unless it is already in your environment;
+5. the Studio password (at least 12 characters).
 
-The example's environment flags are worth copying:
+It saves the answers to `lousho.deploy.json` (no secrets) and the secrets to
+`~/.config/lousho/deploy-<name>.env` (mode 600). Run `npx lousho deploy` again
+after any change; it asks nothing the second time.
 
-- `-e LOUSHO_STORE=sqlite:/data/lousho.db -v lousho-data:/data` — sessions and
-  paused approvals survive container restarts (`/data` is a named volume).
-- `-e LOUSHO_API_TOKEN=...` — required: every route except `/health` is then
-  bearer-authed. The image listens on `0.0.0.0`, so without a token (or an
-  `auth.ts`) the container refuses to start (`LOUSHO_SERVER_UNPROTECTED`). Port 3000 is plain HTTP; put Traefik (the VPS template
-  installs it) or another TLS terminator in front.
+| Flag | Meaning |
+| --- | --- |
+| `--host H`, `--user U` | The server and SSH user (default `root`). |
+| `--agent DIR` | An agent folder or spec file to deploy; repeat for more. |
+| `--studio-user U`, `--no-studio` | Deploy Studio behind this login, or skip it. |
+| `--domain D` | Serve on `<service>.<D>` instead of sslip.io. Point a wildcard DNS record at the server first. |
+| `--env KEY` | Another secret every container gets; repeat for more. |
+| `--password-stdin` | Read the Studio password from stdin. |
+| `--local` | Build Studio from this SDK checkout instead of npm. |
+| `--dry-run` | Write the stack to `.lousho/deploy` and stop. |
+| `--yes` | Never ask; fail when something is missing (CI). |
 
-Provisioning itself — purchasing, recreating, resizing a VM — is deliberately
-*not* in the script: those are billed or destructive Hostinger API calls best
-left to explicit ops (or the MCP server, where each call is visible).
+## What it does
+
+1. **Builds** each agent with `lousho build --target=docker`.
+2. **Writes** a Docker Compose stack: the agents, Studio (the SDK and
+   `lousho-studio` from npm, run as the `node` user, with its workspace and
+   collector data on volumes) and Caddy for HTTPS. If Traefik already owns
+   port 443 on the server, it adds Traefik labels instead of Caddy.
+3. **Hashes** the Studio password on the server with `caddy hash-password`;
+   only the bcrypt hash is stored.
+4. **Uploads** the stack to `/opt/<name>` (`.env` with mode 600) and runs
+   `docker compose up -d --build`.
+5. **Checks** `/health` on every service over HTTPS.
+
+## GitHub App agents
+
+An agent with a GitHub channel (a PR reviewer, for example) needs a GitHub
+App. It can be a deployed agent folder or an agent inside Studio:
+
+```bash
+npx lousho deploy github-app --agent reviewer --prefix REVIEWER_
+npx lousho deploy
+```
+
+The first command opens GitHub's App creation page with the permissions and
+the webhook URL filled in, saves the App's id, private key, webhook secret and
+name as `REVIEWER_APP_ID`, `REVIEWER_APP_PRIVATE_KEY`,
+`REVIEWER_WEBHOOK_SECRET` and `REVIEWER_BOT_NAME`, and links to the install
+page. The second deploy hands them to the containers. Each later deploy points
+the App's webhook at the agent again:
+
+- a deployed folder: `https://<agent>.<domain>/channels/github`;
+- a Studio agent (any `--agent` that is not a deployed folder):
+  `https://studio.<domain>/hooks/<agent-id>/channel/github`. Studio's
+  `/hooks/*` paths skip the login; each channel checks its platform's
+  signature instead. In the agent's spec, reference the variables as
+  SecretRefs, for example `appId: { env: REVIEWER_APP_ID }`.
+
+## Notes
+
+- Studio has no access token of its own: the login in front of it is the
+  gate. Never publish Studio's port without it.
+- Provisioning itself (buying, resizing or recreating a server) is out of
+  scope; do that in your provider's console.

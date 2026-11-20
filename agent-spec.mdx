@@ -115,7 +115,7 @@ with `LOUSHO_SPEC_UNSUPPORTED` naming the field.
 | [`promptCaching`](/models-and-cost#prompt-caching) | `'auto' \| false` | Lets the provider cache the stable start of the prompt. |
 | [`toolSearch`](/tool-search) | `false \| object` | Hides most tools until the model searches for them. |
 | [`codeMode`](/code-mode) | `boolean \| object` | Lets the model write a short program that calls several tools at once. |
-| [`permissionMode`](/permission-modes) | `'default' \| 'plan' \| 'acceptEdits' \| 'dontAsk'` | Default permission mode for the agent's tool calls. |
+| [`permissionMode`](/permission-modes) | `'default' \| 'plan' \| 'acceptEdits' \| 'dontAsk' \| 'bypassPermissions'` | Default permission mode for the agent's tool calls. |
 | [`approvalTtlMs`](/approvals) | `number` | How long a pending approval stays open, in milliseconds. |
 | [`askQuestion`](/approvals#asking-the-user-a-question) | `boolean` | Lets the agent pause and ask the user a question. |
 | [`mcpServers`](/mcp-integration) | `Record<string, McpServerSpec>` | MCP servers whose tools the agent can call, keyed by a short name. |
@@ -154,8 +154,15 @@ tools:
 - `{ builtin }` names come from `listBuiltinTools()` (`current_date`,
   `day_name`, `http_request`, `web_fetch`, `todo`); `options` is checked
   against the tool's own schema.
-- `{ integration }` is one of `github`, `jira`, `slack` or `email`; its
-  secret credentials must be SecretRefs, never literal strings.
+- `{ integration }` is one of `github`, `jira`, `confluence`, `slack`,
+  `email`, `google`, `jenkins` or `figma`; its secret credentials must be
+  SecretRefs, never literal strings. `github` with `owner` and `repo` gives
+  the tools for that one repository and takes either `token` or a GitHub
+  App's `appId` and `privateKey` (PEM; `\n` escapes are accepted). Without
+  `owner` and `repo` it takes `token` and gives account-wide tools:
+  `github_list_my_repositories`, `github_create_repository` and `github_api`
+  (any REST call; anything but `GET` asks for approval, as does creating a
+  repository).
 - Every ref may also carry `id` (its `tool:<id>` node id; the default is the
   builtin, registry or hosted name, or the file's basename), `approval`
   (`'always'` asks on every call, `'never'` never asks; `'auto'` is not
@@ -191,6 +198,13 @@ SecretRefs are accepted wherever a credential goes: `mcpServers` `env`,
 | `webhook` | an HTTP POST arrives at `path`, verified by `secret` | studio |
 | `channel` | a message arrives on `telegram`, `slack`, `github`, `teams`, `discord` or `http` | studio |
 | `agent` | another agent's run finishes (`after`, `on`) | studio |
+
+A `github` channel needs `secrets.webhookSecret` plus `secrets.token`, or a
+GitHub App's `secrets.appId` and `secrets.privateKey` (optionally
+`secrets.botName`, the App's slug). It answers `@<botName>` mentions; with
+`pullRequests: true` it instead reviews every pull request an owner, member or
+collaborator opens or pushes to, and posts nothing but the agent's own review.
+In Studio the webhook URL is `https://<studio>/hooks/<agent-id>/channel/github`.
 
 The `runsUnder` column is what `listTriggerTypes()` reports for each type.
 `lousho dev` starts a spec's `cron` triggers as

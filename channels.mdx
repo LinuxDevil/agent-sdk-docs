@@ -533,7 +533,7 @@ and a replayed tap does not run the tool twice.
 
 ## GitHub
 
-`githubChannel({ webhookSecret, botName, token?, app?, name?, apiUrl?, fetch?, triggers?, approvers?, pullRequestOpened?, onError? })`
+`githubChannel({ webhookSecret, botName, token?, app?, name?, apiUrl?, fetch?, triggers?, approvers?, pullRequestOpened?, pullRequestEvents?, replyToPullRequest?, onError? })`
 lets people summon an agent with `@<botName>` in a GitHub issue, pull-request
 or review comment; the agent answers with a comment in the same thread. It reads
 the webhooks of a GitHub App (or of one repository) and posts through the REST
@@ -571,8 +571,12 @@ so it also runs on Workers.
   `pullRequestOpened: true` an `opened` action by a human `triggers` allows
   starts a turn on the PR's own session (`<owner>/<repo>#<number>`, the same
   one its comments share), so a review bot can read a PR the moment it opens.
-  `synchronize`, `closed`, `reopened`, bot-opened and untriggered PRs are
-  ignored.
+  `pullRequestEvents` picks the actions instead: `['opened', 'synchronize',
+  'reopened', 'ready_for_review']` re-reviews every push. Draft PRs are skipped
+  until `ready_for_review`, and the input names the action and the head commit
+  (`Head commit: <sha>`). Other actions, bot-opened and untriggered PRs are
+  ignored. `replyToPullRequest: false` posts nothing after a pull-request turn,
+  for agents that post their own output (a review with `github_submit_review`).
 - One session per issue or pull request (`<owner>/<repo>#<number>`), and one
   per review thread (a review comment and the replies under it).
 - The reply is a new comment: a timeline comment on the issue or pull request,

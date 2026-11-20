@@ -56,10 +56,8 @@ the SDK's own repository checkout (see [Dev mode](#dev-mode)).
 | `--port N` | `4750` | The port to listen on. |
 | `--host H` | `127.0.0.1` | The interface to bind to. |
 
-The server prints its URL, `http://127.0.0.1:4750/?token=<random>`. The
-`?token=` is a per-launch access token: the page keeps it for that tab and
-sends it on every API call, so open the printed URL, not the bare host (see
-[Access token](#access-token)).
+The server prints its URL, `http://127.0.0.1:4750/` (see
+[Access](#access)).
 
 Opening Studio lands on the Agents list (`#/agents`): your saved agents as
 cards, plus a **New agent** menu. Opening or creating one takes you to its
@@ -219,24 +217,14 @@ bridge protocol `1`.
 
 ## Using Studio
 
-### Access token
+### Access
 
-The studio can store provider keys, start runs and execute hook code, so its
-API is locked to the browser tab you opened from the printed URL:
-
-- Each launch mints a random token and prints it in the URL (`?token=...`).
-  The page keeps it for that tab (it survives a reload) and sends it on
-  every API call (`x-lousho-studio-token` header) and on the WebSocket
-  (`?token=` query). A request without it gets `401`. Opening the bare
-  `http://127.0.0.1:4750` in a new tab loads the page, but its API calls
-  fail until you use the printed URL.
-- The server sends no CORS headers and refuses (`403`) a request whose
-  `Origin` is not the studio's own, or whose `Host` is not a loopback name
-  (`localhost`, `127.0.0.1`, `[::1]`) or the `--host` you bound to. With
-  `--host 0.0.0.0` any `Host` is accepted and the token is the only gate.
-- `GET /health` and the static client need no token.
-
-From `curl`, pass the token: `curl -H "x-lousho-studio-token: $TOKEN" localhost:4750/agents`.
+The studio can store provider keys, start runs and execute hook code. It
+needs no token; instead it refuses (`403`) a request whose `Origin` is not
+the studio's own, or whose `Host` is not a loopback name (`localhost`,
+`127.0.0.1`, `[::1]`) or the `--host` you bound to. With `--host 0.0.0.0`
+any `Host` is accepted, so put the studio behind a login (a reverse proxy
+with basic auth, for example) before exposing it.
 
 `lousho studio` hands these to the processes it starts through environment
 variables; you only set them yourself when you start the studio server
@@ -244,7 +232,6 @@ without the CLI:
 
 | Variable | Read by | Meaning |
 | --- | --- | --- |
-| `LOUSHO_STUDIO_TOKEN` | the studio API server | The access token. Unset, the server mints a random one per launch. |
 | `LOUSHO_STUDIO_ALLOWED_ORIGINS` | the studio API server | Comma-separated extra origins to accept besides the studio's own (dev mode sets the Vite dev server's). |
 | `LOUSHO_STUDIO_API_URL` | the Vite dev server (dev mode) | Where to proxy API calls (default `http://127.0.0.1:4750`). |
 
@@ -319,7 +306,7 @@ with the same filters. Defaults are never written (a bare `#/traces` is the
 default 24 h list). Filter, sort and page edits replace the current history
 entry, and opening a row pushes one, so the browser's Back returns from a
 trace to the list instead of walking through filter edits. An empty or
-unknown hash goes to `#/agents` (the `?token=` stays).
+unknown hash goes to `#/agents`.
 
 | Route | Screen | Query keys |
 | --- | --- | --- |
@@ -687,6 +674,45 @@ when it is down) and **Keyboard shortcuts** (the same list as the `?` sheet).
 The builder drawer's **Settings** tab shows only the provider keys, profile
 and deploy cards; see [Settings, secrets and deploy wiring](#settings-secrets-and-deploy-wiring).
 
+### Profile
+
+`#/profile` (the person icon at the bottom of the navigation) holds the
+accounts, keys and endpoints Studio uses to act for you. Everything here is
+Studio-wide, stored under `~/.lousho/studio/profile/`, with secret values in
+the encrypted secrets store.
+
+- **Connectors**: connect GitHub, Atlassian (Jira and Confluence), Slack,
+  Google Workspace, Jenkins, Figma and Email (Resend). Studio checks each
+  connection with the service first and shows the account and scopes, then
+  saves the credentials as named secrets (`GITHUB_TOKEN`, `JIRA_API_TOKEN`,
+  `SLACK_BOT_TOKEN`, …). Google signs in with OAuth: create a "Web
+  application" OAuth client in Google Cloud and add the redirect URI the
+  Connect sheet shows. In the canvas, an integration tool's **Use connected
+  account** button fills its credentials with these secrets.
+- **AI access**: the model provider keys, the same card as in Settings.
+- **Secrets**: every named secret, with add, replace and delete.
+- **Automation keys**: keys that start agents from scripts, CI or other
+  services. Each key may start only the agents you pick, and Studio keeps
+  only its SHA-256 hash. Call `POST /hooks/_trigger` with
+  `Authorization: Bearer <key>` (or `x-api-key`) and a JSON body
+  `{ "agentId": "…", "workspaceId": "…", "input": "…" }`. It answers `202`
+  when the run started, `409` when the agent is busy or turned off, `401`
+  for an unknown key and `403` for an agent the key may not start.
+- **Inbound events**: URLs at `/hooks/_in/<id>` that start one or more
+  agents per event. A signed endpoint accepts GitHub's
+  `X-Hub-Signature-256`, Slack's `X-Slack-Signature`, or
+  `X-Lousho-Signature: sha256=HMAC(secret, "<timestamp>." + body)` with
+  `X-Lousho-Timestamp` within 5 minutes. A token endpoint accepts the secret
+  as a bearer token, an `x-lousho-token` header or `?token=`. The prompt
+  template sees `{{event}}` (the body) and `{{headers.<name>}}`. Every
+  delivery, accepted or rejected, is logged and listed under **Deliveries**.
+- **Notifications**: a Slack message (the connected bot token and a
+  channel, or the incoming webhook) or an email (the connected Resend key)
+  when a run starts, finishes or fails, with per-agent overrides.
+
+On a [deployed Studio](/hostinger-vps) these two URLs skip the Studio
+login, like every other `/hooks/` path; the key or secret is their only guard.
+
 ## First-agent walkthrough
 
 1. **Create an agent.** On the agents list (`#/agents`) click **New agent**
@@ -877,15 +903,14 @@ an agent's saved traces (the Trace tab uses them):
 The flow, for an agent `weather` that has run once:
 
 ```bash
-# $TOKEN is the ?token= value `lousho studio` printed
-curl -H "x-lousho-studio-token: $TOKEN" localhost:4750/runs/weather/history
+curl localhost:4750/runs/weather/history
 # {"runId":"weather","steps":[{"step":1,"status":"finished","finishReason":"stop","toolCalls":[],"tokens":...}]}
 
-curl -X POST localhost:4750/runs/weather/fork -H "x-lousho-studio-token: $TOKEN" -H 'content-type: application/json' \
+curl -X POST localhost:4750/runs/weather/fork -H 'content-type: application/json' \
   -d '{"fromStep":1,"patch":{"appendInput":"And in Celsius?"}}'
 # {"runId":"weather.fork-1","fromStep":1,"status":{"status":"running",...}}
 
-curl -H "x-lousho-studio-token: $TOKEN" 'localhost:4750/runs/compare?a=weather&b=weather.fork-1'
+curl 'localhost:4750/runs/compare?a=weather&b=weather.fork-1'
 # {"a":[...],"b":[...],"divergedAt":2,"drift":[{"field":"steps","committed":"1","current":"2"}]}
 ```
 
@@ -995,7 +1020,7 @@ node bin/lousho.js studio --dev   # or just `node bin/lousho.js studio` before b
 
 This runs the API server straight from TypeScript (`tsx`) and a real Vite
 dev server with hot-module reload for `apps/agent-forge/src/**`, as two
-sibling processes. Open the printed `http://localhost:5173/?token=...` URL; Vite
+sibling processes. Open the printed `http://localhost:5173/` URL; Vite
 is pinned to port 5173 and the API server accepts that origin. To build the production bundle used by everyone else
 (and to verify what actually ships):
 
