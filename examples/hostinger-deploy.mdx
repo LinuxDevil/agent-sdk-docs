@@ -1,22 +1,9 @@
 ---
 title: "hostinger-deploy"
 sidebarTitle: "Hostinger deploy"
+description: "Deploy a Lousho agent to a real VPS: agent/ is an agent directory for a small ops assistant (vps-ops). lousho deploy builds it, ships it over SSH and serves it over HTTPS with Docker Compose."
 ---
 {/* Generated from examples/hostinger-deploy/README.md in LinuxDevil/lousho by scripts/sync-sdk-docs.mjs. Do not edit here. */}
-
-Deploy a Lousho agent to a real VPS: `agent/` is an agent directory for a
-small ops assistant (`vps-ops`), and `deploy.mjs` builds it with
-`lousho build --target=docker`, ships the context over SSH, and runs the
-container on a Hostinger virtual machine.
-
-| Piece | What it uses |
-|---|---|
-| The agent | agent directory (`agent.json` + `instructions.md` + `tools/host.ts`) loaded by the built server |
-| The build | `lousho build --target=docker` (bundled `dist/server.js` + `Dockerfile`) |
-| VM discovery | Hostinger API `GET /api/vps/v1/virtual-machines` — the same API the `hostinger-vps` MCP server wraps |
-| The ship | `tar` + `scp` + `ssh` (needs SSH access to the VM — an attached public key) |
-| Durability | `LOUSHO_STORE=sqlite:/data/lousho.db` on a `lousho-data` volume — sessions and approvals survive container restarts |
-| Auth | `LOUSHO_API_TOKEN` bearer on every route except `/health` |
 
 ## What it deploys
 
@@ -29,27 +16,16 @@ for approval, reads are always allowed. The model is
 ## Run it
 
 ```bash
-export HOSTINGER_API_TOKEN=...   # Hostinger API token (developers.hostinger.com)
-export OPENROUTER_API_KEY=...    # the agent's model key
-export LOUSHO_API_TOKEN=...      # bearer token protecting the deployed server
-node examples/hostinger-deploy/deploy.mjs --vm <id|hostname|ip>
+npx lousho deploy --host <server-ip> --agent examples/hostinger-deploy/agent --no-studio
 ```
 
-The script verifies the VM is running, builds the docker target locally,
-copies the context to `/opt/lousho-agent`, builds and (re)starts the
-`lousho-agent` container on port 3000, then polls `/health` and sends one
-`/chat` round-trip. It only touches the `lousho-agent` container — VM
-provisioning, recreates and billing ops are intentionally out of scope (use
-the Hostinger API/console for those).
-
-After deploy:
+The wizard asks for the model key (`OPENROUTER_API_KEY`) and generates the
+`LOUSHO_API_TOKEN` bearer. Then:
 
 ```bash
-curl -N http://<ip>:3000/chat \
+curl -N https://agent.<server-ip-with-dashes>.sslip.io/chat \
   -H "Authorization: Bearer $LOUSHO_API_TOKEN" -H 'Content-Type: application/json' \
   -d '{"sessionId": "me", "input": "What is the load?"}'
 ```
 
-Port 3000 is plain HTTP — put Traefik (installed on the VPS template) or
-another TLS terminator in front for anything real, per
-[the deployment docs](https://github.com/LinuxDevil/lousho/blob/main/docs/deployment.md).
+See [Deploying to your own server](https://github.com/LinuxDevil/lousho/blob/main/docs/hostinger-vps.md).

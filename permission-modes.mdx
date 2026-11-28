@@ -37,6 +37,7 @@ guardrails and the tool's own `needsApproval` decided.
 | `'plan'` | Normal gate (they may still ask) | Denied | Denied | Denied |
 | `'acceptEdits'` | Normal gate | Run without asking | Pause for approval | Run |
 | `'dontAsk'` | Normal gate, but a call that would ask is denied | Denied when they would ask | Denied | Run |
+| `'bypassPermissions'` | Run without asking | Run without asking | Run without asking | Run |
 
 - **`plan`**: a call to a tool that is not read-only is refused with
   `kind: 'denied'` and the reason `The agent is in plan mode: it may read but
@@ -52,6 +53,12 @@ guardrails and the tool's own `needsApproval` decided.
   in dontAsk mode: calls that need approval are refused.` Calls an `allow` rule
   approved and calls that need no approval run. Nothing pauses, so an `approve`
   callback is never called.
+- **`bypassPermissions`**: a call that would pause for approval - an `ask`
+  rule or `needsApproval` - runs without asking. A `deny` rule, a guardrail
+  block, a tool's own `'deny'` and an enforced ask (an install receipt's
+  `exec` / `needsApproval` item) still apply, and `ask_question` still pauses
+  for the answer. Use it only where the agent's environment is the safety
+  boundary: nothing else stops a call.
 
 ### Which tools are read-only
 

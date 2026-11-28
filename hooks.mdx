@@ -290,7 +290,7 @@ const model = mockModel([{ toolCalls: [{ name: 'read_log', args: {} }] }, { text
 const agent = createAgent({ instructions: 'You read logs.', provider: model, tools: [readLog], hooks: [redact] });
 
 await agent.send('Read the log');
-const toolMessage = model.calls[1].messages.at(-1);
+const toolMessage = model.calls[1]?.messages.at(-1);
 console.log(toolMessage?.role); // 'tool': its content is the redacted text
 ```
 

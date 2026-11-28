@@ -13,7 +13,7 @@ discuss ──► spec ──► plan ──► implement ──► PROOF GATE �
                                                │ PASS
 ```
 
-Built entirely on `FlowBuilder` + `FlowExecutor`: each phase is an `llmCall` writing a named variable, the proof gate is a `toolCall` running a real check, and `oneOf` branches on the verdict.
+Built entirely on `FlowBuilder` + `FlowExecutor`: each phase is an `llmCall` writing a named variable, the proof gate is a `toolCall` that parses the implementation with `node --check` (it never runs the code), and `oneOf` branches on the verdict.
 
 ## What this example had to learn about the executor
 
@@ -26,7 +26,7 @@ The runtime node set differs from the editor shapes — worth knowing before wri
 Run it:
 
 ```bash
-npm run example:phase-pipeline    # offline, scripted phases + real node -e check
+npm run example:phase-pipeline    # offline: a broken first attempt fails the gate, the retry passes
 OPENROUTER_API_KEY=… npx tsx examples/phase-pipeline/index.ts
 ```
 

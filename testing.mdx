@@ -67,7 +67,7 @@ describe('weather agent', () => {
     expect(result.text).toBe('It is 21°C in Paris.');
     expect(execute).toHaveBeenCalledWith({ city: 'Paris' }, expect.anything());
     expect(model.calls).toHaveLength(2);
-    expect(model.calls[1].messages.at(-1)).toMatchObject({ role: 'tool', toolCallId: 'call_1' });
+    expect(model.calls[1]?.messages.at(-1)).toMatchObject({ role: 'tool', toolCallId: 'call_1' });
     model.assertExhausted(); // fails if scripted turns were never used
   });
 });

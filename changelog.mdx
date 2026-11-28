@@ -6,6 +6,58 @@ description: "Every notable change to lousho, newest first."
 
 ## [Unreleased]
 
+- Security: `undici` is `^8.12.2` (earlier 8.x releases have published advisories). Install commands, and new projects use `zod@^4.6.6`, which fixes GHSA-mrhx-c7xc-m3w5, and Studio accepts it; the SDK's own peer range still accepts zod 3.
+- `lousho deploy` names the newest Studio source with forward slashes on Windows too.
+
+## [1.0.0-alpha.135] - 2026-11-19
+
+## [1.0.0-alpha.134] - 2026-11-19
+
+## [1.0.0-alpha.133] - 2026-11-18
+
+## [1.0.0-alpha.132] - 2026-11-18
+
+## [1.0.0-alpha.131] - 2026-11-18
+
+## [1.0.0-alpha.130] - 2026-11-18
+
+## [1.0.0-alpha.129] - 2026-11-18
+
+## [1.0.0-alpha.128] - 2026-11-17
+
+## [1.0.0-alpha.127] - 2026-11-17
+
+## [1.0.0-alpha.126] - 2026-11-17
+
+## [1.0.0-alpha.125] - 2026-11-17
+
+## [1.0.0-alpha.124] - 2026-11-16
+
+- `lousho doctor <spec>` validates version 2 specs (all six Studio templates) instead of reporting v1 schema errors.
+- `lousho init --template telegram` scaffolds a project whose `npm run typecheck` passes (its bridge imported the non-existent `Agent` and `Session` types).
+- Examples: `examples/openrouter` uses `anthropic/claude-sonnet-4.5` (Sonnet 4 is retired on OpenRouter) and keeps running the other snippets when one fails; `heal-benchmark` defaults its editor to `qwen/qwen3.7-flash`; `research-assistant` uses `anthropic/claude-sonnet-4-5`; READMEs no longer point at removed tests, `tracing` has a README, and the hostinger-deploy and deep-research descriptions match what they do.
+## [1.0.0-alpha.123] - 2026-11-16
+
+- Release: `lousho-studio` is published with a semver `lousho` range. Earlier releases (0.1.0-alpha.2 to alpha.4) carried `"lousho": "file:../.."` in their registry metadata and could not be installed from npm.
+
+## [1.0.0-alpha.122] - 2026-11-16
+
+- Studio: a workspace whose `lousho` is the same install Studio runs on uses Studio's in-process host (full features, no banner) instead of the bridge. The Studio image `lousho deploy` builds links its `lousho` at `/node_modules`, so deployed workspaces resolve it.
+- Studio: a permission rule like `github_create_*` now counts as covering a `github` integration tool, so the canvas no longer warns that no tool matches it.
+
+## [1.0.0-alpha.121] - 2026-11-16
+
+- Specs and Studio: the `github` integration and `github` channel trigger accept a GitHub App (`appId`, `privateKey`) instead of a token, and a channel trigger's `pullRequests: true` reviews every pull request from owners, members and collaborators. `lousho deploy` serves Studio's `/hooks/*` past its login so platform webhooks (checked by their own signatures) reach Studio-hosted agents, and `lousho deploy github-app --agent <studio-agent-id>` points an App at one.
+- `lousho deploy` puts Studio and agent folders on your own server over SSH: Docker Compose behind HTTPS (Caddy, or the server's Traefik), Studio behind a username and password, each agent at `https://<agent>.<domain>` (default `<ip>.sslip.io`). A wizard asks for anything missing and remembers it in `lousho.deploy.json`, with secrets in `~/.config/lousho/deploy-<name>.env`. `lousho deploy github-app` creates a GitHub App for an agent and wires its webhook. Studio's Serve card shows the command. See [Deploying to your own server](/hostinger-vps).
+- `examples/hostinger-deploy/deploy.mjs` is removed; use `lousho deploy`.
+- `github_submit_review` posts one pull-request review with a verdict and inline comments; `createGitHubTools()` also authenticates as a GitHub App (`app: { appId, privateKey }`) or with a token function. See [Tools](/tools).
+- `githubChannel({ pullRequestEvents, replyToPullRequest })` re-reviews pull requests on every push (drafts skipped until ready) and can stay silent when the agent posts its own review. See [Channels](/channels).
+- Built-in `workspace_read`, `workspace_write` and `shell` tools, confined to `options.root` and refusing `.env`, `.git` and `.lousho`.
+- **Breaking:** Studio no longer uses a per-launch access token. `LOUSHO_STUDIO_TOKEN`, the `?token=` URL parameter and the `x-lousho-studio-token` header are gone; the Host and Origin checks remain. A Studio bound to `--host 0.0.0.0` must sit behind a login such as a reverse proxy with basic auth. See [Studio access](/agent-forge#access).
+- The test suite keeps only the crucial tests (about 1000); the live-model, Docker and bridge-compat suites, the coverage floors and the fallow gate are removed from CI.
+
+## [1.0.0-alpha.120] - 2026-11-15
+
 - The npm packages ship unscoped: `lousho` (SDK), `lousho-studio` (Studio) and `create-lousho` (scaffold). The `@linuxdevil/*` scoped names from alpha.118/119 are dropped — they were never published to npm, so `npm install lousho` continues the existing package line.
 
 ## [1.0.0-alpha.119] - 2026-11-14
